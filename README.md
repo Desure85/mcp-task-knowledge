@@ -233,6 +233,12 @@ docker run --rm -it \
 
 ## Запуск в Docker
 
+> Важно
+>
+> - CPU-образ уже содержит предзагруженные артефакты модели и токенайзера в каталоге `/app/models`.
+> - Для onnx-режимов указывайте `EMBEDDINGS_MODEL_PATH=/app/models/encoder.onnx` (или соответствующий `model.onnx`).
+> - Размерность часто определяется автоматически из `/app/models/metadata.json`; при необходимости задайте `EMBEDDINGS_DIM` явно.
+
 ### Быстрый старт (рекомендуется)
 - make-таргеты в `mcp-task-knowledge/Makefile`:
   - `make docker-buildx-cpu` — сборка образа CPU (runtime-onnx-cpu) с кэшем.
@@ -240,6 +246,8 @@ docker run --rm -it \
   - `make smoke-embeddings-cpu-nobuild` — запустить smoke без пересборки.
   - `make compose-up` / `make compose-down` — поднять/остановить compose (`docker-compose.catalog.yml`).
   - `make up-cpu` — переключить compose на onnx-cpu и пересобрать.
+
+Подсказка: в CPU-образе путь к модели по умолчанию — `/app/models/encoder.onnx`. Пример: `-e EMBEDDINGS_MODEL_PATH=/app/models/encoder.onnx`.
 
 - npm‑скрипты из `mcp-task-knowledge/package.json`:
   - `npm run compose:up` / `npm run compose:down`
