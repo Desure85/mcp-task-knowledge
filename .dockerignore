@@ -1,0 +1,16 @@
+node_modules
+npm-cache
+.git
+Dockerfile
+README.md
+.tsconfig
+*.log
+.gitignore
+.vscode
+.dist
+
+# Exclude local data and build outputs to keep context small
+.data
+dist
+tmp
+.buildx-cache

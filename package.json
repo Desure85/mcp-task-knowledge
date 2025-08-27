@@ -1,0 +1,42 @@
+{
+  "name": "mcp-task-knowledge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "compose:up": "docker compose -f docker-compose.catalog.yml up --build",
+    "compose:down": "docker compose -f docker-compose.catalog.yml down -v",
+    "compose:smoke": "bash scripts/compose_smoke.sh",
+    "compose:smoke:all": "bash scripts/compose_smoke_all.sh",
+    "smoke:catalog": "bash scripts/smoke_catalog.sh",
+    "onnx:selfcheck:cpu": "bash scripts/onnx_cpu_selfcheck.sh",
+    "test": "vitest run",
+    "e2e:cli": "bash scripts/e2e_cli.sh",
+    "obsidian:smoke": "node scripts/obsidian_roundtrip.mjs",
+    "obsidian:matrix": "node scripts/obsidian_live_matrix.mjs",
+    "project:purge:tracker": "node scripts/purge_tracker.js",
+    "project:purge": "node scripts/purge_project.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.3",
+    "fast-glob": "^3.3.2",
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^14.1.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8",
+    "onnxruntime-web": "^1.22.0",
+    "onnxruntime-node": "1.20.0",
+    "@xenova/transformers": "^2.17.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.17.0",
+    "typescript": "^5.5.4",
+    "@types/node": "^20.14.12",
+    "@types/uuid": "^9.0.7",
+    "vitest": "^1.6.0"
+  }
+}

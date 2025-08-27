@@ -1,0 +1,96 @@
+name: Bulk Smoke
+
+on:
+  push:
+    paths:
+      - 'mcp-task-knowledge/**'
+      - 'service-catalog/**'
+      - '.github/workflows/bulk-smoke.yml'
+  pull_request:
+    paths:
+      - 'mcp-task-knowledge/**'
+      - 'service-catalog/**'
+      - '.github/workflows/bulk-smoke.yml'
+
+jobs:
+  bulk-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install & build mcp-task-knowledge
+        working-directory: mcp-task-knowledge
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run unit tests
+        working-directory: mcp-task-knowledge
+        env:
+          EMBEDDINGS_MODE: none
+        run: |
+          npm test --silent
+
+      - name: Run Obsidian roundtrip smoke
+        working-directory: mcp-task-knowledge
+        env:
+          EMBEDDINGS_MODE: none
+          PROJECT: mcp
+        run: |
+          node scripts/obsidian_roundtrip.mjs
+
+      - name: Run MCP bulk smoke (tasks, knowledge, aliases)
+        working-directory: mcp-task-knowledge
+        env:
+          APP_DIR: ${{ github.workspace }}/mcp-task-knowledge
+          DATA_DIR: ${{ runner.temp }}/mcp-data
+          EMBEDDINGS_MODE: none
+          CURRENT_PROJECT: mcp
+        run: |
+          mkdir -p "$DATA_DIR"
+          node scripts/smoke_tasks.mjs
+          node scripts/smoke_knowledge.mjs
+          node scripts/smoke_tasks_aliases.mjs
+
+      - name: Install & build service-catalog
+        working-directory: service-catalog
+        run: |
+          npm ci
+          npm run build
+
+      - name: Start service-catalog and wait for health
+        working-directory: service-catalog
+        run: |
+          nohup node dist/server.js > server.log 2>&1 &
+          echo $! > server.pid
+          for i in {1..30}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/health || true)
+            if [ "$code" = "200" ]; then echo "Service ready"; break; fi
+            sleep 1
+            if [ "$i" = "30" ]; then echo "Timeout waiting for service-catalog"; cat server.log || true; exit 1; fi
+          done
+
+      - name: Run service-catalog smoke
+        working-directory: service-catalog
+        run: bash scripts/smoke.sh
+
+      - name: Show service-catalog logs on failure
+        if: failure()
+        working-directory: service-catalog
+        run: |
+          echo "=== service-catalog logs ==="
+          cat server.log || true
+
+      - name: Stop service-catalog
+        if: always()
+        working-directory: service-catalog
+        run: |
+          if [ -f server.pid ]; then kill $(cat server.pid) || true; fi

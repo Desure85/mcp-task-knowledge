@@ -1,0 +1,47 @@
+services:
+  service-catalog:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -lc "apk add --no-cache curl >/dev/null 2>&1 || true; npm i && npm run dev"
+    ports:
+      - "42056:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+    volumes:
+      - ../service-catalog:/app:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3001/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-onnx-gpu
+    depends_on:
+      service-catalog:
+        condition: service_healthy
+    environment:
+      - DATA_DIR=/data
+      - OBSIDIAN_VAULT_ROOT=/data/obsidian
+      - EMBEDDINGS_MODE=onnx-gpu
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - DEBUG_VECTOR=true
+      - ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu,cuda
+      - CATALOG_MODE=remote
+      - CATALOG_REMOTE_ENABLED=1
+      - CATALOG_REMOTE_BASE_URL=http://service-catalog:3001
+      - CATALOG_REMOTE_TIMEOUT_MS=2000
+    volumes:
+      - ./.data:/data:rw
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              device_ids: ['0']
+    # MCP сервер общается по stdio, порт не требуется. Оставлено без expose.
