@@ -2,14 +2,23 @@ services:
   service-catalog:
     image: node:20-alpine
     working_dir: /app
-    command: sh -lc "apk add --no-cache curl >/dev/null 2>&1 || true; npm i && npm run dev"
-    ports:
-      - "42056:3001"
     environment:
       - NODE_ENV=development
       - PORT=3001
-    volumes:
-      - ../service-catalog:/app:rw
+      - SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git
+      - SERVICE_CATALOG_REF=main
+    # Клонирование каталога из GitHub при старте контейнера (без локального маунта)
+    command: >-
+      sh -lc "set -euo pipefail; \
+      apk add --no-cache git curl >/dev/null 2>&1 || true; \
+      if [ ! -d .git ]; then \
+        echo '[svc] cloning service-catalog from '${SERVICE_CATALOG_GIT}' ref '${SERVICE_CATALOG_REF}'; \
+        git clone --depth 1 -b \"${SERVICE_CATALOG_REF}\" \"${SERVICE_CATALOG_GIT}\" /app; \
+      fi; \
+      npm ci || npm i; \
+      npm run dev"
+    ports:
+      - "42056:3001"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3001/api/health >/dev/null || exit 1"]
       interval: 10s
@@ -20,28 +29,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime-onnx-gpu
+      target: runtime-onnx-cpu
     depends_on:
       service-catalog:
         condition: service_healthy
     environment:
       - DATA_DIR=/data
       - OBSIDIAN_VAULT_ROOT=/data/obsidian
-      - EMBEDDINGS_MODE=onnx-gpu
-      - NVIDIA_VISIBLE_DEVICES=0
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - DEBUG_VECTOR=true
-      - ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu,cuda
+      - EMBEDDINGS_MODE=none
+      - DEBUG_VECTOR=false
+      - CATALOG_ENABLED=1
+      - CATALOG_READ_ENABLED=1
+      - CATALOG_WRITE_ENABLED=0
       - CATALOG_MODE=remote
       - CATALOG_REMOTE_ENABLED=1
       - CATALOG_REMOTE_BASE_URL=http://service-catalog:3001
       - CATALOG_REMOTE_TIMEOUT_MS=2000
     volumes:
       - ./.data:/data:rw
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-              device_ids: ['0']
     # MCP сервер общается по stdio, порт не требуется. Оставлено без expose.

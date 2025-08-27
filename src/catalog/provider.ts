@@ -1,5 +1,6 @@
 import { CatalogConfig } from "../config.js";
 import fs from "node:fs";
+import path from "node:path";
 
 export interface ServiceQuery {
   search?: string;
@@ -38,6 +39,8 @@ export interface ServiceCatalogProvider {
   mode: "embedded" | "remote" | "hybrid";
   queryServices(q: ServiceQuery): Promise<ServicePage>;
   health(): Promise<{ ok: boolean; source: "remote" | "embedded"; detail?: any }>;
+  upsertServices(items: ServiceItem[]): Promise<{ ok: boolean; count: number }>;
+  deleteServices(ids: string[]): Promise<{ ok: boolean; count: number }>;
 }
 
 function pickRemote(cfg: CatalogConfig): boolean {
@@ -126,11 +129,17 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
       // @ts-ignore
       const lib = await import("service-catalog/lib");
       if (lib?.initEmbeddedCatalog) {
-        embeddedLibHandle = await lib.initEmbeddedCatalog({
-          store: cfg.embedded.store === "file" ? "file" : "memory",
+        const initArgs: any = {
+          // allow 'memory' | 'file' | 'sqlite' (sqlite depends on external driver availability)
+          store: cfg.embedded.store,
           filePath: cfg.embedded.filePath,
           prefix: cfg.embedded.prefix,
-        });
+        };
+        // Optional: sqlite driver hint ('auto' | 'native' | 'wasm')
+        if (cfg.embedded.store === "sqlite" && (cfg.embedded as any).sqliteDriver) {
+          initArgs.driver = (cfg.embedded as any).sqliteDriver;
+        }
+        embeddedLibHandle = await lib.initEmbeddedCatalog(initArgs);
         return embeddedLibHandle;
       }
     } catch {
@@ -342,6 +351,78 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
         const ok = cfg.remote.baseUrl ? await remoteHealth(cfg.remote.baseUrl, cfg.remote.timeoutMs) : false;
         return ok ? { ok, source: "remote" } : { ok: false, source: "embedded", detail };
       }
+    },
+
+    async upsertServices(items: ServiceItem[]) {
+      // Only allow writes when embedded is enabled; for hybrid, we write to embedded side
+      if (!cfg.embedded.enabled) {
+        throw new Error('embedded catalog is disabled — write operations are not allowed');
+      }
+      const handle = await getEmbeddedLibHandle();
+      if (handle?.upsertServices) {
+        const res = await handle.upsertServices(items);
+        const count = Array.isArray(res?.items) ? res.items.length : (Array.isArray(items) ? items.length : 0);
+        return { ok: true, count };
+      }
+      // Fallback: in-memory/file backend
+      // Reload current items if file store
+      reloadIfNeeded();
+      const now = new Date().toISOString();
+      const byId = new Map<string, ServiceItem>();
+      for (const it of embedded.items) byId.set(it.id, it);
+      for (const raw of items || []) {
+        const it: ServiceItem = { ...raw } as any;
+        it.updatedAt = it.updatedAt || now;
+        byId.set(it.id, it);
+      }
+      embedded.items = Array.from(byId.values());
+      // Persist if file store
+      if (cfg.embedded.store === 'file') {
+        const p = embedded.filePath;
+        if (!p) throw new Error('embedded.filePath is required for file store');
+        try {
+          const dir = path.dirname(p);
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(p, JSON.stringify({ items: embedded.items }, null, 2), 'utf8');
+          const st = fs.statSync(p);
+          embedded.lastLoadedAt = st.mtimeMs;
+        } catch (e) {
+          throw new Error(`persist failed: ${String((e as any)?.message || e)}`);
+        }
+      }
+      return { ok: true, count: items?.length || 0 };
+    },
+
+    async deleteServices(ids: string[]) {
+      if (!cfg.embedded.enabled) {
+        throw new Error('embedded catalog is disabled — write operations are not allowed');
+      }
+      const handle = await getEmbeddedLibHandle();
+      if (handle?.deleteServices) {
+        const res = await handle.deleteServices(ids);
+        const count = Array.isArray(res?.ids) ? res.ids.length : (Array.isArray(ids) ? ids.length : 0);
+        return { ok: true, count };
+      }
+      // Fallback for file/memory
+      reloadIfNeeded();
+      const before = embedded.items.length;
+      const toDelete = new Set((ids || []).filter(Boolean));
+      embedded.items = embedded.items.filter((it) => !toDelete.has(it.id));
+      const removed = before - embedded.items.length;
+      if (cfg.embedded.store === 'file') {
+        const p = embedded.filePath;
+        if (!p) throw new Error('embedded.filePath is required for file store');
+        try {
+          const dir = path.dirname(p);
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(p, JSON.stringify({ items: embedded.items }, null, 2), 'utf8');
+          const st = fs.statSync(p);
+          embedded.lastLoadedAt = st.mtimeMs;
+        } catch (e) {
+          throw new Error(`persist failed: ${String((e as any)?.message || e)}`);
+        }
+      }
+      return { ok: true, count: removed };
     },
   };
 }

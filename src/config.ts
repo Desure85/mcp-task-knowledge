@@ -210,7 +210,7 @@ export function loadConfig(): ServerConfig {
 // ===== Service Catalog (embedded/remote/hybrid) =====
 export type CatalogMode = 'embedded' | 'remote' | 'hybrid';
 export type CatalogPrefer = 'embedded' | 'remote';
-export type CatalogStore = 'memory' | 'file';
+export type CatalogStore = 'memory' | 'file' | 'sqlite';
 
 export interface CatalogConfig {
   mode: CatalogMode;            // embedded | remote | hybrid
@@ -218,8 +218,10 @@ export interface CatalogConfig {
   embedded: {
     enabled: boolean;
     prefix: string;             // например "/catalog"
-    store: CatalogStore;        // memory | file
+    store: CatalogStore;        // memory | file | sqlite
     filePath?: string;          // путь к JSON при store=file
+    // Для sqlite-магазина внешний lib может поддерживать драйверы: auto | native | wasm
+    sqliteDriver?: 'auto' | 'native' | 'wasm';
   };
   remote: {
     enabled: boolean;
@@ -248,6 +250,25 @@ export function isCatalogEnabled(): boolean {
   return parseBool(cfgFlag ?? envFlag, false);
 }
 
+// Fine-grained read/write access flags for catalog tools
+export function isCatalogReadEnabled(): boolean {
+  // If catalog globally disabled, read is disabled
+  if (!isCatalogEnabled()) return false;
+  const cfgFlag = (fileConfig?.catalog?.readEnabled as boolean | undefined);
+  const envFlag = process.env.CATALOG_READ_ENABLED;
+  // default read=true when catalog enabled
+  return parseBool(cfgFlag ?? envFlag, true);
+}
+
+export function isCatalogWriteEnabled(): boolean {
+  // If catalog globally disabled, write is disabled
+  if (!isCatalogEnabled()) return false;
+  const cfgFlag = (fileConfig?.catalog?.writeEnabled as boolean | undefined);
+  const envFlag = process.env.CATALOG_WRITE_ENABLED;
+  // default write=false for safety unless explicitly enabled
+  return parseBool(cfgFlag ?? envFlag, false);
+}
+
 function parseNum(v: any, def: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
@@ -263,6 +284,8 @@ export function loadCatalogConfig(): CatalogConfig {
   const embeddedPrefix = (fc?.embedded?.prefix as string) || process.env.CATALOG_EMBEDDED_PREFIX || '/catalog';
   const embeddedStore = ((fc?.embedded?.store as CatalogStore) || (process.env.CATALOG_EMBEDDED_STORE as CatalogStore) || 'memory');
   const embeddedFilePath = (fc?.embedded?.filePath as string) || process.env.CATALOG_EMBEDDED_FILE_PATH;
+  const embeddedSqliteDriver = (fc?.embedded?.sqliteDriver as 'auto'|'native'|'wasm'|undefined)
+    || (process.env.CATALOG_EMBEDDED_SQLITE_DRIVER as 'auto'|'native'|'wasm'|undefined);
 
   const remoteBase = (fc?.remote?.baseUrl as string) || process.env.CATALOG_URL || process.env.CATALOG_REMOTE_BASE_URL;
   const remoteEnabled = parseBool(fc?.remote?.enabled ?? process.env.CATALOG_REMOTE_ENABLED, mode !== 'embedded');
@@ -282,6 +305,7 @@ export function loadCatalogConfig(): CatalogConfig {
       prefix: embeddedPrefix,
       store: embeddedStore,
       filePath: embeddedFilePath,
+      sqliteDriver: embeddedSqliteDriver,
     },
     remote: {
       enabled: remoteEnabled,

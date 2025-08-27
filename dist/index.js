@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, isCatalogEnabled } from "./config.js";
+import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled } from "./config.js";
 import { createServiceCatalogProvider } from "./catalog/provider.js";
 import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
 import { createDoc, listDocs, readDoc, updateDoc, deleteDocPermanent } from "./storage/knowledge.js";
@@ -104,7 +104,7 @@ async function main() {
         };
     })(server.registerTool);
     // Service Catalog tools (conditionally registered)
-    if (isCatalogEnabled()) {
+    if (isCatalogEnabled() && isCatalogReadEnabled()) {
         server.registerTool("service_catalog_query", {
             title: "Service Catalog Query",
             description: "Query services from the service-catalog (supports filters, sort, pagination)",
@@ -134,7 +134,7 @@ async function main() {
         });
     }
     else {
-        console.warn('[startup][catalog] CATALOG_ENABLED=false — service catalog tools will not be registered');
+        console.warn('[startup][catalog] catalog read disabled — query tool will not be registered');
     }
     // obsidian_export_project
     server.registerTool("obsidian_export_project", {
@@ -350,7 +350,7 @@ async function main() {
         const envelope = { ok: true, data: result };
         return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
     });
-    if (isCatalogEnabled()) {
+    if (isCatalogEnabled() && isCatalogReadEnabled()) {
         server.registerTool("service_catalog_health", {
             title: "Service Catalog Health",
             description: "Check health of the configured service-catalog source (remote/embedded)",
@@ -359,6 +359,58 @@ async function main() {
             const h = await catalogProvider.health();
             const envelope = { ok: true, data: h };
             return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+        });
+    }
+    // Catalog write tools: upsert and delete
+    if (isCatalogEnabled() && isCatalogWriteEnabled()) {
+        // service_catalog_upsert
+        server.registerTool("service_catalog_upsert", {
+            title: "Service Catalog Upsert Services",
+            description: "Create or update services in the service catalog (embedded or hybrid-embedded)",
+            inputSchema: {
+                items: z
+                    .array(z.object({
+                    id: z.string().min(1),
+                    name: z.string().min(1),
+                    component: z.string().min(1),
+                    domain: z.string().optional(),
+                    status: z.string().optional(),
+                    owners: z.array(z.string()).optional(),
+                    tags: z.array(z.string()).optional(),
+                    annotations: z.record(z.string()).optional(),
+                    updatedAt: z.string().optional(),
+                }))
+                    .min(1)
+                    .max(100),
+            },
+        }, async ({ items }) => {
+            try {
+                const res = await catalogProvider.upsertServices(items);
+                const envelope = { ok: true, data: res };
+                return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+            }
+            catch (e) {
+                const envelope = { ok: false, error: { message: `service-catalog upsert failed: ${e?.message || String(e)}` } };
+                return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+            }
+        });
+        // service_catalog_delete
+        server.registerTool("service_catalog_delete", {
+            title: "Service Catalog Delete Services",
+            description: "Delete services by ids from the service catalog (embedded or hybrid-embedded)",
+            inputSchema: {
+                ids: z.array(z.string().min(1)).min(1).max(200),
+            },
+        }, async ({ ids }) => {
+            try {
+                const res = await catalogProvider.deleteServices(ids);
+                const envelope = { ok: true, data: res };
+                return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+            }
+            catch (e) {
+                const envelope = { ok: false, error: { message: `service-catalog delete failed: ${e?.message || String(e)}` } };
+                return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+            }
         });
     }
     // tasks.bulk_update

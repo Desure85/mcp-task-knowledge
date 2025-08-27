@@ -198,6 +198,25 @@ export function isCatalogEnabled() {
     // default: disabled to avoid surprising external calls
     return parseBool(cfgFlag ?? envFlag, false);
 }
+// Fine-grained read/write access flags for catalog tools
+export function isCatalogReadEnabled() {
+    // If catalog globally disabled, read is disabled
+    if (!isCatalogEnabled())
+        return false;
+    const cfgFlag = fileConfig?.catalog?.readEnabled;
+    const envFlag = process.env.CATALOG_READ_ENABLED;
+    // default read=true when catalog enabled
+    return parseBool(cfgFlag ?? envFlag, true);
+}
+export function isCatalogWriteEnabled() {
+    // If catalog globally disabled, write is disabled
+    if (!isCatalogEnabled())
+        return false;
+    const cfgFlag = fileConfig?.catalog?.writeEnabled;
+    const envFlag = process.env.CATALOG_WRITE_ENABLED;
+    // default write=false for safety unless explicitly enabled
+    return parseBool(cfgFlag ?? envFlag, false);
+}
 function parseNum(v, def) {
     const n = Number(v);
     return Number.isFinite(n) ? n : def;
@@ -210,6 +229,8 @@ export function loadCatalogConfig() {
     const embeddedPrefix = fc?.embedded?.prefix || process.env.CATALOG_EMBEDDED_PREFIX || '/catalog';
     const embeddedStore = (fc?.embedded?.store || process.env.CATALOG_EMBEDDED_STORE || 'memory');
     const embeddedFilePath = fc?.embedded?.filePath || process.env.CATALOG_EMBEDDED_FILE_PATH;
+    const embeddedSqliteDriver = fc?.embedded?.sqliteDriver
+        || process.env.CATALOG_EMBEDDED_SQLITE_DRIVER;
     const remoteBase = fc?.remote?.baseUrl || process.env.CATALOG_URL || process.env.CATALOG_REMOTE_BASE_URL;
     const remoteEnabled = parseBool(fc?.remote?.enabled ?? process.env.CATALOG_REMOTE_ENABLED, mode !== 'embedded');
     const remoteTimeout = parseNum(fc?.remote?.timeoutMs ?? process.env.CATALOG_REMOTE_TIMEOUT_MS, 2000);
@@ -226,6 +247,7 @@ export function loadCatalogConfig() {
             prefix: embeddedPrefix,
             store: embeddedStore,
             filePath: embeddedFilePath,
+            sqliteDriver: embeddedSqliteDriver,
         },
         remote: {
             enabled: remoteEnabled,

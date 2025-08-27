@@ -183,6 +183,38 @@ node dist/index.js
 | `CATALOG_SYNC_INTERVAL_SEC` | Интервал синхронизации (сек) | `60` |
 | `CATALOG_SYNC_DIRECTION` | Направление синхронизации | `remote_to_embedded` |
 
+#### Доступ на чтение/запись и MCP-инструменты
+
+- Флаги доступа (глобальный выключатель — `CATALOG_ENABLED`):
+  - `CATALOG_READ_ENABLED` — включает регистрацию и работу read-инструментов каталога. По умолчанию: `true` при `CATALOG_ENABLED=1`.
+  - `CATALOG_WRITE_ENABLED` — включает регистрацию write-инструментов каталога. По умолчанию: `false` (для безопасности).
+
+- Зарегистрированные инструменты (при включении соответствующих флагов):
+  - Read: `service_catalog_query`, `service_catalog_health` (требует `CATALOG_ENABLED=1` и `CATALOG_READ_ENABLED=1`).
+  - Write: `service_catalog_upsert`, `service_catalog_delete` (требует `CATALOG_ENABLED=1` и `CATALOG_WRITE_ENABLED=1`).
+
+- Примеры вызова write-инструментов:
+
+```jsonc
+// Upsert (создание/обновление)
+{
+  "name": "service_catalog_upsert",
+  "arguments": {
+    "items": [
+      { "id": "svc-pay", "name": "Payments API", "component": "payments", "owners": ["team-pay"], "tags": ["api","critical"] }
+    ]
+  }
+}
+
+// Delete (удаление по id)
+{
+  "name": "service_catalog_delete",
+  "arguments": { "ids": ["svc-pay"] }
+}
+```
+
+Права записи поддерживаются только для embedded‑части (в режимах `embedded` и `hybrid`). В `hybrid` запись всегда идёт в embedded, даже если `CATALOG_PREFER=remote`.
+
 #### Встроенный режим (embedded) через внешнюю библиотеку
 
 Начиная с этой версии, embedded‑режим делегируется внешней библиотеке `service-catalog/lib`, если она доступна, с автоматическим откатом на локальную file/memory‑реализацию при отсутствии библиотеки.
@@ -248,12 +280,63 @@ export CATALOG_EMBEDDED_FILE_PATH=/absolute/path/to/catalog.json
 
 // Вариант 2: объект с полем items
 { "items": [ { /* как выше */ } ] }
+
+// Вариант 3: объект с полем items и дополнительными полями
+{ 
+  "items": [ 
+    { 
+      "id": "svc-payments",
+      "name": "Payments Service",
+      "component": "payments",
+      "domain": "billing",
+      "status": "prod",
+      "owners": ["team-billing"],
+      "tags": ["backend","critical"],
+      "annotations": { "repo": "git@..." },
+      "updatedAt": "2025-08-20T12:00:00Z"
+    } 
+  ],
+  "metadata": {
+    "total": 100,
+    "page": 1,
+    "pageSize": 10
+  }
+}
 ```
 
 — Гибридный режим (hybrid):
 
 - `CATALOG_MODE=hybrid`, порядок опроса источников определяется `CATALOG_PREFER` (`embedded`|`remote`).
 - При недоступности предпочтительного источника идёт автоматическое переключение на альтернативный (embedded ↔ remote).
+
+#### Миграция и синхронизация (remote ↔ embedded)
+
+Цель — безопасно управлять embedded‑копией каталога при наличии удалённого сервиса.
+
+- Варианты сценариев:
+  - __One‑time миграция remote → embedded__: разовый экспорт remote в embedded‑файл для офлайн/локальной работы.
+  - __Периодическая синхронизация__: регулярное обновление embedded из remote (read‑only с точки зрения embedded), с опциональной отправкой локальных изменений обратно (двусторонняя синхронизация — по договорённости политики).
+
+- Рекомендуемая конфигурация для миграции remote → embedded:
+  - `CATALOG_MODE=hybrid`
+  - `CATALOG_PREFER=remote`
+  - `CATALOG_REMOTE_ENABLED=1`, `CATALOG_REMOTE_BASE_URL=http://remote:3001`
+  - `CATALOG_EMBEDDED_ENABLED=1`, `CATALOG_EMBEDDED_STORE=file`, `CATALOG_EMBEDDED_FILE_PATH=/data/catalog.json`
+  - `CATALOG_ENABLED=1`, `CATALOG_READ_ENABLED=1`, `CATALOG_WRITE_ENABLED=1` (для возможности upsert/delete в embedded).
+
+- Процедура миграции (пример):
+  1) Выполнить `service_catalog_query` по страницам, собирая все элементы из remote (в `hybrid` с prefer=remote запросы пойдут в remote).
+  2) Сохранить в embedded через `service_catalog_upsert` пачками (10–100 элементов) — данные будут записаны в файл (при `store=file`).
+  3) Опционально переключить `CATALOG_PREFER=embedded` для офлайн‑режима.
+
+- Периодическая синхронизация:
+  - Включить планировщик вне MCP (cron/systemd/k8s CronJob) и периодически повторять шаги миграции (1→2).
+  - Конфликтную политику определять по полю `updatedAt` (при upsert локально оно авто‑устанавливается, при наличии удалённого источника полагайтесь на источник истины).
+  - Для однонаправленной sync `remote_to_embedded` избегайте записи обратно в remote из MCP.
+
+Заметки по безопасности:
+- По умолчанию `CATALOG_WRITE_ENABLED=0`. Включайте запись только там, где это целесообразно и контролируемо.
+- В `embedded.store=file` содержимое записывается как массив или `{ items: [...] }`. Файл должен находиться в доступной для записи директории.
 
 — Отладка и частые ошибки:
 
@@ -290,6 +373,47 @@ docker build \
   --build-arg SERVICE_CATALOG_GIT= \
   -t mcp-task-knowledge:base .
 ```
+
+### Docker Compose: сервис каталога из GitHub + MCP (remote mode)
+
+В репозитории есть готовый `docker-compose.catalog.yml`, который поднимает два сервиса:
+
+- `service-catalog` — клонирует `service-catalog` из GitHub при старте и запускает его на `:3001`.
+- `mcp` — MCP‑сервер в режиме `remote`, указывающий на `service-catalog`.
+
+Старт:
+
+```bash
+make compose-up
+# или напрямую:
+docker compose -f docker-compose.catalog.yml up --build -d
+```
+
+Остановка:
+
+```bash
+make compose-down
+# или напрямую:
+docker compose -f docker-compose.catalog.yml down
+```
+
+Ключевые настройки внутри compose:
+
+- `service-catalog`:
+  - `SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git`
+  - `SERVICE_CATALOG_REF=main`
+  - при старте контейнер выполняет `git clone` и `npm run dev` (без локального маунта каталога).
+
+- `mcp`:
+  - `CATALOG_ENABLED=1`, `CATALOG_READ_ENABLED=1`, `CATALOG_WRITE_ENABLED=0` (по умолчанию запись отключена для безопасности)
+  - `CATALOG_MODE=remote`, `CATALOG_REMOTE_BASE_URL=http://service-catalog:3001`
+  - `EMBEDDINGS_MODE=none` (минимальный безопасный режим)
+  - `DATA_DIR=/data` смонтирован в `./.data`
+
+Подсказки:
+
+- Для локальной разработки каталога вместо GitHub можно вернуть volume‑маунт `../service-catalog:/app:rw` в сервисе `service-catalog`.
+- Для включения записи из MCP установите `CATALOG_WRITE_ENABLED=1` (рекомендуется только для контролируемых окружений).
 
 ### Obsidian интеграция
 
@@ -1648,11 +1772,6 @@ embeddings_compare -> {
 
 По умолчанию проект (неймспейс) — `mcp`. Если параметр `project` не указан, инструменты используют `mcp`.
 
-## Эмбеддинги и разные ИИ-агенты
-По умолчанию — BM25 (быстро, без внешних зависимостей). Для улучшения семантического поиска предусмотрен интерфейс адаптера:
-- `VectorSearchAdapter` в `src/search/index.ts`
-- Можно реализовать плагин, который вычисляет эмбеддинги (локально или через API) и хранит их рядом в `data/`.
-- Разные агенты могут использовать общий `DATA_DIR` (и общий кэш эмбеддингов), сохраняя совместимость.
 
 ## Переменные окружения
 - Обязательные:
