@@ -14,7 +14,7 @@ ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
 #  - SERVICE_CATALOG_REF: git ref/branch (default: main)
 ARG SERVICE_CATALOG_TARBALL=
 ARG SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git
-ARG SERVICE_CATALOG_REF=main
+ARG SERVICE_CATALOG_REF=master
 RUN printf "registry=${NPM_REGISTRY}\n" > .npmrc \
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-factor 2 \

@@ -36,6 +36,7 @@ COMMA := ,
 
 # Runtime defaults for local runs
 EMBEDDINGS_MODE ?= none   # options: none | onnx-cpu | onnx-gpu
+CATALOG_MODE ?= embedded  # options: embedded | remote | hybrid
 
 .PHONY: help install build dev start clean clean-dist \
 	docker-build-bm25 docker-build-cpu docker-build-gpu \
@@ -286,6 +287,7 @@ docker-run-bm25:
 	  -e DATA_DIR=/data \
 	  -e OBSIDIAN_VAULT_ROOT=/data/obsidian \
 	  -e EMBEDDINGS_MODE=none \
+	  -e CATALOG_MODE=$(CATALOG_MODE) \
 	  -v "$(DATA_DIR)":/data \
 	  $(IMG):bm25
 
@@ -296,6 +298,7 @@ docker-run-cpu:
 	  -e DATA_DIR=/data \
 	  -e OBSIDIAN_VAULT_ROOT=/data/obsidian \
 	  -e EMBEDDINGS_MODE=onnx-cpu \
+	  -e CATALOG_MODE=$(CATALOG_MODE) \
 	  -v "$(DATA_DIR)":/data \
 	  $(IMG):cpu
 
@@ -307,6 +310,7 @@ docker-run-gpu:
 	  -e DATA_DIR=/data \
 	  -e OBSIDIAN_VAULT_ROOT=/data/obsidian \
 	  -e EMBEDDINGS_MODE=onnx-gpu \
+	  -e CATALOG_MODE=$(CATALOG_MODE) \
 	  -v "$(DATA_DIR)":/data \
 	  $(IMG):gpu
 
