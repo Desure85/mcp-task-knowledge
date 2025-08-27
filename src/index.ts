@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR } from "./config.js";
+import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled } from "./config.js";
 import { createServiceCatalogProvider } from "./catalog/provider.js";
  import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
 import { createDoc, listDocs, readDoc, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from "./storage/knowledge.js";
@@ -97,37 +97,41 @@ async function main() {
     };
   })((server as any).registerTool);
 
-  // tasks.create
-  server.registerTool(
-    "service_catalog_query",
-    {
-      title: "Service Catalog Query",
-      description: "Query services from the service-catalog (supports filters, sort, pagination)",
-      inputSchema: {
-        search: z.string().optional(),
-        component: z.string().optional(),
-        owner: z.union([z.string(), z.array(z.string())]).optional(),
-        tag: z.union([z.string(), z.array(z.string())]).optional(),
-        domain: z.string().optional(),
-        status: z.string().optional(),
-        updatedFrom: z.string().optional(),
-        updatedTo: z.string().optional(),
-        sort: z.string().optional(),
-        page: z.number().int().min(1).optional(),
-        pageSize: z.number().int().min(1).max(200).optional(),
+  // Service Catalog tools (conditionally registered)
+  if (isCatalogEnabled()) {
+    server.registerTool(
+      "service_catalog_query",
+      {
+        title: "Service Catalog Query",
+        description: "Query services from the service-catalog (supports filters, sort, pagination)",
+        inputSchema: {
+          search: z.string().optional(),
+          component: z.string().optional(),
+          owner: z.union([z.string(), z.array(z.string())]).optional(),
+          tag: z.union([z.string(), z.array(z.string())]).optional(),
+          domain: z.string().optional(),
+          status: z.string().optional(),
+          updatedFrom: z.string().optional(),
+          updatedTo: z.string().optional(),
+          sort: z.string().optional(),
+          page: z.number().int().min(1).optional(),
+          pageSize: z.number().int().min(1).max(200).optional(),
+        },
       },
-    },
-    async (params: any) => {
-      try {
-        const page = await catalogProvider.queryServices(params as any);
-        const envelope = { ok: true, data: page };
-        return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
-      } catch (e: any) {
-        const envelope = { ok: false, error: { message: `service-catalog query failed: ${e?.message || String(e)}` } };
-        return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+      async (params: any) => {
+        try {
+          const page = await catalogProvider.queryServices(params as any);
+          const envelope = { ok: true, data: page };
+          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+        } catch (e: any) {
+          const envelope = { ok: false, error: { message: `service-catalog query failed: ${e?.message || String(e)}` } };
+          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+        }
       }
-    }
-  );
+    );
+  } else {
+    console.warn('[startup][catalog] CATALOG_ENABLED=false — service catalog tools will not be registered');
+  }
 
   // obsidian_export_project
   server.registerTool(
@@ -364,19 +368,21 @@ async function main() {
     }
   );
 
-  server.registerTool(
-    "service_catalog_health",
-    {
-      title: "Service Catalog Health",
-      description: "Check health of the configured service-catalog source (remote/embedded)",
-      inputSchema: {},
-    },
-    async () => {
-      const h = await catalogProvider.health();
-      const envelope = { ok: true, data: h };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
-    }
-  );
+  if (isCatalogEnabled()) {
+    server.registerTool(
+      "service_catalog_health",
+      {
+        title: "Service Catalog Health",
+        description: "Check health of the configured service-catalog source (remote/embedded)",
+        inputSchema: {},
+      },
+      async () => {
+        const h = await catalogProvider.health();
+        const envelope = { ok: true, data: h };
+        return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      }
+    );
+  }
 
   // tasks.bulk_update
   server.registerTool(

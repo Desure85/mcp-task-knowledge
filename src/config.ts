@@ -240,6 +240,14 @@ function parseBool(v: any, def = false): boolean {
   return ['1','true','yes','on'].includes(s);
 }
 
+// Global catalog enable switch: if false, catalog tools aren't registered
+export function isCatalogEnabled(): boolean {
+  const cfgFlag = (fileConfig?.catalog?.enabled as boolean | undefined);
+  const envFlag = process.env.CATALOG_ENABLED;
+  // default: disabled to avoid surprising external calls
+  return parseBool(cfgFlag ?? envFlag, false);
+}
+
 function parseNum(v: any, def: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
@@ -248,8 +256,8 @@ function parseNum(v: any, def: number): number {
 export function loadCatalogConfig(): CatalogConfig {
   const fc = fileConfig?.catalog ?? {};
 
-  const mode = (fc.mode as CatalogMode) || (process.env.CATALOG_MODE as CatalogMode) || 'remote';
-  const prefer = (fc.prefer as CatalogPrefer) || (process.env.CATALOG_PREFER as CatalogPrefer) || 'remote';
+  const mode = (fc.mode as CatalogMode) || (process.env.CATALOG_MODE as CatalogMode) || 'embedded';
+  const prefer = (fc.prefer as CatalogPrefer) || (process.env.CATALOG_PREFER as CatalogPrefer) || 'embedded';
 
   const embeddedEnabled = parseBool(fc?.embedded?.enabled ?? process.env.CATALOG_EMBEDDED_ENABLED, mode === 'embedded');
   const embeddedPrefix = (fc?.embedded?.prefix as string) || process.env.CATALOG_EMBEDDED_PREFIX || '/catalog';

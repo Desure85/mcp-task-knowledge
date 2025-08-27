@@ -1,3 +1,4 @@
+import fs from "node:fs";
 function pickRemote(cfg) {
     if (cfg.mode === "remote")
         return true;
@@ -66,17 +67,170 @@ async function remoteHealth(baseUrl, timeoutMs) {
 }
 export function createServiceCatalogProvider(cfg) {
     const useRemotePreferred = pickRemote(cfg);
+    const embedded = {
+        initialized: false,
+        items: [],
+        filePath: cfg.embedded?.filePath,
+        lastLoadedAt: undefined,
+        lastCheckedAt: undefined,
+    };
+    // Optional external library handle (service-catalog/lib)
+    let embeddedLibHandle = null;
+    let embeddedTriedImport = false;
+    async function getEmbeddedLibHandle() {
+        if (embeddedLibHandle || embeddedTriedImport)
+            return embeddedLibHandle;
+        embeddedTriedImport = true;
+        try {
+            // Dynamic import to avoid hard dependency
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            const lib = await import("service-catalog/lib");
+            if (lib?.initEmbeddedCatalog) {
+                embeddedLibHandle = await lib.initEmbeddedCatalog({
+                    store: cfg.embedded.store === "file" ? "file" : "memory",
+                    filePath: cfg.embedded.filePath,
+                    prefix: cfg.embedded.prefix,
+                });
+                return embeddedLibHandle;
+            }
+        }
+        catch {
+            // Library not installed or failed — fallback to local implementation
+            embeddedLibHandle = null;
+        }
+        return embeddedLibHandle;
+    }
+    function reloadIfNeeded() {
+        if (cfg.embedded.store !== "file") {
+            // memory mode: nothing to reload
+            embedded.initialized = true;
+            return;
+        }
+        const p = embedded.filePath || undefined;
+        if (!p) {
+            // no path provided — treat as empty catalog but initialized
+            embedded.initialized = true;
+            embedded.items = [];
+            return;
+        }
+        try {
+            if (!fs.existsSync(p)) {
+                embedded.initialized = true;
+                embedded.items = [];
+                embedded.lastLoadedAt = undefined;
+                return;
+            }
+            const st = fs.statSync(p);
+            const m = st.mtimeMs;
+            if (!embedded.initialized || embedded.lastLoadedAt !== m) {
+                const raw = fs.readFileSync(p, "utf8");
+                // Accept either { items: ServiceItem[] } or raw array
+                const data = JSON.parse(raw);
+                const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+                embedded.items = items;
+                embedded.lastLoadedAt = m;
+                embedded.initialized = true;
+            }
+        }
+        catch (e) {
+            // On parse/read error, keep previous items but mark initialized
+            embedded.initialized = true;
+        }
+    }
+    function applyFilters(items, q) {
+        const owners = ensureArray(q.owner);
+        const tags = ensureArray(q.tag);
+        const search = (q.search || "").toLowerCase().trim();
+        const updatedFrom = q.updatedFrom ? Date.parse(q.updatedFrom) : undefined;
+        const updatedTo = q.updatedTo ? Date.parse(q.updatedTo) : undefined;
+        let out = items.filter((it) => {
+            if (q.component && it.component !== q.component)
+                return false;
+            if (q.domain && it.domain !== q.domain)
+                return false;
+            if (q.status && it.status !== q.status)
+                return false;
+            if (owners && owners.length > 0) {
+                const have = new Set(it.owners || []);
+                if (!owners.some((o) => have.has(o)))
+                    return false;
+            }
+            if (tags && tags.length > 0) {
+                const have = new Set(it.tags || []);
+                if (!tags.some((t) => have.has(t)))
+                    return false;
+            }
+            if (updatedFrom != null || updatedTo != null) {
+                const t = it.updatedAt ? Date.parse(it.updatedAt) : NaN;
+                if (!Number.isFinite(t))
+                    return false;
+                if (updatedFrom != null && t < updatedFrom)
+                    return false;
+                if (updatedTo != null && t > updatedTo)
+                    return false;
+            }
+            if (search) {
+                const hay = `${it.id}\n${it.name}\n${it.component}\n${(it.tags || []).join(" ")}`.toLowerCase();
+                if (!hay.includes(search))
+                    return false;
+            }
+            return true;
+        });
+        // sort: "field:dir"
+        if (q.sort) {
+            const [field, dirRaw] = q.sort.split(":");
+            const dir = (dirRaw || "asc").toLowerCase() === "desc" ? -1 : 1;
+            out = out.slice().sort((a, b) => {
+                const av = a[field];
+                const bv = b[field];
+                if (av == null && bv == null)
+                    return 0;
+                if (av == null)
+                    return -1 * dir;
+                if (bv == null)
+                    return 1 * dir;
+                if (field === "updatedAt") {
+                    const at = Date.parse(String(av));
+                    const bt = Date.parse(String(bv));
+                    return (at - bt) * dir;
+                }
+                if (typeof av === "string" && typeof bv === "string")
+                    return av.localeCompare(bv) * dir;
+                if (typeof av === "number" && typeof bv === "number")
+                    return (av - bv) * dir;
+                return String(av).localeCompare(String(bv)) * dir;
+            });
+        }
+        return out;
+    }
+    function paginate(items, page, pageSize) {
+        const ps = pageSize && pageSize > 0 ? pageSize : 50;
+        const pg = page && page > 0 ? page : 1;
+        const start = (pg - 1) * ps;
+        const chunk = items.slice(start, start + ps);
+        return { items: chunk, total: items.length, page: pg, pageSize: ps };
+    }
     return {
         mode: cfg.mode,
         async queryServices(q) {
-            // Currently only remote implemented; embedded to be wired when core is packaged
+            // Embedded implementation: file/memory backend
             const tryRemote = async () => {
                 if (!cfg.remote.enabled || !cfg.remote.baseUrl)
                     throw new Error("remote disabled");
                 return remoteQuery(cfg.remote.baseUrl, q, cfg.remote.timeoutMs);
             };
             const tryEmbedded = async () => {
-                throw new Error("embedded service-catalog is not wired yet");
+                if (!cfg.embedded.enabled)
+                    throw new Error("embedded disabled");
+                const handle = await getEmbeddedLibHandle();
+                if (handle?.queryServices) {
+                    return handle.queryServices(q);
+                }
+                // fallback to built-in file/memory
+                reloadIfNeeded();
+                const filtered = applyFilters(embedded.items, q);
+                return paginate(filtered, q.page, q.pageSize);
             };
             if (cfg.mode === "remote")
                 return tryRemote();
@@ -106,20 +260,65 @@ export function createServiceCatalogProvider(cfg) {
                 return { ok, source: "remote" };
             }
             if (cfg.mode === "embedded") {
-                // no embedded impl yet
-                return { ok: false, source: "embedded", detail: "not wired" };
+                const handle = await getEmbeddedLibHandle();
+                if (handle?.health) {
+                    const r = await handle.health();
+                    return { ok: !!r?.ok, source: "embedded", detail: r?.detail ?? { via: "lib" } };
+                }
+                // fallback to built-in
+                reloadIfNeeded();
+                const detail = { store: cfg.embedded.store, filePath: embedded.filePath };
+                if (cfg.embedded.store === "file") {
+                    const p = embedded.filePath;
+                    const ok = !!(p && fs.existsSync(p));
+                    embedded.lastCheckedAt = new Date().toISOString();
+                    return { ok, source: "embedded", detail };
+                }
+                embedded.lastCheckedAt = new Date().toISOString();
+                return { ok: true, source: "embedded", detail };
             }
             // hybrid: probe preferred first, then fallback
             if (useRemotePreferred) {
                 const ok = cfg.remote.baseUrl ? await remoteHealth(cfg.remote.baseUrl, cfg.remote.timeoutMs) : false;
                 if (ok)
                     return { ok, source: "remote" };
-                return { ok: false, source: "embedded", detail: "not wired" };
+                // fallback to embedded check
+                const handle = await getEmbeddedLibHandle();
+                if (handle?.health) {
+                    const r = await handle.health();
+                    return { ok: !!r?.ok, source: "embedded", detail: r?.detail ?? { via: "lib" } };
+                }
+                reloadIfNeeded();
+                const detail = { store: cfg.embedded.store, filePath: embedded.filePath };
+                if (cfg.embedded.store === "file") {
+                    const p = embedded.filePath;
+                    const ok2 = !!(p && fs.existsSync(p));
+                    return { ok: ok2, source: "embedded", detail };
+                }
+                return { ok: true, source: "embedded", detail };
             }
             else {
-                // if embedded were available, we'd check it here
+                // prefer embedded first
+                const handle = await getEmbeddedLibHandle();
+                if (handle?.health) {
+                    const r = await handle.health();
+                    if (r?.ok)
+                        return { ok: true, source: "embedded", detail: r?.detail ?? { via: "lib" } };
+                }
+                reloadIfNeeded();
+                const detail = { store: cfg.embedded.store, filePath: embedded.filePath };
+                if (cfg.embedded.store === "file") {
+                    const p = embedded.filePath;
+                    const okEmb = !!(p && fs.existsSync(p));
+                    if (okEmb)
+                        return { ok: true, source: "embedded", detail };
+                }
+                else {
+                    return { ok: true, source: "embedded", detail };
+                }
+                // fallback to remote
                 const ok = cfg.remote.baseUrl ? await remoteHealth(cfg.remote.baseUrl, cfg.remote.timeoutMs) : false;
-                return ok ? { ok, source: "remote" } : { ok: false, source: "embedded", detail: "not wired" };
+                return ok ? { ok, source: "remote" } : { ok: false, source: "embedded", detail };
             }
         },
     };

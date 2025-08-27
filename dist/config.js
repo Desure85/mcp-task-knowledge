@@ -191,14 +191,21 @@ function parseBool(v, def = false) {
         return def;
     return ['1', 'true', 'yes', 'on'].includes(s);
 }
+// Global catalog enable switch: if false, catalog tools aren't registered
+export function isCatalogEnabled() {
+    const cfgFlag = fileConfig?.catalog?.enabled;
+    const envFlag = process.env.CATALOG_ENABLED;
+    // default: disabled to avoid surprising external calls
+    return parseBool(cfgFlag ?? envFlag, false);
+}
 function parseNum(v, def) {
     const n = Number(v);
     return Number.isFinite(n) ? n : def;
 }
 export function loadCatalogConfig() {
     const fc = fileConfig?.catalog ?? {};
-    const mode = fc.mode || process.env.CATALOG_MODE || 'remote';
-    const prefer = fc.prefer || process.env.CATALOG_PREFER || 'remote';
+    const mode = fc.mode || process.env.CATALOG_MODE || 'embedded';
+    const prefer = fc.prefer || process.env.CATALOG_PREFER || 'embedded';
     const embeddedEnabled = parseBool(fc?.embedded?.enabled ?? process.env.CATALOG_EMBEDDED_ENABLED, mode === 'embedded');
     const embeddedPrefix = fc?.embedded?.prefix || process.env.CATALOG_EMBEDDED_PREFIX || '/catalog';
     const embeddedStore = (fc?.embedded?.store || process.env.CATALOG_EMBEDDED_STORE || 'memory');

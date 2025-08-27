@@ -8,11 +8,34 @@ COPY .npmrc package.json ./
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
+# Optional: embed external service-catalog library
+#  - SERVICE_CATALOG_TARBALL: URL to .tgz (npm pack output) to install
+#  - SERVICE_CATALOG_GIT: git URL (https) to clone and install from folder
+#  - SERVICE_CATALOG_REF: git ref/branch (default: main)
+ARG SERVICE_CATALOG_TARBALL=
+ARG SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git
+ARG SERVICE_CATALOG_REF=main
 RUN printf "registry=${NPM_REGISTRY}\n" > .npmrc \
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-factor 2 \
  && npm config set fetch-timeout 600000 \
  && npm i --ignore-scripts --include=dev --registry=${NPM_REGISTRY}
+
+# If requested, fetch and install external service-catalog as a local dependency
+RUN set -eux; \
+  if [ -n "${SERVICE_CATALOG_TARBALL}" ]; then \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*; \
+    echo "[deps] installing service-catalog from tarball: ${SERVICE_CATALOG_TARBALL}"; \
+    curl -fsSL -o /tmp/service-catalog.tgz "${SERVICE_CATALOG_TARBALL}"; \
+    npm i --ignore-scripts --include=dev /tmp/service-catalog.tgz; \
+  elif [ -n "${SERVICE_CATALOG_GIT}" ]; then \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates git && rm -rf /var/lib/apt/lists/*; \
+    echo "[deps] cloning service-catalog from git: ${SERVICE_CATALOG_GIT} @ ${SERVICE_CATALOG_REF}"; \
+    git clone --depth 1 -b "${SERVICE_CATALOG_REF}" "${SERVICE_CATALOG_GIT}" /tmp/service-catalog; \
+    npm i --ignore-scripts --include=dev file:/tmp/service-catalog; \
+  else \
+    echo "[deps] service-catalog not embedded during build (set SERVICE_CATALOG_TARBALL or SERVICE_CATALOG_GIT)"; \
+  fi
 
 # ---------- deps (production only) ----------
 FROM deps AS deps-prod
@@ -64,7 +87,6 @@ COPY --from=builder /app/dist ./dist
 # Default data dir inside container; mount a volume to override
 ENV DATA_DIR=/data
 VOLUME ["/data"]
-
 CMD ["node", "dist/index.js"]
 
 # ---------- runtime-onnx-cpu (bm25 + onnx cpu) ----------
@@ -140,6 +162,13 @@ RUN chmod +x ./bin/entrypoint.sh
 ENTRYPOINT ["/app/bin/entrypoint.sh"]
 CMD ["node", "/app/dist/index.js"]
 VOLUME ["/data"]
+
+# ---------- aliases: with-catalog convenience targets ----------
+# These aliases simply re-tag existing stages. Actual inclusion of the catalog
+# is controlled in the deps stage via SERVICE_CATALOG_* build args.
+FROM runtime AS mcp-bm25-with-catalog
+FROM runtime-onnx-cpu AS mcp-onnx-cpu-with-catalog
+FROM runtime-onnx-gpu AS mcp-onnx-gpu-with-catalog
 
 # ---------- dev target (optional) ----------
 FROM node:20-alpine AS dev

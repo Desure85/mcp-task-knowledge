@@ -40,8 +40,10 @@ EMBEDDINGS_MODE ?= none   # options: none | onnx-cpu | onnx-gpu
 .PHONY: help install build dev start clean clean-dist \
 	docker-build-bm25 docker-build-cpu docker-build-gpu \
 	docker-build-bm25-nc docker-build-cpu-nc docker-build-gpu-nc \
+	docker-build-bm25-cat docker-build-cpu-cat docker-build-gpu-cat \
 	docker-buildx-bm25 docker-buildx-cpu docker-buildx-gpu \
 	docker-buildx-bm25-nc docker-buildx-cpu-nc docker-buildx-gpu-nc \
+	docker-buildx-bm25-cat docker-buildx-cpu-cat docker-buildx-gpu-cat \
 	docker-run-bm25 docker-run-cpu docker-run-gpu \
 	compose-up compose-up-detach compose-rebuild compose-ps compose-logs compose-down \
 	registry-up registry-down \
@@ -60,12 +62,18 @@ help:
 	@echo "  docker-build-bm25-nc  - Build Docker image (bm25) with --no-cache"
 	@echo "  docker-build-cpu-nc   - Build Docker image (ONNX CPU) with --no-cache"
 	@echo "  docker-build-gpu-nc   - Build Docker image (ONNX GPU) with --no-cache"
+	@echo "  docker-build-bm25-cat - Build bm25 image with embedded service-catalog"
+	@echo "  docker-build-cpu-cat  - Build onnx-cpu image with embedded service-catalog"
+	@echo "  docker-build-gpu-cat  - Build onnx-gpu image with embedded service-catalog"
 	@echo "  docker-buildx-bm25 - Build with buildx (bm25, --load)"
 	@echo "  docker-buildx-cpu  - Build with buildx (ONNX CPU, --load, with cache)"
 	@echo "  docker-buildx-gpu  - Build with buildx (ONNX GPU, --load, with cache)"
 	@echo "  docker-buildx-bm25-nc - Build with buildx (bm25, --no-cache, --load)"
 	@echo "  docker-buildx-cpu-nc  - Build with buildx (ONNX CPU, --no-cache, --load)"
 	@echo "  docker-buildx-gpu-nc  - Build with buildx (ONNX GPU, --no-cache, --load)"
+	@echo "  docker-buildx-bm25-cat - Buildx bm25 with embedded service-catalog"
+	@echo "  docker-buildx-cpu-cat  - Buildx onnx-cpu with embedded service-catalog"
+	@echo "  docker-buildx-gpu-cat  - Buildx onnx-gpu with embedded service-catalog"
 	@echo "  docker-run-bm25    - Run bm25 image with volume mount"
 	@echo "  docker-run-cpu     - Run onnx-cpu image with volume mount"
 	@echo "  docker-run-gpu     - Run onnx-gpu image with GPU access and volume mount"
@@ -140,6 +148,33 @@ docker-build-gpu:
 	  $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
 	  --target runtime-onnx-gpu -t $(IMG):gpu .
 
+# With catalog (uses alias stages; embedding controlled by SERVICE_CATALOG_* build args)
+docker-build-bm25-cat:
+	docker build --pull --progress=plain \
+	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
+	  $(if $(SERVICE_CATALOG_TARBALL),--build-arg SERVICE_CATALOG_TARBALL=$(SERVICE_CATALOG_TARBALL),) \
+	  $(if $(SERVICE_CATALOG_GIT),--build-arg SERVICE_CATALOG_GIT=$(SERVICE_CATALOG_GIT),) \
+	  $(if $(SERVICE_CATALOG_REF),--build-arg SERVICE_CATALOG_REF=$(SERVICE_CATALOG_REF),) \
+	  --target mcp-bm25-with-catalog -t $(IMG):bm25-cat .
+
+docker-build-cpu-cat:
+	docker build --pull --progress=plain \
+	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
+	  $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
+	  $(if $(SERVICE_CATALOG_TARBALL),--build-arg SERVICE_CATALOG_TARBALL=$(SERVICE_CATALOG_TARBALL),) \
+	  $(if $(SERVICE_CATALOG_GIT),--build-arg SERVICE_CATALOG_GIT=$(SERVICE_CATALOG_GIT),) \
+	  $(if $(SERVICE_CATALOG_REF),--build-arg SERVICE_CATALOG_REF=$(SERVICE_CATALOG_REF),) \
+	  --target mcp-onnx-cpu-with-catalog -t $(IMG):cpu-cat .
+
+docker-build-gpu-cat:
+	docker build --pull --progress=plain \
+	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
+	  $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
+	  $(if $(SERVICE_CATALOG_TARBALL),--build-arg SERVICE_CATALOG_TARBALL=$(SERVICE_CATALOG_TARBALL),) \
+	  $(if $(SERVICE_CATALOG_GIT),--build-arg SERVICE_CATALOG_GIT=$(SERVICE_CATALOG_GIT),) \
+	  $(if $(SERVICE_CATALOG_REF),--build-arg SERVICE_CATALOG_REF=$(SERVICE_CATALOG_REF),) \
+	  --target mcp-onnx-gpu-with-catalog -t $(IMG):gpu-cat .
+
 # No-cache variants (classic docker build)
 docker-build-bm25-nc:
 	docker build --pull --no-cache --progress=plain \
@@ -186,6 +221,42 @@ docker-buildx-gpu:
 	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
 	  $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
 	  --target runtime-onnx-gpu -t $(IMG):gpu .
+
+# buildx with catalog (loads into docker)
+docker-buildx-bm25-cat:
+	mkdir -p "$(BUILDX_CACHE_DIR)"
+	docker buildx build --load --progress=plain \
+	  --cache-from type=local,src=$(BUILDX_CACHE_DIR) \
+	  --cache-to type=local,dest=$(BUILDX_CACHE_DIR),mode=max \
+	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
+	  $(if $(SERVICE_CATALOG_TARBALL),--build-arg SERVICE_CATALOG_TARBALL=$(SERVICE_CATALOG_TARBALL),) \
+	  $(if $(SERVICE_CATALOG_GIT),--build-arg SERVICE_CATALOG_GIT=$(SERVICE_CATALOG_GIT),) \
+	  $(if $(SERVICE_CATALOG_REF),--build-arg SERVICE_CATALOG_REF=$(SERVICE_CATALOG_REF),) \
+	  --target mcp-bm25-with-catalog -t $(IMG):bm25-cat .
+
+docker-buildx-cpu-cat:
+	mkdir -p "$(BUILDX_CACHE_DIR)"
+	docker buildx build --load --progress=plain \
+	  --cache-from type=local,src=$(BUILDX_CACHE_DIR) \
+	  --cache-to type=local,dest=$(BUILDX_CACHE_DIR),mode=max \
+	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
+	  $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
+	  $(if $(SERVICE_CATALOG_TARBALL),--build-arg SERVICE_CATALOG_TARBALL=$(SERVICE_CATALOG_TARBALL),) \
+	  $(if $(SERVICE_CATALOG_GIT),--build-arg SERVICE_CATALOG_GIT=$(SERVICE_CATALOG_GIT),) \
+	  $(if $(SERVICE_CATALOG_REF),--build-arg SERVICE_CATALOG_REF=$(SERVICE_CATALOG_REF),) \
+	  --target mcp-onnx-cpu-with-catalog -t $(IMG):cpu-cat .
+
+docker-buildx-gpu-cat:
+	mkdir -p "$(BUILDX_CACHE_DIR)"
+	docker buildx build --load --progress=plain \
+	  --cache-from type=local,src=$(BUILDX_CACHE_DIR) \
+	  --cache-to type=local,dest=$(BUILDX_CACHE_DIR),mode=max \
+	  $(if $(NPM_REGISTRY),--build-arg NPM_REGISTRY=$(NPM_REGISTRY),) \
+	  $(if $(PIP_INDEX_URL),--build-arg PIP_INDEX_URL=$(PIP_INDEX_URL),) \
+	  $(if $(SERVICE_CATALOG_TARBALL),--build-arg SERVICE_CATALOG_TARBALL=$(SERVICE_CATALOG_TARBALL),) \
+	  $(if $(SERVICE_CATALOG_GIT),--build-arg SERVICE_CATALOG_GIT=$(SERVICE_CATALOG_GIT),) \
+	  $(if $(SERVICE_CATALOG_REF),--build-arg SERVICE_CATALOG_REF=$(SERVICE_CATALOG_REF),) \
+	  --target mcp-onnx-gpu-with-catalog -t $(IMG):gpu-cat .
 
 # No-cache variants (buildx)
 docker-buildx-bm25-nc:

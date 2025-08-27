@@ -169,8 +169,9 @@ node dist/index.js
 
 | Переменная | Описание | Значение по умолчанию |
 |------------|----------|----------------------|
-| `CATALOG_MODE` | Режим каталога | `remote` |
-| `CATALOG_PREFER` | Предпочитаемый источник | `remote` |
+| `CATALOG_MODE` | Режим каталога | `embedded` |
+| `CATALOG_PREFER` | Предпочитаемый источник | `embedded` |
+| `CATALOG_ENABLED` | Глобально включить каталог и зарегистрировать команды | `false` |
 | `CATALOG_REMOTE_BASE_URL` | URL удаленного каталога | - |
 | `CATALOG_REMOTE_ENABLED` | Включить удаленный каталог | Авто |
 | `CATALOG_REMOTE_TIMEOUT_MS` | Таймаут запросов (мс) | `2000` |
@@ -181,6 +182,114 @@ node dist/index.js
 | `CATALOG_SYNC_ENABLED` | Включить синхронизацию источников | `false` |
 | `CATALOG_SYNC_INTERVAL_SEC` | Интервал синхронизации (сек) | `60` |
 | `CATALOG_SYNC_DIRECTION` | Направление синхронизации | `remote_to_embedded` |
+
+#### Встроенный режим (embedded) через внешнюю библиотеку
+
+Начиная с этой версии, embedded‑режим делегируется внешней библиотеке `service-catalog/lib`, если она доступна, с автоматическим откатом на локальную file/memory‑реализацию при отсутствии библиотеки.
+
+— Включение каталога и подключение библиотеки:
+
+```bash
+# из папки mcp-task-knowledge
+export CATALOG_ENABLED=1   # без этого команды каталога не регистрируются
+npm i file:../service-catalog
+npm run build
+```
+
+— Минимальная конфигурация для memory‑хранилища (без файла):
+
+```bash
+export DATA_DIR=./emb_cache
+export CATALOG_MODE=embedded
+export CATALOG_EMBEDDED_ENABLED=1
+export CATALOG_EMBEDDED_STORE=memory
+```
+
+— Проверка работоспособности embedded (health):
+
+```bash
+DATA_DIR=./emb_cache \
+CATALOG_MODE=embedded CATALOG_EMBEDDED_ENABLED=1 CATALOG_EMBEDDED_STORE=memory \
+node --input-type=module -e "import('./dist/catalog/provider.js').then(async m=>{const {loadCatalogConfig}=await import('./dist/config.js');const p=m.createServiceCatalogProvider(loadCatalogConfig());const h=await p.health();console.log(JSON.stringify(h,null,2));process.exit(h.ok?0:1);}).catch(e=>{console.error(e);process.exit(2);})"
+```
+
+— Пробный запрос (пагинация/сортировка):
+
+```bash
+DATA_DIR=./emb_cache \
+CATALOG_MODE=embedded CATALOG_EMBEDDED_ENABLED=1 CATALOG_EMBEDDED_STORE=memory \
+node --input-type=module -e "import('./dist/catalog/provider.js').then(async m=>{const {loadCatalogConfig}=await import('./dist/config.js');const p=m.createServiceCatalogProvider(loadCatalogConfig());const r=await p.queryServices({page:1,pageSize:5,sort:'updatedAt:desc'});console.log(JSON.stringify(r,null,2));}).catch(e=>{console.error(e);process.exit(2);})"
+```
+
+— Использование file‑хранилища:
+
+```bash
+export CATALOG_EMBEDDED_STORE=file
+export CATALOG_EMBEDDED_FILE_PATH=/absolute/path/to/catalog.json
+```
+
+Формат файла поддерживается в двух вариантах:
+
+```jsonc
+// Вариант 1: массив
+[
+  {
+    "id": "svc-payments",
+    "name": "Payments Service",
+    "component": "payments",
+    "domain": "billing",
+    "status": "prod",
+    "owners": ["team-billing"],
+    "tags": ["backend","critical"],
+    "annotations": { "repo": "git@..." },
+    "updatedAt": "2025-08-20T12:00:00Z"
+  }
+]
+
+// Вариант 2: объект с полем items
+{ "items": [ { /* как выше */ } ] }
+```
+
+— Гибридный режим (hybrid):
+
+- `CATALOG_MODE=hybrid`, порядок опроса источников определяется `CATALOG_PREFER` (`embedded`|`remote`).
+- При недоступности предпочтительного источника идёт автоматическое переключение на альтернативный (embedded ↔ remote).
+
+— Отладка и частые ошибки:
+
+- Обязательно задайте `DATA_DIR` (иначе ошибка на старте конфигурации).
+- Команды `service_catalog_*` регистрируются только при `CATALOG_ENABLED=1`.
+- При работе из кода используйте `loadCatalogConfig()` (а не `loadConfig()`) для провайдера каталога.
+- Если импорт `service-catalog/lib` невозможен, провайдер автоматически использует локальную реализацию (file/memory).
+
+#### Сборка Docker с встраиванием service-catalog
+
+По умолчанию `Dockerfile` пытается встроить библиотеку из Git:
+
+```bash
+docker build -t mcp-task-knowledge:with-catalog .
+# эквивалентно: --build-arg SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git --build-arg SERVICE_CATALOG_REF=main
+```
+
+Переопределить источник:
+
+```bash
+# tarball (npm pack артефакт)
+docker build \
+  --build-arg SERVICE_CATALOG_TARBALL=https://example.com/artifacts/service-catalog-1.2.3.tgz \
+  -t mcp-task-knowledge:with-catalog .
+
+# git с другой веткой/форком
+docker build \
+  --build-arg SERVICE_CATALOG_GIT=https://github.com/your-org/service-catalog.git \
+  --build-arg SERVICE_CATALOG_REF=release/1.3 \
+  -t mcp-task-knowledge:with-catalog .
+
+# отключить встраивание (ни tarball, ни git)
+docker build \
+  --build-arg SERVICE_CATALOG_GIT= \
+  -t mcp-task-knowledge:base .
+```
 
 ### Obsidian интеграция
 
