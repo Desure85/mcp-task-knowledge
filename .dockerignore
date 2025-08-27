@@ -7,10 +7,32 @@ README.md
 *.log
 .gitignore
 .vscode
-.dist
+dist/
 
 # Exclude local data and build outputs to keep context small
 .data
-dist
 tmp
 .buildx-cache
+
+# Exclude tests and examples (not needed for image build)
+tests
+__tests__
+
+# Exclude CI configs and reports
+.github
+.gitlab-ci.yml
+sbom-runtime-cpu.cdx.json
+trivy-runtime-cpu.sarif
+audit.json
+
+# IDE/editor configs
+.idea
+.DS_Store
+
+# Local caches and artifacts
+emb_cache
+.cache
+coverage
+
+# Compose files not needed in build context
+docker-compose.catalog.yml

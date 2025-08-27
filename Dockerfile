@@ -1,9 +1,14 @@
 # syntax=docker/dockerfile:1.7
 
+# Global ARG usable in any FROM (supported since Docker 17.05)
+ARG BASE_MODELS_IMAGE=mcp-base-onnx:latest
+ARG BASE_DEPS_IMAGE=mcp-base-bm25:latest
+ARG BASE_GPU_IMAGE=mcp-base-onnx-gpu:latest
+
 # ---------- base deps (cacheable) ----------
 FROM node:20-bullseye AS deps
 WORKDIR /app
-COPY .npmrc package.json ./
+COPY .npmrc package.json package-lock.json ./
 # Use configurable npm registry (default: npmjs). Can be overridden via --build-arg NPM_REGISTRY=...
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
@@ -18,8 +23,10 @@ ARG SERVICE_CATALOG_REF=master
 RUN printf "registry=${NPM_REGISTRY}\n" > .npmrc \
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-factor 2 \
- && npm config set fetch-timeout 600000 \
- && npm i --ignore-scripts --include=dev --registry=${NPM_REGISTRY}
+ && npm config set fetch-timeout 600000
+# Use BuildKit cache for npm to speed up repeat installs
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --ignore-scripts --registry=${NPM_REGISTRY}
 
 # If requested, fetch and install external service-catalog as a local dependency
 RUN set -eux; \
@@ -46,8 +53,7 @@ RUN npm prune --omit=dev
 FROM node:20-bullseye AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json tsconfig.json ./
-COPY .npmrc ./
+COPY package.json package-lock.json tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
@@ -89,25 +95,55 @@ ENV DATA_DIR=/data
 VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
-# ---------- runtime-onnx-cpu (bm25 + onnx cpu) ----------
-FROM node:20-bullseye AS runtime-onnx-cpu
+# ---------- base with deps for bm25 (no models) ----------
+FROM node:20-bullseye AS base-bm25-with-deps
 WORKDIR /app
 ENV NODE_ENV=production
-ENV EMBEDDINGS_MODE=onnx-cpu
+ENV EMBEDDINGS_MODE=none
 COPY package.json ./
 COPY --from=deps-prod /app/node_modules ./node_modules
+
+# ---------- runtime-bm25-extbase (external base image with node_modules) ----------
+FROM ${BASE_DEPS_IMAGE} AS runtime-bm25-extbase
+WORKDIR /app
 COPY --from=builder /app/dist ./dist
-# include model files
-COPY --from=model-export /models ./models
-## Ensure optional native deps like sharp fetch prebuilt binaries in final image
-RUN npm rebuild sharp --unsafe-perm --foreground-scripts || true
 ENV DATA_DIR=/data
 VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
-# ---------- runtime-onnx-gpu (bm25 + onnx gpu) ----------
-# Note: requires GPU runner and NVIDIA runtime on host.
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS runtime-onnx-gpu
+# ---------- base with models for onnx-cpu ----------
+FROM node:20-bullseye AS base-onnx-cpu-with-models
+WORKDIR /app
+ENV NODE_ENV=production
+ENV EMBEDDINGS_MODE=onnx-cpu
+COPY package.json ./
+# Use pre-installed production node_modules
+COPY --from=deps-prod /app/node_modules ./node_modules
+# Include model files and prepare native deps once in base
+COPY --from=model-export /models ./models
+RUN npm rebuild sharp --unsafe-perm --foreground-scripts || true
+
+# ---------- runtime-onnx-cpu (bm25 + onnx cpu) ----------
+FROM base-onnx-cpu-with-models AS runtime-onnx-cpu
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+ENV DATA_DIR=/data
+VOLUME ["/data"]
+CMD ["node", "dist/index.js"]
+
+# ---------- runtime-onnx-cpu-extbase (external base image with models) ----------
+# Allows super-fast rebuilds by reusing a prebuilt base image that already contains
+# production node_modules and ONNX models. Only the small dist layer is added.
+FROM ${BASE_MODELS_IMAGE} AS runtime-onnx-cpu-extbase
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+ENV DATA_DIR=/data
+VOLUME ["/data"]
+CMD ["node", "dist/index.js"]
+
+# ---------- base-onnx-gpu-with-models (shared GPU base) ----------
+# Contains Node.js, production node_modules, ONNX models and ORT GPU libs.
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-onnx-gpu-with-models
 WORKDIR /app
 
 # Install Node.js 20.x (NodeSource)
@@ -130,13 +166,10 @@ ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cuda,cpu
 COPY package.json ./
 # Use pre-built production node_modules from deps-prod (contains onnxruntime-node)
 COPY --from=deps-prod /app/node_modules ./node_modules
-# Compiled JS
-COPY --from=builder /app/dist ./dist
 # Local ONNX model & tokenizer
 COPY --from=model-export /models ./models
 
-# Re-run onnxruntime-node-gpu postinstall to fetch CUDA provider binaries inside GPU image
-# Install matching ORT GPU shared libraries into the image (avoid host mounts)
+# Install ORT GPU shared libraries and ensure onnxruntime-node postinstall
 ARG ORT_VER=1.20.0
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/* \
@@ -147,21 +180,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && rm -rf /opt/onnxruntime-linux-x64-gpu-${ORT_VER} /tmp/ort.tgz
 ENV LD_LIBRARY_PATH=/opt/ort-gpu-libs:/usr/local/lib:/usr/lib
 RUN npm rebuild onnxruntime-node --foreground-scripts || (echo "[warn] onnxruntime-node postinstall failed; will fall back to CPU provider at runtime" && true)
-# Ensure optional native deps like sharp fetch prebuilt binaries (no-op if not present)
 RUN npm rebuild sharp --unsafe-perm --foreground-scripts || true
 
-# Copy dist and models
+# ---------- runtime-onnx-gpu (from base) ----------
+FROM base-onnx-gpu-with-models AS runtime-onnx-gpu
+WORKDIR /app
+# Compiled JS only
 COPY --from=builder /app/dist ./dist
-COPY --from=model-export /models ./models
-
+# Ensure data dir volume
+VOLUME ["/data"]
 # Lightweight entrypoint to configure cache dirs for arbitrary --user and avoid CUDA/ORT segfaults
 COPY bin/entrypoint.sh ./bin/entrypoint.sh
 RUN chmod +x ./bin/entrypoint.sh
-
-# Default entrypoint/cmd; can be overridden at runtime
 ENTRYPOINT ["/app/bin/entrypoint.sh"]
 CMD ["node", "/app/dist/index.js"]
+
+# ---------- runtime-onnx-gpu-extbase (external GPU base) ----------
+FROM ${BASE_GPU_IMAGE} AS runtime-onnx-gpu-extbase
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
 VOLUME ["/data"]
+COPY bin/entrypoint.sh ./bin/entrypoint.sh
+RUN chmod +x ./bin/entrypoint.sh
+ENTRYPOINT ["/app/bin/entrypoint.sh"]
+CMD ["node", "/app/dist/index.js"]
 
 # ---------- aliases: with-catalog convenience targets ----------
 # These aliases simply re-tag existing stages. Actual inclusion of the catalog

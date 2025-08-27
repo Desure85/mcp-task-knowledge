@@ -523,6 +523,46 @@ docker run --rm -it \
     make docker-buildx-cpu NPM_REGISTRY=https://registry.npmjs.org/
     ```
 
+### Быстрая кэшированная сборка (<60с)
+
+- **Предусловия**
+  - Создайте buildx-builder с доступом к локальному реестру и сети хоста (для опции registry-кэша, если будете использовать её). Впрочем, для локального файлового кэша достаточно стандартного builder.
+  - Убедитесь, что `.dockerignore` исключает артефакты, тесты и лишние файлы (в репозитории уже настроено).
+
+- **Инициализационная сборка (заполнить кэш)**
+  ```bash
+  docker buildx build \
+    --progress=plain \
+    --target runtime-onnx-cpu \
+    -t mcp-task-knowledge:cpu \
+    --cache-to type=local,dest=.buildx-cache,mode=max \
+    --cache-from type=local,src=.buildx-cache \
+    .
+  ```
+
+- **Повторная сборка и бенчмарк (<60с при кэше)**
+  ```bash
+  /usr/bin/time -f "real:%E user:%U sys:%S maxrss:%M" \
+  docker buildx build \
+    --load \
+    --progress=plain \
+    --target runtime-onnx-cpu \
+    -t mcp-task-knowledge:cpu \
+    --cache-from type=local,src=.buildx-cache \
+    --cache-to type=local,dest=.buildx-cache,mode=max \
+    .
+  ```
+
+- **Ожидаемое поведение**
+  - При отсутствии изменений в `src/` и манифестах (`package.json`, `package-lock.json`, `tsconfig.json`) повторная сборка должна занимать <60 секунд на типичной машине разработчика.
+  - Изменение исходников инвалидирует только слой `builder` (`COPY src` + `npm run build`), что даёт быстрый ребилд.
+  - Зависимости фиксируются через `npm ci` и кэшируются с `--mount=type=cache,target=/root/.npm` в слое `deps`.
+
+- **Подсказки**
+  - Если корпоративный прокси/зеркало нестабильно — укажите реестр: `--build-arg NPM_REGISTRY=https://registry.npmjs.org/`.
+  - Для более агрессивного/общего кэша используйте registry-кэш из раздела выше (образ кэша в локальном реестре).
+  - Проверяйте, что build контекст мал: `docker buildx build --no-cache --progress=plain . | head -n 50` покажет ранние шаги и размер контекста.
+
 ### Debugging
 Чтобы включить подробные логи по инициализации векторного адаптера, установите переменную окружения `DEBUG_VECTOR=1`.
 Например, для Docker:
@@ -1816,6 +1856,105 @@ CATALOG_BASE_URL=http://localhost:3001 scripts/smoke_catalog.sh
 
 - Трудно диагностировать инициализацию векторного адаптера.
   - Решение: включите подробные логи `DEBUG_VECTOR=1` и проверьте сообщения о выбранном ORT backend и путях модели/токенизатора.
+
+## Ускоренные extbase-сборки (внешние базовые образы)
+Этот репозиторий поддерживает «extbase»-паттерн для быстрых кэшированных пересборок (<60s):
+- Для ONNX CPU: базовый образ с node_modules и моделями.
+- Для BM25: базовый образ только с production node_modules.
+
+### Шаг 1. Локальный Docker Registry (рекомендуется)
+```bash
+make registry-up
+# при необходимости создайте builder с доступом к 127.0.0.1
+make buildx-create-host
+```
+
+### Шаг 2. Сборка и публикация базовых образов
+- ONNX CPU base (с моделями):
+```bash
+make docker-buildx-base-onnx-push
+# публикуется как localhost:5000/mcp-base-onnx:latest
+```
+- BM25 base (node_modules):
+```bash
+make docker-buildx-base-bm25-push
+# публикуется как localhost:5000/mcp-base-bm25:latest
+```
+
+- GPU base (onnx-gpu с моделями и ORT GPU libs):
+```bash
+make docker-buildx-base-gpu-push
+# публикуется как localhost:5000/mcp-base-onnx-gpu:latest
+```
+
+### Шаг 3. Быстрые extbase‑пересборки и бенчмарки
+- CPU extbase (без каталога):
+```bash
+make docker-bench-cpu-extbase \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+- CPU extbase (с каталогом):
+```bash
+make docker-bench-cpu-extbase-cat \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+- BM25 extbase (без каталога):
+```bash
+make docker-bench-bm25-extbase \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+- BM25 extbase (с каталогом):
+```bash
+make docker-bench-bm25-extbase-cat \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+
+- GPU cached (без каталога):
+```bash
+make docker-bench-gpu-cached \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+- GPU extbase (без каталога):
+```bash
+make docker-bench-gpu-extbase \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+- GPU cached (с каталогом):
+```bash
+make docker-bench-gpu-cached-cat \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+- GPU extbase (с каталогом):
+```bash
+make docker-bench-gpu-extbase-cat \
+  NPM_REGISTRY=https://registry.npmjs.org/
+```
+
+### Классические cached‑сборки для сравнения
+- CPU cached (с каталогом):
+```bash
+make docker-bench-cpu-cached-cat
+```
+- BM25 cached (без каталога):
+```bash
+make docker-bench-bm25-cached-noload
+```
+- BM25 cached (с каталогом):
+```bash
+make docker-bench-bm25-cached-cat
+```
+
+### Наблюдаемые времена (пример)
+- __BM25 cached (no catalog)__: ~35.5s `real`
+- __BM25 extbase (no catalog)__: ~0.84s `real`
+- __BM25 cached (with catalog)__: ~6.3s `real`
+- __CPU cached (with catalog)__: ~28.1s `real`
+- __CPU extbase (with catalog)__: ожидается <60s (зависит от кэша и сети)
+
+Подсказки:
+- Все цели используют локальный файловый кэш BuildKit: `$(BUILDX_CACHE_DIR)=.buildx-cache`.
+- Для extbase‑сборок важны аргументы `BASE_MODELS_IMAGE` (CPU) и `BASE_DEPS_IMAGE` (BM25), в Makefile уже прокинуты на локальный реестр.
+- Для воспроизводимости указывайте `NPM_REGISTRY` и держите builder с `network=host` (см. `make buildx-create-host`).
 
 ## Лицензия
 MIT
