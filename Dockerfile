@@ -34,8 +34,12 @@ RUN set -eux; \
       printf '{"name":"service-catalog","version":"0.1.0"}\n' > service-catalog/package.json; \
     fi
 # Use BuildKit cache for npm to speed up repeat installs
+# Prefer deterministic `npm ci`; if lock is out of sync (e.g., first-time base build),
+# fall back to `npm install` to generate a consistent lock inside the image.
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --ignore-scripts --registry=${NPM_CONFIG_REGISTRY}
+    (npm ci --ignore-scripts --registry=${NPM_CONFIG_REGISTRY} \
+     || (echo "[deps] npm ci failed, falling back to npm install to sync lock" \
+         && npm install --ignore-scripts --registry=${NPM_CONFIG_REGISTRY}))
 
 # If requested, fetch and install external service-catalog as a local dependency
 RUN set -eux; \
