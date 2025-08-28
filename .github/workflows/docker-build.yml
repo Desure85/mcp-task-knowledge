@@ -22,11 +22,6 @@ jobs:
     env:
       # default registry for pushes
       REGISTRY: ghcr.io
-      IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/mcp-task-knowledge
-      # base images (can be overridden via env or dispatch inputs)
-      BASE_DEPS_IMAGE: ghcr.io/${{ github.repository_owner }}/mcp-base-bm25:latest
-      BASE_MODELS_IMAGE: ghcr.io/${{ github.repository_owner }}/mcp-base-onnx:latest
-      BASE_GPU_IMAGE: ghcr.io/${{ github.repository_owner }}/mcp-base-onnx-gpu:latest
       # default platforms
       PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64' }}
 
@@ -76,6 +71,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute repo/image names
+        id: names
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "owner=${owner_lc}" >> "$GITHUB_OUTPUT"
+          echo "image_repo=ghcr.io/${owner_lc}/mcp-task-knowledge" >> "$GITHUB_OUTPUT"
+          echo "base_deps=ghcr.io/${owner_lc}/mcp-base-bm25:latest" >> "$GITHUB_OUTPUT"
+          echo "base_models=ghcr.io/${owner_lc}/mcp-base-onnx:latest" >> "$GITHUB_OUTPUT"
+          echo "base_gpu=ghcr.io/${owner_lc}/mcp-base-onnx-gpu:latest" >> "$GITHUB_OUTPUT"
+
       - name: Derive tags
         id: meta
         run: |
@@ -101,9 +108,9 @@ jobs:
             echo "SC_TGZ=" >> $GITHUB_OUTPUT
           fi
           # External base images (used by *-extbase targets)
-          echo "BASE_DEPS_IMAGE=${BASE_DEPS_IMAGE}" >> $GITHUB_OUTPUT
-          echo "BASE_MODELS_IMAGE=${BASE_MODELS_IMAGE}" >> $GITHUB_OUTPUT
-          echo "BASE_GPU_IMAGE=${BASE_GPU_IMAGE}" >> $GITHUB_OUTPUT
+          echo "BASE_DEPS_IMAGE=${{ steps.names.outputs.base_deps }}" >> $GITHUB_OUTPUT
+          echo "BASE_MODELS_IMAGE=${{ steps.names.outputs.base_models }}" >> $GITHUB_OUTPUT
+          echo "BASE_GPU_IMAGE=${{ steps.names.outputs.base_gpu }}" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -123,8 +130,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ${{ env.IMAGE_REPO }}:${{ matrix.variant }}-${{ steps.meta.outputs.version }}
-            ${{ env.IMAGE_REPO }}:${{ matrix.variant }}-${{ github.sha }}
+            ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ steps.meta.outputs.version }}
+            ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -134,5 +141,5 @@ jobs:
         run: |
           echo "Built target: ${{ matrix.target }} (variant: ${{ matrix.variant }})" >> $GITHUB_STEP_SUMMARY
           echo "Tags:" >> $GITHUB_STEP_SUMMARY
-          echo "- ${{ env.IMAGE_REPO }}:${{ matrix.variant }}-${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ${{ env.IMAGE_REPO }}:${{ matrix.variant }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

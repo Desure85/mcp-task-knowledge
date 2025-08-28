@@ -23,7 +23,6 @@ jobs:
       packages: write
     env:
       REGISTRY: ghcr.io
-      IMAGE_REPO_BASE: ghcr.io/${{ github.repository_owner }}
       PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64' }}
       PUBLISH_TAG: ${{ github.event.inputs.tag || 'latest' }}
 
@@ -58,6 +57,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute base repo owner (lowercase)
+        id: names
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "owner=${owner_lc}" >> "$GITHUB_OUTPUT"
+          echo "base_repo=ghcr.io/${owner_lc}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push base image
         uses: docker/build-push-action@v6
         with:
@@ -71,8 +79,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ${{ env.IMAGE_REPO_BASE }}/${{ matrix.image }}:${{ env.PUBLISH_TAG }}
-            ${{ env.IMAGE_REPO_BASE }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ env.PUBLISH_TAG }}
+            ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
