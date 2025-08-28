@@ -72,6 +72,8 @@ jobs:
           target: ${{ matrix.target }}
           platforms: ${{ env.PLATFORMS }}
           push: true
+          provenance: false
+          sbom: false
           build-args: |
             NPM_REGISTRY=https://registry.npmjs.org/
           cache-from: type=gha

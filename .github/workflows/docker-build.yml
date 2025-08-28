@@ -113,6 +113,8 @@ jobs:
           target: ${{ matrix.target }}
           platforms: ${{ env.PLATFORMS }}
           push: ${{ github.event_name != 'pull_request' }}
+          provenance: false
+          sbom: false
           build-args: |
             NPM_REGISTRY=https://registry.npmjs.org/
             SERVICE_CATALOG_GIT=${{ steps.args.outputs.SC_GIT }}
