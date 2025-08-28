@@ -1,0 +1,79 @@
+name: Docker Build Base Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Target platforms (comma-separated)"
+        required: false
+        default: "linux/amd64"
+      tag:
+        description: "Tag to publish (default: latest)"
+        required: false
+        default: "latest"
+  schedule:
+    - cron: "0 3 * * 0" # weekly refresh on Sunday 03:00 UTC
+
+jobs:
+  build-base:
+    name: Build Base ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_REPO_BASE: ghcr.io/${{ github.repository_owner }}
+      PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64' }}
+      PUBLISH_TAG: ${{ github.event.inputs.tag || 'latest' }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: deps
+            target: base-bm25-with-deps
+            image: mcp-base-bm25
+          - name: onnx-cpu
+            target: base-onnx-cpu-with-models
+            image: mcp-base-onnx
+          - name: onnx-gpu
+            target: base-onnx-gpu-with-models
+            image: mcp-base-onnx-gpu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.target }}
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org/
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.IMAGE_REPO_BASE }}/${{ matrix.image }}:${{ env.PUBLISH_TAG }}
+            ${{ env.IMAGE_REPO_BASE }}/${{ matrix.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ env.PUBLISH_TAG }}
