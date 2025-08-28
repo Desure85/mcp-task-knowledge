@@ -1,5 +1,102 @@
+# Existing ignores
 node_modules
 .data
 .buildx-cache
 .tmp
 .smoke-data
+
+###############################
+# OS files
+###############################
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+.Spotlight-V100
+.fseventsd
+
+###############################
+# IDEs / Editors
+###############################
+# JetBrains
+.idea/
+*.iml
+out/
+
+# VS Code (полностью игнорируем пользовательские настройки)
+.vscode/
+*.code-workspace
+.history/
+
+# Eclipse/Other
+.project
+.classpath
+.settings/
+
+###############################
+# Node / TypeScript
+###############################
+node_modules/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.npmrc.local
+
+# Package managers logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Caches
+.cache/
+.nyc_output/
+.turbo/
+.parcel-cache/
+.vite/
+.next/
+.nuxt/
+
+# Build artifacts (dist is intentionally NOT ignored due to repo usage)
+build/
+coverage/
+reports/
+junit*.xml
+
+###############################
+# Env / Secrets
+###############################
+.env
+.env.*
+!.env.example
+!.env*.example
+
+###############################
+# Docker / CI
+###############################
+.buildx-cache/
+docker-*.log
+compose*.local.yml
+docker-compose.*.local.yml
+docker-compose.*.override.yml
+.scannerwork/
+.sonar/
+
+###############################
+# Python (scripts/ has python helpers)
+###############################
+__pycache__/
+.pytest_cache/
+*.pyc
+
+###############################
+# Misc temp files
+###############################
+*.swp
+*.swo
+*.swx
+*~
+*.tmp
+*.temp
+*.log
+.trash/
