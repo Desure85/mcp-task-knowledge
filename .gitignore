@@ -4,6 +4,7 @@ node_modules
 .buildx-cache
 .tmp
 .smoke-data
+.windsurf
 
 ###############################
 # OS files
