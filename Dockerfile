@@ -9,8 +9,10 @@ ARG BASE_GPU_IMAGE=mcp-base-onnx-gpu:latest
 FROM node:20-bullseye AS deps
 WORKDIR /app
 COPY .npmrc package.json package-lock.json ./
-# Use configurable npm registry (default: npmjs). Can be overridden via --build-arg NPM_REGISTRY=...
+# Use configurable npm registry (default: npmjs). Can be overridden via --build-arg NPM_REGISTRY...
 ARG NPM_REGISTRY=https://registry.npmjs.org/
+# Export both to environment so shell and npm see consistent value
+ENV NPM_REGISTRY=${NPM_REGISTRY}
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
 # Optional: embed external service-catalog library
@@ -18,15 +20,15 @@ ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
 #  - SERVICE_CATALOG_GIT: git URL (https) to clone and install from folder
 #  - SERVICE_CATALOG_REF: git ref/branch (default: main)
 ARG SERVICE_CATALOG_TARBALL=
-ARG SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git
+ARG SERVICE_CATALOG_GIT=
 ARG SERVICE_CATALOG_REF=master
-RUN printf "registry=${NPM_REGISTRY}\n" > .npmrc \
+RUN printf "registry=${NPM_REGISTRY}\n@modelcontextprotocol:registry=${NPM_REGISTRY}\n@huggingface:registry=${NPM_REGISTRY}\n" > .npmrc \
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-factor 2 \
  && npm config set fetch-timeout 600000
 # Use BuildKit cache for npm to speed up repeat installs
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --ignore-scripts --registry=${NPM_REGISTRY}
+    npm ci --ignore-scripts --registry=${NPM_CONFIG_REGISTRY}
 
 # If requested, fetch and install external service-catalog as a local dependency
 RUN set -eux; \
