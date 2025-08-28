@@ -2,23 +2,23 @@ name: Bulk Smoke
 
 on:
   push:
-    paths:
-      - 'mcp-task-knowledge/**'
-      - 'service-catalog/**'
-      - '.github/workflows/bulk-smoke.yml'
   pull_request:
-    paths:
-      - 'mcp-task-knowledge/**'
-      - 'service-catalog/**'
-      - '.github/workflows/bulk-smoke.yml'
+  workflow_dispatch:
 
 jobs:
   bulk-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout
+      - name: Checkout current repo
         uses: actions/checkout@v4
+
+      - name: Checkout service-catalog
+        uses: actions/checkout@v4
+        with:
+          repository: Desure85/service-catalog
+          path: service-catalog
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,21 +26,19 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
+      # mcp-task-knowledge в корне
       - name: Install & build mcp-task-knowledge
-        working-directory: mcp-task-knowledge
         run: |
           npm ci
           npm run build
 
       - name: Run unit tests
-        working-directory: mcp-task-knowledge
         env:
           EMBEDDINGS_MODE: none
         run: |
           npm test --silent
 
       - name: Run Obsidian roundtrip smoke
-        working-directory: mcp-task-knowledge
         env:
           EMBEDDINGS_MODE: none
           PROJECT: mcp
@@ -48,9 +46,8 @@ jobs:
           node scripts/obsidian_roundtrip.mjs
 
       - name: Run MCP bulk smoke (tasks, knowledge, aliases)
-        working-directory: mcp-task-knowledge
         env:
-          APP_DIR: ${{ github.workspace }}/mcp-task-knowledge
+          APP_DIR: ${{ github.workspace }}
           DATA_DIR: ${{ runner.temp }}/mcp-data
           EMBEDDINGS_MODE: none
           CURRENT_PROJECT: mcp
@@ -60,6 +57,7 @@ jobs:
           node scripts/smoke_knowledge.mjs
           node scripts/smoke_tasks_aliases.mjs
 
+      # service-catalog из внешнего репозитория
       - name: Install & build service-catalog
         working-directory: service-catalog
         run: |
