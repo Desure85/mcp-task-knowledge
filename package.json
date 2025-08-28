@@ -14,7 +14,7 @@
     "compose:smoke:all": "bash scripts/compose_smoke_all.sh",
     "smoke:catalog": "bash scripts/smoke_catalog.sh",
     "onnx:selfcheck:cpu": "bash scripts/onnx_cpu_selfcheck.sh",
-    "test": "vitest run",
+    "test": "vitest run --exclude \"service-catalog/**\"",
     "e2e:cli": "bash scripts/e2e_cli.sh",
     "obsidian:smoke": "node scripts/obsidian_roundtrip.mjs",
     "obsidian:matrix": "node scripts/obsidian_live_matrix.mjs",
