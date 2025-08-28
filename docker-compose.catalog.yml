@@ -26,10 +26,7 @@ services:
       retries: 10
 
   mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime-onnx-cpu
+    image: ghcr.io/desure85/mcp-task-knowledge:bm25-latest
     depends_on:
       service-catalog:
         condition: service_healthy

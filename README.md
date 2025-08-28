@@ -130,6 +130,131 @@ $env:EMBEDDINGS_MODE="none"            # none|onnx-cpu|onnx-gpu
 node dist/index.js
 ```
 
+## Опубликованные Docker-образы (GHCR)
+
+Сборка GitHub Actions публикует образы в GitHub Container Registry:
+
+- Репозиторий образов: `ghcr.io/desure85/mcp-task-knowledge`
+- Варианты (`variant`):
+  - `bm25` — только BM25 (минимальный, без моделей ONNX)
+  - `cpu` — BM25 + ONNX CPU (с предзагруженной моделью в `/app/models`)
+  - `gpu` — BM25 + ONNX GPU (для хостов с CUDA)
+  - `bm25-cat`, `cpu-cat`, `gpu-cat` — то же самое, но с вшитой библиотекой `service-catalog` во время сборки
+- Теги (`tag`):
+  - `latest` — для веток `main/master`
+  - `<git-tag>` — если сборка по git‑тегу
+  - `<short-sha>` — сокращённый SHA коммита (по умолчанию)
+
+Примеры:
+
+```bash
+# Получить минимальный образ (BM25)
+docker pull ghcr.io/desure85/mcp-task-knowledge:bm25-latest
+
+# Образ с ONNX CPU
+docker pull ghcr.io/desure85/mcp-task-knowledge:cpu-latest
+
+# Образ с ONNX GPU
+docker pull ghcr.io/desure85/mcp-task-knowledge:gpu-latest
+
+# Вариант с вшитой библиотекой service-catalog (embedded)
+docker pull ghcr.io/desure85/mcp-task-knowledge:cpu-cat-latest
+```
+
+Запуск (BM25):
+
+```bash
+docker run --rm -it \
+  -e DATA_DIR=/data \
+  -v "$PWD/.data":/data \
+  ghcr.io/desure85/mcp-task-knowledge:bm25-latest
+```
+
+Запуск (ONNX CPU):
+
+```bash
+docker run --rm -it \
+  -e DATA_DIR=/data \
+  -e EMBEDDINGS_MODE=onnx-cpu \
+  -e EMBEDDINGS_MODEL_PATH=/app/models/encoder.onnx \
+  -v "$PWD/.data":/data \
+  ghcr.io/desure85/mcp-task-knowledge:cpu-latest
+```
+
+> Примечание: GPU‑вариант требует доступного CUDA‑окружения на хосте и запуска с `--gpus all`.
+
+### Compose (remote catalog) c опубликованным образом
+
+Для режима каталога `remote` используйте готовый compose с опубликованным образом MCP (BM25‑вариант):
+
+```yaml
+services:
+  service-catalog:
+    image: node:20-alpine
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - SERVICE_CATALOG_GIT=https://github.com/Desure85/service-catalog.git
+      - SERVICE_CATALOG_REF=main
+    command: >-
+      sh -lc "set -euo pipefail; \
+      apk add --no-cache git curl >/dev/null 2>&1 || true; \
+      if [ ! -d .git ]; then \
+        echo '[svc] cloning service-catalog'; \
+        git clone --depth 1 -b \"${SERVICE_CATALOG_REF}\" \"${SERVICE_CATALOG_GIT}\" /app; \
+      fi; \
+      npm ci || npm i; \
+      npm run dev"
+    ports:
+      - "42056:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3001/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  mcp:
+    image: ghcr.io/desure85/mcp-task-knowledge:bm25-latest
+    depends_on:
+      service-catalog:
+        condition: service_healthy
+    environment:
+      - DATA_DIR=/data
+      - OBSIDIAN_VAULT_ROOT=/data/obsidian
+      - EMBEDDINGS_MODE=none
+      - DEBUG_VECTOR=false
+      - CATALOG_ENABLED=1
+      - CATALOG_READ_ENABLED=1
+      - CATALOG_WRITE_ENABLED=0
+      - CATALOG_MODE=remote
+      - CATALOG_REMOTE_ENABLED=1
+      - CATALOG_REMOTE_BASE_URL=http://service-catalog:3001
+      - CATALOG_REMOTE_TIMEOUT_MS=2000
+    volumes:
+      - ./.data:/data:rw
+```
+
+Альтернатива: embedded‑вариант без отдельного сервиса каталога (встроенная библиотека) — используйте образ `*-cat` и исключите `service-catalog`:
+
+```yaml
+services:
+  mcp:
+    image: ghcr.io/desure85/mcp-task-knowledge:cpu-cat-latest
+    environment:
+      - DATA_DIR=/data
+      - EMBEDDINGS_MODE=onnx-cpu
+      - EMBEDDINGS_MODEL_PATH=/app/models/encoder.onnx
+      - CATALOG_ENABLED=1
+      - CATALOG_READ_ENABLED=1
+      - CATALOG_WRITE_ENABLED=0
+      - CATALOG_MODE=embedded
+      - CATALOG_EMBEDDED_ENABLED=1
+      - CATALOG_EMBEDDED_STORE=memory
+    volumes:
+      - ./.data:/data:rw
+```
+
 Рекомендуемая структура данных (будет создана автоматически при первых записях):
 - `data/tasks/<project>/<uuid>.json`
 - `data/knowledge/<project>/<uuid>.md`
@@ -145,12 +270,21 @@ node dist/index.js
 | `DATA_DIR` | Корневая директория для всех данных | - | ✅ Да |
 | `MCP_TASK_DIR` | Директория для хранения задач | `DATA_DIR/tasks` | ❌ Нет |
 | `MCP_KNOWLEDGE_DIR` | Директория для хранения знаний | `DATA_DIR/knowledge` | ❌ Нет |
+| `OBSIDIAN_VAULT_ROOT` | Корень Obsidian vault | `/data/obsidian` | ❌ Нет |
 
 ### Текущий проект
 
 | Переменная | Описание | Значение по умолчанию |
 |------------|----------|----------------------|
 | `CURRENT_PROJECT` | Текущий активный проект | `mcp` |
+
+### Конфигурация через JSON
+
+- `MCP_CONFIG_JSON` — JSON-строка с конфигурацией (аналог `--config <path>`). Поля соответствуют структурам `loadConfig()` и `loadCatalogConfig()` из `src/config.ts`.
+  - Пример:
+    ```bash
+    export MCP_CONFIG_JSON='{"dataDir":"/data","currentProject":"mcp","embeddings":{"mode":"none"},"catalog":{"enabled":true,"mode":"embedded"}}'
+    ```
 
 ### Эмбеддинги и векторный поиск
 
@@ -165,6 +299,14 @@ node dist/index.js
 | `EMBEDDINGS_BATCH_SIZE` | Размер батча для обработки | `16` |
 | `EMBEDDINGS_MAX_LEN` | Максимальная длина токенов | `256` |
 
+— Рекомендуемые профили по вариантам образов:
+
+| Вариант образа | Режим | Модель по умолчанию | Примечания |
+|----------------|------|---------------------|------------|
+| `bm25`         | `none`     | —                     | Векторные эмбеддинги отключены |
+| `cpu`          | `onnx-cpu` | `/app/models/encoder.onnx` | Модель и токенайзер уже в образе |
+| `gpu`          | `onnx-gpu` | `/app/models/encoder.onnx` | Требуется `--gpus all` и CUDA в хосте |
+
 ### Каталог сервисов
 
 | Переменная | Описание | Значение по умолчанию |
@@ -173,12 +315,14 @@ node dist/index.js
 | `CATALOG_PREFER` | Предпочитаемый источник | `embedded` |
 | `CATALOG_ENABLED` | Глобально включить каталог и зарегистрировать команды | `false` |
 | `CATALOG_REMOTE_BASE_URL` | URL удаленного каталога | - |
+| `CATALOG_URL` | Алиас для `CATALOG_REMOTE_BASE_URL` (совместимость) | - |
 | `CATALOG_REMOTE_ENABLED` | Включить удаленный каталог | Авто |
 | `CATALOG_REMOTE_TIMEOUT_MS` | Таймаут запросов (мс) | `2000` |
 | `CATALOG_EMBEDDED_ENABLED` | Включить встроенный каталог | Авто |
 | `CATALOG_EMBEDDED_PREFIX` | Префикс API встроенного каталога | `/catalog` |
 | `CATALOG_EMBEDDED_STORE` | Тип хранилища встроенного каталога | `memory` |
 | `CATALOG_EMBEDDED_FILE_PATH` | Путь к файлу встроенного каталога | - |
+| `CATALOG_EMBEDDED_SQLITE_DRIVER` | Драйвер sqlite для embedded‑хранилища (`auto`|`native`|`wasm`) | - |
 | `CATALOG_SYNC_ENABLED` | Включить синхронизацию источников | `false` |
 | `CATALOG_SYNC_INTERVAL_SEC` | Интервал синхронизации (сек) | `60` |
 | `CATALOG_SYNC_DIRECTION` | Направление синхронизации | `remote_to_embedded` |
@@ -258,6 +402,22 @@ node --input-type=module -e "import('./dist/catalog/provider.js').then(async m=>
 ```bash
 export CATALOG_EMBEDDED_STORE=file
 export CATALOG_EMBEDDED_FILE_PATH=/absolute/path/to/catalog.json
+```
+
+— Использование sqlite‑хранилища:
+
+```bash
+export CATALOG_ENABLED=1
+export CATALOG_MODE=embedded
+export CATALOG_EMBEDDED_ENABLED=1
+export CATALOG_EMBEDDED_STORE=sqlite
+# Выбор драйвера: auto | native | wasm (зависит от окружения)
+export CATALOG_EMBEDDED_SQLITE_DRIVER=auto
+
+# Примечания:
+# - Драйвер 'native' требует нативные зависимости среды выполнения.
+# - Драйвер 'wasm' работает без нативных зависимостей, но может быть медленнее.
+# - Конкретное расположение файла БД и дополнительные опции управляются библиотекой service-catalog.
 ```
 
 Формат файла поддерживается в двух вариантах:
@@ -421,11 +581,15 @@ docker compose -f docker-compose.catalog.yml down
 |------------|----------|----------------------|
 | `OBSIDIAN_VAULT_ROOT` | Корневая директория Obsidian vault | `/data/obsidian` |
 
-### Отладка
+### Отладка / низкоуровневые параметры
 
 | Переменная | Описание | Значение по умолчанию |
 |------------|----------|----------------------|
-| `DEBUG_VECTOR` | Подробные логи инициализации векторного адаптера | - |
+| `DEBUG_VECTOR` | Подробные логи инициализации векторного адаптера | `false` |
+| `ONNXRUNTIME_NODE_EXECUTION_PROVIDERS` | Порядок провайдеров выполнения ORT (через запятую), например `cuda,cpu` | `cuda,cpu` |
+| `ORT_SAFE_CUDA_PROBE` | Управление безопасной проверкой CUDA (установите `0` чтобы отключить пробу) | проба включена |
+
+Примечание: для GPU‑окружения корректная настройка системного `LD_LIBRARY_PATH` (драйверы CUDA/ORT) может быть необходима; переменная не обрабатывается приложением, но выводится в debug‑логах для диагностики.
 
 ### Примеры использования
 
