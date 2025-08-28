@@ -1,10 +1,6 @@
 name: Docker Build Matrix
 
 on:
-  push:
-    branches: [ main, master ]
-    tags: [ 'v*.*.*' ]
-  pull_request:
   workflow_dispatch:
     inputs:
       platforms:
@@ -29,19 +25,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Basic variants (no catalog embedded) — use prebuilt base images for speed
+          # Basic variants (no catalog embedded) — use prebuilt base images (extbase)
           - variant: bm25
             target: runtime-bm25-extbase
             embedCatalog: false
-            useExtBase: true
           - variant: cpu
             target: runtime-onnx-cpu-extbase
             embedCatalog: false
-            useExtBase: true
           - variant: gpu
             target: runtime-onnx-gpu-extbase
             embedCatalog: false
-            useExtBase: true
 
           # With-catalog variants
           - variant: bm25-cat
