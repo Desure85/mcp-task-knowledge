@@ -11,8 +11,6 @@ on:
         description: "Tag to publish (default: latest)"
         required: false
         default: "latest"
-  schedule:
-    - cron: "0 3 * * 0" # weekly refresh on Sunday 03:00 UTC
 
 jobs:
   build-base:

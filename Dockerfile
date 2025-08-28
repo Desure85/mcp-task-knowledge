@@ -26,15 +26,14 @@ RUN printf "registry=${NPM_REGISTRY}\n@modelcontextprotocol:registry=${NPM_REGIS
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-factor 2 \
  && npm config set fetch-timeout 600000
-# Use BuildKit cache for npm to speed up repeat installs
+# Prepare dummy local dependency if embedding is disabled, so npm can resolve file:service-catalog
 RUN set -eux; \
     if [ -z "${SERVICE_CATALOG_TARBALL}" ] && [ -z "${SERVICE_CATALOG_GIT}" ]; then \
       mkdir -p service-catalog; \
       printf '{"name":"service-catalog","version":"0.0.0"}\n' > service-catalog/package.json; \
-    fi; \
-    : # install deps with cache; local file dep will resolve to dummy or be replaced later; \
-    ; \
-    --mount=type=cache,target=/root/.npm \
+    fi
+# Use BuildKit cache for npm to speed up repeat installs
+RUN --mount=type=cache,target=/root/.npm \
     npm ci --ignore-scripts --registry=${NPM_CONFIG_REGISTRY}
 
 # If requested, fetch and install external service-catalog as a local dependency
