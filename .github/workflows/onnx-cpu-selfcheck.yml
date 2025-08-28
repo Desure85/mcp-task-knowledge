@@ -9,8 +9,15 @@ jobs:
   selfcheck:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout current repo
         uses: actions/checkout@v4
+
+      - name: Checkout service-catalog
+        uses: actions/checkout@v4
+        with:
+          repository: Desure85/service-catalog
+          path: service-catalog
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -19,7 +26,7 @@ jobs:
           cache: 'npm'
 
       - name: Install deps
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build
         run: npm run build
