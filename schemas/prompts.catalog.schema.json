@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://desure85.github.io/mcp-task-knowledge/schemas/prompts.catalog.schema.json",
+  "title": "Prompts Catalog Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generatedAt", "items"],
+  "properties": {
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "items": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "latest", "versions", "files"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": ["string", "null"] },
+          "latest": { "type": ["string", "null"] },
+          "versions": { "type": "array", "items": { "type": "string" } },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["version", "path", "errors"],
+              "properties": {
+                "version": { "type": "string" },
+                "path": { "type": "string" },
+                "errors": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

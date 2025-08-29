@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://desure85.github.io/mcp-task-knowledge/schemas/services.embedded.schema.json",
+  "title": "Embedded Service Catalog (prompts)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "component", "tags", "annotations", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "component": { "type": "string" },
+          "domain": { "type": ["string", "null"] },
+          "status": { "type": ["string", "null"] },
+          "owners": {
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "annotations": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "promptId", "version", "kind", "project"],
+            "properties": {
+              "file": { "type": "string" },
+              "promptId": { "type": "string" },
+              "version": { "type": "string" },
+              "kind": { "type": "string" },
+              "project": { "type": "string" }
+            }
+          },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

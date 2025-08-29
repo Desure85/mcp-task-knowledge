@@ -147,6 +147,52 @@ async function exportCatalog(files) {
   return { path: dest, count: Object.keys(manifest.items).length };
 }
  
+// Map discovered prompt JSON files into ServiceItem[] for embedded catalog
+async function exportServiceItems(files) {
+  const items = [];
+  const nowIso = new Date().toISOString();
+  for (const file of files) {
+    let data = null;
+    try { data = await loadJson(file); } catch { continue; }
+    const kind = (data?.metadata?.kind) || 'prompt';
+    const id = String(data?.id || '').trim() || path.basename(file, '.json');
+    const version = String(data?.version || '').trim() || '0.0.0';
+    const title = (data?.metadata?.title) || id;
+    const domain = data?.metadata?.domain || undefined;
+    const status = data?.metadata?.status || undefined;
+    const tags = Array.isArray(data?.metadata?.tags) ? data.metadata.tags : [];
+    // mtime as updatedAt fallback
+    let updatedAt = nowIso;
+    try {
+      const st = await fs.stat(file);
+      updatedAt = new Date(st.mtimeMs).toISOString();
+    } catch {}
+    // Ensure uniqueness across versions by suffixing id with @version
+    const itemId = `${id}@${version}`;
+    items.push({
+      id: itemId,
+      name: title,
+      component: 'prompt-library',
+      domain,
+      status,
+      owners: undefined,
+      tags: Array.from(new Set([kind, ...tags])),
+      annotations: {
+        file: path.relative(PROJECT_ROOT, file),
+        promptId: id,
+        version,
+        kind,
+        project: CURRENT_PROJECT,
+      },
+      updatedAt,
+    });
+  }
+  const dest = path.join(EXPORTS_CATALOG_DIR, 'services.embedded.json');
+  await fs.mkdir(EXPORTS_CATALOG_DIR, { recursive: true });
+  await fs.writeFile(dest, JSON.stringify({ items }, null, 2) + '\n', 'utf8');
+  return { path: dest, count: items.length };
+}
+
 
 async function ensureDirs() {
   const dirs = [
@@ -441,6 +487,11 @@ async function main() {
   if (cmd === 'catalog') {
     const { path: dest, count } = await exportCatalog(files);
     console.log(`Catalog exported (${count} ids) → ${path.relative(PROJECT_ROOT, dest)}`);
+    return;
+  }
+  if (cmd === 'catalog:services') {
+    const { path: dest, count } = await exportServiceItems(files);
+    console.log(`ServiceItems exported (${count}) → ${path.relative(PROJECT_ROOT, dest)}`);
     return;
   }
   if (cmd === 'build') {

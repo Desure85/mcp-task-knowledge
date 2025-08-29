@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://desure85.github.io/mcp-task-knowledge/schemas/knowledge.schema.json",
+  "title": "KnowledgeDoc Frontmatter",
+  "description": "JSON Schema for knowledge frontmatter (YAML) embedded in Markdown files under KNOWLEDGE_DIR/<project>/*.md. This schema validates only the frontmatter object, not the Markdown body.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["id", "project", "title", "createdAt", "updatedAt"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "project": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "source": { "type": "string" },
+    "parentId": { "type": ["string", "null"] },
+    "type": { "type": "string" },
+    "archived": { "type": "boolean" },
+    "trashed": { "type": "boolean" },
+    "archivedAt": { "type": "string", "format": "date-time" },
+    "trashedAt": { "type": "string", "format": "date-time" }
+  }
+}
