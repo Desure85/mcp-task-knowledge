@@ -1,0 +1,70 @@
+name: Prompts Sandbox Reindex
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "MCP project to reindex"
+        required: true
+        default: "mcp-sandbox"
+
+jobs:
+  reindex-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Reindex prompts (index, exports, catalog, services, builds)
+        env:
+          CURRENT_PROJECT: ${{ github.event.inputs.project }}
+        run: npm run -s prompts:reindex
+
+      - name: Upload artifacts (index and validation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-core-${{ github.event.inputs.project }}
+          path: |
+            .data/prompts/${{ github.event.inputs.project }}/index.json
+            .data/prompts/${{ github.event.inputs.project }}/quality/validation.json
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (exports JSON)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-exports-json-${{ github.event.inputs.project }}
+          path: .data/prompts/${{ github.event.inputs.project }}/exports/json/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (exports Markdown)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-exports-markdown-${{ github.event.inputs.project }}
+          path: .data/prompts/${{ github.event.inputs.project }}/exports/markdown/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (catalog)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-catalog-${{ github.event.inputs.project }}
+          path: .data/prompts/${{ github.event.inputs.project }}/exports/catalog/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (builds)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-builds-${{ github.event.inputs.project }}
+          path: .data/prompts/${{ github.event.inputs.project }}/exports/builds/
+          if-no-files-found: ignore
