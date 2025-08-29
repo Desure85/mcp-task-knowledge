@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -212,6 +213,32 @@ async function main() {
     return out;
   }
 
+  // ===== Post-write hook: trigger prompts index & catalog export =====
+  let reindexInFlight = false;
+  async function triggerPromptsReindex(project: string): Promise<void> {
+    if (reindexInFlight) return;
+    reindexInFlight = true;
+    try {
+      const env = { ...process.env, MCP_PROMPTS_DIR: PROMPTS_DIR, CURRENT_PROJECT: project } as NodeJS.ProcessEnv;
+      const run = (args: string[]) => new Promise<void>((resolve) => {
+        const p = spawn('node', ['scripts/prompts.mjs', ...args], {
+          cwd: process.cwd(),
+          env,
+          stdio: 'ignore',
+        });
+        p.on('error', () => resolve());
+        p.on('close', () => resolve());
+      });
+      await run(['index']);
+      await run(['catalog']);
+      // Optional: services export (best-effort)
+      try { await run(['catalog:services']); } catch {}
+    } catch {}
+    finally {
+      reindexInFlight = false;
+    }
+  }
+
   // Service Catalog tools (conditionally registered)
   if (isCatalogEnabled() && isCatalogReadEnabled()) {
     server.registerTool(
@@ -366,6 +393,12 @@ async function main() {
         }
       }
       const ok = results.every((r) => !r.error);
+      // Fire-and-forget reindex on successful writes (at least one write succeeded)
+      try {
+        if (results.some((r) => r.path && !r.error)) {
+          void triggerPromptsReindex(prj);
+        }
+      } catch {}
       const envelope = { ok, data: { project: prj, results } };
       return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
     }
@@ -419,6 +452,12 @@ async function main() {
         }
       }
       const ok = results.every((r) => !r.error);
+      // Fire-and-forget reindex on successful writes (at least one write succeeded)
+      try {
+        if (results.some((r) => r.path && !r.error)) {
+          void triggerPromptsReindex(prj);
+        }
+      } catch {}
       const envelope = { ok, data: { project: prj, results } };
       return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
     }
@@ -456,6 +495,11 @@ async function main() {
         }
       }
       const ok = results.every((r) => !r.error);
+      try {
+        if (!dryRun && results.some((r) => r.deleted && !r.error)) {
+          void triggerPromptsReindex(prj);
+        }
+      } catch {}
       const envelope = { ok, data: { project: prj, results, dryRun: !!dryRun } };
       return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
     }
