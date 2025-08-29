@@ -233,10 +233,13 @@ async function main() {
         p.on('error', () => resolve());
         p.on('close', () => resolve());
       });
+      // Full cycle to keep all artifacts consistent with main CI
       await run(['index']);
       await run(['catalog']);
-      // Optional: services export (best-effort)
       try { await run(['catalog:services']); } catch {}
+      try { await run(['export-json']); } catch {}
+      try { await run(['export-md']); } catch {}
+      try { await run(['build']); } catch {}
     } catch {}
     finally {
       reindexInFlight = false;
