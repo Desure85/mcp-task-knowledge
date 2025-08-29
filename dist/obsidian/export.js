@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { loadConfig } from '../config.js';
+import { loadConfig, PROMPTS_DIR } from '../config.js';
 import { ensureDir, writeText } from '../fs.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { listTasksTree, listTasks } from '../storage/tasks.js';
@@ -29,8 +29,10 @@ export async function planExportProjectToVault(project, opts) {
     const projectRoot = path.join(vaultRoot, pfx ? pfx : '');
     const knowledgeDir = path.join(projectRoot, 'Knowledge');
     const tasksDir = path.join(projectRoot, 'Tasks');
+    const promptsDir = path.join(projectRoot, 'Prompts');
     const doKnowledge = opts?.knowledge !== false;
     const doTasks = opts?.tasks !== false;
+    const doPrompts = opts?.prompts !== false;
     const strategy = opts?.strategy || 'merge';
     const includeArchived = opts?.includeArchived === true;
     const updatedFrom = opts?.updatedFrom ? new Date(opts.updatedFrom) : undefined;
@@ -146,6 +148,26 @@ export async function planExportProjectToVault(project, opts) {
             willDelete.push(knowledgeDir);
         if (doTasks)
             willDelete.push(tasksDir);
+        if (doPrompts)
+            willDelete.push(promptsDir);
+    }
+    // Prompts counting (best-effort): prefer catalog items count, fallback to number of build jsons
+    let pCount = 0;
+    if (doPrompts) {
+        try {
+            const catPath = path.join(PROMPTS_DIR, project || 'mcp', 'exports', 'catalog', 'prompts.catalog.json');
+            const raw = await fs.readFile(catPath, 'utf8');
+            const man = JSON.parse(raw);
+            pCount = man && man.items ? Object.keys(man.items).length : 0;
+        }
+        catch {
+            try {
+                const buildsDir = path.join(PROMPTS_DIR, project || 'mcp', 'exports', 'builds');
+                const items = await fs.readdir(buildsDir);
+                pCount = items.filter(n => n.endsWith('.json')).length;
+            }
+            catch { }
+        }
     }
     return {
         project,
@@ -153,8 +175,10 @@ export async function planExportProjectToVault(project, opts) {
         strategy,
         knowledge: doKnowledge,
         tasks: doTasks,
+        prompts: doPrompts,
         knowledgeCount: kCount,
         tasksCount: tCount,
+        promptsCount: pCount,
         willDeleteDirs: willDelete,
     };
 }
@@ -165,8 +189,10 @@ export async function exportProjectToVault(project, opts) {
     const projectRoot = path.join(vaultRoot, pfx ? pfx : '');
     const knowledgeDir = path.join(projectRoot, 'Knowledge');
     const tasksDir = path.join(projectRoot, 'Tasks');
+    const promptsDir = path.join(projectRoot, 'Prompts');
     const doKnowledge = opts?.knowledge !== false;
     const doTasks = opts?.tasks !== false;
+    const doPrompts = opts?.prompts !== false;
     const strategy = opts?.strategy || 'merge';
     const includeArchived = opts?.includeArchived === true;
     const updatedFrom = opts?.updatedFrom ? new Date(opts.updatedFrom) : undefined;
@@ -187,6 +213,9 @@ export async function exportProjectToVault(project, opts) {
             if (doTasks) {
                 await fs.rm(tasksDir, { recursive: true, force: true });
             }
+            if (doPrompts) {
+                await fs.rm(promptsDir, { recursive: true, force: true });
+            }
         }
         catch {
             // ignore
@@ -196,6 +225,8 @@ export async function exportProjectToVault(project, opts) {
         await ensureDir(knowledgeDir);
     if (doTasks)
         await ensureDir(tasksDir);
+    if (doPrompts)
+        await ensureDir(promptsDir);
     // --- Export knowledge: hierarchical by parentId/type with filters ---
     let knowledgeCount = 0;
     let kMap = new Map();
@@ -413,9 +444,105 @@ export async function exportProjectToVault(project, opts) {
             await writeTaskNode(root, []);
         }
     }
+    // --- Export prompts: catalog, builds, and optionally sources ---
+    let promptsCount = 0;
+    if (doPrompts) {
+        const srcBase = path.join(PROMPTS_DIR, project || 'mcp');
+        const srcCatalog = path.join(srcBase, 'exports', 'catalog', 'prompts.catalog.json');
+        const srcBuilds = path.join(srcBase, 'exports', 'builds');
+        const srcMd = path.join(srcBase, 'exports', 'markdown');
+        const srcJsonRoots = [path.join(srcBase, 'prompts'), path.join(srcBase, 'rules'), path.join(srcBase, 'workflows'), path.join(srcBase, 'templates'), path.join(srcBase, 'policies')];
+        const dstCatalogDir = path.join(promptsDir, 'catalog');
+        const dstBuildsDir = path.join(promptsDir, 'builds');
+        const dstMdDir = path.join(promptsDir, 'markdown');
+        const dstSourcesDir = path.join(promptsDir, 'sources');
+        // catalog
+        try {
+            await ensureDir(dstCatalogDir);
+            const raw = await fs.readFile(srcCatalog, 'utf8');
+            await fs.writeFile(path.join(dstCatalogDir, 'prompts.catalog.json'), raw, 'utf8');
+            const man = JSON.parse(raw);
+            promptsCount = man && man.items ? Object.keys(man.items).length : promptsCount;
+        }
+        catch { }
+        // builds
+        try {
+            await ensureDir(dstBuildsDir);
+            const items = await fs.readdir(srcBuilds, { withFileTypes: true });
+            for (const e of items) {
+                if (e.isFile() && e.name.endsWith('.json')) {
+                    const b = await fs.readFile(path.join(srcBuilds, e.name));
+                    await fs.writeFile(path.join(dstBuildsDir, e.name), b);
+                }
+                if (e.isFile() && e.name.endsWith('.md')) {
+                    const b = await fs.readFile(path.join(srcBuilds, e.name));
+                    await fs.writeFile(path.join(dstBuildsDir, e.name), b);
+                }
+            }
+        }
+        catch { }
+        // optional sources markdown
+        if (opts?.includePromptSourcesMd) {
+            try {
+                await ensureDir(dstMdDir);
+                const items = await fs.readdir(srcMd, { withFileTypes: true });
+                for (const e of items) {
+                    if (e.isFile() && e.name.endsWith('.md')) {
+                        const b = await fs.readFile(path.join(srcMd, e.name));
+                        await fs.writeFile(path.join(dstMdDir, e.name), b);
+                    }
+                }
+            }
+            catch { }
+        }
+        // optional sources json
+        if (opts?.includePromptSourcesJson) {
+            for (const root of srcJsonRoots) {
+                try {
+                    const rel = path.basename(root);
+                    const dst = path.join(dstSourcesDir, rel);
+                    await ensureDir(dst);
+                    const stack = [root];
+                    while (stack.length) {
+                        const cur = stack.pop();
+                        let entries = [];
+                        try {
+                            entries = await fs.readdir(cur, { withFileTypes: true });
+                        }
+                        catch {
+                            continue;
+                        }
+                        for (const ent of entries) {
+                            const full = path.join(cur, ent.name);
+                            const relPath = path.relative(root, full);
+                            const outPath = path.join(dst, relPath);
+                            if (ent.isDirectory()) {
+                                await ensureDir(outPath);
+                                stack.push(full);
+                            }
+                            else if (ent.isFile() && ent.name.endsWith('.json')) {
+                                const b = await fs.readFile(full);
+                                await ensureDir(path.dirname(outPath));
+                                await fs.writeFile(outPath, b);
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+    }
     // Optionally, write an index file
     const indexPath = path.join(projectRoot, 'INDEX.md');
-    const indexBody = [`# Project ${project ?? '(all)'} Export`, '', `Knowledge: ${knowledgeCount}`, `Tasks: ${tasksCount}`, '', `Strategy: ${strategy}`].join('\n');
+    const indexBody = [
+        `# Project ${project ?? '(all)'} Export`,
+        '',
+        `Knowledge: ${knowledgeCount}`,
+        `Tasks: ${tasksCount}`,
+        doPrompts ? `Prompts: ${promptsCount}` : undefined,
+        '',
+        `Strategy: ${strategy}`,
+    ].filter(Boolean).join('\n');
     await writeText(indexPath, indexBody);
-    return { project, vaultRoot, knowledgeCount, tasksCount };
+    return { project, vaultRoot, knowledgeCount, tasksCount, promptsCount };
 }

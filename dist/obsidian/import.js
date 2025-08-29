@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import matter from 'gray-matter';
 import fg from 'fast-glob';
-import { loadConfig } from '../config.js';
+import { loadConfig, PROMPTS_DIR } from '../config.js';
 import { listDocs, createDoc, updateDoc, deleteDocPermanent } from '../storage/knowledge.js';
 import { listTasks, createTask, updateTask, deleteTaskPermanent } from '../storage/tasks.js';
 function sanitizeTitle(s) {
@@ -106,6 +106,7 @@ export async function planImportProjectFromVault(project, opts) {
     const projectRoot = path.join(vaultRoot, pfx ? pfx : '');
     const doKnowledge = opts?.knowledge !== false;
     const doTasks = opts?.tasks !== false;
+    const doPrompts = opts?.prompts !== false;
     const strategy = opts?.strategy || 'merge';
     // Back-compat: derive mergeStrategy from overwriteByTitle when not provided
     const mergeStrategy = (() => {
@@ -293,6 +294,51 @@ export async function planImportProjectFromVault(project, opts) {
             }
         }
     }
+    // Prompts (file-level copy plan)
+    if (doPrompts) {
+        const promptsRoot = path.join(projectRoot, 'Prompts');
+        const includeSources = opts?.importPromptSourcesJson === true; // opt-in
+        const includeMarkdown = opts?.importPromptMarkdown === true; // opt-in
+        const willCopy = { sources: 0, builds: 0, markdown: 0, catalog: 0 };
+        const willDeleteDirs = [];
+        if (await pathExists(promptsRoot)) {
+            // sources
+            if (includeSources) {
+                const patterns = [
+                    'sources/prompts/**/*.json',
+                    'sources/rules/**/*.json',
+                    'sources/workflows/**/*.json',
+                    'sources/templates/**/*.json',
+                    'sources/policies/**/*.json',
+                ];
+                const files = fg.sync(patterns, { cwd: promptsRoot, dot: false, onlyFiles: true });
+                willCopy.sources = files.length;
+            }
+            // builds
+            {
+                const files = fg.sync(['builds/**/*.*'], { cwd: promptsRoot, dot: false, onlyFiles: true });
+                willCopy.builds = files.length;
+            }
+            // markdown
+            if (includeMarkdown) {
+                const files = fg.sync(['markdown/**/*.md'], { cwd: promptsRoot, dot: false, onlyFiles: true });
+                willCopy.markdown = files.length;
+            }
+            // catalog
+            {
+                const files = fg.sync(['catalog/**/*.json'], { cwd: promptsRoot, dot: false, onlyFiles: true });
+                willCopy.catalog = files.length;
+            }
+        }
+        if (strategy === 'replace') {
+            const destBase = path.join(PROMPTS_DIR, project || 'mcp');
+            willDeleteDirs.push(path.join(destBase, 'exports', 'builds'), path.join(destBase, 'exports', 'markdown'), path.join(destBase, 'exports', 'catalog'));
+            if (includeSources) {
+                willDeleteDirs.push(path.join(destBase, 'prompts'), path.join(destBase, 'rules'), path.join(destBase, 'workflows'), path.join(destBase, 'templates'), path.join(destBase, 'policies'));
+            }
+        }
+        plan.prompts = { willCopy, willDeleteDirs: strategy === 'replace' ? willDeleteDirs : undefined };
+    }
     return plan;
 }
 export async function importProjectFromVault(project, opts) {
@@ -302,6 +348,7 @@ export async function importProjectFromVault(project, opts) {
     const projectRoot = path.join(vaultRoot, pfx ? pfx : '');
     const doKnowledge = opts?.knowledge !== false;
     const doTasks = opts?.tasks !== false;
+    const doPrompts = opts?.prompts !== false;
     const strategy = opts?.strategy || 'merge';
     const mergeStrategy = (() => {
         if (opts?.mergeStrategy)
@@ -353,6 +400,7 @@ export async function importProjectFromVault(project, opts) {
     }
     let knowledgeImported = 0;
     let tasksImported = 0;
+    const promptsCopied = { sources: 0, builds: 0, markdown: 0, catalog: 0 };
     // Knowledge
     if (doKnowledge) {
         const knowledgeDir = path.join(projectRoot, 'Knowledge');
@@ -637,5 +685,71 @@ export async function importProjectFromVault(project, opts) {
             }
         }
     }
-    return { project, vaultRoot, knowledgeImported, tasksImported };
+    // Prompts copy
+    if (doPrompts) {
+        const promptsRoot = path.join(projectRoot, 'Prompts');
+        const includeSources = opts?.importPromptSourcesJson === true;
+        const includeMarkdown = opts?.importPromptMarkdown === true;
+        if (await pathExists(promptsRoot)) {
+            const destBase = path.join(PROMPTS_DIR, project || 'mcp');
+            async function ensureDir(p) { await fs.mkdir(p, { recursive: true }); }
+            // Replace cleanup
+            if (strategy === 'replace') {
+                const toDelete = [
+                    path.join(destBase, 'exports', 'builds'),
+                    path.join(destBase, 'exports', 'markdown'),
+                    path.join(destBase, 'exports', 'catalog'),
+                ];
+                if (includeSources) {
+                    toDelete.push(path.join(destBase, 'prompts'), path.join(destBase, 'rules'), path.join(destBase, 'workflows'), path.join(destBase, 'templates'), path.join(destBase, 'policies'));
+                }
+                for (const d of toDelete) {
+                    try {
+                        await fs.rm(d, { recursive: true, force: true });
+                    }
+                    catch { }
+                }
+            }
+            // Copy helpers
+            async function copyTree(src, dst, pattern) {
+                const files = await fg(pattern, { cwd: src, dot: false, onlyFiles: true });
+                await ensureDir(dst);
+                for (const rel of files) {
+                    const from = path.join(src, rel);
+                    const to = path.join(dst, rel);
+                    await ensureDir(path.dirname(to));
+                    await fs.copyFile(from, to);
+                }
+                return files.length;
+            }
+            // sources (opt-in)
+            if (includeSources) {
+                const srcRoot = path.join(promptsRoot, 'sources');
+                const count = await copyTree(srcRoot, destBase, '**/*.json');
+                promptsCopied.sources += count;
+            }
+            // builds
+            {
+                const srcRoot = path.join(promptsRoot, 'builds');
+                const dstRoot = path.join(destBase, 'exports', 'builds');
+                const count = await copyTree(srcRoot, dstRoot, '**/*.*');
+                promptsCopied.builds += count;
+            }
+            // markdown (opt-in)
+            if (includeMarkdown) {
+                const srcRoot = path.join(promptsRoot, 'markdown');
+                const dstRoot = path.join(destBase, 'exports', 'markdown');
+                const count = await copyTree(srcRoot, dstRoot, '**/*.md');
+                promptsCopied.markdown += count;
+            }
+            // catalog
+            {
+                const srcRoot = path.join(promptsRoot, 'catalog');
+                const dstRoot = path.join(destBase, 'exports', 'catalog');
+                const count = await copyTree(srcRoot, dstRoot, '**/*.json');
+                promptsCopied.catalog += count;
+            }
+        }
+    }
+    return { project, vaultRoot, knowledgeImported, tasksImported, promptsCopied };
 }

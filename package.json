@@ -19,7 +19,15 @@
     "obsidian:smoke": "node scripts/obsidian_roundtrip.mjs",
     "obsidian:matrix": "node scripts/obsidian_live_matrix.mjs",
     "project:purge:tracker": "node scripts/purge_tracker.js",
-    "project:purge": "node scripts/purge_project.js"
+    "project:purge": "node scripts/purge_project.js",
+    "prompts:index": "node scripts/prompts.mjs index",
+    "prompts:validate": "node scripts/prompts.mjs validate",
+    "prompts:export:json": "node scripts/prompts.mjs export-json",
+    "prompts:export:md": "node scripts/prompts.mjs export-md",
+    "prompts:build": "node scripts/prompts.mjs build",
+    "prompts:catalog": "node scripts/prompts.mjs catalog",
+    "prompts:list": "node scripts/prompts.mjs list",
+    "prompts:ab:report": "node scripts/prompts.mjs ab:report"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",

@@ -1,7 +1,9 @@
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled } from "./config.js";
+import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR } from "./config.js";
 import { createServiceCatalogProvider } from "./catalog/provider.js";
 import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
 import { createDoc, listDocs, readDoc, updateDoc, deleteDocPermanent } from "./storage/knowledge.js";
@@ -10,6 +12,8 @@ import { getVectorAdapter } from "./search/vector.js";
 import { exportProjectToVault, planExportProjectToVault } from "./obsidian/export.js";
 import { importProjectFromVault, planImportProjectFromVault } from "./obsidian/import.js";
 import { listProjects } from "./projects.js";
+import { appendAssignments, appendEvents, listBuildVariants, readAggregates, readExperiment, updateAggregates } from './ab-testing/storage.js';
+import { pickWithEpsilonGreedy } from './ab-testing/bandits.js';
 async function main() {
     const server = new McpServer({ name: "mcp-task-knowledge", version: "0.1.0" });
     console.error('[startup] mcp-task-knowledge starting...', { ts: new Date().toISOString(), pid: process.pid });
@@ -103,6 +107,117 @@ async function main() {
             }
         };
     })(server.registerTool);
+    // ===== Helpers: Prompt Library IO =====
+    async function readPromptsCatalog(project) {
+        const prj = resolveProject(project);
+        const file = path.join(PROMPTS_DIR, prj, 'exports', 'catalog', 'prompts.catalog.json');
+        try {
+            const raw = await fs.readFile(file, 'utf8');
+            return JSON.parse(raw);
+        }
+        catch {
+            return null;
+        }
+    }
+    async function readPromptBuildItems(project) {
+        const prj = resolveProject(project);
+        const buildsDir = path.join(PROMPTS_DIR, prj, 'exports', 'builds');
+        const mdDir = buildsDir; // md files can live alongside json builds per export
+        const out = [];
+        let entries = [];
+        try {
+            entries = await fs.readdir(buildsDir, { withFileTypes: true });
+        }
+        catch { }
+        for (const e of entries) {
+            if (!e.isFile())
+                continue;
+            const full = path.join(buildsDir, e.name);
+            if (e.name.endsWith('.json')) {
+                try {
+                    const raw = await fs.readFile(full, 'utf8');
+                    const j = JSON.parse(raw);
+                    const key = e.name.slice(0, -5);
+                    const text = [j.title, j.description, Array.isArray(j.tags) ? j.tags.join(' ') : '', JSON.stringify(j)].filter(Boolean).join('\n');
+                    out.push({ id: key, text, item: { key, kind: j.kind || j.type || 'prompt', tags: j.tags || [], title: j.title || key, path: full } });
+                }
+                catch { }
+            }
+            else if (e.name.endsWith('.md')) {
+                try {
+                    const raw = await fs.readFile(full, 'utf8');
+                    const key = e.name.slice(0, -3);
+                    out.push({ id: key, text: raw, item: { key, kind: 'markdown', tags: [], title: key, path: full } });
+                }
+                catch { }
+            }
+        }
+        // Optionally read exported markdown dir if exists
+        try {
+            const mdEntries = await fs.readdir(mdDir, { withFileTypes: true });
+            for (const e of mdEntries) {
+                if (e.isFile() && e.name.endsWith('.md')) {
+                    const full = path.join(mdDir, e.name);
+                    const raw = await fs.readFile(full, 'utf8');
+                    const key = e.name.slice(0, -3);
+                    out.push({ id: key, text: raw, item: { key, kind: 'markdown', tags: [], title: key, path: full } });
+                }
+            }
+        }
+        catch { }
+        return out;
+    }
+    // ===== Helpers: JSONL and filesystem for Prompt Feedback/Exports =====
+    async function ensureDirForFile(filePath) {
+        try {
+            await fs.mkdir(path.dirname(filePath), { recursive: true });
+        }
+        catch { }
+    }
+    async function appendJsonl(filePath, items) {
+        await ensureDirForFile(filePath);
+        const lines = items.map((x) => JSON.stringify(x)).join('\n') + '\n';
+        await fs.appendFile(filePath, lines, 'utf8');
+        return items.length;
+    }
+    async function readJsonl(filePath) {
+        try {
+            const raw = await fs.readFile(filePath, 'utf8');
+            const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
+            const out = [];
+            for (const l of lines) {
+                try {
+                    out.push(JSON.parse(l));
+                }
+                catch { }
+            }
+            return out;
+        }
+        catch {
+            return [];
+        }
+    }
+    async function listFilesRecursive(dir) {
+        const out = [];
+        async function walk(d) {
+            let entries = [];
+            try {
+                entries = await fs.readdir(d, { withFileTypes: true });
+            }
+            catch {
+                return;
+            }
+            for (const e of entries) {
+                const full = path.join(d, e.name);
+                if (e.isDirectory())
+                    await walk(full);
+                else
+                    out.push(full);
+            }
+        }
+        await walk(dir);
+        return out;
+    }
     // Service Catalog tools (conditionally registered)
     if (isCatalogEnabled() && isCatalogReadEnabled()) {
         server.registerTool("service_catalog_query", {
@@ -136,14 +251,385 @@ async function main() {
     else {
         console.warn('[startup][catalog] catalog read disabled — query tool will not be registered');
     }
+    // ===== Prompt Library: Catalog & Search =====
+    server.registerTool("prompts_catalog_get", {
+        title: "Prompts Catalog Get",
+        description: "Return prompts catalog JSON if present",
+        inputSchema: { project: z.string().optional() },
+    }, async ({ project }) => {
+        const prj = resolveProject(project);
+        const data = await readPromptsCatalog(prj);
+        const envelope = data ? { ok: true, data } : { ok: false, error: { message: 'catalog not found' } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !data };
+    });
+    // ===== Prompt Library: Feedback & Reports & Listing =====
+    // prompts_feedback_log — append passive feedback events to JSONL
+    server.registerTool("prompts_feedback_log", {
+        title: "Prompts Feedback Log",
+        description: "Append passive user feedback for prompts (JSONL store)",
+        inputSchema: {
+            project: z.string().optional(),
+            promptId: z.string().min(1),
+            version: z.string().min(1),
+            variant: z.string().nullable().optional(),
+            sessionId: z.string().optional(),
+            userId: z.string().optional(),
+            inputText: z.string().optional(),
+            modelOutput: z.string().optional(),
+            userMessage: z.string().optional(),
+            userEdits: z.string().optional(),
+            signals: z
+                .object({
+                thumb: z.enum(["up", "down"]).optional(),
+                copied: z.boolean().optional(),
+                abandoned: z.boolean().optional(),
+            })
+                .optional(),
+            meta: z.record(z.any()).optional(),
+        },
+    }, async (params) => {
+        const prj = resolveProject(params?.project);
+        const file = path.join(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
+        const ts = new Date().toISOString();
+        const event = {
+            ts,
+            project: prj,
+            promptId: params.promptId,
+            version: params.version,
+            variant: params.variant ?? null,
+            sessionId: params.sessionId,
+            userId: params.userId,
+            inputText: params.inputText,
+            modelOutput: params.modelOutput,
+            userMessage: params.userMessage,
+            userEdits: params.userEdits,
+            signals: params.signals || {},
+            meta: params.meta || {},
+        };
+        const appended = await appendJsonl(file, [event]);
+        const envelope = { ok: true, data: { path: file, appended } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    // prompts_ab_report — aggregate A/B aggregates + passive feedback stats
+    server.registerTool("prompts_ab_report", {
+        title: "Prompts A/B Report",
+        description: "Aggregate A/B metrics and passive feedback for all prompt keys",
+        inputSchema: {
+            project: z.string().optional(),
+            writeToDisk: z.boolean().optional(),
+        },
+    }, async ({ project, writeToDisk }) => {
+        const prj = resolveProject(project);
+        const catalog = await readPromptsCatalog(prj);
+        const keys = Object.keys(catalog?.items || {});
+        const byPrompt = {};
+        for (const k of keys) {
+            try {
+                const aggr = await readAggregates(prj, k);
+                // summarize aggregates
+                const rows = Object.entries(aggr).map(([variantId, s]) => {
+                    const avgScore = s.trials > 0 ? s.scoreSum / s.trials : 0;
+                    const successRate = s.trials > 0 ? s.successes / s.trials : 0;
+                    const avgLatencyMs = s.trials > 0 ? s.latencySumMs / s.trials : 0;
+                    const avgCost = s.trials > 0 ? s.costSum / s.trials : 0;
+                    const avgTokensIn = s.trials > 0 ? s.tokensInSum / s.trials : 0;
+                    const avgTokensOut = s.trials > 0 ? s.tokensOutSum / s.trials : 0;
+                    return { variantId, trials: s.trials, successRate, avgScore, avgLatencyMs, avgCost, avgTokensIn, avgTokensOut };
+                });
+                byPrompt[k] = { variants: rows };
+            }
+            catch { }
+        }
+        // Feedback stats
+        const feedbackPath = path.join(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
+        const feedback = await readJsonl(feedbackPath);
+        let thumbsUp = 0, thumbsDown = 0, copied = 0, abandoned = 0, editChars = 0, editCount = 0;
+        for (const e of feedback) {
+            const sig = e?.signals || {};
+            if (sig.thumb === 'up')
+                thumbsUp++;
+            else if (sig.thumb === 'down')
+                thumbsDown++;
+            if (sig.copied)
+                copied++;
+            if (sig.abandoned)
+                abandoned++;
+            if (typeof e?.userEdits === 'string' && e.userEdits.length > 0) {
+                editChars += e.userEdits.length;
+                editCount += 1;
+            }
+        }
+        const totalThumbs = thumbsUp + thumbsDown;
+        const outReport = {
+            generatedAt: new Date().toISOString(),
+            project: prj,
+            totalExperiments: keys.length,
+            totalFeedbackEvents: feedback.length,
+            byPrompt,
+            feedback: {
+                thumbs: { up: thumbsUp, down: thumbsDown, acceptance: totalThumbs > 0 ? thumbsUp / totalThumbs : 0 },
+                copiedRate: feedback.length > 0 ? copied / feedback.length : 0,
+                abandonedRate: feedback.length > 0 ? abandoned / feedback.length : 0,
+                avgEditChars: editCount > 0 ? editChars / editCount : 0,
+                editRate: feedback.length > 0 ? editCount / feedback.length : 0,
+            },
+        };
+        let pathOut;
+        if (writeToDisk) {
+            const outDir = path.join(PROMPTS_DIR, prj, 'reports');
+            await fs.mkdir(outDir, { recursive: true });
+            pathOut = path.join(outDir, `ab_report_${Date.now()}.json`);
+            await fs.writeFile(pathOut, JSON.stringify(outReport, null, 2), 'utf8');
+        }
+        const envelope = { ok: true, data: { ...outReport, path: pathOut } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    // prompts_list — list prompts with simple filters based on catalog
+    server.registerTool("prompts_list", {
+        title: "Prompts List",
+        description: "List prompts from prompts catalog with optional filters",
+        inputSchema: {
+            project: z.string().optional(),
+            latest: z.boolean().optional(),
+            kind: z.string().optional(),
+            status: z.string().optional(),
+            domain: z.string().optional(),
+            tag: z.array(z.string()).optional(),
+        },
+    }, async ({ project, latest, kind, status, domain, tag }) => {
+        const prj = resolveProject(project);
+        const catalog = await readPromptsCatalog(prj);
+        const items = [];
+        const tagSet = tag && tag.length ? new Set(tag) : undefined;
+        for (const [key, meta] of Object.entries(catalog?.items || {})) {
+            const rec = {
+                id: key,
+                version: meta.version || meta.buildVersion || 'latest',
+                kind: meta.kind || meta.type || 'prompt',
+                status: meta.status || undefined,
+                domain: meta.domain || undefined,
+                tags: Array.isArray(meta.tags) ? meta.tags : [],
+                file: meta.path || undefined,
+            };
+            if (kind && rec.kind !== kind)
+                continue;
+            if (status && rec.status !== status)
+                continue;
+            if (domain && rec.domain !== domain)
+                continue;
+            if (tagSet && !(rec.tags || []).some((t) => tagSet.has(t)))
+                continue;
+            items.push(rec);
+        }
+        // latest flag is kept for parity; catalog is assumed latest already
+        const envelope = { ok: true, data: { generatedAt: new Date().toISOString(), total: items.length, items } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    // prompts_feedback_validate — quick JSONL validation
+    server.registerTool("prompts_feedback_validate", {
+        title: "Prompts Feedback Validate",
+        description: "Validate feedback JSONL file and return stats/samples",
+        inputSchema: { project: z.string().optional(), strict: z.boolean().optional() },
+    }, async ({ project, strict }) => {
+        const prj = resolveProject(project);
+        const file = path.join(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
+        const content = await fs.readFile(file, 'utf8').catch(() => '');
+        const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        const samples = [];
+        let valid = 0, invalid = 0;
+        lines.forEach((l, i) => {
+            try {
+                const obj = JSON.parse(l);
+                const ok = typeof obj?.promptId === 'string' && typeof obj?.version === 'string';
+                if (ok)
+                    valid++;
+                else {
+                    invalid++;
+                    samples.push({ line: i + 1, error: 'missing promptId/version' });
+                }
+            }
+            catch (e) {
+                invalid++;
+                samples.push({ line: i + 1, error: e?.message || 'parse error' });
+            }
+        });
+        if (strict) {
+            // In strict mode, truncate samples to first 20 to keep payload small
+            samples.splice(20);
+        }
+        const envelope = { ok: true, data: { path: file, total: lines.length, valid, invalid, samples } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    // prompts_exports_get — list exported prompt artifacts
+    server.registerTool("prompts_exports_get", {
+        title: "Prompts Exports Get",
+        description: "List exported prompt artifacts under exports/",
+        inputSchema: { project: z.string().optional(), type: z.enum(["json", "markdown", "builds", "catalog", "all"]).optional() },
+    }, async ({ project, type }) => {
+        const prj = resolveProject(project);
+        const base = path.join(PROMPTS_DIR, prj, 'exports');
+        const wanted = type || 'all';
+        const dirs = [];
+        if (wanted === 'all' || wanted === 'builds')
+            dirs.push(path.join(base, 'builds'));
+        if (wanted === 'all' || wanted === 'catalog')
+            dirs.push(path.join(base, 'catalog'));
+        if (wanted === 'all' || wanted === 'json')
+            dirs.push(path.join(base, 'json'));
+        if (wanted === 'all' || wanted === 'markdown')
+            dirs.push(path.join(base, 'markdown'));
+        const files = [];
+        for (const d of dirs) {
+            const list = await listFilesRecursive(d).catch(() => []);
+            for (const f of list) {
+                try {
+                    const st = await (await import('node:fs')).promises.stat(f);
+                    files.push({ path: f, size: st.size });
+                }
+                catch { }
+            }
+        }
+        const envelope = { ok: true, data: { baseDir: base, files } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    server.registerTool("prompts_search", {
+        title: "Prompts Search (hybrid)",
+        description: "Semantic/lexical search across prompt builds and markdown",
+        inputSchema: {
+            project: z.string().optional(),
+            query: z.string().min(1),
+            limit: z.number().int().min(1).max(100).optional(),
+            tags: z.array(z.string()).optional(),
+            kinds: z.array(z.string()).optional(),
+        },
+    }, async ({ project, query, limit, tags, kinds }) => {
+        const prj = resolveProject(project);
+        const catalog = await readPromptsCatalog(prj);
+        const items = await readPromptBuildItems(prj);
+        const tagSet = tags && tags.length ? new Set(tags) : undefined;
+        const kindSet = kinds && kinds.length ? new Set(kinds) : undefined;
+        const filtered = items.filter((it) => {
+            const meta = catalog?.items?.[it.item.key] || {};
+            const allTags = Array.from(new Set([...(it.item.tags || []), ...(meta.tags || [])]));
+            const kind = it.item.kind || meta.kind || meta.type || 'prompt';
+            if (tagSet && !allTags.some((t) => tagSet.has(t)))
+                return false;
+            if (kindSet && !kindSet.has(kind))
+                return false;
+            return true;
+        });
+        const va = await ensureVectorAdapter();
+        const results = await hybridSearch(query, filtered, { limit: limit ?? 20, vectorAdapter: va });
+        const mapped = results.map((r) => {
+            const meta = catalog?.items?.[r.item.key] || {};
+            const kind = r.item.kind || meta.kind || meta.type || 'prompt';
+            const title = r.item.title || meta.title || r.item.key;
+            const tagsOut = Array.from(new Set([...(r.item.tags || []), ...(meta.tags || [])]));
+            return { key: r.item.key, kind, title, score: r.score, tags: tagsOut, path: r.item.path };
+        });
+        const envelope = { ok: true, data: mapped };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    // ===== Prompt Library: Variants & Metrics =====
+    server.registerTool("prompts_variants_list", {
+        title: "Prompts Variants List",
+        description: "List available variants for a promptKey (experiment or builds)",
+        inputSchema: { project: z.string().optional(), promptKey: z.string().min(1) },
+    }, async ({ project, promptKey }) => {
+        const exp = await readExperiment(project, promptKey);
+        const fromExp = exp?.variants || [];
+        const fromBuilds = await listBuildVariants(project, promptKey);
+        const variants = Array.from(new Set([...(fromExp || []), ...fromBuilds]));
+        const envelope = { ok: true, data: { promptKey, variants } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    server.registerTool("prompts_variants_stats", {
+        title: "Prompts Variants Stats",
+        description: "Return aggregate metrics per variant for given promptKey",
+        inputSchema: { project: z.string().optional(), promptKey: z.string().min(1) },
+    }, async ({ project, promptKey }) => {
+        const aggr = await readAggregates(project, promptKey);
+        const rows = Object.entries(aggr).map(([variantId, s]) => {
+            const avgScore = s.trials > 0 ? s.scoreSum / s.trials : 0;
+            const successRate = s.trials > 0 ? s.successes / s.trials : 0;
+            const avgLatencyMs = s.trials > 0 ? s.latencySumMs / s.trials : 0;
+            const avgCost = s.trials > 0 ? s.costSum / s.trials : 0;
+            const avgTokensIn = s.trials > 0 ? s.tokensInSum / s.trials : 0;
+            const avgTokensOut = s.trials > 0 ? s.tokensOutSum / s.trials : 0;
+            return { variantId, trials: s.trials, successRate, avgScore, avgLatencyMs, avgCost, avgTokensIn, avgTokensOut };
+        });
+        const envelope = { ok: true, data: { promptKey, stats: rows } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    server.registerTool("prompts_bandit_next", {
+        title: "Prompts Bandit Next",
+        description: "Pick next variant for a prompt using epsilon-greedy over aggregates",
+        inputSchema: {
+            project: z.string().optional(),
+            promptKey: z.string().min(1),
+            epsilon: z.number().min(0).max(1).optional(),
+            contextTags: z.array(z.string()).optional(),
+        },
+    }, async ({ project, promptKey, epsilon, contextTags }) => {
+        const exp = await readExperiment(project, promptKey);
+        let variants = Array.from(new Set([...(exp?.variants || []), ...(await listBuildVariants(project, promptKey))]));
+        if (variants.length === 0)
+            variants = [promptKey];
+        const stats = await readAggregates(project, promptKey);
+        const variantId = pickWithEpsilonGreedy(variants, stats, { epsilon });
+        const assignmentId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        const assignment = { id: assignmentId, ts: new Date().toISOString(), promptKey, variantId, strategy: `epsilon_greedy(${epsilon ?? 0.1})`, contextTags };
+        await appendAssignments(project, [assignment]);
+        const envelope = { ok: true, data: assignment };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
+    server.registerTool("prompts_metrics_log_bulk", {
+        title: "Prompts Metrics Log (Bulk)",
+        description: "Append events and update aggregates for prompts (bulk)",
+        inputSchema: {
+            project: z.string().optional(),
+            promptKey: z.string().min(1),
+            items: z
+                .array(z.object({
+                ts: z.string().optional(),
+                requestId: z.string().min(1),
+                userId: z.string().optional(),
+                model: z.string().optional(),
+                variantId: z.string().min(1),
+                outcome: z.object({
+                    success: z.boolean().optional(),
+                    score: z.number().optional(),
+                    tokensIn: z.number().optional(),
+                    tokensOut: z.number().optional(),
+                    latencyMs: z.number().optional(),
+                    cost: z.number().optional(),
+                    error: z.string().optional(),
+                }),
+                contextTags: z.array(z.string()).optional(),
+            }))
+                .min(1)
+                .max(200),
+        },
+    }, async ({ project, promptKey, items }) => {
+        const tsNow = new Date().toISOString();
+        const enriched = items.map((e) => ({ ts: e.ts || tsNow, ...e, promptKey }));
+        await appendEvents(project, promptKey, enriched);
+        const aggr = await updateAggregates(project, promptKey, enriched);
+        const envelope = { ok: true, data: { count: enriched.length, aggregates: aggr } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+    });
     // obsidian_export_project
     server.registerTool("obsidian_export_project", {
         title: "Export Project to Obsidian Vault",
-        description: "Export knowledge and tasks to Obsidian vault (merge or replace). Use with caution in replace mode.",
+        description: "Export knowledge, tasks, and prompts to Obsidian vault (merge or replace). Use with caution in replace mode.",
         inputSchema: {
             project: z.string().optional(),
             knowledge: z.boolean().optional(),
             tasks: z.boolean().optional(),
+            // Prompts (Prompt Library)
+            prompts: z.boolean().optional(),
+            includePromptSourcesJson: z.boolean().optional(),
+            includePromptSourcesMd: z.boolean().optional(),
             strategy: z.enum(["merge", "replace"]).optional(),
             // Filters common
             includeArchived: z.boolean().optional(),
@@ -163,16 +649,18 @@ async function main() {
             confirm: z.boolean().optional(),
             dryRun: z.boolean().optional(),
         },
-    }, async ({ project, knowledge, tasks, strategy, includeArchived, updatedFrom, updatedTo, includeTags, excludeTags, includeTypes, excludeTypes, includeStatus, includePriority, keepOrphans, confirm, dryRun }) => {
+    }, async ({ project, knowledge, tasks, prompts, includePromptSourcesJson, includePromptSourcesMd, strategy, includeArchived, updatedFrom, updatedTo, includeTags, excludeTags, includeTypes, excludeTypes, includeStatus, includePriority, keepOrphans, confirm, dryRun }) => {
         const cfg = loadConfig();
         const prj = resolveProject(project);
         const doKnowledge = knowledge !== false;
         const doTasks = tasks !== false;
+        const doPrompts = prompts !== false;
         const strat = strategy || 'merge';
         if (dryRun) {
             const plan = await planExportProjectToVault(prj, {
                 knowledge: doKnowledge,
                 tasks: doTasks,
+                prompts: doPrompts,
                 strategy: strat,
                 includeArchived,
                 updatedFrom,
@@ -192,8 +680,9 @@ async function main() {
                     strategy: strat,
                     knowledge: doKnowledge,
                     tasks: doTasks,
+                    prompts: doPrompts,
                     plan: {
-                        willWrite: { knowledgeCount: plan.knowledgeCount, tasksCount: plan.tasksCount },
+                        willWrite: { knowledgeCount: plan.knowledgeCount, tasksCount: plan.tasksCount, promptsCount: plan.promptsCount },
                         willDeleteDirs: plan.willDeleteDirs,
                     },
                 },
@@ -205,7 +694,7 @@ async function main() {
             return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
         }
         try {
-            const result = await exportProjectToVault(prj, { knowledge: doKnowledge, tasks: doTasks, strategy: strat, includeArchived, updatedFrom, updatedTo, includeTags, excludeTags, includeTypes, excludeTypes, includeStatus, includePriority, keepOrphans });
+            const result = await exportProjectToVault(prj, { knowledge: doKnowledge, tasks: doTasks, prompts: doPrompts, includePromptSourcesJson, includePromptSourcesMd, strategy: strat, includeArchived, updatedFrom, updatedTo, includeTags, excludeTags, includeTypes, excludeTypes, includeStatus, includePriority, keepOrphans });
             const envelope = { ok: true, data: result };
             return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
         }
@@ -217,11 +706,15 @@ async function main() {
     // obsidian_import_project
     server.registerTool("obsidian_import_project", {
         title: "Import Project from Obsidian Vault",
-        description: "Import knowledge and tasks from Obsidian vault. Replace strategy deletes existing content — use with caution.",
+        description: "Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy deletes existing content — use with caution.",
         inputSchema: {
             project: z.string().optional(),
             knowledge: z.boolean().optional(),
             tasks: z.boolean().optional(),
+            // Prompts (Prompt Library)
+            prompts: z.boolean().optional(),
+            importPromptSourcesJson: z.boolean().optional(),
+            importPromptMarkdown: z.boolean().optional(),
             overwriteByTitle: z.boolean().optional(),
             strategy: z.enum(["merge", "replace"]).optional(),
             mergeStrategy: z.enum(["overwrite", "append", "skip", "fail"]).optional(),
@@ -240,17 +733,21 @@ async function main() {
             confirm: z.boolean().optional(),
             dryRun: z.boolean().optional(),
         },
-    }, async ({ project, knowledge, tasks, overwriteByTitle, strategy, mergeStrategy, includePaths, excludePaths, includeTags, excludeTags, includeTypes, includeStatus, includePriority, confirm, dryRun }) => {
+    }, async ({ project, knowledge, tasks, prompts, importPromptSourcesJson, importPromptMarkdown, overwriteByTitle, strategy, mergeStrategy, includePaths, excludePaths, includeTags, excludeTags, includeTypes, includeStatus, includePriority, confirm, dryRun }) => {
         // Ensure config is loaded (validates DATA_DIR/VAULT envs and logs diagnostics)
         const cfg = loadConfig();
         const prj = resolveProject(project);
         const doKnowledge = knowledge !== false;
         const doTasks = tasks !== false;
+        const doPrompts = prompts !== false;
         const strat = strategy || 'merge';
         const mstrat = mergeStrategy || 'overwrite';
         const commonOpts = {
             knowledge: doKnowledge,
             tasks: doTasks,
+            prompts: doPrompts,
+            importPromptSourcesJson,
+            importPromptMarkdown,
             overwriteByTitle,
             strategy: strat,
             mergeStrategy: mstrat,
@@ -274,6 +771,7 @@ async function main() {
                         mergeStrategy: mstrat,
                         knowledge: doKnowledge,
                         tasks: doTasks,
+                        prompts: doPrompts,
                         plan,
                     },
                 };
@@ -1103,8 +1601,23 @@ async function main() {
                 ex[key] = false;
             else if (key === 'knowledge' || key === 'tasks' || key === 'overwriteByTitle')
                 ex[key] = true;
+            // Prompts-related flags (export/import)
+            else if (key === 'prompts')
+                ex[key] = true;
+            else if (key === 'includePromptSourcesJson')
+                ex[key] = true;
+            else if (key === 'includePromptSourcesMd')
+                ex[key] = true;
+            else if (key === 'importPromptSourcesJson')
+                ex[key] = true;
+            else if (key === 'importPromptMarkdown')
+                ex[key] = true;
+            else if (key === 'keepOrphans')
+                ex[key] = false;
             else if (key === 'strategy')
                 ex[key] = 'merge';
+            else if (key === 'mergeStrategy')
+                ex[key] = 'overwrite';
             else if (key === 'query')
                 ex[key] = 'example';
             else if (key === 'texts')
@@ -1121,6 +1634,10 @@ async function main() {
                 ex[key] = 'example';
             else if (key === 'includeArchived')
                 ex[key] = false;
+            else if (key === 'updatedFrom')
+                ex[key] = '2025-01-01T00:00:00Z';
+            else if (key === 'updatedTo')
+                ex[key] = '2025-12-31T23:59:59Z';
             else if (key === 'type')
                 ex[key] = 'note';
             else if (key === 'includePaths' || key === 'excludePaths')

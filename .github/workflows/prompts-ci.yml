@@ -1,0 +1,81 @@
+name: Prompts CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  prompts-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate prompts
+        run: node scripts/prompts.mjs validate
+
+      - name: Index prompts
+        run: node scripts/prompts.mjs index
+
+      - name: Export prompts (JSON)
+        run: node scripts/prompts.mjs export-json
+
+      - name: Export prompts (Markdown)
+        run: node scripts/prompts.mjs export-md
+
+      - name: Generate catalog
+        run: node scripts/prompts.mjs catalog
+
+      - name: Build workflows
+        run: node scripts/prompts.mjs build
+
+      - name: Upload artifacts (index and validation)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-core
+          path: |
+            .data/prompts/index.json
+            .data/prompts/quality/validation.json
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (exports JSON)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-exports-json
+          path: .data/prompts/exports/json/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (exports Markdown)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-exports-markdown
+          path: .data/prompts/exports/markdown/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (catalog)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-catalog
+          path: .data/prompts/exports/catalog/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts (builds)
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompts-builds
+          path: .data/prompts/exports/builds/
+          if-no-files-found: ignore

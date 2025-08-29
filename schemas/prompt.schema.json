@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/prompt.schema.json",
+  "title": "MCP Prompt",
+  "type": "object",
+  "required": ["type", "id", "version", "metadata", "variables"],
+  "properties": {
+    "type": { "const": "prompt" },
+    "id": {
+      "type": "string",
+      "pattern": "^MCP-(PROMPT|RULE|WORKFLOW|TEMPLATE|POLICY)-[A-Z]{3}-[0-9]{3,}$"
+    },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "template": { "type": "string", "minLength": 1 },
+    "metadata": {
+      "type": "object",
+      "required": ["title", "domain", "status"],
+      "properties": {
+        "title": { "type": "string" },
+        "domain": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "author": { "type": "string" },
+        "description": { "type": "string" },
+        "created": { "type": "string", "format": "date-time" },
+        "updated": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["draft", "review", "published", "deprecated"] },
+        "kind": { "type": "string", "enum": ["prompt", "rule", "workflow", "template", "policy", "system", "user", "tool", "build"] }
+      },
+      "additionalProperties": true
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "required": { "type": "boolean" },
+          "default": {}
+        },
+        "additionalProperties": true
+      }
+    },
+    "compose": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref"],
+        "properties": {
+          "ref": { "type": "string" },
+          "version": { "type": "string" },
+          "strategy": { "type": "string", "enum": ["latest", "frozen"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "variables": { "type": "object" },
+          "expected_output": { "type": "string" },
+          "actual_output": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "quality_checks": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "metadata": { "properties": { "kind": { "const": "workflow" } } } },
+        "required": ["metadata"]
+      },
+      "then": {
+        "required": ["compose"],
+        "properties": { "template": { "type": ["string", "null"] } }
+      },
+      "else": {
+        "required": ["template"]
+      }
+    }
+  ],
+  "additionalProperties": true
+}

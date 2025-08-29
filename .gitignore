@@ -5,7 +5,7 @@ node_modules
 .tmp
 .smoke-data
 .windsurf
-
+data
 ###############################
 # OS files
 ###############################

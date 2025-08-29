@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import matter from 'gray-matter';
 import fg from 'fast-glob';
-import { loadConfig } from '../config.js';
+import { loadConfig, PROMPTS_DIR } from '../config.js';
 import { listDocs, createDoc, updateDoc, deleteDocPermanent } from '../storage/knowledge.js';
 import { listTasks, createTask, updateTask, deleteTaskPermanent } from '../storage/tasks.js';
 
@@ -12,6 +12,11 @@ type TaskPriority = 'low' | 'medium' | 'high';
 interface ImportOptions {
   knowledge?: boolean;
   tasks?: boolean;
+  // Prompts (Prompt Library)
+  prompts?: boolean; // default: true unless explicitly disabled at call-site
+  importPromptSourcesJson?: boolean; // copy Prompts/sources/**/*.json
+  importPromptMarkdown?: boolean;    // copy Prompts/markdown/*.md
+  // Future: rebuilds (index/catalog/builds) can be invoked by caller if needed
   // Back-compat flag: when strategy = 'merge', controls how to treat title collisions.
   // If true (default), update existing items by title; if false, skip creating/updating when a title exists.
   overwriteByTitle?: boolean;
@@ -43,6 +48,12 @@ export interface ImportResult {
   vaultRoot: string;
   knowledgeImported: number;
   tasksImported: number;
+  promptsCopied?: {
+    sources?: number;
+    builds?: number;
+    markdown?: number;
+    catalog?: number;
+  };
 }
 
 export interface ImportPlan {
@@ -50,6 +61,12 @@ export interface ImportPlan {
   creates: { knowledge: number; tasks: number };
   updates: { knowledge: number; tasks: number };
   conflicts?: { knowledge: number; tasks: number; sampleTitles?: { knowledge: string[]; tasks: string[] } };
+  prompts?: {
+    // Files that will be copied from vault to PROMPTS_DIR
+    willCopy: { sources: number; builds: number; markdown: number; catalog: number };
+    // In replace mode, these dirs will be removed before copy
+    willDeleteDirs?: string[];
+  };
 }
 
 function sanitizeTitle(s: string): string {
@@ -153,6 +170,7 @@ export async function planImportProjectFromVault(project?: string, opts?: Import
   const projectRoot = path.join(vaultRoot, pfx ? pfx : '');
   const doKnowledge = opts?.knowledge !== false;
   const doTasks = opts?.tasks !== false;
+  const doPrompts = opts?.prompts !== false;
   const strategy: 'merge' | 'replace' = opts?.strategy || 'merge';
   // Back-compat: derive mergeStrategy from overwriteByTitle when not provided
   const mergeStrategy: 'overwrite' | 'append' | 'skip' | 'fail' = (() => {
@@ -312,6 +330,62 @@ export async function planImportProjectFromVault(project?: string, opts?: Import
     }
   }
 
+  // Prompts (file-level copy plan)
+  if (doPrompts) {
+    const promptsRoot = path.join(projectRoot, 'Prompts');
+    const includeSources = opts?.importPromptSourcesJson === true; // opt-in
+    const includeMarkdown = opts?.importPromptMarkdown === true;   // opt-in
+    const willCopy = { sources: 0, builds: 0, markdown: 0, catalog: 0 };
+    const willDeleteDirs: string[] = [];
+    if (await pathExists(promptsRoot)) {
+      // sources
+      if (includeSources) {
+        const patterns = [
+          'sources/prompts/**/*.json',
+          'sources/rules/**/*.json',
+          'sources/workflows/**/*.json',
+          'sources/templates/**/*.json',
+          'sources/policies/**/*.json',
+        ];
+        const files = fg.sync(patterns, { cwd: promptsRoot, dot: false, onlyFiles: true });
+        willCopy.sources = files.length;
+      }
+      // builds
+      {
+        const files = fg.sync(['builds/**/*.*'], { cwd: promptsRoot, dot: false, onlyFiles: true });
+        willCopy.builds = files.length;
+      }
+      // markdown
+      if (includeMarkdown) {
+        const files = fg.sync(['markdown/**/*.md'], { cwd: promptsRoot, dot: false, onlyFiles: true });
+        willCopy.markdown = files.length;
+      }
+      // catalog
+      {
+        const files = fg.sync(['catalog/**/*.json'], { cwd: promptsRoot, dot: false, onlyFiles: true });
+        willCopy.catalog = files.length;
+      }
+    }
+    if (strategy === 'replace') {
+      const destBase = path.join(PROMPTS_DIR, project || 'mcp');
+      willDeleteDirs.push(
+        path.join(destBase, 'exports', 'builds'),
+        path.join(destBase, 'exports', 'markdown'),
+        path.join(destBase, 'exports', 'catalog')
+      );
+      if (includeSources) {
+        willDeleteDirs.push(
+          path.join(destBase, 'prompts'),
+          path.join(destBase, 'rules'),
+          path.join(destBase, 'workflows'),
+          path.join(destBase, 'templates'),
+          path.join(destBase, 'policies')
+        );
+      }
+    }
+    plan.prompts = { willCopy, willDeleteDirs: strategy === 'replace' ? willDeleteDirs : undefined };
+  }
+
   return plan;
 }
 
@@ -323,6 +397,7 @@ export async function importProjectFromVault(project?: string, opts?: ImportOpti
 
   const doKnowledge = opts?.knowledge !== false;
   const doTasks = opts?.tasks !== false;
+  const doPrompts = opts?.prompts !== false;
   const strategy: 'merge' | 'replace' = opts?.strategy || 'merge';
   const mergeStrategy: 'overwrite' | 'append' | 'skip' | 'fail' = (() => {
     if (opts?.mergeStrategy) return opts.mergeStrategy;
@@ -373,6 +448,7 @@ export async function importProjectFromVault(project?: string, opts?: ImportOpti
 
   let knowledgeImported = 0;
   let tasksImported = 0;
+  const promptsCopied = { sources: 0, builds: 0, markdown: 0, catalog: 0 } as { sources: number; builds: number; markdown: number; catalog: number };
 
   // Knowledge
   if (doKnowledge) {
@@ -635,5 +711,75 @@ export async function importProjectFromVault(project?: string, opts?: ImportOpti
     }
   }
 
-  return { project, vaultRoot, knowledgeImported, tasksImported };
+  // Prompts copy
+  if (doPrompts) {
+    const promptsRoot = path.join(projectRoot, 'Prompts');
+    const includeSources = opts?.importPromptSourcesJson === true;
+    const includeMarkdown = opts?.importPromptMarkdown === true;
+    if (await pathExists(promptsRoot)) {
+      const destBase = path.join(PROMPTS_DIR, project || 'mcp');
+      async function ensureDir(p: string) { await fs.mkdir(p, { recursive: true }); }
+      // Replace cleanup
+      if (strategy === 'replace') {
+        const toDelete = [
+          path.join(destBase, 'exports', 'builds'),
+          path.join(destBase, 'exports', 'markdown'),
+          path.join(destBase, 'exports', 'catalog'),
+        ];
+        if (includeSources) {
+          toDelete.push(
+            path.join(destBase, 'prompts'),
+            path.join(destBase, 'rules'),
+            path.join(destBase, 'workflows'),
+            path.join(destBase, 'templates'),
+            path.join(destBase, 'policies')
+          );
+        }
+        for (const d of toDelete) {
+          try { await fs.rm(d, { recursive: true, force: true }); } catch {}
+        }
+      }
+      // Copy helpers
+      async function copyTree(src: string, dst: string, pattern: string) {
+        const files = await fg(pattern, { cwd: src, dot: false, onlyFiles: true });
+        await ensureDir(dst);
+        for (const rel of files) {
+          const from = path.join(src, rel);
+          const to = path.join(dst, rel);
+          await ensureDir(path.dirname(to));
+          await fs.copyFile(from, to);
+        }
+        return files.length;
+      }
+      // sources (opt-in)
+      if (includeSources) {
+        const srcRoot = path.join(promptsRoot, 'sources');
+        const count = await copyTree(srcRoot, destBase, '**/*.json');
+        promptsCopied.sources += count;
+      }
+      // builds
+      {
+        const srcRoot = path.join(promptsRoot, 'builds');
+        const dstRoot = path.join(destBase, 'exports', 'builds');
+        const count = await copyTree(srcRoot, dstRoot, '**/*.*');
+        promptsCopied.builds += count;
+      }
+      // markdown (opt-in)
+      if (includeMarkdown) {
+        const srcRoot = path.join(promptsRoot, 'markdown');
+        const dstRoot = path.join(destBase, 'exports', 'markdown');
+        const count = await copyTree(srcRoot, dstRoot, '**/*.md');
+        promptsCopied.markdown += count;
+      }
+      // catalog
+      {
+        const srcRoot = path.join(promptsRoot, 'catalog');
+        const dstRoot = path.join(destBase, 'exports', 'catalog');
+        const count = await copyTree(srcRoot, dstRoot, '**/*.json');
+        promptsCopied.catalog += count;
+      }
+    }
+  }
+
+  return { project, vaultRoot, knowledgeImported, tasksImported, promptsCopied };
 }
