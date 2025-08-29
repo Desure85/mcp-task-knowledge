@@ -5,7 +5,8 @@ node_modules
 .tmp
 .smoke-data
 .windsurf
-data
+dist
+audit_bundle
 ###############################
 # OS files
 ###############################

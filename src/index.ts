@@ -251,6 +251,202 @@ async function main() {
     }
   );
 
+  // ===== Prompt Library: Bulk Create/Update/Delete =====
+  // Helpers: determine dir by kind and find prompt files
+  async function ensureDir(dir: string): Promise<void> {
+    try { await fs.mkdir(dir, { recursive: true }); } catch {}
+  }
+  function dirForKind(project: string, kind?: string): string {
+    const base = path.join(PROMPTS_DIR, project);
+    const k = (kind || 'prompt').toLowerCase();
+    if (k === 'rule' || k === 'rules') return path.join(base, 'rules');
+    if (k === 'workflow' || k === 'workflows') return path.join(base, 'workflows');
+    if (k === 'template' || k === 'templates') return path.join(base, 'templates');
+    if (k === 'policy' || k === 'policies') return path.join(base, 'policies');
+    return path.join(base, 'prompts');
+  }
+  function validatePromptMinimal(obj: any): string[] {
+    const errs: string[] = [];
+    if (!obj || typeof obj !== 'object') return ['not an object'];
+    if (obj.type !== 'prompt') errs.push('type must be "prompt"');
+    if (!obj.id || typeof obj.id !== 'string') errs.push('id required string');
+    if (!obj.version || typeof obj.version !== 'string') errs.push('version required string');
+    const meta = obj.metadata;
+    if (!meta || typeof meta !== 'object') errs.push('metadata required object');
+    else {
+      if (!meta.title) errs.push('metadata.title required');
+      if (!meta.domain) errs.push('metadata.domain required');
+      if (!meta.status) errs.push('metadata.status required');
+    }
+    const kind = meta?.kind || 'prompt';
+    if (kind === 'workflow') {
+      if (!Array.isArray(obj.compose)) errs.push('compose array required for workflow');
+    } else {
+      if (!obj.template || typeof obj.template !== 'string') errs.push('template required string');
+    }
+    if (!Array.isArray(obj.variables)) errs.push('variables must be array');
+    return errs;
+  }
+  async function listSourceJsonFiles(project: string): Promise<string[]> {
+    const base = path.join(PROMPTS_DIR, project);
+    const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
+    const out: string[] = [];
+    for (const d of dirs) {
+      let entries: Dirent[] = [];
+      try { entries = await (await import('node:fs')).promises.readdir(d, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        if (!e.isFile()) continue;
+        if (!e.name.endsWith('.json')) continue;
+        out.push(path.join(d, e.name));
+      }
+    }
+    return out;
+  }
+  async function findFileByIdVersion(project: string, id: string, version: string): Promise<string | null> {
+    const files = await listSourceJsonFiles(project);
+    for (const f of files) {
+      try {
+        const raw = await fs.readFile(f, 'utf8');
+        const j = JSON.parse(raw);
+        if (j && j.id === id && j.version === version) return f;
+      } catch {}
+    }
+    return null;
+  }
+
+  // prompts_bulk_create — create many prompt files
+  server.registerTool(
+    "prompts_bulk_create",
+    {
+      title: "Prompts Bulk Create",
+      description: "Create many prompts (writes JSON files under prompts/|rules/|workflows/|templates/|policies)",
+      inputSchema: {
+        project: z.string().optional(),
+        items: z.array(z.record(z.any())).min(1).max(100),
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ project, items, overwrite }: { project?: string; items: any[]; overwrite?: boolean }) => {
+      const prj = resolveProject(project);
+      const results: Array<{ id: string; version: string; path?: string; error?: string }> = [];
+      for (const obj of items) {
+        try {
+          const errs = validatePromptMinimal(obj);
+          if (errs.length) {
+            results.push({ id: obj?.id || '', version: obj?.version || '', error: `validation failed: ${errs.join('; ')}` });
+            continue;
+          }
+          const kind = obj?.metadata?.kind || 'prompt';
+          const dir = dirForKind(prj, kind);
+          await ensureDir(dir);
+          const file = path.join(dir, `${obj.id}@${obj.version}.json`);
+          const exists = await fs.access(file).then(() => true).catch(() => false);
+          if (exists && !overwrite) {
+            results.push({ id: obj.id, version: obj.version, error: 'file exists (set overwrite=true to replace)' });
+            continue;
+          }
+          await fs.writeFile(file, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+          results.push({ id: obj.id, version: obj.version, path: file });
+        } catch (e: any) {
+          results.push({ id: obj?.id || '', version: obj?.version || '', error: e?.message || String(e) });
+        }
+      }
+      const ok = results.every((r) => !r.error);
+      const envelope = { ok, data: { project: prj, results } };
+      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
+    }
+  );
+
+  // prompts_bulk_update — update many prompt files by id+version or by explicit path
+  server.registerTool(
+    "prompts_bulk_update",
+    {
+      title: "Prompts Bulk Update",
+      description: "Update many prompts found by id+version or explicit path",
+      inputSchema: {
+        project: z.string().optional(),
+        items: z.array(z.object({
+          selector: z.object({ id: z.string().optional(), version: z.string().optional(), path: z.string().optional() }),
+          patch: z.record(z.any()),
+        })).min(1).max(100),
+      },
+    },
+    async ({ project, items }: { project?: string; items: Array<{ selector: { id?: string; version?: string; path?: string }, patch: any }> }) => {
+      const prj = resolveProject(project);
+      const results: Array<{ id?: string; version?: string; path?: string; error?: string }> = [];
+      for (const it of items) {
+        try {
+          let targetPath = it.selector.path || null;
+          let baseId = it.selector.id;
+          let baseVer = it.selector.version;
+          if (!targetPath) {
+            if (!baseId || !baseVer) throw new Error('selector requires either path or id+version');
+            targetPath = await findFileByIdVersion(prj, baseId, baseVer);
+            if (!targetPath) throw new Error(`file not found for ${baseId}@${baseVer}`);
+          }
+          const raw = await fs.readFile(targetPath, 'utf8');
+          const current = JSON.parse(raw);
+          const updated = { ...current, ...it.patch };
+          // If id/version changed in patch, adjust filename and destination dir
+          const errs = validatePromptMinimal(updated);
+          if (errs.length) throw new Error(`validation failed: ${errs.join('; ')}`);
+          const kind = updated?.metadata?.kind || 'prompt';
+          const dstDir = dirForKind(prj, kind);
+          await ensureDir(dstDir);
+          const dstFile = path.join(dstDir, `${updated.id}@${updated.version}.json`);
+          await fs.writeFile(dstFile, JSON.stringify(updated, null, 2) + '\n', 'utf8');
+          if (dstFile !== targetPath) {
+            // Best-effort: remove old file if different
+            try { await fs.unlink(targetPath); } catch {}
+          }
+          results.push({ id: updated.id, version: updated.version, path: dstFile });
+        } catch (e: any) {
+          results.push({ id: it.selector.id, version: it.selector.version, path: it.selector.path, error: e?.message || String(e) });
+        }
+      }
+      const ok = results.every((r) => !r.error);
+      const envelope = { ok, data: { project: prj, results } };
+      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
+    }
+  );
+
+  // prompts_bulk_delete — delete prompts by id+version or by explicit path
+  server.registerTool(
+    "prompts_bulk_delete",
+    {
+      title: "Prompts Bulk Delete",
+      description: "Delete many prompts by id+version or by explicit path",
+      inputSchema: {
+        project: z.string().optional(),
+        items: z.array(z.object({ id: z.string().optional(), version: z.string().optional(), path: z.string().optional() })).min(1).max(200),
+        dryRun: z.boolean().optional(),
+      },
+    },
+    async ({ project, items, dryRun }: { project?: string; items: Array<{ id?: string; version?: string; path?: string }>; dryRun?: boolean }) => {
+      const prj = resolveProject(project);
+      const results: Array<{ id?: string; version?: string; path?: string; deleted?: boolean; error?: string }> = [];
+      for (const sel of items) {
+        try {
+          let targetPath = sel.path || null;
+          if (!targetPath) {
+            if (!sel.id || !sel.version) throw new Error('selector requires either path or id+version');
+            targetPath = await findFileByIdVersion(prj, sel.id, sel.version);
+            if (!targetPath) throw new Error(`file not found for ${sel.id}@${sel.version}`);
+          }
+          if (!dryRun) {
+            await fs.unlink(targetPath);
+          }
+          results.push({ id: sel.id, version: sel.version, path: targetPath, deleted: dryRun ? false : true });
+        } catch (e: any) {
+          results.push({ id: sel.id, version: sel.version, path: sel.path, error: e?.message || String(e) });
+        }
+      }
+      const ok = results.every((r) => !r.error);
+      const envelope = { ok, data: { project: prj, results, dryRun: !!dryRun } };
+      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
+    }
+  );
+
   // ===== Prompt Library: Feedback & Reports & Listing =====
   // prompts_feedback_log — append passive feedback events to JSONL
   server.registerTool(

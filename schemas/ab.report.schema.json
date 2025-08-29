@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://desure85.github.io/mcp-task-knowledge/schemas/ab.report.schema.json",
+  "title": "A/B Experiments Aggregated Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generatedAt", "totalExperiments", "totalFeedbackEvents", "byPrompt", "feedback"],
+  "properties": {
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "totalExperiments": { "type": "integer", "minimum": 0 },
+    "totalFeedbackEvents": { "type": "integer", "minimum": 0 },
+    "byPrompt": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["total", "variants"],
+        "properties": {
+          "total": { "type": "integer", "minimum": 0 },
+          "variants": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["promptId", "version", "variant", "total", "acceptance", "sentiment", "avgEdit", "avgEditRate", "copiedRate", "abandonedRate", "thumbs"],
+        "properties": {
+          "promptId": { "type": ["string", "null"] },
+          "version": { "type": ["string", "null"] },
+          "variant": { "type": ["string", "null"] },
+          "total": { "type": "integer", "minimum": 0 },
+          "acceptance": { "type": ["number", "null"] },
+          "sentiment": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pos", "neg", "neu"],
+            "properties": {
+              "pos": { "type": "integer", "minimum": 0 },
+              "neg": { "type": "integer", "minimum": 0 },
+              "neu": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "avgEdit": { "type": ["number", "null"] },
+          "avgEditRate": { "type": ["number", "null"] },
+          "copiedRate": { "type": ["number", "null"] },
+          "abandonedRate": { "type": ["number", "null"] },
+          "thumbs": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["up", "down", "null"],
+            "properties": {
+              "up": { "type": "integer", "minimum": 0 },
+              "down": { "type": "integer", "minimum": 0 },
+              "null": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

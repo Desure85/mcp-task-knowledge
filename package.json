@@ -27,7 +27,8 @@
     "prompts:build": "node scripts/prompts.mjs build",
     "prompts:catalog": "node scripts/prompts.mjs catalog",
     "prompts:list": "node scripts/prompts.mjs list",
-    "prompts:ab:report": "node scripts/prompts.mjs ab:report"
+    "prompts:ab:report": "node scripts/prompts.mjs ab:report",
+    "validate:schemas": "node scripts/validate-schemas.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",
@@ -44,6 +45,8 @@
   "devDependencies": {
     "@types/node": "^20.14.12",
     "@types/uuid": "^9.0.7",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "tsx": "^4.17.0",
     "typescript": "^5.5.4",
     "vitest": "^1.6.0"
