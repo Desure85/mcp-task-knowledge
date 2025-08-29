@@ -18,7 +18,17 @@ import { pickWithEpsilonGreedy } from './ab-testing/bandits.js';
 
 async function main() {
   const server = new McpServer({ name: "mcp-task-knowledge", version: "0.1.0" });
-  console.error('[startup] mcp-task-knowledge starting...', { ts: new Date().toISOString(), pid: process.pid });
+  // Default: silent. Enable explicitly via env.
+  const SHOW_STARTUP = (
+    process.env.LOG_STARTUP === '1' ||
+    process.env.STARTUP_SILENT === '0' ||
+    process.env.QUIET === '0' ||
+    process.env.LOG_LEVEL === 'info' ||
+    process.env.LOG_LEVEL === 'debug'
+  );
+  if (SHOW_STARTUP) {
+    console.error('[startup] mcp-task-knowledge starting...', { ts: new Date().toISOString(), pid: process.pid });
+  }
   let cfg: ReturnType<typeof loadConfig>;
   try {
     cfg = loadConfig();
@@ -27,9 +37,13 @@ async function main() {
     throw e;
   }
   const catalogCfg = loadCatalogConfig();
-  console.error('[startup][catalog]', { mode: catalogCfg.mode, prefer: catalogCfg.prefer, remoteEnabled: catalogCfg.remote.enabled, hasRemoteBaseUrl: Boolean(catalogCfg.remote.baseUrl), embeddedEnabled: catalogCfg.embedded.enabled, embeddedStore: catalogCfg.embedded.store });
+  if (SHOW_STARTUP) {
+    console.error('[startup][catalog]', { mode: catalogCfg.mode, prefer: catalogCfg.prefer, remoteEnabled: catalogCfg.remote.enabled, hasRemoteBaseUrl: Boolean(catalogCfg.remote.baseUrl), embeddedEnabled: catalogCfg.embedded.enabled, embeddedStore: catalogCfg.embedded.store });
+  }
   const catalogProvider = createServiceCatalogProvider(catalogCfg);
-  console.error('[startup][embeddings]', { mode: cfg.embeddings.mode, hasModelPath: Boolean(cfg.embeddings.modelPath), dim: cfg.embeddings.dim ?? null, cacheDir: cfg.embeddings.cacheDir || null });
+  if (SHOW_STARTUP) {
+    console.error('[startup][embeddings]', { mode: cfg.embeddings.mode, hasModelPath: Boolean(cfg.embeddings.modelPath), dim: cfg.embeddings.dim ?? null, cacheDir: cfg.embeddings.cacheDir || null });
+  }
   // LAZY: Vector adapter is initialized only on first use to avoid ORT teardown crashes
   let vectorAdapter: any | undefined;
   let vectorInitAttempted = false;
