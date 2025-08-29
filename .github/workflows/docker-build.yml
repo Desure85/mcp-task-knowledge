@@ -1,6 +1,9 @@
 name: Docker Build Matrix
 
 on:
+  push:
+    branches:
+      - staging
   workflow_dispatch:
     inputs:
       platforms:
@@ -85,6 +88,8 @@ jobs:
             VERSION_TAG="${GITHUB_REF_NAME}"
           elif [[ "${GITHUB_REF_NAME}" =~ ^(main|master)$ ]]; then
             VERSION_TAG="latest"
+          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+            VERSION_TAG="staging"
           fi
           echo "version=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
 

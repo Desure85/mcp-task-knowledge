@@ -581,6 +581,125 @@ docker compose -f docker-compose.catalog.yml down
 |------------|----------|----------------------|
 | `OBSIDIAN_VAULT_ROOT` | Корневая директория Obsidian vault | `/data/obsidian` |
 
+#### Prompts: экспорт/импорт
+
+- Структура в Obsidian Vault: `Vault/<project>/Prompts/`
+  - `catalog/prompts.catalog.json`
+  - `builds/**/*`
+  - `markdown/**/*.md` (опционально)
+  - `sources/` (опционально, сохраняется структура подтипов):
+    - `prompts/**/*.json`
+    - `rules/**/*.json`
+    - `workflows/**/*.json`
+    - `templates/**/*.json`
+    - `policies/**/*.json`
+
+- Структура в MCP data (`DATA_DIR/prompts/<project>`):
+  - Источники: зеркально под `sources/*` (когда импортируются)
+  - Экспортируемые артефакты: `exports/` с подпапками
+    - `exports/catalog/prompts.catalog.json`
+    - `exports/builds/**/*`
+    - `exports/markdown/**/*.md`
+
+#### Разрешение путей (приоритет директорий Prompts)
+
+- Базовый каталог данных определяется так:
+  1) Если задан `DATA_DIR` — он используется как корень.
+  2) Иначе — локальный репозиторный `.data/`.
+  3) Фолбэк — репозиторный `data/`.
+- Корень prompts можно переопределить `MCP_PROMPTS_DIR` (абсолютный/относительный путь). При отсутствии — используется `${BASE}/prompts` с поддержкой легаси фолбэка `${BASE}/mcp/prompts`.
+- Проект выбирается переменной `CURRENT_PROJECT` (по умолчанию `mcp`). Итоговый путь: `${BASE}/prompts/<CURRENT_PROJECT>`.
+
+- Импорт из Vault (инструмент `obsidian_import_project`):
+  - Флаги
+    - `prompts: boolean` — включить/отключить импорт Prompts (по умолчанию: включён)
+    - `importPromptSourcesJson: boolean` — импортировать JSON‑источники (`sources/*`) в `DATA_DIR/prompts/<project>`
+    - `importPromptMarkdown: boolean` — импортировать Markdown (`markdown/*`) в `exports/markdown`
+  - Стратегии
+    - `merge` — без удаления, только дозапись/перезапись по файлам
+    - `replace` — очистка целевых директорий экспорта Prompts перед копированием:
+      - всегда: `exports/catalog`, `exports/builds`, `exports/markdown`
+      - при включённом `importPromptSourcesJson`: также дерево `sources/*`
+
+Примеры:
+
+```bash
+# Dry‑run (merge) с включёнными источниками и markdown
+mcp obsidian_import_project \
+  --project mcp \
+  --dryRun true \
+  --prompts true \
+  --importPromptSourcesJson true \
+  --importPromptMarkdown true
+
+# Импорт (merge)
+mcp obsidian_import_project \
+  --project mcp \
+  --prompts true \
+  --importPromptSourcesJson true \
+  --importPromptMarkdown true
+
+# Импорт (replace) с очисткой экспортных директорий Prompts
+mcp obsidian_import_project \
+  --project mcp \
+  --strategy replace \
+  --confirm true \
+  --prompts true \
+  --importPromptSourcesJson true \
+  --importPromptMarkdown true
+```
+
+#### Prompts CLI (validate/index/export/catalog/build/list/ab:report)
+
+- Запуск напрямую:
+
+```bash
+# Индексация и валидация
+node scripts/prompts.mjs index
+node scripts/prompts.mjs validate
+
+# Экспорт артефактов
+node scripts/prompts.mjs export-json
+node scripts/prompts.mjs export-md
+node scripts/prompts.mjs catalog
+node scripts/prompts.mjs build
+
+# Список промптов с фильтрами
+node scripts/prompts.mjs list --latest --format=table
+node scripts/prompts.mjs list --kind=workflow --tag=analytics,internal --status=published
+
+# Отчёт A/B экспериментов
+node scripts/prompts.mjs ab:report
+```
+
+#### MCP инструменты: Prompts (сервер)
+
+- __prompts_catalog_get__ — вернуть `prompts.catalog.json` из `exports/catalog` (если есть).
+- __prompts_list__ — список промптов (фильтры поверх каталога: id/kind/status/tags/domain/latest и т.д.).
+- __prompts_search__ — гибридный поиск по билдам/markdown (лексический/семантический, при наличии векторов).
+- __prompts_feedback_log__ — дозапись пассивной обратной связи (JSONL) в `data/prompts/<project>/metrics/feedback/`.
+- __prompts_feedback_validate__ — быстрая проверка JSONL-файла обратной связи (сводка/образцы, ошибки парсинга).
+- __prompts_ab_report__ — агрегированный отчёт: A/B метрики + пассивная обратная связь по всем ключам.
+- __prompts_exports_get__ — список артефактов экспорта: `exports/catalog`, `exports/builds`, `exports/markdown`.
+- __prompts_variants_list__ — доступные варианты для `promptKey` (из эксперимента или из билдов).
+- __prompts_variants_stats__ — агрегированные метрики по вариантам для `promptKey`.
+- __prompts_bandit_next__ — выбор следующего варианта для `promptKey` (epsilon-greedy по агрегатам).
+- __prompts_metrics_log_bulk__ — пакетная запись событий метрик и обновление агрегатов.
+
+Подсказки:
+- Большинство инструментов поддерживает параметр `project` (по умолчанию `CURRENT_PROJECT`).
+- Пути данных Prompts описаны выше в разделе «Prompts: экспорт/импорт» и «Артефакты CI…».
+
+#### Артефакты CI и выходные директории Prompts
+
+- При прогоне CI (см. `.github/workflows/prompts-ci.yml`) публикуются артефакты из:
+  - `.data/prompts/<project>/index.json`
+  - `.data/prompts/<project>/quality/validation.json`
+  - `.data/prompts/<project>/exports/json/**/*`
+  - `.data/prompts/<project>/exports/markdown/**/*`
+  - `.data/prompts/<project>/exports/catalog/**/*` (включая `prompts.catalog.json` и `experiments.report.json`)
+  - `.data/prompts/<project>/exports/builds/**/*`
+
 ### Отладка / низкоуровневые параметры
 
 | Переменная | Описание | Значение по умолчанию |

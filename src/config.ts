@@ -59,6 +59,9 @@ function pickDir(envOverride: string | undefined, primary: string, legacy: strin
 
 export const TASKS_DIR = pickDir(MCP_TASK_DIR_ENV, path.join(DATA_DIR, 'tasks'), path.join(DATA_DIR, 'mcp', 'tasks'));
 export const KNOWLEDGE_DIR = pickDir(MCP_KNOWLEDGE_DIR_ENV, path.join(DATA_DIR, 'knowledge'), path.join(DATA_DIR, 'mcp', 'knowledge'));
+// Prompts directory (for Prompt Library artifacts and exports)
+const MCP_PROMPTS_DIR_ENV = process.env.MCP_PROMPTS_DIR;
+export const PROMPTS_DIR = pickDir(MCP_PROMPTS_DIR_ENV, path.join(DATA_DIR, 'prompts'), path.join(DATA_DIR, 'mcp', 'prompts'));
 export const EMBEDDINGS_DIR = path.join(DATA_DIR, '.embeddings');
 
 export const DEFAULT_PROJECT = 'mcp';
