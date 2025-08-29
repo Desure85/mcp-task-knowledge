@@ -118,6 +118,9 @@ async function main() {
   })((server as any).registerTool);
 
   // ===== Helpers: Prompt Library IO =====
+  // Resolve repository root (dist -> ..)
+  const HERE_DIR = path.dirname(new URL(import.meta.url).pathname);
+  const REPO_ROOT = path.resolve(HERE_DIR, '..');
   async function readPromptsCatalog(project?: string): Promise<any | null> {
     const prj = resolveProject(project);
     const file = path.join(PROMPTS_DIR, prj, 'exports', 'catalog', 'prompts.catalog.json');
@@ -220,9 +223,10 @@ async function main() {
     reindexInFlight = true;
     try {
       const env = { ...process.env, MCP_PROMPTS_DIR: PROMPTS_DIR, CURRENT_PROJECT: project } as NodeJS.ProcessEnv;
+      const scriptPath = path.join(REPO_ROOT, 'scripts', 'prompts.mjs');
       const run = (args: string[]) => new Promise<void>((resolve) => {
-        const p = spawn('node', ['scripts/prompts.mjs', ...args], {
-          cwd: process.cwd(),
+        const p = spawn('node', [scriptPath, ...args], {
+          cwd: REPO_ROOT,
           env,
           stdio: 'ignore',
         });
