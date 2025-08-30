@@ -934,6 +934,39 @@ async function main() {
     }
   );
 
+  // prompts_experiments_upsert — create or update experiment manifest with variants
+  server.registerTool(
+    "prompts_experiments_upsert",
+    {
+      title: "Prompts Experiments Upsert",
+      description: "Create or update experiment manifest with variants to drive variants_list and bandit",
+      inputSchema: {
+        project: z.string().optional(),
+        promptKey: z.string().min(1),
+        variants: z.array(z.string().min(1)).min(1),
+        params: z.record(z.any()).optional(),
+      },
+    },
+    async ({ project, promptKey, variants, params }: { project?: string; promptKey: string; variants: string[]; params?: any }) => {
+      const prj = resolveProject(project);
+      const file = path.join(PROMPTS_DIR, prj, 'metrics', 'experiments', `${promptKey}.json`);
+      const payload = { variants: Array.from(new Set((variants || []).filter((v) => typeof v === 'string' && v.trim().length > 0))), params: params || {} };
+      if (payload.variants.length === 0) {
+        const envelope = { ok: false, error: { message: 'variants must contain at least one non-empty string' } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+      }
+      try {
+        await ensureDirForFile(file);
+        await fs.writeFile(file, JSON.stringify(payload, null, 2) + '\n', 'utf8');
+        const envelope = { ok: true, data: { project: prj, promptKey, path: file, variants: payload.variants } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      } catch (e: any) {
+        const envelope = { ok: false, error: { message: e?.message || String(e) } };
+        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+      }
+    }
+  );
+
   // obsidian_export_project
   server.registerTool(
     "obsidian_export_project",
