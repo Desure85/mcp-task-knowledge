@@ -89,14 +89,16 @@ Bulk операции аналогично задачам: archive, trash, resto
 5. Список промптов: `mcp_prompts_list` с фильтрами (latest, kind, status, domain, tag).
 6. Поиск промптов: `mcp_prompts_search` с query, limit, tags, kinds.
 
-Шаги для тестирования и оптимизации:
-7. Выбрать вариант: `mcp_prompts_bandit_next` с promptKey, epsilon, contextTags для epsilon-greedy выбора.
-8. Логировать метрики: `mcp_prompts_metrics_log_bulk` с items (requestId, variantId, outcome: cost, latencyMs, score, success, tokensIn/Out, error).
-9. Логировать feedback: `mcp_prompts_feedback_log` с promptId, version, signals (thumb up/down, copied, abandoned), userEdits и т.д.
-10. Получить статистику вариантов: `mcp_prompts_variants_stats` с promptKey.
-11. Получить варианты: `mcp_prompts_variants_list` с promptKey.
-12. A/B отчет: `mcp_prompts_ab_report` с writeToDisk.
-13. Валидация feedback: `mcp_prompts_feedback_validate` с strict.
+Шаги для тестирования и оптимизации (A/B/бандиты, удалённо-безопасно):
+7. Создать варианты как отдельные промпты с суффиксами варианта (например, `KEY.vA`, `KEY.vB`, `KEY.vC`) через `mcp_prompts_bulk_create`.
+8. Зарегистрировать эксперимент и список вариантов через `mcp_prompts_experiments_upsert` с `promptKey` и `variants`.
+9. Проверить, что варианты видны: `mcp_prompts_variants_list` с `promptKey`.
+10. Выбрать вариант: `mcp_prompts_bandit_next` с `promptKey`, `epsilon`, `contextTags`.
+11. Логировать метрики: `mcp_prompts_metrics_log_bulk` с items (requestId, variantId, outcome: cost, latencyMs, score, success, tokensIn/Out, error).
+12. Логировать feedback: `mcp_prompts_feedback_log` с promptId, version, signals (thumb up/down, copied, abandoned), userEdits и т.д.
+13. Получить статистику вариантов: `mcp_prompts_variants_stats` с `promptKey`.
+14. A/B отчёт: `mcp_prompts_ab_report` с writeToDisk.
+15. (Опционально) Генерация build-артефактов для вариантов — `mcp_prompts_build`, чтобы `mcp_prompts_variants_list` также подхватывал `exports/builds`.
 
 Шаги для экспорта:
 14. Получить экспорты: `mcp_prompts_exports_get` с type (json/markdown/builds/catalog/all).

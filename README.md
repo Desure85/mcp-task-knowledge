@@ -737,11 +737,32 @@ node scripts/prompts.mjs ab:report
 - __prompts_variants_stats__ — агрегированные метрики по вариантам для `promptKey`.
 - __prompts_bandit_next__ — выбор следующего варианта для `promptKey` (epsilon-greedy по агрегатам).
 - __prompts_metrics_log_bulk__ — пакетная запись событий метрик и обновление агрегатов.
+ - __prompts_experiments_upsert__ — создание/обновление манифеста эксперимента (variants) для `promptKey`.
 
 Подсказки:
 
 - Большинство инструментов поддерживает параметр `project` (по умолчанию `CURRENT_PROJECT`).
 - Пути данных Prompts описаны выше в разделе «Prompts: экспорт/импорт» и «Артефакты CI…».
+
+### Prompts: эксперименты и варианты (A/B/бандиты)
+
+Удалённо-безопасный поток без прямых файловых операций:
+
+1) Создать варианты как отдельные промпты с суффиксами варианта, например `TEST-ANALYSIS-001.vA@1.0.0`, `...vB@1.0.0`, `...vC@1.0.0` — через `prompts_bulk_create`.
+2) Зарегистрировать эксперимент и список вариантов через `prompts_experiments_upsert`:
+
+```jsonc
+{ "name": "prompts_experiments_upsert", "arguments": { "project": "mcp", "promptKey": "TEST-ANALYSIS-001", "variants": ["vA","vB","vC"], "params": { "epsilon": 0.15 } } }
+```
+
+3) Проверить варианты: `prompts_variants_list({ promptKey: "TEST-ANALYSIS-001" })` → `["vA","vB","vC"]`.
+4) Выбор следующего варианта: `prompts_bandit_next({ promptKey: "TEST-ANALYSIS-001", epsilon: 0.15 })`.
+5) Логирование метрик: `prompts_metrics_log_bulk({ promptKey, items: [{ requestId, variantId, outcome: { success, score, latencyMs, tokensIn, tokensOut, cost, error } }] })`.
+
+Примечания:
+
+- `prompts_variants_list` объединяет источники: манифест эксперимента (`metrics/experiments/<promptKey>.json`) и build‑артефакты (`exports/builds`). Для удалённого сценария достаточно `prompts_experiments_upsert`.
+- Если включён `prompts_build`, артефакты формата `key.variant.json` / `key--variant.json` также учитываются.
 
 #### Артефакты CI и выходные директории Prompts
 
