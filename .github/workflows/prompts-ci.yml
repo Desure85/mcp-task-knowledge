@@ -3,12 +3,25 @@ name: Prompts CI
 on:
   push:
     branches: [ main, master ]
+    paths-ignore:
+      - '**/*.md'
+      - '.markdownlint*'
+      - '.github/workflows/markdownlint-autofix.yml'
   pull_request:
     branches: [ "**" ]
+    paths-ignore:
+      - '**/*.md'
+      - '.markdownlint*'
+      - '.github/workflows/markdownlint-autofix.yml'
 
 jobs:
   prompts-pipeline:
     runs-on: ubuntu-latest
+    env:
+      APP_DIR: ${{ github.workspace }}
+      DATA_DIR: ${{ github.workspace }}/.data
+      CURRENT_PROJECT: mcp
+      EMBEDDINGS_MODE: none
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +37,10 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Prepare data dir
+        run: |
+          mkdir -p "$DATA_DIR"
 
       - name: Validate prompts
         run: node scripts/prompts.mjs validate
@@ -48,34 +65,34 @@ jobs:
         with:
           name: prompts-core
           path: |
-            .data/prompts/index.json
-            .data/prompts/quality/validation.json
+            .data/prompts/mcp/index.json
+            .data/prompts/mcp/quality/validation.json
           if-no-files-found: ignore
 
       - name: Upload artifacts (exports JSON)
         uses: actions/upload-artifact@v4
         with:
           name: prompts-exports-json
-          path: .data/prompts/exports/json/
+          path: .data/prompts/mcp/exports/json/
           if-no-files-found: ignore
 
       - name: Upload artifacts (exports Markdown)
         uses: actions/upload-artifact@v4
         with:
           name: prompts-exports-markdown
-          path: .data/prompts/exports/markdown/
+          path: .data/prompts/mcp/exports/markdown/
           if-no-files-found: ignore
 
       - name: Upload artifacts (catalog)
         uses: actions/upload-artifact@v4
         with:
           name: prompts-catalog
-          path: .data/prompts/exports/catalog/
+          path: .data/prompts/mcp/exports/catalog/
           if-no-files-found: ignore
 
       - name: Upload artifacts (builds)
         uses: actions/upload-artifact@v4
         with:
           name: prompts-builds
-          path: .data/prompts/exports/builds/
+          path: .data/prompts/mcp/exports/builds/
           if-no-files-found: ignore

@@ -709,6 +709,7 @@ node scripts/prompts.mjs ab:report
   - `${DATA_DIR}/prompts/<project>/exports/json/**/*`
   - `${DATA_DIR}/prompts/<project>/exports/markdown/**/*`
   - `${DATA_DIR}/prompts/<project>/exports/catalog/**/*` (включая `prompts.catalog.json` и `experiments.report.json`)
+  - `${DATA_DIR}/prompts/<project>/exports/builds/**/*`
 
 ### CI: безопасные дефолты переменных
 
@@ -727,7 +728,6 @@ mkdir -p "$DATA_DIR"
 - Кросс‑ОС заметки:
   - GitHub хосты Linux/Windows/macOS нормально обрабатывают `${{ github.workspace }}`; path‑separator в shell шагах — POSIX (`/`).
   - Внутри bash‑шагов используйте кавычки вокруг переменных путей: `"$DATA_DIR"`.
-  - `${DATA_DIR}/prompts/<project>/exports/builds/**/*`
 
 ### Отладка / низкоуровневые параметры
 
