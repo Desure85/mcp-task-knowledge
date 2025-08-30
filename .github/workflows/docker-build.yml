@@ -26,6 +26,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 2        # ограничение до 2 параллельных тасков
       matrix:
         include:
           # Basic variants (no catalog embedded) — use prebuilt base images (extbase)

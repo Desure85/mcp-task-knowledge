@@ -26,6 +26,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 2        # ограничение до 2 параллельных тасков
       matrix:
         include:
           - name: deps
