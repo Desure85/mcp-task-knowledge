@@ -42,13 +42,13 @@ jobs:
 
           # With-catalog variants
           - variant: bm25-cat
-            target: mcp-bm25-with-catalog
+            target: runtime-bm25-cat-extbase
             embedCatalog: true
           - variant: cpu-cat
-            target: mcp-onnx-cpu-with-catalog
+            target: runtime-onnx-cpu-cat-extbase
             embedCatalog: true
           - variant: gpu-cat
-            target: mcp-onnx-gpu-with-catalog
+            target: runtime-onnx-gpu-cat-extbase
             embedCatalog: true
 
     steps:
@@ -79,6 +79,9 @@ jobs:
           echo "base_deps=ghcr.io/${owner_lc}/mcp-base-bm25:latest" >> "$GITHUB_OUTPUT"
           echo "base_models=ghcr.io/${owner_lc}/mcp-base-onnx:latest" >> "$GITHUB_OUTPUT"
           echo "base_gpu=ghcr.io/${owner_lc}/mcp-base-onnx-gpu:latest" >> "$GITHUB_OUTPUT"
+          echo "base_deps_cat=ghcr.io/${owner_lc}/mcp-base-bm25-cat:latest" >> "$GITHUB_OUTPUT"
+          echo "base_models_cat=ghcr.io/${owner_lc}/mcp-base-onnx-cat:latest" >> "$GITHUB_OUTPUT"
+          echo "base_gpu_cat=ghcr.io/${owner_lc}/mcp-base-onnx-gpu-cat:latest" >> "$GITHUB_OUTPUT"
 
       - name: Derive tags
         id: meta
@@ -110,6 +113,9 @@ jobs:
           echo "BASE_DEPS_IMAGE=${{ steps.names.outputs.base_deps }}" >> $GITHUB_OUTPUT
           echo "BASE_MODELS_IMAGE=${{ steps.names.outputs.base_models }}" >> $GITHUB_OUTPUT
           echo "BASE_GPU_IMAGE=${{ steps.names.outputs.base_gpu }}" >> $GITHUB_OUTPUT
+          echo "BASE_DEPS_IMAGE_CAT=${{ steps.names.outputs.base_deps_cat }}" >> $GITHUB_OUTPUT
+          echo "BASE_MODELS_IMAGE_CAT=${{ steps.names.outputs.base_models_cat }}" >> $GITHUB_OUTPUT
+          echo "BASE_GPU_IMAGE_CAT=${{ steps.names.outputs.base_gpu_cat }}" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -128,6 +134,9 @@ jobs:
             BASE_DEPS_IMAGE=${{ steps.args.outputs.BASE_DEPS_IMAGE }}
             BASE_MODELS_IMAGE=${{ steps.args.outputs.BASE_MODELS_IMAGE }}
             BASE_GPU_IMAGE=${{ steps.args.outputs.BASE_GPU_IMAGE }}
+            BASE_DEPS_IMAGE_CAT=${{ steps.args.outputs.BASE_DEPS_IMAGE_CAT }}
+            BASE_MODELS_IMAGE_CAT=${{ steps.args.outputs.BASE_MODELS_IMAGE_CAT }}
+            BASE_GPU_IMAGE_CAT=${{ steps.args.outputs.BASE_GPU_IMAGE_CAT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
