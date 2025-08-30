@@ -4,6 +4,9 @@
 ARG BASE_MODELS_IMAGE=mcp-base-onnx:latest
 ARG BASE_DEPS_IMAGE=mcp-base-bm25:latest
 ARG BASE_GPU_IMAGE=mcp-base-onnx-gpu:latest
+ARG BASE_MODELS_IMAGE_CAT=mcp-base-onnx-cat:latest
+ARG BASE_DEPS_IMAGE_CAT=mcp-base-bm25-cat:latest
+ARG BASE_GPU_IMAGE_CAT=mcp-base-onnx-gpu-cat:latest
 
 # ---------- base deps (cacheable) ----------
 FROM node:20-bullseye AS deps
@@ -108,6 +111,14 @@ ENV DATA_DIR=/data
 VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
+# ---------- runtime-bm25-cat-extbase (external base with embedded catalog) ----------
+FROM ${BASE_DEPS_IMAGE_CAT} AS runtime-bm25-cat-extbase
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+ENV DATA_DIR=/data
+VOLUME ["/data"]
+CMD ["node", "dist/index.js"]
+
 # ---------- base with deps for bm25 (no models) ----------
 FROM node:20-bullseye AS base-bm25-with-deps
 WORKDIR /app
@@ -203,6 +214,16 @@ COPY --from=builder /app/dist ./dist
 # Ensure data dir volume
 VOLUME ["/data"]
 # Lightweight entrypoint to configure cache dirs for arbitrary --user and avoid CUDA/ORT segfaults
+COPY bin/entrypoint.sh ./bin/entrypoint.sh
+RUN chmod +x ./bin/entrypoint.sh
+ENTRYPOINT ["/app/bin/entrypoint.sh"]
+CMD ["node", "/app/dist/index.js"]
+
+# ---------- runtime-onnx-gpu-cat-extbase (external GPU base with embedded catalog) ----------
+FROM ${BASE_GPU_IMAGE_CAT} AS runtime-onnx-gpu-cat-extbase
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+VOLUME ["/data"]
 COPY bin/entrypoint.sh ./bin/entrypoint.sh
 RUN chmod +x ./bin/entrypoint.sh
 ENTRYPOINT ["/app/bin/entrypoint.sh"]

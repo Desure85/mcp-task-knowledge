@@ -9,6 +9,13 @@ variables:
   DOCKER_TLS_CERTDIR: ""
   # Speed up docker builds
   DOCKER_BUILDKIT: "1"
+  # Defaults for external base images (can be overridden via CI variables)
+  BASE_DEPS_IMAGE: "ghcr.io/Desure85/mcp-base-bm25:latest"
+  BASE_MODELS_IMAGE: "ghcr.io/Desure85/mcp-base-onnx:latest"
+  BASE_GPU_IMAGE: "ghcr.io/Desure85/mcp-base-onnx-gpu:latest"
+  BASE_DEPS_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-bm25-cat:latest"
+  BASE_MODELS_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-onnx-cat:latest"
+  BASE_GPU_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-onnx-gpu-cat:latest"
 
 stages:
   - test
@@ -19,11 +26,25 @@ stages:
 .before: &before
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    # Optional: login to GHCR if cat/extbase base images are hosted there (requires GHCR_USER/GHCR_TOKEN CI vars)
+    - |
+      if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USER" ]; then
+        echo "$GHCR_TOKEN" | docker login -u "$GHCR_USER" --password-stdin ghcr.io || true
+      fi
 
 .build_image_one: &build_image_one
   <<: *before
   script:
-    - docker build -t "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA" --target ${TARGET} mcp-task-knowledge
+    - >
+      docker build \
+        --build-arg BASE_DEPS_IMAGE="$BASE_DEPS_IMAGE" \
+        --build-arg BASE_MODELS_IMAGE="$BASE_MODELS_IMAGE" \
+        --build-arg BASE_GPU_IMAGE="$BASE_GPU_IMAGE" \
+        --build-arg BASE_DEPS_IMAGE_CAT="$BASE_DEPS_IMAGE_CAT" \
+        --build-arg BASE_MODELS_IMAGE_CAT="$BASE_MODELS_IMAGE_CAT" \
+        --build-arg BASE_GPU_IMAGE_CAT="$BASE_GPU_IMAGE_CAT" \
+        -t "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA" \
+        --target ${TARGET} mcp-task-knowledge
     - docker push "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -198,22 +219,56 @@ build:bm25:
   stage: build
   variables:
     FLAVOR: bm25
-    TARGET: runtime
+    TARGET: runtime-bm25-extbase
   <<: *build_image_one
 
 build:onnx-cpu:
   stage: build
   variables:
     FLAVOR: onnx-cpu
-    TARGET: runtime-onnx-cpu
+    TARGET: runtime-onnx-cpu-extbase
   <<: *build_image_one
 
 build:onnx-gpu:
   stage: build2
   variables:
     FLAVOR: onnx-gpu
-    TARGET: runtime-onnx-gpu
+    TARGET: runtime-onnx-gpu-extbase
   <<: *build_image_one
+
+# Catalog-embedded builds from cat-extbase
+build:bm25-cat:
+  stage: build
+  variables:
+    FLAVOR: bm25-cat
+    TARGET: runtime-bm25-cat-extbase
+  <<: *build_image_one
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+    - if: '$CI_COMMIT_BRANCH'
+
+build:onnx-cpu-cat:
+  stage: build
+  variables:
+    FLAVOR: onnx-cpu-cat
+    TARGET: runtime-onnx-cpu-cat-extbase
+  <<: *build_image_one
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+    - if: '$CI_COMMIT_BRANCH'
+
+build:onnx-gpu-cat:
+  stage: build2
+  variables:
+    FLAVOR: onnx-gpu-cat
+    TARGET: runtime-onnx-gpu-cat-extbase
+  <<: *build_image_one
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+    - if: '$CI_COMMIT_BRANCH'
 
 selfcheck:onnx-cpu:
   stage: test

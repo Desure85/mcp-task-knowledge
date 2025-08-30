@@ -38,6 +38,19 @@ jobs:
           - name: onnx-gpu
             target: base-onnx-gpu-with-models
             image: mcp-base-onnx-gpu
+          # Catalog-embedded base images (cat)
+          - name: deps-cat
+            target: base-bm25-with-deps
+            image: mcp-base-bm25-cat
+            embedCatalog: true
+          - name: onnx-cpu-cat
+            target: base-onnx-cpu-with-models
+            image: mcp-base-onnx-cat
+            embedCatalog: true
+          - name: onnx-gpu-cat
+            target: base-onnx-gpu-with-models
+            image: mcp-base-onnx-gpu-cat
+            embedCatalog: true
 
     steps:
       - name: Checkout
@@ -77,6 +90,7 @@ jobs:
           sbom: false
           build-args: |
             NPM_REGISTRY=https://registry.npmjs.org/
+            SERVICE_CATALOG_GIT=${{ matrix.embedCatalog && 'https://github.com/Desure85/service-catalog.git' || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
