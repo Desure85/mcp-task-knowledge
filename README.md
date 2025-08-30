@@ -737,7 +737,7 @@ node scripts/prompts.mjs ab:report
 - __prompts_variants_stats__ — агрегированные метрики по вариантам для `promptKey`.
 - __prompts_bandit_next__ — выбор следующего варианта для `promptKey` (epsilon-greedy по агрегатам).
 - __prompts_metrics_log_bulk__ — пакетная запись событий метрик и обновление агрегатов.
- - __prompts_experiments_upsert__ — создание/обновление манифеста эксперимента (variants) для `promptKey`.
+- __prompts_experiments_upsert__ — создание/обновление манифеста эксперимента (variants) для `promptKey`.
 
 Подсказки:
 
