@@ -13,34 +13,18 @@ variables:
 stages:
   - test
   - build
+  - build2
   - release
 
 .before: &before
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
 
-.build_images: &build_images
-  stage: build
+.build_image_one: &build_image_one
   <<: *before
   script:
-    - |
-      docker build -t "$CI_REGISTRY_IMAGE:bm25-$CI_COMMIT_SHORT_SHA" --target runtime mcp-task-knowledge
-      docker push "$CI_REGISTRY_IMAGE:bm25-$CI_COMMIT_SHORT_SHA"
-    - |
-      docker build -t "$CI_REGISTRY_IMAGE:onnx-cpu-$CI_COMMIT_SHORT_SHA" --target runtime-onnx-cpu mcp-task-knowledge
-      docker push "$CI_REGISTRY_IMAGE:onnx-cpu-$CI_COMMIT_SHORT_SHA"
-    - |
-      docker build -t "$CI_REGISTRY_IMAGE:onnx-gpu-$CI_COMMIT_SHORT_SHA" --target runtime-onnx-gpu mcp-task-knowledge
-      docker push "$CI_REGISTRY_IMAGE:onnx-gpu-$CI_COMMIT_SHORT_SHA"
-  artifacts:
-    reports:
-      dotenv:
-        - images.env
-  after_script:
-    - |
-      echo "IMAGE_BM25=$CI_REGISTRY_IMAGE:bm25-$CI_COMMIT_SHORT_SHA" > images.env
-      echo "IMAGE_ONNX_CPU=$CI_REGISTRY_IMAGE:onnx-cpu-$CI_COMMIT_SHORT_SHA" >> images.env
-      echo "IMAGE_ONNX_GPU=$CI_REGISTRY_IMAGE:onnx-gpu-$CI_COMMIT_SHORT_SHA" >> images.env
+    - docker build -t "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA" --target ${TARGET} mcp-task-knowledge
+    - docker push "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
@@ -192,7 +176,7 @@ catalog:smoke:
 .release_images: &release_images
   stage: release
   <<: *before
-  needs: ["build:docker"]
+  needs: ["build:bm25", "build:onnx-cpu", "build:onnx-gpu"]
   script:
     - |
       for FLAVOR in bm25 onnx-cpu onnx-gpu; do
@@ -210,11 +194,26 @@ catalog:smoke:
     - if: '$CI_COMMIT_TAG'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-build:docker:
-  <<: *build_images
+build:bm25:
+  stage: build
+  variables:
+    FLAVOR: bm25
+    TARGET: runtime
+  <<: *build_image_one
 
-release:docker:
-  <<: *release_images
+build:onnx-cpu:
+  stage: build
+  variables:
+    FLAVOR: onnx-cpu
+    TARGET: runtime-onnx-cpu
+  <<: *build_image_one
+
+build:onnx-gpu:
+  stage: build2
+  variables:
+    FLAVOR: onnx-gpu
+    TARGET: runtime-onnx-gpu
+  <<: *build_image_one
 
 selfcheck:onnx-cpu:
   stage: test
