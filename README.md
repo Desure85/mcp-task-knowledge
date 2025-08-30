@@ -1,4 +1,43 @@
 # MCP Task & Knowledge (file-backed)
+## MCP: prompts_build — Build Prompt Workflows
+
+Инструмент MCP `prompts_build` собирает артефакты для промптов вида `workflow` (где `metadata.kind === "workflow"`). Сборка рендерит составной Markdown и JSON build (`metadata.kind = "build"`) в каталог `prompts/<project>/exports/builds/`.
+
+Поля запроса:
+- `project?: string` — проект (по умолчанию `CURRENT_PROJECT`/`mcp`).
+- `ids?: string[]` — явные workflow-id для сборки.
+- `includeKinds?: string[]` — какие типы ссылок включать (`rule`, `template`, `policy`, ...).
+- `excludeKinds?: string[]` — исключаемые типы.
+- `includeTags?: string[]` — включать только элементы, у которых есть хотя бы один из тегов.
+- `excludeTags?: string[]` — исключать элементы, у которых есть любой из этих тегов.
+- `latest?: boolean` — зарезервировано для выбора последних версий.
+- `dryRun?: boolean` — план без записи.
+- `force?: boolean` — зарезервировано под инвалидацию.
+- `separator?: string` — глобальный разделитель секций (по умолчанию `---`).
+
+Поддержка ссылок и рендеринга:
+- В `workflow.compose[]` шаги содержат `ref` на элемент библиотеки. Возможен пин версии: `id@version`.
+- Рендер каждой секции включает заголовок (по умолчанию из `metadata.title` или `id`), уровень `level` (1..3), а также опциональные `prefix`, `suffix` и локальный `separator`.
+- В самом `workflow` поддерживаются поля `pre` и `post` — глобальные секции до и после контента.
+
+Пример compose шага:
+
+```json
+{
+  "ref": "rule-1@1.0.0",
+  "title": "Rule One",
+  "level": 2,
+  "prefix": "Intro text",
+  "suffix": "Outro text",
+  "separator": "***"
+}
+```
+
+Включение инструмента:
+- Установить переменную окружения `PROMPTS_BUILD_ENABLED=1`, либо задать в конфиге `prompts.buildEnabled: true`.
+
+Результат вызова — JSON с полями: `built`, `outputs[]` (пути артефактов, если не `dryRun`), `skipped[]`.
+
 
 Файловый MCP-сервер для таск-менеджмента и базы знаний по проектам.
 

@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR } from "./config.js";
+import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR, isPromptsBuildEnabled } from "./config.js";
 import { createServiceCatalogProvider } from "./catalog/provider.js";
  import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
 import { createDoc, listDocs, readDoc, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from "./storage/knowledge.js";
@@ -16,6 +16,7 @@ import { importProjectFromVault, planImportProjectFromVault } from "./obsidian/i
 import { listProjects } from "./projects.js";
 import { appendAssignments, appendEvents, listBuildVariants, readAggregates, readExperiment, updateAggregates } from './ab-testing/storage.js';
 import { pickWithEpsilonGreedy } from './ab-testing/bandits.js';
+import { buildWorkflows } from './prompts/build.js';
 
 async function main() {
   const server = new McpServer({ name: "mcp-task-knowledge", version: "0.1.0" });
@@ -748,6 +749,40 @@ async function main() {
       return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
     }
   );
+
+  // prompts_build — build workflow prompts into exports/builds as MD and JSON artifacts
+  if (isPromptsBuildEnabled()) {
+    server.registerTool(
+      "prompts_build",
+      {
+        title: "Prompts Build",
+        description: "Build workflow prompts composed from referenced rules/templates/policies into Markdown and JSON artifacts",
+        inputSchema: {
+          project: z.string().optional(),
+          ids: z.array(z.string()).optional(),
+          includeKinds: z.array(z.string()).optional(),
+          excludeKinds: z.array(z.string()).optional(),
+          includeTags: z.array(z.string()).optional(),
+          excludeTags: z.array(z.string()).optional(),
+          latest: z.boolean().optional(),
+          dryRun: z.boolean().optional(),
+          force: z.boolean().optional(),
+          separator: z.string().optional(),
+        },
+      },
+      async ({ project, ids, includeKinds, excludeKinds, includeTags, excludeTags, latest, dryRun, force, separator }: { project?: string; ids?: string[]; includeKinds?: string[]; excludeKinds?: string[]; includeTags?: string[]; excludeTags?: string[]; latest?: boolean; dryRun?: boolean; force?: boolean; separator?: string }) => {
+        const prj = resolveProject(project);
+        try {
+          const res = await buildWorkflows(prj, { ids, includeKinds, excludeKinds, includeTags, excludeTags, latest, dryRun, force, separator });
+          const envelope = { ok: true, data: { project: prj, ...res } };
+          return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+        } catch (e: any) {
+          const envelope = { ok: false, error: { message: String(e?.message || e) } };
+          return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        }
+      }
+    );
+  }
 
   server.registerTool(
     "prompts_search",

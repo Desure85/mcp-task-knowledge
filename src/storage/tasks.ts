@@ -141,6 +141,11 @@ export async function getTask(project: string, id: string): Promise<Task | null>
   return readJson<Task>(p);
 }
 
+// Backwards-compatible alias expected by some tests
+export async function readTask(project: string, id: string): Promise<Task | null> {
+  return getTask(project, id);
+}
+
 export async function updateTask(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {
   const existing = await getTask(project, id);
   if (!existing) return null;
