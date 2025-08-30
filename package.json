@@ -30,7 +30,9 @@
     "prompts:ab:report": "node scripts/prompts.mjs ab:report",
     "prompts:reindex": "node scripts/prompts.mjs index && node scripts/prompts.mjs catalog && node scripts/prompts.mjs catalog:services && node scripts/prompts.mjs export-json && node scripts/prompts.mjs export-md && node scripts/prompts.mjs build",
     "prompts:reindex:sandbox": "CURRENT_PROJECT=mcp-sandbox npm run -s prompts:reindex",
-    "validate:schemas": "node scripts/validate-schemas.mjs"
+    "validate:schemas": "node scripts/validate-schemas.mjs",
+    "lint:md": "markdownlint '**/*.md' --ignore-path .markdownlintignore",
+    "lint:md:fix": "markdownlint '**/*.md' --fix --ignore-path .markdownlintignore"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",
@@ -49,6 +51,7 @@
     "@types/uuid": "^9.0.7",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "markdownlint-cli": "^0.39.0",
     "tsx": "^4.17.0",
     "typescript": "^5.5.4",
     "vitest": "^1.6.0"

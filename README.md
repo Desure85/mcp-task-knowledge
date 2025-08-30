@@ -86,6 +86,7 @@ expect(res.content?.[0]?.text).toContain('Refusing to proceed')
 Поэтому использовать конструкции вида `await expect(client.callTool(...)).rejects.toThrow(...)` — некорректно; необходимо проверять `isError` и текст ошибки.
 
 ## Структура
+
 ```
 ./
   src/
@@ -108,15 +109,21 @@ expect(res.content?.[0]?.text).toContain('Refusing to proceed')
 ```
 
 ## Установка и запуск (Node.js)
+
 1. Установка зависимостей
+
 ```bash
 npm i
 ```
+
 2. Сборка
+
 ```bash
 npm run build
 ```
+
 3. Запуск
+
 ```bash
 # Параметры задаются через переменные окружения; OBSIDIAN_VAULT_ROOT имеет дефолт /data/obsidian
 # Пример (PowerShell):
@@ -256,6 +263,7 @@ services:
 ```
 
 Рекомендуемая структура данных (будет создана автоматически при первых записях):
+
 - `data/tasks/<project>/<uuid>.json`
 - `data/knowledge/<project>/<uuid>.md`
 
@@ -270,6 +278,7 @@ services:
 | `DATA_DIR` | Корневая директория для всех данных | - | ✅ Да |
 | `MCP_TASK_DIR` | Директория для хранения задач | `DATA_DIR/tasks` | ❌ Нет |
 | `MCP_KNOWLEDGE_DIR` | Директория для хранения знаний | `DATA_DIR/knowledge` | ❌ Нет |
+| `MCP_PROMPTS_DIR` | Директория для Prompts (если не задана — используется `DATA_DIR/prompts`, с легаси-фолбэком `DATA_DIR/mcp/prompts`) | `DATA_DIR/prompts` | ❌ Нет |
 | `OBSIDIAN_VAULT_ROOT` | Корень Obsidian vault | `/data/obsidian` | ❌ Нет |
 
 ### Текущий проект
@@ -282,6 +291,7 @@ services:
 
 - `MCP_CONFIG_JSON` — JSON-строка с конфигурацией (аналог `--config <path>`). Поля соответствуют структурам `loadConfig()` и `loadCatalogConfig()` из `src/config.ts`.
   - Пример:
+
     ```bash
     export MCP_CONFIG_JSON='{"dataDir":"/data","currentProject":"mcp","embeddings":{"mode":"none"},"catalog":{"enabled":true,"mode":"embedded"}}'
     ```
@@ -495,6 +505,7 @@ export CATALOG_EMBEDDED_SQLITE_DRIVER=auto
   - Для однонаправленной sync `remote_to_embedded` избегайте записи обратно в remote из MCP.
 
 Заметки по безопасности:
+
 - По умолчанию `CATALOG_WRITE_ENABLED=0`. Включайте запись только там, где это целесообразно и контролируемо.
 - В `embedded.store=file` содержимое записывается как массив или `{ items: [...] }`. Файл должен находиться в доступной для записи директории.
 
@@ -603,12 +614,11 @@ docker compose -f docker-compose.catalog.yml down
 
 #### Разрешение путей (приоритет директорий Prompts)
 
-- Базовый каталог данных определяется так:
-  1) Если задан `DATA_DIR` — он используется как корень.
-  2) Иначе — локальный репозиторный `.data/`.
-  3) Фолбэк — репозиторный `data/`.
-- Корень prompts можно переопределить `MCP_PROMPTS_DIR` (абсолютный/относительный путь). При отсутствии — используется `${BASE}/prompts` с поддержкой легаси фолбэка `${BASE}/mcp/prompts`.
-- Проект выбирается переменной `CURRENT_PROJECT` (по умолчанию `mcp`). Итоговый путь: `${BASE}/prompts/<CURRENT_PROJECT>`.
+- Разрешение директорий Prompts:
+  1) Если задан `MCP_PROMPTS_DIR` — он используется как корень Prompts.
+  2) Иначе требуется `DATA_DIR`; используется `${DATA_DIR}/prompts` с легаси‑фолбэком `${DATA_DIR}/mcp/prompts`.
+  3) Репозиторные фоллбэки `.data/` и `data/` больше не используются. При отсутствии указанных переменных будет выброшена ошибка (и сервер/скрипты не создадут артефакты в папке проекта).
+- Проект выбирается переменной `CURRENT_PROJECT` (по умолчанию `mcp`). Итоговый путь: `${MCP_PROMPTS_DIR}/<CURRENT_PROJECT>` (если задан `MCP_PROMPTS_DIR`) или `${DATA_DIR}/prompts/<CURRENT_PROJECT>`.
 
 - Импорт из Vault (инструмент `obsidian_import_project`):
   - Флаги
@@ -687,18 +697,19 @@ node scripts/prompts.mjs ab:report
 - __prompts_metrics_log_bulk__ — пакетная запись событий метрик и обновление агрегатов.
 
 Подсказки:
+
 - Большинство инструментов поддерживает параметр `project` (по умолчанию `CURRENT_PROJECT`).
 - Пути данных Prompts описаны выше в разделе «Prompts: экспорт/импорт» и «Артефакты CI…».
 
 #### Артефакты CI и выходные директории Prompts
 
 - При прогоне CI (см. `.github/workflows/prompts-ci.yml`) публикуются артефакты из:
-  - `.data/prompts/<project>/index.json`
-  - `.data/prompts/<project>/quality/validation.json`
-  - `.data/prompts/<project>/exports/json/**/*`
-  - `.data/prompts/<project>/exports/markdown/**/*`
-  - `.data/prompts/<project>/exports/catalog/**/*` (включая `prompts.catalog.json` и `experiments.report.json`)
-  - `.data/prompts/<project>/exports/builds/**/*`
+  - `${DATA_DIR}/prompts/<project>/index.json`
+  - `${DATA_DIR}/prompts/<project>/quality/validation.json`
+  - `${DATA_DIR}/prompts/<project>/exports/json/**/*`
+  - `${DATA_DIR}/prompts/<project>/exports/markdown/**/*`
+  - `${DATA_DIR}/prompts/<project>/exports/catalog/**/*` (включая `prompts.catalog.json` и `experiments.report.json`)
+  - `${DATA_DIR}/prompts/<project>/exports/builds/**/*`
 
 ### Отладка / низкоуровневые параметры
 
@@ -756,6 +767,7 @@ docker run --rm -it \
 > - Размерность часто определяется автоматически из `/app/models/metadata.json`; при необходимости задайте `EMBEDDINGS_DIM` явно.
 
 ### Быстрый старт (рекомендуется)
+
 - make-таргеты в `mcp-task-knowledge/Makefile`:
   - `make docker-buildx-cpu` — сборка образа CPU (runtime-onnx-cpu) с кэшем.
   - `make smoke-embeddings-cpu` — собрать образ и запустить оффлайн‑smoke эмбеддингов (CPU).
@@ -771,48 +783,57 @@ docker run --rm -it \
   - `npm run onnx:selfcheck:cpu`
 
 Примечания:
+
 - В образе CPU присутствуют артефакты модели/токенайзера в `/app/models`; размерность часто берётся из `/app/models/metadata.json`. При необходимости установите `EMBEDDINGS_DIM` явно.
 - Для детальных логов инициализации векторного адаптера задайте `DEBUG_VECTOR=1`.
 - Реестр npm можно переопределить при сборке: `docker build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ ...`
 
 ### Ускоренная сборка и кэш BuildKit
 
-- **Локальный файловый кэш (по умолчанию)**
+- __Локальный файловый кэш (по умолчанию)__
   - Сборки через `docker buildx` используют локальный кэш в каталоге `.buildx-cache/` в корне репозитория. Это ускоряет повторные сборки на этой машине.
 
-- **Локальный registry‑кэш (персистентный)**
+- __Локальный registry‑кэш (персистентный)__
   - Можно поднять локальный Docker Registry и использовать его как источник/приёмник кэша.
   - Запустить реестр:
+
     ```bash
     docker run -d --restart=always -p 5000:5000 --name registry registry:2
     ```
+
   - Создать buildx‑builder с доступом к localhost (важно для доступа BuildKit к реестру на 127.0.0.1:5000):
+
     ```bash
     docker buildx create --name mcpbuilder --driver docker-container --use --driver-opt network=host
     ```
+
   - Собрать с использованием образа‑кэша:
+
     ```bash
     make docker-buildx-cpu \
       CACHE_IMAGE=127.0.0.1:5000/mcp-tk/cache:buildx
     ```
+
   - Примечание:
     - BuildKit запускается в отдельном контейнере и не видит «localhost» хоста, поэтому для доступа к локальному реестру нужен builder с `--driver-opt network=host`.
     - Используйте `127.0.0.1` вместо `localhost`, чтобы избежать разрешения в IPv6 (`::1`) и возможных ошибок подключения.
     - Без TLS это «insecure registry». При необходимости настройте доверие в Docker daemon или используйте реестр с TLS.
 
-- **NPM registry**
+- __NPM registry__
   - Чтобы уменьшить флейки/ретраи при установке пакетов, можно переопределить реестр npm:
+
     ```bash
     make docker-buildx-cpu NPM_REGISTRY=https://registry.npmjs.org/
     ```
 
 ### Быстрая кэшированная сборка (<60с)
 
-- **Предусловия**
+- __Предусловия__
   - Создайте buildx-builder с доступом к локальному реестру и сети хоста (для опции registry-кэша, если будете использовать её). Впрочем, для локального файлового кэша достаточно стандартного builder.
   - Убедитесь, что `.dockerignore` исключает артефакты, тесты и лишние файлы (в репозитории уже настроено).
 
-- **Инициализационная сборка (заполнить кэш)**
+- __Инициализационная сборка (заполнить кэш)__
+
   ```bash
   docker buildx build \
     --progress=plain \
@@ -823,7 +844,8 @@ docker run --rm -it \
     .
   ```
 
-- **Повторная сборка и бенчмарк (<60с при кэше)**
+- __Повторная сборка и бенчмарк (<60с при кэше)__
+
   ```bash
   /usr/bin/time -f "real:%E user:%U sys:%S maxrss:%M" \
   docker buildx build \
@@ -836,19 +858,21 @@ docker run --rm -it \
     .
   ```
 
-- **Ожидаемое поведение**
+- __Ожидаемое поведение__
   - При отсутствии изменений в `src/` и манифестах (`package.json`, `package-lock.json`, `tsconfig.json`) повторная сборка должна занимать <60 секунд на типичной машине разработчика.
   - Изменение исходников инвалидирует только слой `builder` (`COPY src` + `npm run build`), что даёт быстрый ребилд.
   - Зависимости фиксируются через `npm ci` и кэшируются с `--mount=type=cache,target=/root/.npm` в слое `deps`.
 
-- **Подсказки**
+- __Подсказки__
   - Если корпоративный прокси/зеркало нестабильно — укажите реестр: `--build-arg NPM_REGISTRY=https://registry.npmjs.org/`.
   - Для более агрессивного/общего кэша используйте registry-кэш из раздела выше (образ кэша в локальном реестре).
   - Проверяйте, что build контекст мал: `docker buildx build --no-cache --progress=plain . | head -n 50` покажет ранние шаги и размер контекста.
 
 ### Debugging
+
 Чтобы включить подробные логи по инициализации векторного адаптера, установите переменную окружения `DEBUG_VECTOR=1`.
 Например, для Docker:
+
 ```bash
 docker run --rm -it \
   -e DATA_DIR=/data \
@@ -865,6 +889,7 @@ docker run --rm -it \
 ```
 
 ### Логи старта и диагностика
+
 - [startup] — базовая информация о запуске (timestamp, pid).
 - [startup][catalog] — выбранный режим каталога (`mode`, `prefer`, флаги remote/embedded, baseUrl/store).
 - [startup][embeddings] — режим эмбеддингов (`mode`, `dim`, `cacheDir`, наличие `modelPath`).
@@ -874,6 +899,7 @@ docker run --rm -it \
   - `embeddings_try_init` — принудительная инициализация адаптера с диагностикой.
 
 ### Мини self-test эмбеддингов (CPU, оффлайн)
+
 ```bash
 # 1) создайте локальный скрипт
 cat > /tmp/emb-selftest.mjs <<'EOF'
@@ -906,8 +932,11 @@ timeout 60s docker run --rm \
 ```
 
 Ожидаемый вывод — JSON со скорами cosine для трёх строк; «Привет мир» / «Hello world» должны иметь более высокие значения, чем «Добро пожаловать».
+
 ### GPU-вариант (опционально)
+
 Если на хосте доступен GPU и поддерживается, соберите и запустите таргет GPU:
+
 ```bash
 docker buildx build --load -t mcp-task-knowledge:gpu -f Dockerfile --target runtime-onnx-gpu .
 
@@ -923,9 +952,11 @@ docker run --rm -it \
   --gpus all \
   mcp-task-knowledge:gpu
 ```
+
 Для PowerShell: замените `$PWD` на `%cd%`.
 
 ### ONNX CPU self-check (npm)
+
 Быстрый оффлайн self-check пути ONNX (CPU) из готового Docker-образа и встроенной логики адаптера:
 
 ```bash
@@ -952,11 +983,13 @@ SELF_CHECK_ERR: <сообщение об ошибке>
 ## Тестирование
 
 - Установка зависимостей:
+
 ```bash
 npm install
 ```
 
 - Запуск тестов (Vitest):
+
 ```bash
 npm run test
 ```
@@ -1077,6 +1110,7 @@ main().catch((e) => {
 ```
 
 Примечания:
+
 - Для деструктивных сценариев (стратегия `replace`) требуется явное подтверждение: `confirm: true`. Без него инструмент вернёт безопасную ошибку.
 - Перед запуском убедитесь, что собрана папка `dist/` (`npm run build` в `mcp-task-knowledge/`), а переменные окружения (`DATA_DIR`, `OBSIDIAN_VAULT_ROOT`, `EMBEDDINGS_MODE`) корректно установлены.
 
@@ -1166,16 +1200,19 @@ main().catch((e) => {
 - `hash` строится от текста (стабильная djb2), что исключает рассинхронизацию при изменении контента.
 
 Что покрыто базовыми тестами:
- - Негативные сценарии конфигурации в `src/config.ts` и `loadCatalogConfig()`:
-   - Ошибка при отсутствии `DATA_DIR`.
-   - `OBSIDIAN_VAULT_ROOT` по умолчанию `/data/obsidian` (можно переопределить переменной или конфигом).
-   - Fallback `EMBEDDINGS_MODE` на `none` при некорректных оннх‑параметрах.
-   - Fallback каталога на `embedded`, если `remote` без `baseUrl`.
+
+- Негативные сценарии конфигурации в `src/config.ts` и `loadCatalogConfig()`:
+  - Ошибка при отсутствии `DATA_DIR`.
+  - `OBSIDIAN_VAULT_ROOT` по умолчанию `/data/obsidian` (можно переопределить переменной или конфигом).
+  - Fallback `EMBEDDINGS_MODE` на `none` при некорректных оннх‑параметрах.
+  - Fallback каталога на `embedded`, если `remote` без `baseUrl`.
 
 ### MCP Tools: project_list
+
 Перечисляет доступные проекты, сканируя каталоги `tasks/` и `knowledge/`.
 
 Пример ответа:
+
 ```json
 {
   "ok": true,
@@ -1261,6 +1298,7 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
 Примечание: начиная с этой версии, инструментарий полного очищения проекта включает в выборку и физическое удаление ЭЛЕМЕНТЫ В КОРЗИНЕ (trashed) по умолчанию. Отдельный флаг для этого не требуется.
 
 #### Флаги фильтрации
+
 - `--include-archived` — включать архивные элементы (по умолчанию `true`)
 - `--tasks-status s1[,s2,...]` — фильтр по статусам задач
 - `--tasks-tag <tag>` / `--tasks-tags t1[,t2,...]` — фильтр по меткам задач
@@ -1271,6 +1309,7 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
 - Элементы со статусом «в корзине» (trashed) всегда включаются в очистку и будут удалены без дополнительного флага
 
 ## Подключение в Windsurf
+
 - Settings → MCP Servers → Add
   - Command: `node`
   - Args: `["dist/index.js"]`
@@ -1278,10 +1317,12 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
   - Env: `DATA_DIR` указывает корневую папку данных (например, общий каталог для нескольких проектов)
 
 Альтернатива (Docker):
+
 - Command: `docker`
 - Args: `["run","--rm","-i","-e","DATA_DIR=/data","-v","<HOST_DATA>:/data","mcp-task-knowledge"]`
 
 ## Инструменты
+
 - tasks_list: `{ project?, status?, tag?, includeArchived? }` — по умолчанию архивные скрыты; укажите `includeArchived: true`, чтобы включить их
 - tasks_tree: `{ project?, status?, tag?, includeArchived? }` — возврат иерархии задач по `parentId` (фильтры аналогичны `tasks_list`)
 - tasks_get: `{ project, id }` — получить задачу по идентификатору
@@ -1338,8 +1379,9 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
  Семантика дерева: инструмент `knowledge_tree` трактует документ как корневой, если `parentId` имеет falsy‑значение (`null` или `undefined`). Это поведение покрыто тестами и согласовано со схемой `knowledge_bulk_update` (nullable `parentId`).
 
  См. покрывающие тесты:
- - `tests/knowledge.detach_root.test.ts` — storage‑уровень: `updateDoc(..., { parentId: null })` приводит документ в корень.
- - `tests/knowledge.bulk_update.detach.test.ts` — инструмент: `knowledge_bulk_update` с `parentId: null` и проверка через `knowledge_tree`.
+
+- `tests/knowledge.detach_root.test.ts` — storage‑уровень: `updateDoc(..., { parentId: null })` приводит документ в корень.
+- `tests/knowledge.bulk_update.detach.test.ts` — инструмент: `knowledge_bulk_update` с `parentId: null` и проверка через `knowledge_tree`.
 
 ### Интроспекция инструментов (tools_list, tool_schema, tool_help)
 
@@ -1422,6 +1464,7 @@ tool_help -> { "name": "knowledge_bulk_create" }
 - __Генерация примеров__: поля `project` подставляются из текущего контекста проекта, остальные — осмысленные значения по умолчанию.
 
 ### Embeddings / Векторный поиск
+
 - embeddings_status: `{}` — показать текущую конфигурацию эмбеддингов (mode, dim, cache, включён ли адаптер)
 - embeddings_compare: `{ query: string, texts: string[], limit?: number }` — вычислить косинусное сходство между запросом и списком текстов (используется текущий векторный адаптер)
 
@@ -1504,6 +1547,7 @@ __Формат ответа (агрегированный)__
 ```
 
 ### Embeddings / Векторный поиск
+
 - embeddings_status: `{}` — показать текущую конфигурацию эмбеддингов (mode, dim, cache, включён ли адаптер)
 - embeddings_compare: `{ query: string, texts: string[], limit?: number }` — вычислить косинусное сходство между запросом и списком текстов (используется текущий векторный адаптер)
 
@@ -1581,12 +1625,14 @@ service_catalog_query -> {
 Экспорт данных проекта в Obsidian vault поддерживается инструментом `obsidian_export_project`.
 
 Требования:
+
 - Переменные окружения:
   - `DATA_DIR` — корень данных (обязательно)
   - `OBSIDIAN_VAULT_ROOT` — папка vault (дефолт: `/data/obsidian`; можно переопределить)
 - По умолчанию `project = mcp`, если не указан.
 
 Примеры вызовов:
+
 ```
 obsidian_export_project -> {}
 
@@ -1605,6 +1651,7 @@ obsidian_export_project -> {
 ```
 
 Примечания по UX:
+
 - В режиме `merge` подтверждение не требуется.
 - В режиме `replace` перед реальным удалением директорий будет проверяться `confirm`. Если `confirm: false`, вернётся ошибка подтверждения.
 - `dryRun: true` вернёт план: какие директории будут удалены (в replace) и сколько сущностей будет записано, без каких‑либо изменений на диске.
@@ -1659,6 +1706,7 @@ obsidian_import_project -> {
 ```
 
 Примечания по UX:
+
 - `strategy=merge` не требует подтверждения; `overwriteByTitle` по умолчанию true.
 - `mergeStrategy` определяет разрешение конфликтов по `title` при `strategy=merge`:
   - `overwrite` — обновлять существующие сущности (update), конфликт засчитывается, но операция разрешается как update.
@@ -1751,6 +1799,7 @@ Dry-run (предпросмотр плана, без изменений):
 - `includePriority` — приоритеты задач (только `Tasks/**`): `low | medium | high`.
 
 Примечания:
+
 - Импорт НЕ поддерживает фильтры по датам (`updatedFrom`/`updatedTo`) и архиву (`includeArchived`). Эти параметры есть только у экспорта.
 - При `strategy=replace` в dryRun‑плане для выбранных категорий ожидайте только `deletes` и `creates` (обновлений не будет, так как идет полная замена).
 
@@ -2010,6 +2059,7 @@ embeddings_compare -> {
 ## Troubleshooting
 
 ### GPU
+
 - Требуется NVIDIA Container Toolkit на хосте: nvidia‑драйверы и рабочая команда `nvidia-smi`.
 - При запуске контейнера используйте `--gpus all` (для compose это прописано в сервисе при необходимости).
 - В `mcp` выставьте `EMBEDDINGS_MODE=onnx-gpu`. Для быстрого переключения: `make up-gpu`.
@@ -2023,11 +2073,13 @@ embeddings_compare -> {
   - `ls -l /dev/nvidia*` (должны присутствовать устройства)
 
 ### CPU
+
 - При первом запуске возможны загрузки/экспорт моделей — подождите завершения инициализации.
 - Если токенайзер не инициализируется — очистите кэш модели и перезапустите: удалите `emb_cache/` и `~/.cache/huggingface/` в контейнере.
 - Для ускорения повторных стартов используйте постоянный volume под `DATA_DIR`.
 
 ### Compose/ENV (частые ошибки)
+
 - `EMBEDDINGS_MODE` не совпадает с ожидаемым в образе/режиме.
   - В compose переключайте через `make up-cpu` / `make up-gpu`.
   - Проверьте, что строка env в `docker-compose.catalog.yml` действительно изменилась.
@@ -2039,7 +2091,9 @@ embeddings_compare -> {
 - `make up-*` не сработал: цель правит compose-файл `sed`-ом, убедитесь, что формат строки `- EMBEDDINGS_MODE=...` не был изменён вручную.
 
 #### Включение GPU в docker-compose
+
 Добавьте к сервису MCP (пример):
+
 ```yaml
 services:
   mcp:
@@ -2051,21 +2105,27 @@ services:
           devices:
             - capabilities: [gpu]
 ```
+
 Альтернатива (Compose 2.24+):
+
 ```yaml
 services:
   mcp:
     gpus: all
 ```
+
 Проверьте на хосте:
+
 ```bash
 nvidia-smi
 docker info | grep -i runtimes
 docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
 ```
+
 Если любой из шагов падает — проблема вне контейнера (драйвер/Toolkit).
 
 ## Проекты и сбор данных по разным репозиториям
+
 - Используйте единый `DATA_DIR` для нескольких проектов.
 - Для каждого проекта задавайте `project` (неймспейс) — файлы разложатся по папкам.
 - Совместимо с Obsidian: содержимое знаний — Markdown с фронтматтером.
@@ -2073,11 +2133,12 @@ docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
 По умолчанию проект (неймспейс) — `mcp`. Если параметр `project` не указан, инструменты используют `mcp`.
 
 ## Эмбеддинги и разные ИИ-агенты
+
 По умолчанию — BM25 (быстро, без внешних зависимостей). Для улучшения семантического поиска предусмотрен интерфейс адаптера:
+
 - `VectorSearchAdapter` в `src/search/index.ts`
 - Можно реализовать плагин, который вычисляет эмбеддинги (локально или через API) и хранит их рядом в `data/`.
 - Разные агенты могут использовать общий `DATA_DIR` (и общий кэш эмбеддингов), сохраняя совместимость.
-
 
 ```
 embeddings_compare -> {
@@ -2095,8 +2156,8 @@ embeddings_compare -> {
 
 По умолчанию проект (неймспейс) — `mcp`. Если параметр `project` не указан, инструменты используют `mcp`.
 
-
 ## Переменные окружения
+
 - Обязательные:
   - `DATA_DIR`: путь к каталогу данных.
   - `OBSIDIAN_VAULT_ROOT`: корень Obsidian vault для экспорта.
@@ -2141,11 +2202,14 @@ CATALOG_BASE_URL=http://localhost:3001 scripts/smoke_catalog.sh
   - Решение: включите подробные логи `DEBUG_VECTOR=1` и проверьте сообщения о выбранном ORT backend и путях модели/токенизатора.
 
 ## Ускоренные extbase-сборки (внешние базовые образы)
+
 Этот репозиторий поддерживает «extbase»-паттерн для быстрых кэшированных пересборок (<60s):
+
 - Для ONNX CPU: базовый образ с node_modules и моделями.
 - Для BM25: базовый образ только с production node_modules.
 
 ### Шаг 1. Локальный Docker Registry (рекомендуется)
+
 ```bash
 make registry-up
 # при необходимости создайте builder с доступом к 127.0.0.1
@@ -2153,81 +2217,108 @@ make buildx-create-host
 ```
 
 ### Шаг 2. Сборка и публикация базовых образов
+
 - ONNX CPU base (с моделями):
+
 ```bash
 make docker-buildx-base-onnx-push
 # публикуется как localhost:5000/mcp-base-onnx:latest
 ```
+
 - BM25 base (node_modules):
+
 ```bash
 make docker-buildx-base-bm25-push
 # публикуется как localhost:5000/mcp-base-bm25:latest
 ```
 
 - GPU base (onnx-gpu с моделями и ORT GPU libs):
+
 ```bash
 make docker-buildx-base-gpu-push
 # публикуется как localhost:5000/mcp-base-onnx-gpu:latest
 ```
 
 ### Шаг 3. Быстрые extbase‑пересборки и бенчмарки
+
 - CPU extbase (без каталога):
+
 ```bash
 make docker-bench-cpu-extbase \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
+
 - CPU extbase (с каталогом):
+
 ```bash
 make docker-bench-cpu-extbase-cat \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
+
 - BM25 extbase (без каталога):
+
 ```bash
 make docker-bench-bm25-extbase \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
+
 - BM25 extbase (с каталогом):
+
 ```bash
 make docker-bench-bm25-extbase-cat \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
 
 - GPU cached (без каталога):
+
 ```bash
 make docker-bench-gpu-cached \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
+
 - GPU extbase (без каталога):
+
 ```bash
 make docker-bench-gpu-extbase \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
+
 - GPU cached (с каталогом):
+
 ```bash
 make docker-bench-gpu-cached-cat \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
+
 - GPU extbase (с каталогом):
+
 ```bash
 make docker-bench-gpu-extbase-cat \
   NPM_REGISTRY=https://registry.npmjs.org/
 ```
 
 ### Классические cached‑сборки для сравнения
+
 - CPU cached (с каталогом):
+
 ```bash
 make docker-bench-cpu-cached-cat
 ```
+
 - BM25 cached (без каталога):
+
 ```bash
 make docker-bench-bm25-cached-noload
 ```
+
 - BM25 cached (с каталогом):
+
 ```bash
 make docker-bench-bm25-cached-cat
 ```
 
 ### Наблюдаемые времена (пример)
+
 - __BM25 cached (no catalog)__: ~35.5s `real`
 - __BM25 extbase (no catalog)__: ~0.84s `real`
 - __BM25 cached (with catalog)__: ~6.3s `real`
@@ -2235,9 +2326,11 @@ make docker-bench-bm25-cached-cat
 - __CPU extbase (with catalog)__: ожидается <60s (зависит от кэша и сети)
 
 Подсказки:
+
 - Все цели используют локальный файловый кэш BuildKit: `$(BUILDX_CACHE_DIR)=.buildx-cache`.
 - Для extbase‑сборок важны аргументы `BASE_MODELS_IMAGE` (CPU) и `BASE_DEPS_IMAGE` (BM25), в Makefile уже прокинуты на локальный реестр.
 - Для воспроизводимости указывайте `NPM_REGISTRY` и держите builder с `network=host` (см. `make buildx-create-host`).
 
 ## Лицензия
+
 MIT
