@@ -1,9 +1,11 @@
 # MCP Task & Knowledge (file-backed)
+
 ## MCP: prompts_build — Build Prompt Workflows
 
 Инструмент MCP `prompts_build` собирает артефакты для промптов вида `workflow` (где `metadata.kind === "workflow"`). Сборка рендерит составной Markdown и JSON build (`metadata.kind = "build"`) в каталог `prompts/<project>/exports/builds/`.
 
 Поля запроса:
+
 - `project?: string` — проект (по умолчанию `CURRENT_PROJECT`/`mcp`).
 - `ids?: string[]` — явные workflow-id для сборки.
 - `includeKinds?: string[]` — какие типы ссылок включать (`rule`, `template`, `policy`, ...).
@@ -16,6 +18,7 @@
 - `separator?: string` — глобальный разделитель секций (по умолчанию `---`).
 
 Поддержка ссылок и рендеринга:
+
 - В `workflow.compose[]` шаги содержат `ref` на элемент библиотеки. Возможен пин версии: `id@version`.
 - Рендер каждой секции включает заголовок (по умолчанию из `metadata.title` или `id`), уровень `level` (1..3), а также опциональные `prefix`, `suffix` и локальный `separator`.
 - В самом `workflow` поддерживаются поля `pre` и `post` — глобальные секции до и после контента.
@@ -34,10 +37,10 @@
 ```
 
 Включение инструмента:
+
 - Установить переменную окружения `PROMPTS_BUILD_ENABLED=1`, либо задать в конфиге `prompts.buildEnabled: true`.
 
 Результат вызова — JSON с полями: `built`, `outputs[]` (пути артефактов, если не `dryRun`), `skipped[]`.
-
 
 Файловый MCP-сервер для таск-менеджмента и базы знаний по проектам.
 
