@@ -45,7 +45,7 @@ jobs:
             target: runtime-bm25-cat-extbase
             embedCatalog: true
           - variant: cpu-cat
-            target: runtime-onnx-cpu-cat-extbase
+            target: runtime-onnx-cpu-extbase
             embedCatalog: true
           - variant: gpu-cat
             target: runtime-onnx-gpu-cat-extbase

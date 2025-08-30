@@ -9,7 +9,7 @@ ARG BASE_DEPS_IMAGE_CAT=mcp-base-bm25-cat:latest
 ARG BASE_GPU_IMAGE_CAT=mcp-base-onnx-gpu-cat:latest
 
 # ---------- base deps (cacheable) ----------
-FROM node:20-bullseye AS deps
+FROM docker.io/library/node:20-bullseye AS deps
 WORKDIR /app
 COPY .npmrc package.json package-lock.json ./
 # Use configurable npm registry (default: npmjs). Can be overridden via --build-arg NPM_REGISTRY...
@@ -66,7 +66,7 @@ WORKDIR /app
 RUN npm prune --omit=dev
 
 # ---------- builder (typescript -> dist) ----------
-FROM node:20-bullseye AS builder
+FROM docker.io/library/node:20-bullseye AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
@@ -74,7 +74,7 @@ COPY src ./src
 RUN npm run build
 
 # ---------- model export (CPU) ----------
-FROM python:3.11-slim AS model-export
+FROM docker.io/library/python:3.11-slim AS model-export
 WORKDIR /work
 # Configure pip mirror (configurable) and enable cache mounts
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -95,7 +95,7 @@ RUN --mount=type=cache,target=/root/.cache/huggingface \
     python -u scripts/export_labse.py --model cointegrated/LaBSE-en-ru --out /models --opset 14 --max_len 256
 
 # ---------- runtime (bm25 only) ----------
-FROM node:20-bullseye AS runtime
+FROM docker.io/library/node:20-bullseye AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=none
@@ -120,7 +120,7 @@ VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
 # ---------- base with deps for bm25 (no models) ----------
-FROM node:20-bullseye AS base-bm25-with-deps
+FROM docker.io/library/node:20-bullseye AS base-bm25-with-deps
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=none
@@ -167,7 +167,7 @@ CMD ["node", "dist/index.js"]
 
 # ---------- base-onnx-gpu-with-models (shared GPU base) ----------
 # Contains Node.js, production node_modules, ONNX models and ORT GPU libs.
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-onnx-gpu-with-models
+FROM docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-onnx-gpu-with-models
 WORKDIR /app
 
 # Install Node.js 20.x (NodeSource)
