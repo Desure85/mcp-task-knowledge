@@ -12,30 +12,30 @@ import url from 'url';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const PROJECT_ROOT = path.resolve(REPO_ROOT, '.');
-// Base data dir resolution with preference for repo-local .data/ and fallback to data/
-const ENV_DATA_DIR = process.env.DATA_DIR ? path.resolve(process.cwd(), process.env.DATA_DIR) : null;
-let BASE_DATA_DIR = ENV_DATA_DIR || path.join(PROJECT_ROOT, '.data');
-try {
-  // If env not set and .data/ is missing, fallback to data/
-  if (!ENV_DATA_DIR) {
-    await fs.access(BASE_DATA_DIR);
-  }
-} catch {
-  BASE_DATA_DIR = ENV_DATA_DIR || path.join(PROJECT_ROOT, 'data');
-}
-// Prompts base dir: env override MCP_PROMPTS_DIR or DATA_DIR/prompts with legacy fallback to DATA_DIR/mcp/prompts
-let PROMPTS_BASE_DIR = process.env.MCP_PROMPTS_DIR
-  ? path.resolve(process.cwd(), process.env.MCP_PROMPTS_DIR)
-  : path.join(BASE_DATA_DIR, 'prompts');
-try {
-  // If primary doesn't exist, fallback to legacy
-  await fs.access(PROMPTS_BASE_DIR);
-} catch {
-  const legacy = path.join(BASE_DATA_DIR, 'mcp', 'prompts');
+// Align with src/config.ts: require MCP_PROMPTS_DIR or DATA_DIR
+const ENV_PROMPTS_DIR = process.env.MCP_PROMPTS_DIR || null;
+const ENV_DATA_DIR = process.env.DATA_DIR || null;
+let PROMPTS_BASE_DIR;
+if (ENV_PROMPTS_DIR && ENV_PROMPTS_DIR.trim().length > 0) {
+  PROMPTS_BASE_DIR = ENV_PROMPTS_DIR;
+} else if (ENV_DATA_DIR && ENV_DATA_DIR.trim().length > 0) {
+  // Prefer DATA_DIR/prompts with legacy fallback to DATA_DIR/mcp/prompts
+  const primary = path.join(ENV_DATA_DIR, 'prompts');
+  const legacy = path.join(ENV_DATA_DIR, 'mcp', 'prompts');
   try {
-    await fs.access(legacy);
-    PROMPTS_BASE_DIR = legacy;
-  } catch {}
+    await fs.access(primary);
+    PROMPTS_BASE_DIR = primary;
+  } catch {
+    try {
+      await fs.access(legacy);
+      PROMPTS_BASE_DIR = legacy;
+    } catch {
+      // If neither exists, still use primary path (will be created as needed)
+      PROMPTS_BASE_DIR = primary;
+    }
+  }
+} else {
+  throw new Error('MCP_PROMPTS_DIR or DATA_DIR must be set');
 }
 
 // --- Passive feedback helpers (JSONL ingestion, sentiment, edit distance) ---
@@ -93,22 +93,22 @@ async function readJsonlFile(file) {
 // Project name
 const CURRENT_PROJECT = process.env.CURRENT_PROJECT || 'mcp';
 
-// Project-scoped prompts dir tree
-const DATA_DIR = path.join(PROMPTS_BASE_DIR, CURRENT_PROJECT);
-const PROMPTS_DIR = path.join(DATA_DIR, 'prompts');
-const VERSIONS_DIR = path.join(DATA_DIR, 'versions');
-const EXPERIMENTS_DIR = path.join(DATA_DIR, 'experiments');
-const QUALITY_DIR = path.join(DATA_DIR, 'quality');
-const EXPORTS_DIR = path.join(DATA_DIR, 'exports');
+// Project-scoped prompts dir tree (avoid shadowing global DATA_DIR)
+const PROJECT_DATA_DIR = path.join(PROMPTS_BASE_DIR, CURRENT_PROJECT);
+const PROMPTS_DIR = path.join(PROJECT_DATA_DIR, 'prompts');
+const VERSIONS_DIR = path.join(PROJECT_DATA_DIR, 'versions');
+const EXPERIMENTS_DIR = path.join(PROJECT_DATA_DIR, 'experiments');
+const QUALITY_DIR = path.join(PROJECT_DATA_DIR, 'quality');
+const EXPORTS_DIR = path.join(PROJECT_DATA_DIR, 'exports');
 const EXPORTS_JSON_DIR = path.join(EXPORTS_DIR, 'json');
 const EXPORTS_MD_DIR = path.join(EXPORTS_DIR, 'markdown');
 const EXPORTS_CATALOG_DIR = path.join(EXPORTS_DIR, 'catalog');
-const RULES_DIR = path.join(DATA_DIR, 'rules');
-const WORKFLOWS_DIR = path.join(DATA_DIR, 'workflows');
-const TEMPLATES_DIR = path.join(DATA_DIR, 'templates');
-const POLICIES_DIR = path.join(DATA_DIR, 'policies');
+const RULES_DIR = path.join(PROJECT_DATA_DIR, 'rules');
+const WORKFLOWS_DIR = path.join(PROJECT_DATA_DIR, 'workflows');
+const TEMPLATES_DIR = path.join(PROJECT_DATA_DIR, 'templates');
+const POLICIES_DIR = path.join(PROJECT_DATA_DIR, 'policies');
 const EXPORTS_BUILDS_DIR = path.join(EXPORTS_DIR, 'builds');
-const INDEX_FILE = path.join(DATA_DIR, 'index.json');
+const INDEX_FILE = path.join(PROJECT_DATA_DIR, 'index.json');
 const VALIDATION_REPORT = path.join(QUALITY_DIR, 'validation.json');
 
 const ALLOWED_STATUS = new Set(['draft', 'review', 'published', 'deprecated']);
@@ -196,7 +196,7 @@ async function exportServiceItems(files) {
 
 async function ensureDirs() {
   const dirs = [
-    DATA_DIR,
+    PROJECT_DATA_DIR,
     PROMPTS_DIR,
     VERSIONS_DIR,
     EXPERIMENTS_DIR,
