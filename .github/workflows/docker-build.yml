@@ -82,10 +82,10 @@ jobs:
           echo "base_deps_cat=ghcr.io/${owner_lc}/mcp-base-bm25-cat:latest" >> "$GITHUB_OUTPUT"
           echo "base_models_cat=ghcr.io/${owner_lc}/mcp-base-onnx-cat:latest" >> "$GITHUB_OUTPUT"
           echo "base_gpu_cat=ghcr.io/${owner_lc}/mcp-base-onnx-gpu-cat:latest" >> "$GITHUB_OUTPUT"
-          echo "tool_node=ghcr.io/${owner_lc}/mcp-node:20-bullseye" >> "$GITHUB_OUTPUT"
-          echo "tool_node_alpine=ghcr.io/${owner_lc}/mcp-node:20-alpine" >> "$GITHUB_OUTPUT"
-          echo "tool_python=ghcr.io/${owner_lc}/mcp-python:3.11-slim" >> "$GITHUB_OUTPUT"
-          echo "tool_cuda=ghcr.io/${owner_lc}/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04" >> "$GITHUB_OUTPUT"
+          echo "tool_node=docker.io/library/node:20-bullseye" >> "$GITHUB_OUTPUT"
+          echo "tool_node_alpine=docker.io/library/node:20-alpine" >> "$GITHUB_OUTPUT"
+          echo "tool_python=docker.io/library/python:3.11-slim" >> "$GITHUB_OUTPUT"
+          echo "tool_cuda=docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04" >> "$GITHUB_OUTPUT"
 
       - name: Derive tags
         id: meta

@@ -16,11 +16,11 @@ variables:
   BASE_DEPS_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-bm25-cat:latest"
   BASE_MODELS_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-onnx-cat:latest"
   BASE_GPU_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-onnx-gpu-cat:latest"
-  # Toolchain base images mirrored to GHCR to avoid docker.io pulls
-  TOOL_NODE_IMAGE: "ghcr.io/Desure85/mcp-node:20-bullseye"
-  TOOL_NODE_ALPINE_IMAGE: "ghcr.io/Desure85/mcp-node:20-alpine"
-  TOOL_PY_IMAGE: "ghcr.io/Desure85/mcp-python:3.11-slim"
-  TOOL_CUDA_IMAGE: "ghcr.io/Desure85/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04"
+  # Toolchain images: use upstream docker.io
+  TOOL_NODE_IMAGE: "docker.io/library/node:20-bullseye"
+  TOOL_NODE_ALPINE_IMAGE: "docker.io/library/node:20-alpine"
+  TOOL_PY_IMAGE: "docker.io/library/python:3.11-slim"
+  TOOL_CUDA_IMAGE: "docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04"
 
 stages:
   - test
@@ -62,7 +62,7 @@ stages:
 
 obsidian:smoke:
   stage: test
-  image: ghcr.io/Desure85/mcp-node:20-bullseye
+  image: node:20
   before_script:
     - node -v
     - npm -v
