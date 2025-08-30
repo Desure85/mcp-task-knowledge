@@ -9,6 +9,14 @@ function readJsonConfig(filePath: string): any {
   return JSON.parse(raw);
 }
 
+// Enable/disable prompts build MCP tool via config or env
+// Source order: fileConfig.prompts.buildEnabled -> env PROMPTS_BUILD_ENABLED -> default false
+export function isPromptsBuildEnabled(): boolean {
+  const cfgFlag = (fileConfig?.prompts?.buildEnabled as boolean | undefined);
+  const envFlag = process.env.PROMPTS_BUILD_ENABLED;
+  return parseBool(cfgFlag ?? envFlag, false);
+}
+
 // Resolve base config source: CLI --config path, MCP_CONFIG_JSON, then ENV
 function getCliArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);
@@ -94,19 +102,17 @@ export function getCurrentProject(): string {
 }
 
 export function setCurrentProject(name: string): string {
-  const v = (name || '').trim();
-  if (v.length > 0) {
-    CURRENT_PROJECT_VALUE = v;
-    // also reflect into env for child components/processes that might read it lazily
-    process.env.CURRENT_PROJECT = v;
-    // persist to state file
-    try {
-      const next = { currentProject: v, updatedAt: new Date().toISOString() };
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-      fs.writeFileSync(STATE_FILE, JSON.stringify(next, null, 2), 'utf8');
-    } catch (e) {
-      console.warn('[config] Failed to persist state file:', e);
-    }
+  const v = String(name ?? ''); // preserve as-is (including whitespace or empty)
+  CURRENT_PROJECT_VALUE = v;
+  // also reflect into env for child components/processes that might read it lazily
+  process.env.CURRENT_PROJECT = v;
+  // persist to state file
+  try {
+    const next = { currentProject: v, updatedAt: new Date().toISOString() };
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(STATE_FILE, JSON.stringify(next, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[config] Failed to persist state file:', e);
   }
   return CURRENT_PROJECT_VALUE;
 }
@@ -140,6 +146,7 @@ export function loadConfig(): ServerConfig {
     || process.env.OBSIDIAN_VAULT_ROOT
     || '/data/obsidian';
 
+  const modeFromFile = (fileConfig?.embeddings && typeof fileConfig.embeddings.mode !== 'undefined');
   const modeCfg = (fileConfig?.embeddings?.mode as EmbeddingsMode | undefined) || (process.env.EMBEDDINGS_MODE as EmbeddingsMode | undefined);
   const mode: EmbeddingsMode = modeCfg ?? 'onnx-gpu';
 
@@ -195,15 +202,19 @@ export function loadConfig(): ServerConfig {
     obsidian: { vaultRoot },
   };
 
-  // Validations and graceful degradation
+  // Validations and conditional downgrade: only downgrade when mode comes from ENV
   if (cfg.embeddings.mode !== 'none') {
     const missing: string[] = [];
     if (!cfg.embeddings.modelPath) missing.push('EMBEDDINGS_MODEL_PATH');
     if (typeof cfg.embeddings.dim !== 'number' || Number.isNaN(cfg.embeddings.dim)) missing.push('EMBEDDINGS_DIM');
     if (!cfg.embeddings.cacheDir) missing.push('EMBEDDINGS_CACHE_DIR');
     if (missing.length > 0) {
-      console.warn(`[config] Missing ${missing.join(', ')} for onnx mode; falling back to EMBEDDINGS_MODE=none`);
-      cfg.embeddings.mode = 'none';
+      if (modeFromFile) {
+        console.warn(`[config] Missing ${missing.join(', ')} for onnx mode; proceeding without downgrade (mode from file config)`);
+      } else {
+        console.warn(`[config] Missing ${missing.join(', ')} for onnx mode; falling back to EMBEDDINGS_MODE=none`);
+        cfg.embeddings.mode = 'none';
+      }
     }
   }
 

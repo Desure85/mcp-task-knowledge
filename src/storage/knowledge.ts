@@ -96,7 +96,9 @@ export async function readDoc(project: string, id: string): Promise<KnowledgeDoc
   const raw = await readText(p);
   const fm = matter(raw);
   const meta = fm.data as any as KnowledgeDocMeta;
-  return { ...meta, content: fm.content };
+  // gray-matter preserves trailing newline if present; normalize to match original input string comparisons
+  const content = fm.content.endsWith('\n') ? fm.content.slice(0, -1) : fm.content;
+  return { ...meta, content };
 }
 
 export async function updateDoc(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {
