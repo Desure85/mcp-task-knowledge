@@ -51,6 +51,23 @@ jobs:
             target: base-onnx-gpu-with-models
             image: mcp-base-onnx-gpu-cat
             embedCatalog: true
+          # GHCR proxy toolchain images (avoid docker.io in app builds)
+          - name: proxy-node20-bullseye
+            target: proxy-node20-bullseye
+            image: mcp-node
+            image_tag: 20-bullseye
+          - name: proxy-node20-alpine
+            target: proxy-node20-alpine
+            image: mcp-node
+            image_tag: 20-alpine
+          - name: proxy-python311-slim
+            target: proxy-python311-slim
+            image: mcp-python
+            image_tag: 3.11-slim
+          - name: proxy-cuda-12-4-1
+            target: proxy-cuda-12-4-1
+            image: mcp-cuda
+            image_tag: 12.4.1-cudnn-runtime-ubuntu22.04
 
     steps:
       - name: Checkout
@@ -92,10 +109,14 @@ jobs:
           build-args: |
             NPM_REGISTRY=https://registry.npmjs.org/
             SERVICE_CATALOG_GIT=${{ matrix.embedCatalog && 'https://github.com/Desure85/service-catalog.git' || '' }}
+            BASE_NODE_IMAGE=${{ steps.names.outputs.base_repo }}/mcp-node:20-bullseye
+            BASE_NODE_ALPINE_IMAGE=${{ steps.names.outputs.base_repo }}/mcp-node:20-alpine
+            BASE_PY_IMAGE=${{ steps.names.outputs.base_repo }}/mcp-python:3.11-slim
+            BASE_CUDA_IMAGE=${{ steps.names.outputs.base_repo }}/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ env.PUBLISH_TAG }}
+            ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ matrix.image_tag || env.PUBLISH_TAG }}
             ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}

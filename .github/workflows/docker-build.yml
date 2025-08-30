@@ -45,7 +45,7 @@ jobs:
             target: runtime-bm25-cat-extbase
             embedCatalog: true
           - variant: cpu-cat
-            target: runtime-onnx-cpu-extbase
+            target: runtime-onnx-cpu-cat-extbase
             embedCatalog: true
           - variant: gpu-cat
             target: runtime-onnx-gpu-cat-extbase
@@ -68,7 +68,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute repo/image names
+      - name: Compute image and base names
         id: names
         shell: bash
         run: |
@@ -82,6 +82,10 @@ jobs:
           echo "base_deps_cat=ghcr.io/${owner_lc}/mcp-base-bm25-cat:latest" >> "$GITHUB_OUTPUT"
           echo "base_models_cat=ghcr.io/${owner_lc}/mcp-base-onnx-cat:latest" >> "$GITHUB_OUTPUT"
           echo "base_gpu_cat=ghcr.io/${owner_lc}/mcp-base-onnx-gpu-cat:latest" >> "$GITHUB_OUTPUT"
+          echo "tool_node=ghcr.io/${owner_lc}/mcp-node:20-bullseye" >> "$GITHUB_OUTPUT"
+          echo "tool_node_alpine=ghcr.io/${owner_lc}/mcp-node:20-alpine" >> "$GITHUB_OUTPUT"
+          echo "tool_python=ghcr.io/${owner_lc}/mcp-python:3.11-slim" >> "$GITHUB_OUTPUT"
+          echo "tool_cuda=ghcr.io/${owner_lc}/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04" >> "$GITHUB_OUTPUT"
 
       - name: Derive tags
         id: meta
@@ -116,6 +120,11 @@ jobs:
           echo "BASE_DEPS_IMAGE_CAT=${{ steps.names.outputs.base_deps_cat }}" >> $GITHUB_OUTPUT
           echo "BASE_MODELS_IMAGE_CAT=${{ steps.names.outputs.base_models_cat }}" >> $GITHUB_OUTPUT
           echo "BASE_GPU_IMAGE_CAT=${{ steps.names.outputs.base_gpu_cat }}" >> $GITHUB_OUTPUT
+          # Toolchain bases routed via GHCR proxies (avoid docker.io pulls)
+          echo "BASE_NODE_IMAGE=${{ steps.names.outputs.tool_node }}" >> $GITHUB_OUTPUT
+          echo "BASE_NODE_ALPINE_IMAGE=${{ steps.names.outputs.tool_node_alpine }}" >> $GITHUB_OUTPUT
+          echo "BASE_PY_IMAGE=${{ steps.names.outputs.tool_python }}" >> $GITHUB_OUTPUT
+          echo "BASE_CUDA_IMAGE=${{ steps.names.outputs.tool_cuda }}" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -128,7 +137,7 @@ jobs:
           provenance: false
           sbom: false
           build-args: |
-            NPM_REGISTRY=https://registry.npmjs.org/
+            NPM_REGISTRY=${{ env.NPM_REGISTRY }}
             SERVICE_CATALOG_GIT=${{ steps.args.outputs.SC_GIT }}
             SERVICE_CATALOG_TARBALL=${{ steps.args.outputs.SC_TGZ }}
             BASE_DEPS_IMAGE=${{ steps.args.outputs.BASE_DEPS_IMAGE }}
@@ -137,6 +146,10 @@ jobs:
             BASE_DEPS_IMAGE_CAT=${{ steps.args.outputs.BASE_DEPS_IMAGE_CAT }}
             BASE_MODELS_IMAGE_CAT=${{ steps.args.outputs.BASE_MODELS_IMAGE_CAT }}
             BASE_GPU_IMAGE_CAT=${{ steps.args.outputs.BASE_GPU_IMAGE_CAT }}
+            BASE_NODE_IMAGE=${{ steps.args.outputs.BASE_NODE_IMAGE }}
+            BASE_NODE_ALPINE_IMAGE=${{ steps.args.outputs.BASE_NODE_ALPINE_IMAGE }}
+            BASE_PY_IMAGE=${{ steps.args.outputs.BASE_PY_IMAGE }}
+            BASE_CUDA_IMAGE=${{ steps.args.outputs.BASE_CUDA_IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |

@@ -1,6 +1,6 @@
 services:
   service-catalog:
-    image: node:20-alpine
+    image: ghcr.io/desure85/mcp-node:20-alpine
     working_dir: /app
     environment:
       - NODE_ENV=development
