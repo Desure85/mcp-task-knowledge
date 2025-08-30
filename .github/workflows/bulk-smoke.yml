@@ -2,13 +2,26 @@ name: Bulk Smoke
 
 on:
   push:
+    paths-ignore:
+      - '**/*.md'
+      - '.markdownlint*'
+      - '.github/workflows/markdownlint-autofix.yml'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - '.markdownlint*'
+      - '.github/workflows/markdownlint-autofix.yml'
   workflow_dispatch:
 
 jobs:
   bulk-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      APP_DIR: ${{ github.workspace }}
+      DATA_DIR: ${{ github.workspace }}/.data
+      CURRENT_PROJECT: mcp
+      EMBEDDINGS_MODE: none
     steps:
       - name: Checkout current repo
         uses: actions/checkout@v4
@@ -46,11 +59,6 @@ jobs:
           node scripts/obsidian_roundtrip.mjs
 
       - name: Run MCP bulk smoke (tasks, knowledge, aliases)
-        env:
-          APP_DIR: ${{ github.workspace }}
-          DATA_DIR: ${{ runner.temp }}/mcp-data
-          EMBEDDINGS_MODE: none
-          CURRENT_PROJECT: mcp
         run: |
           mkdir -p "$DATA_DIR"
           node scripts/smoke_tasks.mjs

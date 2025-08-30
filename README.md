@@ -709,6 +709,24 @@ node scripts/prompts.mjs ab:report
   - `${DATA_DIR}/prompts/<project>/exports/json/**/*`
   - `${DATA_DIR}/prompts/<project>/exports/markdown/**/*`
   - `${DATA_DIR}/prompts/<project>/exports/catalog/**/*` (включая `prompts.catalog.json` и `experiments.report.json`)
+
+### CI: безопасные дефолты переменных
+
+- Для стабильной работы GitHub Actions без обязательной передачи переменных введены дефолты:
+  - `APP_DIR` — `${{ github.workspace }}` (корень репозитория).
+  - `DATA_DIR` — `${{ github.workspace }}/.data` (локальная папка данных в репозитории).
+  - `CURRENT_PROJECT` — `mcp`.
+  - `EMBEDDINGS_MODE` — `none` (минимальный безопасный режим для смок‑тестов).
+
+- Применено в workflow `bulk-smoke.yml` на уровне job `env:`. Перед запуском сценариев создаётся директория данных:
+
+```bash
+mkdir -p "$DATA_DIR"
+```
+
+- Кросс‑ОС заметки:
+  - GitHub хосты Linux/Windows/macOS нормально обрабатывают `${{ github.workspace }}`; path‑separator в shell шагах — POSIX (`/`).
+  - Внутри bash‑шагов используйте кавычки вокруг переменных путей: `"$DATA_DIR"`.
   - `${DATA_DIR}/prompts/<project>/exports/builds/**/*`
 
 ### Отладка / низкоуровневые параметры

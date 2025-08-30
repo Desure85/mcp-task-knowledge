@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - '**'
+    branches-ignore:
+      - 'chore/markdownlint-fix/**'
+    paths:
+      - '**/*.md'
+      - '.markdownlint*'
 
 permissions:
   contents: write
