@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # Global ARG usable in any FROM (supported since Docker 17.05)
-Runtime bases (our GHCR images)
+# Runtime bases (our GHCR images)
 ARG BASE_MODELS_IMAGE=mcp-base-onnx:latest
 ARG BASE_DEPS_IMAGE=mcp-base-bm25:latest
 ARG BASE_GPU_IMAGE=mcp-base-onnx-gpu:latest
