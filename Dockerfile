@@ -171,6 +171,14 @@ ENV DATA_DIR=/data
 VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
+# ---------- runtime-onnx-cpu-cat-extbase (external CPU base with embedded catalog) ----------
+FROM ${BASE_MODELS_IMAGE_CAT} AS runtime-onnx-cpu-cat-extbase
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+ENV DATA_DIR=/data
+VOLUME ["/data"]
+CMD ["node", "dist/index.js"]
+
 # ---------- base-onnx-gpu-with-models (shared GPU base) ----------
 # Contains Node.js, production node_modules, ONNX models and ORT GPU libs.
 FROM ${BASE_CUDA_IMAGE} AS base-onnx-gpu-with-models
@@ -262,14 +270,4 @@ FROM docker.io/library/node:20-bullseye AS proxy-node20-bullseye
 FROM docker.io/library/node:20-alpine AS proxy-node20-alpine
 FROM docker.io/library/python:3.11-slim AS proxy-python311-slim
 FROM docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS proxy-cuda-12-4-1
-WORKDIR /app
-ENV NODE_ENV=development
-COPY package.json ./
-ARG NPM_REGISTRY=https://registry.npmjs.org/
-ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
-ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
-# no-op proxy stage: publish CUDA base to GHCR; do not run npm here (no node in base)
 LABEL org.opencontainers.image.description="Proxy of nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 for GHCR; no extra packages installed"
-COPY tsconfig.json ./
-COPY src ./src
-CMD ["npx", "tsx", "src/index.ts"]
