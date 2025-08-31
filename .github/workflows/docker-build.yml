@@ -23,6 +23,8 @@ jobs:
       REGISTRY: ghcr.io
       # default platforms
       PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64' }}
+      # npm registry for Docker builds (used in deps stage)
+      NPM_REGISTRY: https://registry.npmjs.org/
 
     strategy:
       fail-fast: false
