@@ -29,29 +29,7 @@ jobs:
       max-parallel: 1        # ограничение до 2 параллельных тасков
       matrix:
         include:
-          - name: deps
-            target: base-bm25-with-deps
-            image: mcp-base-bm25
-          - name: onnx-cpu
-            target: base-onnx-cpu-with-models
-            image: mcp-base-onnx
-          - name: onnx-gpu
-            target: base-onnx-gpu-with-models
-            image: mcp-base-onnx-gpu
-          # Catalog-embedded base images (cat)
-          - name: deps-cat
-            target: base-bm25-with-deps
-            image: mcp-base-bm25-cat
-            embedCatalog: true
-          - name: onnx-cpu-cat
-            target: base-onnx-cpu-with-models
-            image: mcp-base-onnx-cat
-            embedCatalog: true
-          - name: onnx-gpu-cat
-            target: base-onnx-gpu-with-models
-            image: mcp-base-onnx-gpu-cat
-            embedCatalog: true
-          # GHCR proxy toolchain images (avoid docker.io in app builds)
+          # Build proxy toolchain images first (required by following base images)
           - name: proxy-node20-bullseye
             target: proxy-node20-bullseye
             image: mcp-node
@@ -68,6 +46,31 @@ jobs:
             target: proxy-cuda-12-4-1
             image: mcp-cuda
             image_tag: 12.4.1-cudnn-runtime-ubuntu22.04
+
+          # Then build base images that consume proxies via BASE_* args
+          - name: deps
+            target: base-bm25-with-deps
+            image: mcp-base-bm25
+          - name: onnx-cpu
+            target: base-onnx-cpu-with-models
+            image: mcp-base-onnx
+          - name: onnx-gpu
+            target: base-onnx-gpu-with-models
+            image: mcp-base-onnx-gpu
+
+          # Catalog-embedded base images (cat)
+          - name: deps-cat
+            target: base-bm25-with-deps
+            image: mcp-base-bm25-cat
+            embedCatalog: true
+          - name: onnx-cpu-cat
+            target: base-onnx-cpu-with-models
+            image: mcp-base-onnx-cat
+            embedCatalog: true
+          - name: onnx-gpu-cat
+            target: base-onnx-gpu-with-models
+            image: mcp-base-onnx-gpu-cat
+            embedCatalog: true
 
     steps:
       - name: Checkout
