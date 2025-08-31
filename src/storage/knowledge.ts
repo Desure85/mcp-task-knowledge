@@ -11,6 +11,13 @@ function fileFor(project: string, id: string) {
   return path.join(KNOWLEDGE_DIR, project, `${id}.md`);
 }
 
+// Centralized resolver for knowledge doc file paths (modern first, then legacy)
+function resolveDocFilePaths(project: string, id: string): string[] {
+  const modern = fileFor(project, id);
+  const legacy = path.join(KNOWLEDGE_DIR, `${id}.md`);
+  return [modern, legacy];
+}
+
 // Remove undefined values from frontmatter to avoid YAML dump errors
 function cleanMeta<T extends Record<string, any>>(obj: T): T {
   const out: Record<string, any> = {};
@@ -78,6 +85,10 @@ export async function listDocs(filter?: { project?: string; tag?: string; includ
         const base = path.basename(f, path.extname(f));
         (meta as any).id = base;
       }
+      // Fallback: ensure project is set based on directory being scanned
+      if (!(meta as any).project) {
+        (meta as any).project = project;
+      }
       // skip trashed by default unless explicitly included
       if (!filter?.includeTrashed && (meta as any).trashed) continue;
       // skip archived by default unless explicitly included
@@ -91,14 +102,21 @@ export async function listDocs(filter?: { project?: string; tag?: string; includ
 }
 
 export async function readDoc(project: string, id: string): Promise<KnowledgeDoc | null> {
-  const p = fileFor(project, id);
-  if (!(await pathExists(p))) return null;
+  // Try resolved paths in order
+  const [pModern, pLegacy] = resolveDocFilePaths(project, id);
+  let p = pModern;
+  if (!(await pathExists(pModern))) {
+    if (!(await pathExists(pLegacy))) return null;
+    p = pLegacy;
+  }
   const raw = await readText(p);
   const fm = matter(raw);
   const meta = fm.data as any as KnowledgeDocMeta;
   // gray-matter preserves trailing newline if present; normalize to match original input string comparisons
   const content = fm.content.endsWith('\n') ? fm.content.slice(0, -1) : fm.content;
-  return { ...meta, content };
+  // Ensure project is set in meta when reading from legacy path
+  const metaProject = (meta as any).project || project;
+  return { ...meta, project: metaProject, content } as KnowledgeDoc;
 }
 
 export async function updateDoc(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {

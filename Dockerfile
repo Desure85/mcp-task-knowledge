@@ -1,15 +1,21 @@
 # syntax=docker/dockerfile:1.7
 
 # Global ARG usable in any FROM (supported since Docker 17.05)
+# Runtime bases (our GHCR images)
 ARG BASE_MODELS_IMAGE=mcp-base-onnx:latest
 ARG BASE_DEPS_IMAGE=mcp-base-bm25:latest
 ARG BASE_GPU_IMAGE=mcp-base-onnx-gpu:latest
 ARG BASE_MODELS_IMAGE_CAT=mcp-base-onnx-cat:latest
 ARG BASE_DEPS_IMAGE_CAT=mcp-base-bm25-cat:latest
 ARG BASE_GPU_IMAGE_CAT=mcp-base-onnx-gpu-cat:latest
+# Toolchain bases (to avoid docker.io pulls in app builds)
+ARG BASE_NODE_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-node:20-bullseye
+ARG BASE_NODE_ALPINE_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-node:20-alpine
+ARG BASE_PY_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-python:3.11-slim
+ARG BASE_CUDA_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 # ---------- base deps (cacheable) ----------
-FROM node:20-bullseye AS deps
+FROM ${BASE_NODE_IMAGE} AS deps
 WORKDIR /app
 COPY .npmrc package.json package-lock.json ./
 # Use configurable npm registry (default: npmjs). Can be overridden via --build-arg NPM_REGISTRY...
@@ -66,7 +72,7 @@ WORKDIR /app
 RUN npm prune --omit=dev
 
 # ---------- builder (typescript -> dist) ----------
-FROM node:20-bullseye AS builder
+FROM ${BASE_NODE_IMAGE} AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
@@ -74,7 +80,7 @@ COPY src ./src
 RUN npm run build
 
 # ---------- model export (CPU) ----------
-FROM python:3.11-slim AS model-export
+FROM ${BASE_PY_IMAGE} AS model-export
 WORKDIR /work
 # Configure pip mirror (configurable) and enable cache mounts
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -95,7 +101,7 @@ RUN --mount=type=cache,target=/root/.cache/huggingface \
     python -u scripts/export_labse.py --model cointegrated/LaBSE-en-ru --out /models --opset 14 --max_len 256
 
 # ---------- runtime (bm25 only) ----------
-FROM node:20-bullseye AS runtime
+FROM ${BASE_NODE_IMAGE} AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=none
@@ -120,7 +126,7 @@ VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
 # ---------- base with deps for bm25 (no models) ----------
-FROM node:20-bullseye AS base-bm25-with-deps
+FROM ${BASE_NODE_IMAGE} AS base-bm25-with-deps
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=none
@@ -165,9 +171,17 @@ ENV DATA_DIR=/data
 VOLUME ["/data"]
 CMD ["node", "dist/index.js"]
 
+# ---------- runtime-onnx-cpu-cat-extbase (external CPU base with embedded catalog) ----------
+FROM ${BASE_MODELS_IMAGE_CAT} AS runtime-onnx-cpu-cat-extbase
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+ENV DATA_DIR=/data
+VOLUME ["/data"]
+CMD ["node", "dist/index.js"]
+
 # ---------- base-onnx-gpu-with-models (shared GPU base) ----------
 # Contains Node.js, production node_modules, ONNX models and ORT GPU libs.
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base-onnx-gpu-with-models
+FROM ${BASE_CUDA_IMAGE} AS base-onnx-gpu-with-models
 WORKDIR /app
 
 # Install Node.js 20.x (NodeSource)
@@ -247,18 +261,13 @@ FROM runtime-onnx-cpu AS mcp-onnx-cpu-with-catalog
 FROM runtime-onnx-gpu AS mcp-onnx-gpu-with-catalog
 
 # ---------- dev target (optional) ----------
-FROM node:20-alpine AS dev
-WORKDIR /app
-ENV NODE_ENV=development
-COPY package.json ./
-ARG NPM_REGISTRY=https://registry.npmjs.org/
-ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
-ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
-RUN printf "registry=${NPM_REGISTRY}\n@modelcontextprotocol:registry=${NPM_REGISTRY}\n" > .npmrc \
- && npm config set fetch-retries 5 \
- && npm config set fetch-retry-factor 2 \
- && npm config set fetch-timeout 600000 \
- && npm i --include=dev --registry=${NPM_REGISTRY} --@modelcontextprotocol:registry=${NPM_REGISTRY}
-COPY tsconfig.json ./
-COPY src ./src
-CMD ["npx", "tsx", "src/index.ts"]
+FROM ${BASE_NODE_ALPINE_IMAGE} AS dev
+
+# ---------- proxy stages to bake toolchain bases into GHCR ----------
+# These are used by the base workflow to publish GHCR images that mirror
+# upstream docker.io images, so app builds never contact docker.io directly.
+FROM docker.io/library/node:20-bullseye AS proxy-node20-bullseye
+FROM docker.io/library/node:20-alpine AS proxy-node20-alpine
+FROM docker.io/library/python:3.11-slim AS proxy-python311-slim
+FROM docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS proxy-cuda-12-4-1
+LABEL org.opencontainers.image.description="Proxy of nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 for GHCR; no extra packages installed"

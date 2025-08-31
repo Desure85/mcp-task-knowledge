@@ -16,6 +16,11 @@ variables:
   BASE_DEPS_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-bm25-cat:latest"
   BASE_MODELS_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-onnx-cat:latest"
   BASE_GPU_IMAGE_CAT: "ghcr.io/Desure85/mcp-base-onnx-gpu-cat:latest"
+  # Toolchain images: use upstream docker.io
+  TOOL_NODE_IMAGE: "docker.io/library/node:20-bullseye"
+  TOOL_NODE_ALPINE_IMAGE: "docker.io/library/node:20-alpine"
+  TOOL_PY_IMAGE: "docker.io/library/python:3.11-slim"
+  TOOL_CUDA_IMAGE: "docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04"
 
 stages:
   - test
@@ -43,6 +48,10 @@ stages:
         --build-arg BASE_DEPS_IMAGE_CAT="$BASE_DEPS_IMAGE_CAT" \
         --build-arg BASE_MODELS_IMAGE_CAT="$BASE_MODELS_IMAGE_CAT" \
         --build-arg BASE_GPU_IMAGE_CAT="$BASE_GPU_IMAGE_CAT" \
+        --build-arg BASE_NODE_IMAGE="$TOOL_NODE_IMAGE" \
+        --build-arg BASE_NODE_ALPINE_IMAGE="$TOOL_NODE_ALPINE_IMAGE" \
+        --build-arg BASE_PY_IMAGE="$TOOL_PY_IMAGE" \
+        --build-arg BASE_CUDA_IMAGE="$TOOL_CUDA_IMAGE" \
         -t "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA" \
         --target ${TARGET} mcp-task-knowledge
     - docker push "$CI_REGISTRY_IMAGE:${FLAVOR}-$CI_COMMIT_SHORT_SHA"
