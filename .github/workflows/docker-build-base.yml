@@ -118,10 +118,9 @@ jobs:
             BASE_CUDA_IMAGE=${{ steps.names.outputs.base_repo }}/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: >-
-            type=registry,push=true,
-            name=${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ matrix.image_tag || env.PUBLISH_TAG }},
-            name=${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ github.sha }}
+          tags: |
+            ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ matrix.image_tag || env.PUBLISH_TAG }}
+            ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
