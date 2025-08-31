@@ -268,11 +268,8 @@ COPY package.json ./
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cpu
-RUN printf "registry=${NPM_REGISTRY}\n@modelcontextprotocol:registry=${NPM_REGISTRY}\n" > .npmrc \
- && npm config set fetch-retries 5 \
- && npm config set fetch-retry-factor 2 \
- && npm config set fetch-timeout 600000 \
- && npm i --include=dev --registry=${NPM_REGISTRY} --@modelcontextprotocol:registry=${NPM_REGISTRY}
+# no-op proxy stage: publish CUDA base to GHCR; do not run npm here (no node in base)
+LABEL org.opencontainers.image.description="Proxy of nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 for GHCR; no extra packages installed"
 COPY tsconfig.json ./
 COPY src ./src
 CMD ["npx", "tsx", "src/index.ts"]
