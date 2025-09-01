@@ -17,6 +17,7 @@ import { listProjects } from "./projects.js";
 import { appendAssignments, appendEvents, listBuildVariants, readAggregates, readExperiment, updateAggregates } from './ab-testing/storage.js';
 import { pickWithEpsilonGreedy } from './ab-testing/bandits.js';
 import { buildWorkflows } from './prompts/build.js';
+import { json, ok, err } from './utils/respond.js';
 
 async function main() {
   const server = new McpServer({ name: "mcp-task-knowledge", version: "0.1.0" });
@@ -84,13 +85,38 @@ async function main() {
   // Simple in-memory registry of tools for introspection (no aliases)
   const toolRegistry: Map<string, { title?: string; description?: string; inputSchema?: Record<string, any> }> = new Map();
 
+  // Unified response helpers imported from utils/respond
+
   // Сделать регистрацию инструментов идемпотентной, чтобы не падать при повторном старте/горячей перезагрузке
   // и попытке повторной регистрации того же имени инструмента в одном процессе.
   // Патчим метод registerTool так, чтобы молча игнорировать ошибку "already registered".
+  const toolNames = new Set<string>();
+  const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
   (server as any).registerTool = ((orig: any) => {
     return function (name: string, def: any, handler: any) {
+      // Явная проверка дубликатов до вызова оригинального метода
+      if (toolNames.has(name)) {
+        const msg = `[tools] duplicate tool registration detected: "${name}"`;
+        if (STRICT_TOOL_DEDUP) {
+          throw new Error(msg + ' (MCP_STRICT_TOOL_DEDUP=1)');
+        } else {
+          console.warn(msg + ' — skipping re-registration');
+          // Обновим метаданные для introspection и тихо пропустим повтор
+          try {
+            toolRegistry.set(name, {
+              title: def?.title,
+              description: def?.description,
+              inputSchema: def?.inputSchema,
+            });
+          } catch {}
+          return;
+        }
+      }
+
       try {
         const res = orig.call(server, name, def, handler);
+        // Если регистрация прошла — считаем имя занятым
+        toolNames.add(name);
         try {
           // Best-effort: keep minimal metadata for introspection
           toolRegistry.set(name, {
@@ -102,9 +128,11 @@ async function main() {
         return res;
       } catch (e: any) {
         if (e && typeof e.message === 'string' && e.message.includes('already registered')) {
-          // Тихо пропускаем повторную регистрацию
+          // Совместимость: некоторые окружения могут вызывать регистрацию повторно — игнорируем
+          console.warn(`[tools] SDK reported already registered for "${name}" — skipping`);
+          // Зафиксируем имя и метаданные, чтобы introspection была консистентной
+          toolNames.add(name);
           try {
-            // Preserve the newest metadata if possible
             toolRegistry.set(name, {
               title: def?.title,
               description: def?.description,
@@ -271,11 +299,9 @@ async function main() {
       async (params: any) => {
         try {
           const page = await catalogProvider.queryServices(params as any);
-          const envelope = { ok: true, data: page };
-          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+          return ok(page);
         } catch (e: any) {
-          const envelope = { ok: false, error: { message: `service-catalog query failed: ${e?.message || String(e)}` } };
-          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+          return err(`service-catalog query failed: ${e?.message || String(e)}`);
         }
       }
     );
@@ -295,8 +321,58 @@ async function main() {
     async ({ project }: { project?: string }) => {
       const prj = resolveProject(project);
       const data = await readPromptsCatalog(prj);
-      const envelope = data ? { ok: true, data } : { ok: false, error: { message: 'catalog not found' } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !data };
+      return data ? ok(data) : err('catalog not found');
+    }
+  );
+
+  // graph_export_mermaid
+  server.registerTool(
+    "graph_export_mermaid",
+    {
+      title: "Export Graph (Mermaid)",
+      description: "Build a Mermaid graph from tasks and knowledge (nodes + parent edges)",
+      inputSchema: {
+        project: z.string().optional(),
+        includeArchived: z.boolean().optional(),
+      },
+    },
+    async ({ project, includeArchived }: { project?: string; includeArchived?: boolean }) => {
+      const prj = resolveProject(project);
+      const tasks = await listTasks({ project: prj, includeArchived: !!includeArchived });
+      const kMetas = await listDocs({ project: prj, includeArchived: !!includeArchived });
+
+      const esc = (s: string) => (s || '').replace(/"/g, '\\"');
+      const label = (title?: string) => esc((title || '').trim() || 'untitled');
+
+      const lines: string[] = [];
+      lines.push('graph TD');
+
+      // Task nodes
+      for (const t of tasks) {
+        const nodeId = `T_${t.id}`;
+        lines.push(`${nodeId}["task: ${label(t.title)}"]`);
+      }
+      // Knowledge nodes
+      for (const m of kMetas) {
+        const nodeId = `K_${m.id}`;
+        lines.push(`${nodeId}["doc: ${label(m.title)}"]`);
+      }
+
+      // Task parent edges (child -> parent)
+      for (const t of tasks) {
+        if (t.parentId && tasks.find((x) => x.id === t.parentId)) {
+          lines.push(`T_${t.id} --> T_${t.parentId}`);
+        }
+      }
+      // Knowledge parent edges
+      for (const m of kMetas) {
+        if ((m as any).parentId && kMetas.find((x) => x.id === (m as any).parentId)) {
+          lines.push(`K_${m.id} --> K_${(m as any).parentId}`);
+        }
+      }
+
+      const mermaid = lines.join('\n');
+      return ok({ project: prj, mermaid });
     }
   );
 
@@ -400,15 +476,14 @@ async function main() {
           results.push({ id: obj?.id || '', version: obj?.version || '', error: e?.message || String(e) });
         }
       }
-      const ok = results.every((r) => !r.error);
+      const allOk = results.every((r) => !r.error);
       // Fire-and-forget reindex on successful writes (at least one write succeeded)
       try {
         if (results.some((r) => r.path && !r.error)) {
           void triggerPromptsReindex(prj);
         }
       } catch {}
-      const envelope = { ok, data: { project: prj, results } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
+      return allOk ? ok({ project: prj, results }) : err('some items failed; see results');
     }
   );
 
@@ -459,15 +534,14 @@ async function main() {
           results.push({ id: it.selector.id, version: it.selector.version, path: it.selector.path, error: e?.message || String(e) });
         }
       }
-      const ok = results.every((r) => !r.error);
+      const allOk = results.every((r) => !r.error);
       // Fire-and-forget reindex on successful writes (at least one write succeeded)
       try {
         if (results.some((r) => r.path && !r.error)) {
           void triggerPromptsReindex(prj);
         }
       } catch {}
-      const envelope = { ok, data: { project: prj, results } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
+      return allOk ? ok({ project: prj, results }) : err('some items failed; see results');
     }
   );
 
@@ -502,14 +576,13 @@ async function main() {
           results.push({ id: sel.id, version: sel.version, path: sel.path, error: e?.message || String(e) });
         }
       }
-      const ok = results.every((r) => !r.error);
+      const allOk = results.every((r) => !r.error);
       try {
         if (!dryRun && results.some((r) => r.deleted && !r.error)) {
           void triggerPromptsReindex(prj);
         }
       } catch {}
-      const envelope = { ok, data: { project: prj, results, dryRun: !!dryRun } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: !ok };
+      return allOk ? ok({ project: prj, results, dryRun: !!dryRun }) : err('some items failed; see results');
     }
   );
 
@@ -561,8 +634,7 @@ async function main() {
         meta: params.meta || {},
       };
       const appended = await appendJsonl(file, [event]);
-      const envelope = { ok: true, data: { path: file, appended } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ path: file, appended });
     }
   );
 
@@ -638,8 +710,7 @@ async function main() {
         await fs.writeFile(pathOut, JSON.stringify(outReport, null, 2), 'utf8');
       }
 
-      const envelope = { ok: true, data: { ...outReport, path: pathOut } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ ...outReport, path: pathOut });
     }
   );
 
@@ -680,8 +751,7 @@ async function main() {
         items.push(rec);
       }
       // latest flag is kept for parity; catalog is assumed latest already
-      const envelope = { ok: true, data: { generatedAt: new Date().toISOString(), total: items.length, items } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ generatedAt: new Date().toISOString(), total: items.length, items });
     }
   );
 
@@ -713,8 +783,7 @@ async function main() {
         // In strict mode, truncate samples to first 20 to keep payload small
         samples.splice(20);
       }
-      const envelope = { ok: true, data: { path: file, total: lines.length, valid, invalid, samples } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ path: file, total: lines.length, valid, invalid, samples });
     }
   );
 
@@ -745,8 +814,7 @@ async function main() {
           } catch {}
         }
       }
-      const envelope = { ok: true, data: { baseDir: base, files } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ baseDir: base, files });
     }
   );
 
@@ -770,18 +838,28 @@ async function main() {
           separator: z.string().optional(),
         },
       },
-      async ({ project, ids, includeKinds, excludeKinds, includeTags, excludeTags, latest, dryRun, force, separator }: { project?: string; ids?: string[]; includeKinds?: string[]; excludeKinds?: string[]; includeTags?: string[]; excludeTags?: string[]; latest?: boolean; dryRun?: boolean; force?: boolean; separator?: string }) => {
+      async ({ project, ids, includeKinds, excludeKinds, includeTags, excludeTags, latest, dryRun, force, separator }: {
+        project?: string;
+        ids?: string[];
+        includeKinds?: string[];
+        excludeKinds?: string[];
+        includeTags?: string[];
+        excludeTags?: string[];
+        latest?: boolean;
+        dryRun?: boolean;
+        force?: boolean;
+        separator?: string;
+      }) => {
         const prj = resolveProject(project);
         try {
           const res = await buildWorkflows(prj, { ids, includeKinds, excludeKinds, includeTags, excludeTags, latest, dryRun, force, separator });
-          const envelope = { ok: true, data: { project: prj, ...res } };
-          return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+          return ok({ project: prj, ...res });
         } catch (e: any) {
-          const envelope = { ok: false, error: { message: String(e?.message || e) } };
-          return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+          return err(String(e?.message || e));
         }
       }
     );
+
   }
 
   server.registerTool(
@@ -820,8 +898,7 @@ async function main() {
         const tagsOut: string[] = Array.from(new Set([...(r.item.tags || []), ...(meta.tags || [])]));
         return { key: r.item.key, kind, title, score: r.score, tags: tagsOut, path: r.item.path };
       });
-      const envelope = { ok: true, data: mapped };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok(mapped);
     }
   );
 
@@ -838,8 +915,7 @@ async function main() {
       const fromExp = exp?.variants || [];
       const fromBuilds = await listBuildVariants(project, promptKey);
       const variants = Array.from(new Set([...(fromExp || []), ...fromBuilds]));
-      const envelope = { ok: true, data: { promptKey, variants } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ promptKey, variants });
     }
   );
 
@@ -861,8 +937,7 @@ async function main() {
         const avgTokensOut = s.trials > 0 ? s.tokensOutSum / s.trials : 0;
         return { variantId, trials: s.trials, successRate, avgScore, avgLatencyMs, avgCost, avgTokensIn, avgTokensOut };
       });
-      const envelope = { ok: true, data: { promptKey, stats: rows } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ promptKey, stats: rows });
     }
   );
 
@@ -887,8 +962,7 @@ async function main() {
       const assignmentId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
       const assignment = { id: assignmentId, ts: new Date().toISOString(), promptKey, variantId, strategy: `epsilon_greedy(${epsilon ?? 0.1})`, contextTags };
       await appendAssignments(project, [assignment]);
-      const envelope = { ok: true, data: assignment };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok(assignment);
     }
   );
 
@@ -929,8 +1003,7 @@ async function main() {
       const enriched = items.map((e) => ({ ts: e.ts || tsNow, ...e, promptKey }));
       await appendEvents(project, promptKey, enriched);
       const aggr = await updateAggregates(project, promptKey, enriched);
-      const envelope = { ok: true, data: { count: enriched.length, aggregates: aggr } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: enriched.length, aggregates: aggr });
     }
   );
 
@@ -952,17 +1025,14 @@ async function main() {
       const file = path.join(PROMPTS_DIR, prj, 'metrics', 'experiments', `${promptKey}.json`);
       const payload = { variants: Array.from(new Set((variants || []).filter((v) => typeof v === 'string' && v.trim().length > 0))), params: params || {} };
       if (payload.variants.length === 0) {
-        const envelope = { ok: false, error: { message: 'variants must contain at least one non-empty string' } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err('variants must contain at least one non-empty string');
       }
       try {
         await ensureDirForFile(file);
         await fs.writeFile(file, JSON.stringify(payload, null, 2) + '\n', 'utf8');
-        const envelope = { ok: true, data: { project: prj, promptKey, path: file, variants: payload.variants } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+        return ok({ project: prj, promptKey, path: file, variants: payload.variants });
       } catch (e: any) {
-        const envelope = { ok: false, error: { message: e?.message || String(e) } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err(e?.message || String(e));
       }
     }
   );
@@ -1026,35 +1096,28 @@ async function main() {
           includePriority,
           keepOrphans,
         });
-        const envelope = {
-          ok: true,
-          data: {
-            project: prj,
-            strategy: strat,
-            knowledge: doKnowledge,
-            tasks: doTasks,
-            prompts: doPrompts,
-            plan: {
-              willWrite: { knowledgeCount: plan.knowledgeCount, tasksCount: plan.tasksCount, promptsCount: plan.promptsCount },
-              willDeleteDirs: plan.willDeleteDirs,
-            },
+        return ok({
+          project: prj,
+          strategy: strat,
+          knowledge: doKnowledge,
+          tasks: doTasks,
+          prompts: doPrompts,
+          plan: {
+            willWrite: { knowledgeCount: plan.knowledgeCount, tasksCount: plan.tasksCount, promptsCount: plan.promptsCount },
+            willDeleteDirs: plan.willDeleteDirs,
           },
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+        });
       }
 
       if (strat === 'replace' && confirm !== true) {
-        const envelope = { ok: false, error: { message: 'Export replace not confirmed: pass confirm=true to proceed' } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err('Export replace not confirmed: pass confirm=true to proceed');
       }
 
       try {
         const result = await exportProjectToVault(prj, { knowledge: doKnowledge, tasks: doTasks, prompts: doPrompts, includePromptSourcesJson, includePromptSourcesMd, strategy: strat, includeArchived, updatedFrom, updatedTo, includeTags, excludeTags, includeTypes, excludeTypes, includeStatus, includePriority, keepOrphans });
-        const envelope = { ok: true, data: result };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+        return ok(result);
       } catch (e: any) {
-        const envelope = { ok: false, error: { message: String(e?.message || e) } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err(String(e?.message || e));
       }
     }
   );
@@ -1124,40 +1187,31 @@ async function main() {
       if (dryRun) {
         try {
           const plan = await planImportProjectFromVault(prj, commonOpts as any);
-          const envelope = {
-            ok: true,
-            data: {
-              project: prj,
-              strategy: strat,
-              mergeStrategy: mstrat,
-              knowledge: doKnowledge,
-              tasks: doTasks,
-              prompts: doPrompts,
-              plan,
-            },
-          };
-          return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+          return ok({
+            project: prj,
+            strategy: strat,
+            mergeStrategy: mstrat,
+            knowledge: doKnowledge,
+            tasks: doTasks,
+            prompts: doPrompts,
+            plan,
+          });
         } catch (e: any) {
-          const envelope = { ok: false, error: { message: String(e?.message || e) } };
-          return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+          return err(String(e?.message || e));
         }
       }
 
       // Replace requires explicit confirmation
       if (strat === 'replace' && confirm !== true) {
-        const envelope = { ok: false, error: { message: 'Import replace not confirmed: pass confirm=true to proceed' } };
-        // Intentionally do NOT set isError to ensure clients receive JSON text consistently
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+        return err('Import replace not confirmed: pass confirm=true to proceed');
       }
 
       // Execute import
       try {
         const result = await importProjectFromVault(prj, commonOpts as any);
-        const envelope = { ok: true, data: result };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+        return ok(result);
       } catch (e: any) {
-        const envelope = { ok: false, error: { message: String(e?.message || e) } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err(String(e?.message || e));
       }
     }
   );
@@ -1181,8 +1235,7 @@ async function main() {
     },
     async () => {
       const out = await listProjects(getCurrentProject);
-      const envelope = { ok: true, data: out };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok(out);
     }
   );
 
@@ -1213,8 +1266,7 @@ async function main() {
         result.initialized = false;
         result.error = String(e?.message || e);
       }
-      const envelope = { ok: true, data: result };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok(result);
     }
   );
 
@@ -1228,8 +1280,7 @@ async function main() {
       },
       async () => {
         const h = await catalogProvider.health();
-        const envelope = { ok: true, data: h };
-        return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+        return ok(h);
       }
     );
   }
@@ -1264,11 +1315,9 @@ async function main() {
       async ({ items }: { items: Array<{ id: string; name: string; component: string; domain?: string; status?: string; owners?: string[]; tags?: string[]; annotations?: Record<string, string>; updatedAt?: string }> }) => {
         try {
           const res = await catalogProvider.upsertServices(items as any);
-          const envelope = { ok: true, data: res };
-          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+          return ok(res);
         } catch (e: any) {
-          const envelope = { ok: false, error: { message: `service-catalog upsert failed: ${e?.message || String(e)}` } };
-          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+          return err(`service-catalog upsert failed: ${e?.message || String(e)}`);
         }
       }
     );
@@ -1286,11 +1335,9 @@ async function main() {
       async ({ ids }: { ids: string[] }) => {
         try {
           const res = await catalogProvider.deleteServices(ids);
-          const envelope = { ok: true, data: res };
-          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+          return ok(res);
         } catch (e: any) {
-          const envelope = { ok: false, error: { message: `service-catalog delete failed: ${e?.message || String(e)}` } };
-          return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+          return err(`service-catalog delete failed: ${e?.message || String(e)}`);
         }
       }
     );
@@ -1329,8 +1376,7 @@ async function main() {
         const t = await updateTask(prj, id, patch as any);
         if (t) results.push(t);
       }
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
 
@@ -1366,8 +1412,7 @@ async function main() {
         const d = await updateDoc(prj, id, patch as any);
         if (d) results.push(d);
       }
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
 
@@ -1492,8 +1537,7 @@ async function main() {
         const t = await archiveTask(prj, id);
         if (t) results.push(t);
       }
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
   server.registerTool(
@@ -1510,8 +1554,7 @@ async function main() {
         const t = await trashTask(prj, id);
         if (t) results.push(t);
       }
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
   server.registerTool(
@@ -1528,8 +1571,7 @@ async function main() {
         const t = await restoreTask(prj, id);
         if (t) results.push(t);
       }
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
   // tasks.bulk_close
@@ -1542,8 +1584,7 @@ async function main() {
     },
     async ({ project, ids }) => {
       const results = await bulkCloseTasks(project, ids);
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
   server.registerTool(
@@ -1562,12 +1603,10 @@ async function main() {
     async ({ project, ids, confirm, dryRun }) => {
       const res = await bulkDeleteTasksPermanent(project, ids, confirm, dryRun);
       if ('confirmRequired' in res && res.confirmRequired) {
-        const envelope = { ok: false, error: { message: 'Bulk task delete not confirmed: pass confirm=true to proceed' } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err('Bulk task delete not confirmed: pass confirm=true to proceed');
       }
       const results = res.results;
-      const envelope = { ok: true, data: { count: results.length, results } };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: results.length, results });
     }
   );
 
@@ -1582,7 +1621,7 @@ async function main() {
     async ({ project, ids }) => {
       const { knowledgeBulkArchive } = await import('./bulk.js');
       const envelope = await knowledgeBulkArchive(project, ids);
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(envelope);
     }
   );
   server.registerTool(
@@ -1595,7 +1634,7 @@ async function main() {
     async ({ project, ids }) => {
       const { knowledgeBulkTrash } = await import('./bulk.js');
       const envelope = await knowledgeBulkTrash(project, ids);
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(envelope);
     }
   );
   server.registerTool(
@@ -1608,7 +1647,7 @@ async function main() {
     async ({ project, ids }) => {
       const { knowledgeBulkRestore } = await import('./bulk.js');
       const envelope = await knowledgeBulkRestore(project, ids);
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(envelope);
     }
   );
   server.registerTool(
@@ -1621,7 +1660,7 @@ async function main() {
     async ({ project, ids }) => {
       const { knowledgeBulkDeletePermanent } = await import('./bulk.js');
       const envelope = await knowledgeBulkDeletePermanent(project, ids);
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(envelope);
     }
   );
 
@@ -1745,18 +1784,14 @@ async function main() {
       const knowledgeIds: string[] = filteredDocs.map((d: any) => d.id);
 
       if (dryRun) {
-        const result = { 
-          ok: true, 
-          data: { 
-            project: prj,
-            scope,
-            dryRun: true,
-            doTasks,
-            doKnowledge,
-            counts: { tasks: taskIds.length, knowledge: knowledgeIds.length }
-          } 
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        return ok({
+          project: prj,
+          scope,
+          dryRun: true,
+          doTasks,
+          doKnowledge,
+          counts: { tasks: taskIds.length, knowledge: knowledgeIds.length }
+        });
       }
 
       // Check confirm for real purge
@@ -1779,18 +1814,14 @@ async function main() {
         }
       }
 
-      const result = { 
-        ok: true, 
-        data: { 
-          project: prj,
-          scope,
-          dryRun: false,
-          doTasks,
-          doKnowledge,
-          counts: { tasks: taskIds.length, knowledge: knowledgeIds.length }
-        } 
-      };
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      return ok({
+        project: prj,
+        scope,
+        dryRun: false,
+        doTasks,
+        doKnowledge,
+        counts: { tasks: taskIds.length, knowledge: knowledgeIds.length }
+      });
     }
   );
 
@@ -1810,8 +1841,7 @@ async function main() {
     async ({ project, status, tag, includeArchived }) => {
       const prj = resolveProject(project);
       const items = await listTasks({ project: prj, status, tag, includeArchived });
-      const envelope = { ok: true, data: items };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(items);
     }
   );
 
@@ -1831,8 +1861,7 @@ async function main() {
     async ({ project, status, tag, includeArchived }) => {
       const prj = resolveProject(project);
       const items = await listTasksTree({ project: prj, status, tag, includeArchived });
-      const envelope = { ok: true, data: items };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(items);
     }
   );
 
@@ -1848,11 +1877,9 @@ async function main() {
       const prj = resolveProject(project);
       const t = await getTask(prj, id);
       if (!t) {
-        const envelope = { ok: false, error: { message: `Task not found: ${project}/${id}` } };
-        return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err(`Task not found: ${project}/${id}`);
       }
-      const envelope = { ok: true, data: t };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(t);
     }
   );
 
@@ -1886,8 +1913,7 @@ async function main() {
         const d = await createDoc({ project: prj, ...it });
         created.push(d);
       }
-      const envelope = { ok: true, data: { count: created.length, created } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok({ count: created.length, created });
     }
   );
 
@@ -1905,8 +1931,7 @@ async function main() {
     async ({ project, tag }) => {
       const prj = resolveProject(project);
       const items = await listDocs({ project: prj, tag });
-      const envelope = { ok: true, data: items };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(items);
     }
   );
 
@@ -1934,8 +1959,7 @@ async function main() {
           roots.push(m);
         }
       }
-      const envelope = { ok: true, data: roots };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(roots);
     }
   );
 
@@ -1954,11 +1978,9 @@ async function main() {
       const prj = resolveProject(project);
       const d = await readDoc(prj, id);
       if (!d) {
-        const envelope = { ok: false, error: { message: `Doc not found: ${project}/${id}` } };
-        return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }], isError: true };
+        return err(`Doc not found: ${project}/${id}`);
       }
-      const envelope = { ok: true, data: d };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(d);
     }
   );
 
@@ -1982,8 +2004,7 @@ async function main() {
       const tasks = await listTasks({ project: prj });
       const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
       const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: vectorAdapter });
-      const envelope = { ok: true, data: results };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(results);
     }
   );
 
@@ -2002,18 +2023,17 @@ async function main() {
     async ({ project, query, limit }: { project?: string; query: string; limit?: number }) => {
       const prj = resolveProject(project);
       const metas = await listDocs({ project: prj });
-      const docs = await Promise.all(metas.map((m) => readDoc(m.project, m.id)));
+      const docs = await Promise.all(metas.map((m) => readDoc(m.project || prj, m.id)));
       const valid = docs.filter(Boolean) as NonNullable<typeof docs[number]>[];
       const items = valid.map((d) => ({ id: d.id, text: buildTextForDoc(d), item: d }));
       const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: vectorAdapter });
-      const envelope = { ok: true, data: results };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(results);
     }
   );
 
   // search.knowledge_two_stage (BM25 prefilter by docs -> chunked hybrid within top-M)
   server.registerTool(
-    "search_knowledge_two_stage",
+    "mcp1_search_knowledge_two_stage",
     {
       title: "Search Knowledge (Two-Stage)",
       description:
@@ -2039,7 +2059,7 @@ async function main() {
     ) => {
       const prj = resolveProject(project);
       const metas = await listDocs({ project: prj });
-      const docs = await Promise.all(metas.map((m) => readDoc(m.project, m.id)));
+      const docs = await Promise.all(metas.map((m) => readDoc(m.project || prj, m.id)));
       const valid = docs.filter(Boolean) as NonNullable<typeof docs[number]>[];
       // Ensure vector adapter only if needed by config/mode
       const va = await ensureVectorAdapter();
@@ -2050,8 +2070,7 @@ async function main() {
         limit,
         vectorAdapter: va as any,
       });
-      const envelope = { ok: true, data: results };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(results);
     }
   );
 
@@ -2073,8 +2092,7 @@ async function main() {
         // Do not force init here; report capability based on config only
         vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.dim && c.embeddings.mode !== 'none'),
       };
-      const envelope = { ok: true, data: payload };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      return ok(payload);
     }
   );
 
@@ -2090,10 +2108,7 @@ async function main() {
       description: "Return the name of the current project context",
       inputSchema: {},
     },
-    async () => {
-      const envelope = { ok: true, data: { project: getCurrentProject() } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
-    }
+    async () => ok({ project: getCurrentProject() })
   );
 
   // project_set_current
@@ -2106,11 +2121,7 @@ async function main() {
         project: z.string().min(1),
       },
     },
-    async ({ project }: { project: string }) => {
-      const after = setCurrentProject(project);
-      const envelope = { ok: true, data: { project: after } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
-    }
+    async ({ project }: { project: string }) => ok({ project: setCurrentProject(project) })
   );
 
   // Introspection tools (canonical names only; no aliases). Use the in-memory toolRegistry.
@@ -2121,16 +2132,12 @@ async function main() {
       description: "Return list of canonical tool names with metadata (title, description, input keys)",
       inputSchema: {},
     },
-    async () => {
-      const items = Array.from(toolRegistry.entries()).map(([name, meta]) => ({
-        name,
-        title: meta?.title ?? null,
-        description: meta?.description ?? null,
-        inputKeys: meta?.inputSchema ? Object.keys(meta.inputSchema) : [],
-      }));
-      const envelope = { ok: true, data: items };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
-    }
+    async () => ok(Array.from(toolRegistry.entries()).map(([name, meta]) => ({
+      name,
+      title: meta?.title ?? null,
+      description: meta?.description ?? null,
+      inputKeys: meta?.inputSchema ? Object.keys(meta.inputSchema) : [],
+    })))
   );
 
   function buildExampleFor(name: string, meta: { inputSchema?: Record<string, any> } | undefined) {
@@ -2191,10 +2198,7 @@ async function main() {
     },
     async ({ name }: { name: string }) => {
       const meta = toolRegistry.get(name);
-      if (!meta) {
-        const envelope = { ok: false, error: { message: `Tool not found: ${name}` } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
-      }
+      if (!meta) return err(`Tool not found: ${name}`);
       const example = buildExampleFor(name, meta);
       const payload = {
         name,
@@ -2203,8 +2207,7 @@ async function main() {
         inputKeys: meta.inputSchema ? Object.keys(meta.inputSchema) : [],
         example,
       };
-      const envelope = { ok: true, data: payload };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok(payload);
     }
   );
 
@@ -2217,10 +2220,7 @@ async function main() {
     },
     async ({ name }: { name: string }) => {
       const meta = toolRegistry.get(name);
-      if (!meta) {
-        const envelope = { ok: false, error: { message: `Tool not found: ${name}` } };
-        return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }], isError: true };
-      }
+      if (!meta) return err(`Tool not found: ${name}`);
       const example = buildExampleFor(name, meta);
       const help = {
         name,
@@ -2228,8 +2228,7 @@ async function main() {
         description: meta.description ?? null,
         exampleCall: { name, params: example },
       };
-      const envelope = { ok: true, data: help };
-      return { content: [{ type: 'text', text: JSON.stringify(envelope, null, 2) }] };
+      return ok(help);
     }
   );
 
