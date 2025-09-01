@@ -20,7 +20,24 @@ import { buildWorkflows } from './prompts/build.js';
 import { json, ok, err } from './utils/respond.js';
 
 async function main() {
-  const server = new McpServer({ name: "mcp-task-knowledge", version: "0.1.0" });
+  // Resolve repository root early to read package version and for later utilities
+  const HERE_DIR = path.dirname(new URL(import.meta.url).pathname);
+  const REPO_ROOT = path.resolve(HERE_DIR, '..');
+  async function getPackageVersion(): Promise<string> {
+    // Prefer npm-provided env when available (works in npm/yarn/pnpm scripts)
+    const vEnv = process.env.npm_package_version;
+    if (vEnv && typeof vEnv === 'string') return vEnv;
+    // Fallback: read package.json next to repo root
+    try {
+      const raw = await fs.readFile(path.join(REPO_ROOT, 'package.json'), 'utf8');
+      const v = JSON.parse(raw)?.version;
+      return typeof v === 'string' ? v : '0.0.0';
+    } catch {
+      return '0.0.0';
+    }
+  }
+  const version = await getPackageVersion();
+  const server = new McpServer({ name: "mcp-task-knowledge", version });
   // Default: silent. Enable explicitly via env.
   const SHOW_STARTUP = (
     process.env.LOG_STARTUP === '1' ||
@@ -147,9 +164,6 @@ async function main() {
   })((server as any).registerTool);
 
   // ===== Helpers: Prompt Library IO =====
-  // Resolve repository root (dist -> ..)
-  const HERE_DIR = path.dirname(new URL(import.meta.url).pathname);
-  const REPO_ROOT = path.resolve(HERE_DIR, '..');
   async function readPromptsCatalog(project?: string): Promise<any | null> {
     const prj = resolveProject(project);
     const file = path.join(PROMPTS_DIR, prj, 'exports', 'catalog', 'prompts.catalog.json');
