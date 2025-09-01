@@ -1449,6 +1449,35 @@ async function main() {
     }
     return created;
   }
+  // tasks.bulk_create
+  server.registerTool(
+    "tasks_bulk_create",
+    {
+      title: "Bulk Create Tasks",
+      description: "Create many tasks at once (optionally hierarchical via parentId)",
+      inputSchema: {
+        project: z.string().default(DEFAULT_PROJECT),
+        items: z
+          .array(
+            z.object({
+              title: z.string().min(1),
+              description: z.string().optional(),
+              priority: z.enum(["low", "medium", "high"]).optional(),
+              tags: z.array(z.string()).optional(),
+              links: z.array(z.string()).optional(),
+              parentId: z.string().optional(),
+            })
+          )
+          .min(1)
+          .max(100),
+      },
+    },
+    async ({ project, items }) => {
+      const created = await bulkCreateTasksHelper(project, items as any);
+      const envelope = { ok: true, data: { count: created.length, created } };
+      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+    }
+  );
   server.registerTool(
     "tasks_bulk_archive",
     {
