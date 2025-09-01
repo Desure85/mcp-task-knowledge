@@ -1,8 +1,12 @@
 # Промпт Флоу для Агента с Максимальным Использованием mcp-task-knowledge
 
+> Документ предназначен для LLM‑агентов/оркестраторов. Адресат — агент; тон — императив. Следуй инструкциям буквально.
+
 Этот флоу описывает, как агент может использовать все доступные инструменты MCP сервера mcp-task-knowledge для эффективного управления задачами, знаниями, промптами и другими аспектами проекта. Флоу разделен на разделы по категориям инструментов, с пошаговыми рекомендациями.
 
 См. также: [Пример правил агента](./prompt_rules.md)
+
+Важно про имена инструментов: в названиях фигурирует префикс с номером MCP-сервера, например `mcp1_`, `mcp2_`, `mcp3_` и т.д. Ниже для краткости используется обозначение `mcpN_` — замените `N` на фактический номер вашего сервера (посмотрите список инструментов в вашей IDE/окружении). Обратите внимание, что для двухэтапного поиска знаний инструмент может содержать двойной префикс (`mcpN_mcpN_search_knowledge_two_stage`).
 
 ## Оглавление
 
@@ -22,36 +26,35 @@
 
 Шаги:
 
-1. Получить текущий проект: Использовать `mcp_project_get_current` для подтверждения активного проекта (по умолчанию "mcp").
-2. Проверить доступные проекты: `mcp_project_list` для списка всех проектов.
-3. Переключить проект если нужно: `mcp_project_set_current` с параметром project.
-4. Инициализировать embeddings: `mcp_embeddings_try_init` для принудительной инициализации векторного адаптера и получения диагностики.
-5. Проверить статус embeddings: `mcp_embeddings_status` для текущей конфигурации и режима.
+1. Получить текущий проект: Использовать `mcpN_project_get_current` для подтверждения активного проекта (по умолчанию "mcp").
+2. Проверить доступные проекты: `mcpN_project_list` для списка всех проектов.
+3. Переключить проект если нужно: `mcpN_project_set_current` с параметром project.
+4. Инициализировать embeddings: `mcpN_embeddings_try_init` для принудительной инициализации векторного адаптера и получения диагностики.
+5. Проверить статус embeddings: `mcpN_embeddings_status` для текущей конфигурации и режима.
 
 ## 2. Управление Задачами
 
 **Цель:** Создавать, обновлять, искать и организовывать задачи в иерархической структуре.
 
-Шаги для создания новых задач:
-
-1. Создать корневую задачу: `mcp_tasks_bulk_create` с items, где parentId=null, title в формате "MCP-XXX-### — Описание", content с деталями, priority (high/medium/low), tags (EXEC/API/ etc.).
-2. Добавить подзадачи: Повторить `mcp_tasks_bulk_create` с parentId=id родительской задачи.
+Примечание о создании задач:
+В текущей версии сервера прямое создание задач отдельным инструментом не поддержано. Работайте с уже существующими задачами через операции чтения/обновления/архивации/восстановления/переноса в корзину/закрытия.
 
 Шаги для управления существующими задачами:
-3. Получить задачу по ID: `mcp_tasks_get` с id.
-4. Обновить задачи: `mcp_tasks_bulk_update` с items, содержащими id и поля для обновления (title, content, priority, status: pending/in_progress/completed/closed, tags).
-5. Список задач с фильтрами: `mcp_tasks_list` с project, status, tag, includeArchived.
-6. Иерархическое дерево задач: `mcp_tasks_tree` для просмотра иерархии по parentId.
+
+1. Получить задачу по ID: `mcpN_tasks_get` с id.
+2. Обновить задачи: `mcpN_tasks_bulk_update` с items, содержащими id и поля для обновления (title, content, priority, status: pending/in_progress/completed/closed, tags).
+3. Список задач с фильтрами: `mcpN_tasks_list` с project, status, tag, includeArchived.
+4. Иерархическое дерево задач: `mcpN_tasks_tree` для просмотра иерархии по parentId.
 
 Шаги для поиска и навигации:
-7. Поиск задач: `mcp_search_tasks` с query, limit для BM25 и опционального векторного поиска.
+5. Поиск задач: `mcpN_search_tasks` с query, limit для BM25 и опционального векторного поиска.
 
 Шаги для bulk операций:
-8. Архивация задач: `mcp_tasks_bulk_archive` с ids.
-9. Восстановление: `mcp_tasks_bulk_restore` с ids.
-10. Перемещение в trash: `mcp_tasks_bulk_trash` с ids.
-11. Закрытие задач: `mcp_tasks_bulk_close` с ids.
-12. Постоянное удаление: `mcp_tasks_bulk_delete_permanent` с ids, confirm=true, dryRun для проверки.
+6. Архивация задач: `mcpN_tasks_bulk_archive` с ids.
+7. Восстановление: `mcpN_tasks_bulk_restore` с ids.
+8. Перемещение в trash: `mcpN_tasks_bulk_trash` с ids.
+9. Закрытие задач: `mcpN_tasks_bulk_close` с ids.
+10. Постоянное удаление: `mcpN_tasks_bulk_delete_permanent` с ids, confirm=true, dryRun для проверки.
 
 ## 3. Управление Знаниями
 
@@ -59,20 +62,20 @@
 
 Шаги для создания знаний:
 
-1. Создать корневой документ: `mcp_knowledge_bulk_create` с items, parentId=null, title, content, source, tags, type.
+1. Создать корневой документ: `mcpN_knowledge_bulk_create` с items, parentId=null, title, content, source, tags, type.
 2. Добавить поддокументы: С parentId=id родительского.
 
 Шаги для управления:
-3. Получить документ: `mcp_knowledge_get` с id.
-4. Обновить: `mcp_knowledge_bulk_update` с items.
-5. Список: `mcp_knowledge_list` с tag, includeArchived.
-6. Дерево: `mcp_knowledge_tree` с includeArchived.
+3. Получить документ: `mcpN_knowledge_get` с id.
+4. Обновить: `mcpN_knowledge_bulk_update` с items.
+5. Список: `mcpN_knowledge_list` с tag, includeArchived.
+6. Дерево: `mcpN_knowledge_tree` с includeArchived.
 
 Шаги для поиска:
-7. Простой поиск: `mcp_search_knowledge` с query, limit.
-8. Двухэтапный поиск: `mcp_search_knowledge_two_stage` с prefilterLimit, chunkSize, chunkOverlap для глубокого поиска в длинных документах.
+7. Простой поиск: `mcpN_search_knowledge` с query, limit.
+8. Двухэтапный поиск: `mcpN_mcpN_search_knowledge_two_stage` с prefilterLimit, chunkSize, chunkOverlap для глубокого поиска в длинных документах.
 
-Bulk операции аналогично задачам: archive, trash, restore, delete_permanent с `mcp_knowledge_bulk_*`.
+Bulk операции аналогично задачам: archive, trash, restore, delete_permanent с `mcpN_knowledge_bulk_*`.
 
 ## 4. Управление Промптами
 
@@ -80,28 +83,28 @@ Bulk операции аналогично задачам: archive, trash, resto
 
 Шаги для создания промптов:
 
-1. Bulk создание: `mcp_prompts_bulk_create` с items (JSON структуры промптов), overwrite.
-2. Обновление: `mcp_prompts_bulk_update` с items (selector по id/version/path, patch).
-3. Удаление: `mcp_prompts_bulk_delete` с items, dryRun.
+1. Bulk создание: `mcpN_prompts_bulk_create` с items (JSON структуры промптов), overwrite.
+2. Обновление: `mcpN_prompts_bulk_update` с items (selector по id/version/path, patch).
+3. Удаление: `mcpN_prompts_bulk_delete` с items, dryRun.
 
 Шаги для использования:
-4. Получить каталог: `mcp_prompts_catalog_get`.
-5. Список промптов: `mcp_prompts_list` с фильтрами (latest, kind, status, domain, tag).
-6. Поиск промптов: `mcp_prompts_search` с query, limit, tags, kinds.
+4. Получить каталог: `mcpN_prompts_catalog_get`.
+5. Список промптов: `mcpN_prompts_list` с фильтрами (latest, kind, status, domain, tag).
+6. Поиск промптов: `mcpN_prompts_search` с query, limit, tags, kinds.
 
 Шаги для тестирования и оптимизации (A/B/бандиты, удалённо-безопасно):
-7. Создать варианты как отдельные промпты с суффиксами варианта (например, `KEY.vA`, `KEY.vB`, `KEY.vC`) через `mcp_prompts_bulk_create`.
-8. Зарегистрировать эксперимент и список вариантов через `mcp_prompts_experiments_upsert` с `promptKey` и `variants`.
-9. Проверить, что варианты видны: `mcp_prompts_variants_list` с `promptKey`.
-10. Выбрать вариант: `mcp_prompts_bandit_next` с `promptKey`, `epsilon`, `contextTags`.
-11. Логировать метрики: `mcp_prompts_metrics_log_bulk` с items (requestId, variantId, outcome: cost, latencyMs, score, success, tokensIn/Out, error).
-12. Логировать feedback: `mcp_prompts_feedback_log` с promptId, version, signals (thumb up/down, copied, abandoned), userEdits и т.д.
-13. Получить статистику вариантов: `mcp_prompts_variants_stats` с `promptKey`.
-14. A/B отчёт: `mcp_prompts_ab_report` с writeToDisk.
-15. (Опционально) Генерация build-артефактов для вариантов — `mcp_prompts_build`, чтобы `mcp_prompts_variants_list` также подхватывал `exports/builds`.
+7. Создать варианты как отдельные промпты с суффиксами варианта (например, `KEY.vA`, `KEY.vB`, `KEY.vC`) через `mcpN_prompts_bulk_create`.
+8. Зарегистрировать эксперимент и список вариантов через `mcpN_prompts_experiments_upsert` с `promptKey` и `variants`.
+9. Проверить, что варианты видны: `mcpN_prompts_variants_list` с `promptKey`.
+10. Выбрать вариант: `mcpN_prompts_bandit_next` с `promptKey`, `epsilon`, `contextTags`.
+11. Логировать метрики: `mcpN_prompts_metrics_log_bulk` с items (requestId, variantId, outcome: cost, latencyMs, score, success, tokensIn/Out, error).
+12. Логировать feedback: `mcpN_prompts_feedback_log` с promptId, version, signals (thumb up/down, copied, abandoned), userEdits и т.д.
+13. Получить статистику вариантов: `mcpN_prompts_variants_stats` с `promptKey`.
+14. A/B отчёт: `mcpN_prompts_ab_report` с writeToDisk.
+15. (Опционально) Генерация build-артефактов для вариантов — `mcpN_prompts_build`, чтобы `mcpN_prompts_variants_list` также подхватывал `exports/builds`.
 
 Шаги для экспорта:
-14. Получить экспорты: `mcp_prompts_exports_get` с type (json/markdown/builds/catalog/all).
+16. Получить экспорты: `mcpN_prompts_exports_get` с type (json/markdown/builds/catalog/all).
 
 ## 5. Интеграция с Obsidian
 
@@ -109,10 +112,10 @@ Bulk операции аналогично задачам: archive, trash, resto
 
 Шаги для экспорта:
 
-1. Экспорт в Obsidian: `mcp_obsidian_export_project` с knowledge/tasks/prompts=true, strategy=merge/replace, include/exclude фильтры, confirm, dryRun.
+1. Экспорт в Obsidian: `mcpN_obsidian_export_project` с knowledge/tasks/prompts=true, strategy=merge/replace, include/exclude фильтры, confirm, dryRun.
 
 Шаги для импорта:
-2. Импорт из Obsidian: `mcp_obsidian_import_project` с аналогичными фильтрами, mergeStrategy=overwrite/append/skip/fail, confirm, dryRun.
+2. Импорт из Obsidian: `mcpN_obsidian_import_project` с аналогичными фильтрами, mergeStrategy=overwrite/append/skip/fail, confirm, dryRun.
 
 ## 6. Управление Сервис Каталогом
 
@@ -120,10 +123,10 @@ Bulk операции аналогично задачам: archive, trash, resto
 
 Шаги:
 
-1. Запрос сервисов: `mcp_service_catalog_query` с фильтрами (search, component, owner, tag, domain, status, updatedFrom/To, sort, page, pageSize).
-2. Создание/обновление: `mcp_service_catalog_upsert` с items (id, name, component, owners, status, tags, annotations).
-3. Удаление: `mcp_service_catalog_delete` с ids.
-4. Проверка здоровья: `mcp_service_catalog_health`.
+1. Запрос сервисов: `mcpN_service_catalog_query` с фильтрами (search, component, owner, tag, domain, status, updatedFrom/To, sort, page, pageSize).
+2. Создание/обновление: `mcpN_service_catalog_upsert` с items (id, name, component, domain?, owners?, status?, tags?, updatedAt?).
+3. Удаление: `mcpN_service_catalog_delete` с ids.
+4. Проверка здоровья: `mcpN_service_catalog_health`.
 
 ## 7. Очистка и Удаление
 
@@ -131,7 +134,7 @@ Bulk операции аналогично задачам: archive, trash, resto
 
 Шаги:
 
-1. Очистка проекта: `mcp_project_purge` с scope=both/tasks/knowledge, filters, confirm=true, dryRun.
+1. Очистка проекта: `mcpN_project_purge` с scope=both/tasks/knowledge, filters, confirm=true, dryRun.
 
 ## 8. Справка по Инструментам
 
@@ -139,9 +142,9 @@ Bulk операции аналогично задачам: archive, trash, resto
 
 Шаги:
 
-1. Список инструментов: `mcp_tools_list`.
-2. Схема инструмента: `mcp_tool_schema` с name.
-3. Помощь по инструменту: `mcp_tool_help` с name.
+1. Список инструментов: `mcpN_tools_list`.
+2. Схема инструмента: `mcpN_tool_schema` с name.
+3. Помощь по инструменту: `mcpN_tool_help` с name.
 
 ## Общие Рекомендации для Агента
 
@@ -153,9 +156,9 @@ Bulk операции аналогично задачам: archive, trash, resto
 - Синхронизировать с Obsidian для внешнего редактирования.
 - Поддерживать иерархию задач и знаний через parentId.
 - Использовать tags для категоризации и фильтрации.
-- Всегда выбирать или собирать промпт для решения пользовательской задачи: использовать существующий из хранилища (`mcp_prompts_search`, `mcp_prompts_list`), если он подходит; если написал новый, сохранять в хранилище (`mcp_prompts_bulk_create`).
-- Собирать фидбек по использованным промптам из хранилища: после использования логировать feedback (`mcp_prompts_feedback_log`) и метрики (`mcp_prompts_metrics_log_bulk`) для оптимизации и A/B тестирования.
-- При апдейте промпта повышать версию: не перезаписывать опубликованную версию, а создавать новый артефакт с тем же `id` и увеличенной `version` (semver, например 1.1 → 1.2), затем выполнить реиндексацию каталога (`prompts:reindex` или соответствующий MCP-инструмент).
+- Всегда выбирать или собирать промпт для решения пользовательской задачи: использовать существующий из хранилища (`mcpN_prompts_search`, `mcpN_prompts_list`), если он подходит; если написан новый — сохранять в хранилище (`mcpN_prompts_bulk_create`).
+- Собирать фидбек по использованным промптам из хранилища: после использования логировать feedback (`mcpN_prompts_feedback_log`) и метрики (`mcpN_prompts_metrics_log_bulk`) для оптимизации и A/B тестирования.
+- При апдейте промпта повышать версию: не перезаписывать опубликованную версию, а создавать новый артефакт с тем же `id` и увеличенной `version` (semver, например 1.1 → 1.2). Каталог обновляется инструментами `mcpN_prompts_catalog_get`/`mcpN_prompts_build` в зависимости от вашего процесса.
 - Адаптировать промпты по фидбеку пользователя: корректировать длину, язык и другие аспекты по запросу для улучшения опыта.
 
 Этот флоу позволяет агенту максимально использовать возможности MCP для комплексного управления проектом.
