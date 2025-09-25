@@ -2768,6 +2768,134 @@ async function main() {
     async ({ project }: { project: string }) => ok({ project: setCurrentProject(project) })
   );
 
+  // ===== Project Resources: get current and quick switch =====
+  // project://current — return current project
+  try {
+    server.registerResource(
+      "project_current",
+      "project://current",
+      {
+        title: "Current Project",
+        description: "Return the current project context",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify({ project: getCurrentProject() }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+  } catch (e: any) {
+    const msg = e?.message || String(e);
+    if (typeof msg === 'string' && msg.includes('already registered')) {
+      console.warn('[resources] already registered: project://current — skipping');
+    } else {
+      throw e;
+    }
+  }
+
+  // project://use/{projectId} — switch current project by reading this resource
+  try {
+    const projectsData = await listProjects(getCurrentProject);
+    const projectIds: string[] = (projectsData?.projects || []).map((p: any) => String(p.id));
+    for (const pid of projectIds) {
+      const uri = `project://use/${encodeURIComponent(pid)}`;
+      try {
+        server.registerResource(
+          `project_use_${pid}`,
+          uri,
+          {
+            title: `Use Project: ${pid}`,
+            description: `Switch current project to "${pid}"`,
+            mimeType: "application/json",
+          },
+          async (u) => {
+            const next = setCurrentProject(pid);
+            return {
+              contents: [
+                {
+                  uri: u.href,
+                  text: JSON.stringify({ project: next }, null, 2),
+                  mimeType: "application/json",
+                },
+              ],
+            };
+          }
+        );
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        if (typeof msg === 'string' && msg.includes('already registered')) {
+          console.warn(`[resources] already registered: ${uri} — skipping`);
+        } else {
+          throw e;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[resources] failed to register project use resources:', e);
+  }
+
+  // ===== Tasks by Project Resources =====
+  // For each known project, register a static resource:
+  //   tasks://project/{id} — lists tasks for that project (non-archived by default)
+  try {
+    const projectsData2 = await listProjects(getCurrentProject);
+    const projectIds2: string[] = (projectsData2?.projects || []).map((p: any) => String(p.id));
+    for (const pid of projectIds2) {
+      const uri = `tasks://project/${encodeURIComponent(pid)}`;
+      try {
+        server.registerResource(
+          `tasks_project_${pid}`,
+          uri,
+          {
+            title: `Tasks for Project: ${pid}`,
+            description: `List tasks for project "${pid}" (includeArchived=false)`,
+            mimeType: "application/json",
+          },
+          async (u) => {
+            try {
+              const items = await listTasks({ project: pid, includeArchived: false });
+              return {
+                contents: [
+                  {
+                    uri: u.href,
+                    text: JSON.stringify(items, null, 2),
+                    mimeType: "application/json",
+                  },
+                ],
+              };
+            } catch (e: any) {
+              return {
+                contents: [
+                  {
+                    uri: u.href,
+                    text: JSON.stringify({ error: e?.message || String(e) }, null, 2),
+                    mimeType: "application/json",
+                  },
+                ],
+              };
+            }
+          }
+        );
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        if (typeof msg === 'string' && msg.includes('already registered')) {
+          console.warn(`[resources] already registered: ${uri} — skipping`);
+        } else {
+          throw e;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[resources] failed to register tasks by project resources:', e);
+  }
+
   // Introspection tools (canonical names only; no aliases). Use the in-memory toolRegistry.
   server.registerTool(
     "tools_list",

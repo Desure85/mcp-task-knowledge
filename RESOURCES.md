@@ -73,19 +73,6 @@ export://mcp/catalog/prompts.catalog.json  # Каталог промптов
   - `tool://run/{name}` — запустить с параметрами `{}` (по умолчанию)
   - `tool://run/{name}/{params}` — запустить с параметрами `params`
   - Альтернатива: `tool://{name}/run/{params}`
-
-Где `params` может быть в одном из форматов:
-
-- base64url от JSON-объекта (поддерживаются `-` и `_`, padding не обязателен)
-- URL-encoded JSON (результат `encodeURIComponent(JSON.stringify(obj))`)
-
-Выполнение через ресурсы контролируется фичефлагами окружения:
-
-```
-# Включить/выключить регистрацию инструментов как tools.run (по умолчанию: true)
-MCP_TOOLS_ENABLED=true|false
-
-# Включить/выключить регистрацию ресурсных обёрток tool://* (по умолчанию: true)
 MCP_TOOL_RESOURCES_ENABLED=true|false
 
 # Разрешить выполнение инструментов через ресурсные URI (по умолчанию: true)
@@ -115,6 +102,39 @@ tool://tasks_list/run/eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
 ```
 
 Ответ ресурса содержит развёрнутый JSON-результат MCP-инструмента (например `{ "ok": true, "data": ... }`).
+
+### 6. Ресурсы проекта (Project)
+
+- **Текущий проект**: `project://current`
+- **Быстрое переключение проекта**: `project://use/{projectId}`
+
+**Описание**:
+
+- `project://current` возвращает текущий активный проект в виде `{ "project": "<id>" }`.
+- `project://use/{projectId}` при чтении переключает текущий проект на `{projectId}` и возвращает `{ "project": "{projectId}" }`.
+
+**Примеры использования**:
+
+```
+project://current           # например {"project":"mcp"}
+project://use/neirogen      # переключает текущий проект на "neirogen"
+project://current           # теперь {"project":"neirogen"}
+```
+
+> Примечание: ресурсы `project://use/{projectId}` регистрируются статически на старте на основе `listProjects(...)`. Если вы добавили новый проект на диске, перезапустите сервер MCP, чтобы соответствующий ресурс появился.
+
+### 7. Ресурсы задач по проекту (Tasks by Project)
+
+- **URI**: `tasks://project/{id}`
+
+**Описание**: Возвращает список задач только для указанного проекта `{id}` (по умолчанию `includeArchived=false`). Удобно для клиентов, где хочется точного URI без параметров.
+
+**Примеры**:
+
+```
+tasks://project/mcp
+tasks://project/neirogen
+```
 
 ## Формат ответов
 
