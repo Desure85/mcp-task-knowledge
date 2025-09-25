@@ -3215,6 +3215,95 @@ async function main() {
     );
   } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://project — skipping'); else throw e; }
 
+  // ===== Create via Resources (Tasks & Knowledge) =====
+  // tasks://create/{project}/{paramsB64|urljson}
+  // params can be either a single task object { title, description?, priority?, tags?, links?, parentId? }
+  // or { items: TaskInput[] } for bulk
+  try {
+    server.registerResource(
+      'tasks_create',
+      'tasks://create',
+      { title: 'Tasks Create (Resource)', description: 'Create one or many tasks via base64url or urlencoded JSON params', mimeType: 'application/json' },
+      async (u) => {
+        const href = u.href;
+        const m = href.match(/^tasks:\/\/create\/([^\/]+)\/(.+)$/);
+        if (!m) {
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tasks://create path', example: 'tasks://create/{project}/{paramsB64|urljson}' }, null, 2), mimeType: 'application/json' }] };
+        }
+        const project = decodeURIComponent(m[1]);
+        const raw = decodeURIComponent(m[2]);
+        let params: any = {};
+        let decodedOk = false;
+        try { params = JSON.parse(Buffer.from(normalizeBase64(raw), 'base64').toString('utf8')); decodedOk = true; } catch {}
+        if (!decodedOk) {
+          try { params = JSON.parse(raw); decodedOk = true; } catch {}
+        }
+        if (!decodedOk) {
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid params (expect base64url or urlencoded JSON)' }, null, 2), mimeType: 'application/json' }] };
+        }
+        const outputs: any[] = [];
+        const items: any[] = Array.isArray(params?.items) ? params.items : [params];
+        for (const it of items) {
+          const created = await createTask({
+            project,
+            title: String(it?.title || '').trim() || 'untitled',
+            description: typeof it?.description === 'string' ? it.description : undefined,
+            priority: it?.priority,
+            tags: Array.isArray(it?.tags) ? it.tags : undefined,
+            links: Array.isArray(it?.links) ? it.links : undefined,
+            parentId: typeof it?.parentId === 'string' ? it.parentId : undefined,
+          } as any);
+          outputs.push(created);
+        }
+        return { contents: [{ uri: href, text: JSON.stringify(outputs, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://create — skipping'); else throw e; }
+
+  // knowledge://create/{project}/{paramsB64|urljson}
+  // params can be either a single doc { title, content, tags?, source?, parentId?, type? }
+  // or { items: DocInput[] } for bulk
+  try {
+    server.registerResource(
+      'knowledge_create',
+      'knowledge://create',
+      { title: 'Knowledge Create (Resource)', description: 'Create one or many knowledge docs via base64url or urlencoded JSON params', mimeType: 'application/json' },
+      async (u) => {
+        const href = u.href;
+        const m = href.match(/^knowledge:\/\/create\/([^\/]+)\/(.+)$/);
+        if (!m) {
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid knowledge://create path', example: 'knowledge://create/{project}/{paramsB64|urljson}' }, null, 2), mimeType: 'application/json' }] };
+        }
+        const project = decodeURIComponent(m[1]);
+        const raw = decodeURIComponent(m[2]);
+        let params: any = {};
+        let decodedOk = false;
+        try { params = JSON.parse(Buffer.from(normalizeBase64(raw), 'base64').toString('utf8')); decodedOk = true; } catch {}
+        if (!decodedOk) {
+          try { params = JSON.parse(raw); decodedOk = true; } catch {}
+        }
+        if (!decodedOk) {
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid params (expect base64url or urlencoded JSON)' }, null, 2), mimeType: 'application/json' }] };
+        }
+        const outputs: any[] = [];
+        const items: any[] = Array.isArray(params?.items) ? params.items : [params];
+        for (const it of items) {
+          const created = await createDoc({
+            project,
+            title: String(it?.title || '').trim() || 'untitled',
+            content: String(it?.content || ''),
+            tags: Array.isArray(it?.tags) ? it.tags : undefined,
+            source: typeof it?.source === 'string' ? it.source : undefined,
+            parentId: typeof it?.parentId === 'string' ? it.parentId : undefined,
+            type: typeof it?.type === 'string' ? it.type : undefined,
+          } as any);
+          outputs.push(created);
+        }
+        return { contents: [{ uri: href, text: JSON.stringify(outputs, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://create — skipping'); else throw e; }
+
   // ===== Search Aliases =====
   try {
     server.registerResource(
