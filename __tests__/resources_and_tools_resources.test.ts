@@ -127,7 +127,7 @@ test('resources: listings are available and include expected item URIs', async (
 })
 
 // Tools via resources: base64url and urlencoded JSON
-test('tools via resources: project_get_current and tasks_list execution with base64url and urlencoded JSON', async () => {
+test('tools via RPC: project_get_current and tasks_list execution using tools_run (resources-only mode)', async () => {
   const { dataDir, project, taskId } = await createTestDataDir()
   const client = await createClient({
     DATA_DIR: dataDir,
@@ -135,7 +135,7 @@ test('tools via resources: project_get_current and tasks_list execution with bas
     EMBEDDINGS_MODE: 'none',
     MCP_TOOLS_ENABLED: 'false',
     MCP_TOOL_RESOURCES_ENABLED: 'true',
-    MCP_TOOL_RESOURCES_EXEC: 'true',
+    // MCP_TOOL_RESOURCES_EXEC no longer needed; execution is via tools_run
   })
   try {
     // Schema via tool resource wrapper
@@ -143,19 +143,38 @@ test('tools via resources: project_get_current and tasks_list execution with bas
     const schemaJson = JSON.parse(schemaRes.contents![0].text!)
     expect(schemaJson?.name).toBe('project_get_current')
 
-    // Run via tool://run (static resource)
-    const run1 = await client.readResource({ uri: 'tool://run/project_get_current' })
-    const run1Json = JSON.parse(run1.contents![0].text!)
-    expect(run1Json?.ok).toBe(true)
-    expect(run1Json?.data?.project ?? run1Json?.data?.name ?? run1Json?.data).toBeDefined()
+    // Execute project_get_current via tools_run (RPC)
+    const r1 = await client.callTool({
+      name: 'tools_run',
+      arguments: { name: 'project_get_current', params: {} },
+    })
+    const r1Text = r1.content?.[0]?.text || '{}'
+    const r1Json = JSON.parse(r1Text)
+    expect(r1Json?.ok).toBe(true)
+    expect(r1Json?.data?.results?.[0]?.ok).toBe(true)
+    // project field may be placed inside nested data
+    const proj = r1Json?.data?.results?.[0]?.data?.project ?? r1Json?.data?.results?.[0]?.data?.name ?? r1Json?.data?.results?.[0]?.data
+    expect(proj).toBeDefined()
 
-    // Run tasks_list via tool://run (defaults to CURRENT_PROJECT)
-    const run2 = await client.readResource({ uri: 'tool://run/tasks_list' })
-    const run2Json = JSON.parse(run2.contents![0].text!)
-    expect(run2Json?.ok).toBe(true)
-    expect(Array.isArray(run2Json?.data)).toBe(true)
-    // Expect our task is present
-    const hasTask = (run2Json?.data || []).some((t: any) => t.id === taskId)
+    // Execute tasks_list via tools_run (explicit project)
+    const r2 = await client.callTool({
+      name: 'tools_run',
+      arguments: { name: 'tasks_list', params: { project } },
+    })
+    const r2Text = r2.content?.[0]?.text || '{}'
+    const r2Json = JSON.parse(r2Text)
+    expect(r2Json?.ok).toBe(true)
+    expect(r2Json?.data?.results?.[0]?.ok).toBe(true)
+    let list: any = r2Json?.data?.results?.[0]?.data
+    // unwrap nested shapes if needed
+    if (!Array.isArray(list) && list && typeof list === 'object' && Array.isArray(list.data)) {
+      list = list.data
+    }
+    if (!Array.isArray(list) && typeof list === 'string') {
+      try { const parsed = JSON.parse(list); if (Array.isArray(parsed)) list = parsed } catch {}
+    }
+    expect(Array.isArray(list)).toBe(true)
+    const hasTask = (list as any[]).some((t: any) => t.id === taskId)
     expect(hasTask).toBe(true)
   } finally {
     await client.close()

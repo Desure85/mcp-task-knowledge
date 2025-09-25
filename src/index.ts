@@ -3274,7 +3274,20 @@ async function main() {
             const maybe = (res as any)?.content?.[0]?.text;
             if (typeof maybe === 'string' && maybe.trim().length > 0) payload = JSON.parse(maybe);
           } catch {}
-          results.push({ name: r.name, ok: true, data: payload });
+          // Unwrap standard envelope { ok, data } or SDK-like { isError, content }
+          let okFlag = true;
+          let dataOut: any = payload;
+          let errOut: any = undefined;
+          if (payload && typeof payload === 'object') {
+            if (typeof (payload as any).ok === 'boolean') okFlag = (payload as any).ok === true;
+            if (Object.prototype.hasOwnProperty.call(payload, 'data')) dataOut = (payload as any).data;
+            if ((payload as any).isError === true) okFlag = false;
+            if (!okFlag && Object.prototype.hasOwnProperty.call(payload as any, 'error')) {
+              const e = (payload as any).error;
+              errOut = (e && typeof e === 'object' && 'message' in e) ? (e as any).message : e;
+            }
+          }
+          results.push({ name: r.name, ok: okFlag, data: okFlag ? dataOut : undefined, error: okFlag ? undefined : (errOut ?? 'error') });
         } catch (e: any) {
           results.push({ name: r.name, ok: false, error: e?.message || String(e) });
           if (stopOnError) break;
