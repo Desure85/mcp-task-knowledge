@@ -3039,28 +3039,123 @@ async function main() {
     server.registerResource(
       'task_action',
       'task://action',
-      { title: 'Task Action', description: 'Change task status via exact URI: task://action/{project}/{id}/{action}', mimeType: 'application/json' },
+      { title: 'Task Action', description: 'Change task status via URI path or query params', mimeType: 'application/json' },
       async (u) => {
         const href = u.href;
-        const m = href.match(/^task:\/\/action\/([^\/]+)\/([^\/]+)\/(start|complete|close|trash|restore|archive)$/);
-        if (!m) {
-          return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'invalid task action path', example: 'task://action/{project}/{id}/{start|complete|close|trash|restore|archive}' }, null, 2), mimeType: 'application/json' }] };
+
+        const respond = (payload: Record<string, any>) => ({
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify(payload, null, 2),
+              mimeType: 'application/json',
+            },
+          ],
+        });
+
+        const handleAction = async (projectRaw: string | null, idRaw: string | null, actionRaw: string | null, statusHint?: string | null) => {
+          const project = (projectRaw ?? '').trim();
+          const id = (idRaw ?? '').trim();
+          const actionInput = (actionRaw ?? '').trim();
+          if (!project || !id || !actionInput) {
+            return respond({
+              ok: false,
+              error: 'project, id and action are required',
+              example: 'task://action?project=proj&id=uuid&action=start',
+            });
+          }
+
+          const action = actionInput.toLowerCase();
+          const normalizedStatusHint = statusHint ? statusHint.trim().toLowerCase().replace(/-/g, '_') : undefined;
+
+          const runAndRespond = async (resolver: () => Promise<any>, label: string) => {
+            try {
+              const data = await resolver();
+              if (!data) {
+                return respond({ ok: false, project, id, action: label, error: 'task not found' });
+              }
+              return respond({ ok: true, project, id, action: label, status: data.status ?? null, data });
+            } catch (error: any) {
+              return respond({ ok: false, project, id, action: label, error: error?.message || String(error) });
+            }
+          };
+
+          const directActions: Record<string, { label: string; handler: () => Promise<any> }> = {
+            start: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
+            in_progress: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
+            progress: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
+            pending: { label: 'status:pending', handler: () => updateTask(project, id, { status: 'pending' } as any) },
+            reopen: { label: 'status:pending', handler: () => updateTask(project, id, { status: 'pending' } as any) },
+            complete: { label: 'status:completed', handler: () => updateTask(project, id, { status: 'completed' } as any) },
+            completed: { label: 'status:completed', handler: () => updateTask(project, id, { status: 'completed' } as any) },
+            close: { label: 'status:closed', handler: () => closeTask(project, id) },
+            closed: { label: 'status:closed', handler: () => closeTask(project, id) },
+            trash: { label: 'trash', handler: () => trashTask(project, id) },
+            restore: { label: 'restore', handler: () => restoreTask(project, id) },
+            archive: { label: 'archive', handler: () => archiveTask(project, id) },
+          };
+
+          const direct = directActions[action];
+          if (direct) {
+            return runAndRespond(direct.handler, direct.label);
+          }
+
+          if (action === 'status' || action === 'set-status' || action === 'set_status') {
+            if (!normalizedStatusHint) {
+              return respond({ ok: false, project, id, action, error: 'status query parameter is required' });
+            }
+            const allowedStatuses = new Map<string, 'pending' | 'in_progress' | 'completed' | 'closed'>([
+              ['pending', 'pending'],
+              ['todo', 'pending'],
+              ['in_progress', 'in_progress'],
+              ['inprogress', 'in_progress'],
+              ['working', 'in_progress'],
+              ['completed', 'completed'],
+              ['complete', 'completed'],
+              ['done', 'completed'],
+              ['closed', 'closed'],
+              ['close', 'closed'],
+            ]);
+            const resolvedStatus = allowedStatuses.get(normalizedStatusHint);
+            if (!resolvedStatus) {
+              return respond({ ok: false, project, id, action, error: `unsupported status value: ${normalizedStatusHint}` });
+            }
+            return runAndRespond(() => updateTask(project, id, { status: resolvedStatus } as any), `status:${resolvedStatus}`);
+          }
+
+          return respond({
+            ok: false,
+            project,
+            id,
+            action,
+            error: 'unsupported action',
+            supported: Object.keys(directActions).concat(['status (with ?status=...)']),
+          });
+        };
+
+        const projectQuery = u.searchParams.get('project');
+        const idQuery = u.searchParams.get('id');
+        const actionQuery = u.searchParams.get('action') ?? u.searchParams.get('cmd');
+        const statusQuery = u.searchParams.get('status') ?? u.searchParams.get('value');
+
+        if (projectQuery || idQuery || actionQuery) {
+          return handleAction(projectQuery, idQuery, actionQuery, statusQuery);
         }
-        const project = decodeURIComponent(m[1]);
-        const id = decodeURIComponent(m[2]);
-        const action = m[3] as 'start'|'complete'|'close'|'trash'|'restore'|'archive';
-        try {
-          let payload: any = null;
-          if (action === 'start') payload = await updateTask(project, id, { status: 'in_progress' } as any);
-          else if (action === 'complete') payload = await updateTask(project, id, { status: 'completed' } as any);
-          else if (action === 'close') payload = await closeTask(project, id);
-          else if (action === 'trash') payload = await trashTask(project, id);
-          else if (action === 'restore') payload = await restoreTask(project, id);
-          else if (action === 'archive') payload = await archiveTask(project, id);
-          return { contents: [{ uri: href, text: JSON.stringify({ ok: true, project, id, action, data: payload ?? null }, null, 2), mimeType: 'application/json' }] };
-        } catch (e: any) {
-          return { contents: [{ uri: href, text: JSON.stringify({ ok: false, project, id, action, error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
+
+        const pathMatch = href.match(/^task:\/\/action\/([^\/]+)\/([^\/]+)\/([^\/?#]+)$/);
+        if (pathMatch) {
+          return handleAction(decodeURIComponent(pathMatch[1]), decodeURIComponent(pathMatch[2]), decodeURIComponent(pathMatch[3]));
         }
+
+        return respond({
+          ok: false,
+          error: 'invalid task action request',
+          examples: [
+            'task://action?project=proj&id=uuid&action=start',
+            'task://action?project=proj&id=uuid&action=status&status=pending',
+            'task://action/{project}/{id}/{start|complete|close|trash|restore|archive}'
+          ],
+        });
       }
     );
   } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: task://action — skipping'); else throw e; }
