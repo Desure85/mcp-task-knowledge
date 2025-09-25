@@ -2934,6 +2934,46 @@ async function main() {
     console.warn('[resources] failed to register tasks by project resources:', e);
   }
 
+  // ===== Search Recent Static Aliases by Project =====
+  // Register exact URIs so clients that require exact resource keys can read them directly
+  try {
+    const projectsData3 = await listProjects(getCurrentProject);
+    const projectIds3: string[] = (projectsData3?.projects || []).map((p: any) => String(p.id));
+    for (const pid of projectIds3) {
+      // search://tasks/{project}/recent
+      try {
+        const uri = `search://tasks/${encodeURIComponent(pid)}/recent`;
+        server.registerResource(
+          `search_tasks_${pid}_recent`,
+          uri,
+          { title: `Search Tasks Recent: ${pid}`, description: `Recent tasks for project "${pid}"`, mimeType: 'application/json' },
+          async (u) => {
+            const items: any[] = await listTasks({ project: pid, includeArchived: false } as any);
+            items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+            return { contents: [{ uri: u.href, text: JSON.stringify(items.slice(0, 20), null, 2), mimeType: 'application/json' }] };
+          }
+        );
+      } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
+
+      // search://knowledge/{project}/recent
+      try {
+        const uri = `search://knowledge/${encodeURIComponent(pid)}/recent`;
+        server.registerResource(
+          `search_knowledge_${pid}_recent`,
+          uri,
+          { title: `Search Knowledge Recent: ${pid}`, description: `Recent knowledge for project "${pid}"`, mimeType: 'application/json' },
+          async (u) => {
+            const items: any[] = await listDocs({ project: pid, includeArchived: false } as any);
+            const sorted = items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+            return { contents: [{ uri: u.href, text: JSON.stringify(sorted.slice(0, 20), null, 2), mimeType: 'application/json' }] };
+          }
+        );
+      } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
+    }
+  } catch (e) {
+    console.warn('[resources] failed to register search recent aliases:', e);
+  }
+
   // ===== Project: list and refresh resources =====
   try {
     server.registerResource(
@@ -2998,6 +3038,35 @@ async function main() {
             const m = e?.message || String(e);
             if (!(typeof m === 'string' && m.includes('already registered'))) throw e;
           }
+          // Ensure static search recent aliases
+          try {
+            const uri = `search://tasks/${encodeURIComponent(pid)}/recent`;
+            server.registerResource(
+              `search_tasks_${pid}_recent`,
+              uri,
+              { title: `Search Tasks Recent: ${pid}`, description: `Recent tasks for project "${pid}"`, mimeType: 'application/json' },
+              async (x) => {
+                const items: any[] = await listTasks({ project: pid, includeArchived: false } as any);
+                items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+                return { contents: [{ uri: x.href, text: JSON.stringify(items.slice(0, 20), null, 2), mimeType: 'application/json' }] };
+              }
+            );
+            ensured++;
+          } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
+          try {
+            const uri = `search://knowledge/${encodeURIComponent(pid)}/recent`;
+            server.registerResource(
+              `search_knowledge_${pid}_recent`,
+              uri,
+              { title: `Search Knowledge Recent: ${pid}`, description: `Recent knowledge for project "${pid}"`, mimeType: 'application/json' },
+              async (x) => {
+                const items: any[] = await listDocs({ project: pid, includeArchived: false } as any);
+                const sorted = items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+                return { contents: [{ uri: x.href, text: JSON.stringify(sorted.slice(0, 20), null, 2), mimeType: 'application/json' }] };
+              }
+            );
+            ensured++;
+          } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
         }
         return { contents: [{ uri: u.href, text: JSON.stringify({ ok: true, ensured }, null, 2), mimeType: 'application/json' }] };
       }
