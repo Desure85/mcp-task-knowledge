@@ -233,7 +233,7 @@ async function main() {
   if (anyTask) {
     const { project, id } = anyTask;
     for (const action of ['start','complete','close','trash','restore','archive']) {
-      await readAndValidate(`task://${encodeURIComponent(project)}/${encodeURIComponent(id)}/${action}`);
+      await readAndValidate(`task://action/${encodeURIComponent(project)}/${encodeURIComponent(id)}/${action}`);
     }
   }
 

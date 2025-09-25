@@ -129,14 +129,13 @@ async function main() {
         baseUri,
         {
           title: `Tool: ${name}`,
-          description: `Resource wrapper for tool ${name}. Read base URI to get schema. Read /run/{paramsB64} to execute (MCP_TOOL_RESOURCES_EXEC=1).`,
+          description: `Resource wrapper for tool ${name}. Read base URI to get schema. Execution must be done via tools.run RPC (not a resource).`,
           mimeType: "application/json",
         },
         async (uri) => {
           const href = uri.href;
           // tool://{name} or tool://{name}/schema
           const schemaMatch = href.match(/^tool:\/\/([^\/?#]+)(?:\/schema)?$/);
-          const runMatch = href.match(/^tool:\/\/([^\/?#]+)\/run\/(.+)$/);
           if (schemaMatch && decodeURIComponent(schemaMatch[1]) === name) {
             const meta = toolRegistry.get(name);
             if (!meta) {
@@ -150,100 +149,11 @@ async function main() {
             };
             return { contents: [{ uri: href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
           }
-          if (runMatch && decodeURIComponent(runMatch[1]) === name) {
-            if (!TOOL_RES_EXEC) {
-              return { contents: [{ uri: href, text: JSON.stringify({ error: 'tool-run via resource disabled (set MCP_TOOL_RESOURCES_EXEC=1)' }, null, 2), mimeType: 'application/json' }] };
-            }
-            const paramsB64 = runMatch[2];
-            const meta = toolRegistry.get(name);
-            if (!meta || typeof meta.handler !== 'function') {
-              return { contents: [{ uri: href, text: JSON.stringify({ error: `Tool not found or not executable: ${name}` }, null, 2), mimeType: 'application/json' }] };
-            }
-            let params: any = {};
-            if (paramsB64 && paramsB64.length > 0) {
-              // Try url-safe base64 first, then URL-encoded JSON
-              let decodedOk = false;
-              try {
-                const jsonStr = Buffer.from(normalizeBase64(paramsB64), 'base64').toString('utf8');
-                params = JSON.parse(jsonStr);
-                decodedOk = true;
-              } catch {}
-              if (!decodedOk) {
-                try {
-                  const asJson = decodeURIComponent(paramsB64);
-                  params = JSON.parse(asJson);
-                  decodedOk = true;
-                } catch (e: any) {
-                  return { contents: [{ uri: href, text: JSON.stringify({ error: `invalid params (expect base64url or urlencoded JSON): ${e?.message || String(e)}` }, null, 2), mimeType: 'application/json' }] };
-                }
-              }
-            }
-            try {
-              const result = await meta.handler(params);
-              // Unwrap MCP SDK envelope if present
-              let payload: any = result;
-              try {
-                const maybe = (result as any)?.content?.[0]?.text;
-                if (typeof maybe === 'string' && maybe.trim().length > 0) {
-                  payload = JSON.parse(maybe);
-                }
-              } catch {}
-              return { contents: [{ uri: href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
-            } catch (e: any) {
-              return { contents: [{ uri: href, text: JSON.stringify({ error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
-            }
-          }
           // Otherwise help
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tool resource path', examples: [`${baseUri}`, `${baseUri}/schema`, `${baseUri}/run/{paramsB64}`] }, null, 2), mimeType: 'application/json' }] };
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tool resource path', examples: [`${baseUri}`, `${baseUri}/schema`] }, null, 2), mimeType: 'application/json' }] };
         }
       );
-
-      // Additionally, register static execution resource so clients can call exact URI tool://run/{name}
-      // Without relying on dynamic subpaths which MCP resource registry does not support
-      if (TOOL_RES_ENABLED) {
-        const runUri = `tool://run/${encodeURIComponent(name)}`;
-        try {
-          server.registerResource(
-            `tool_run_${name}`,
-            runUri,
-            {
-              title: `Tool Run: ${name}`,
-              description: `Execute tool ${name} with default params {}. For custom params use classic tools.run or schema from tool://${encodeURIComponent(name)} to construct callTool` ,
-              mimeType: 'application/json',
-            },
-            async (uri) => {
-              if (!TOOL_RES_EXEC) {
-                return { contents: [{ uri: uri.href, text: JSON.stringify({ error: 'tool-run via resource disabled (set MCP_TOOL_RESOURCES_EXEC=1)' }, null, 2), mimeType: 'application/json' }] };
-              }
-              const meta = toolRegistry.get(name);
-              if (!meta || typeof meta.handler !== 'function') {
-                return { contents: [{ uri: uri.href, text: JSON.stringify({ error: `Tool not found or not executable: ${name}` }, null, 2), mimeType: 'application/json' }] };
-              }
-              try {
-                const result = await meta.handler({});
-                // Unwrap MCP SDK envelope if present (content[0].text)
-                let payload: any = result;
-                try {
-                  const maybe = (result as any)?.content?.[0]?.text;
-                  if (typeof maybe === 'string' && maybe.trim().length > 0) {
-                    payload = JSON.parse(maybe);
-                  }
-                } catch {}
-                return { contents: [{ uri: uri.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
-              } catch (e: any) {
-                return { contents: [{ uri: uri.href, text: JSON.stringify({ error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
-              }
-            }
-          );
-        } catch (e: any) {
-          const msg = e?.message || String(e);
-          if (typeof msg === 'string' && msg.includes('already registered')) {
-            console.warn(`[resources] already registered for tool run resource: ${name} — skipping`);
-          } else {
-            throw e;
-          }
-        }
-      }
+      // Note: execution via resource is intentionally not supported. Use tools.run.
     } catch (e: any) {
       const msg = e?.message || String(e);
       if (typeof msg === 'string' && msg.includes('already registered')) {
@@ -254,6 +164,8 @@ async function main() {
     }
   }
   (server as any).registerTool = ((orig: any) => {
+    // Expose original registerTool to allow forced registration of core tools
+    (server as any)._registerToolOrig = orig;
     return function (name: string, def: any, handler: any) {
       // Явная проверка дубликатов до вызова оригинального метода
       if (toolNames.has(name)) {
@@ -277,8 +189,8 @@ async function main() {
         }
       }
 
-      // If classic tools are disabled, don't register with SDK, but keep resource path
-      if (!TOOLS_ENABLED) {
+      // If classic tools are disabled, register only core introspection tools via SDK; others keep registry only
+      if (!TOOLS_ENABLED && !['tools_list','tool_schema','tool_help','tools_run'].includes(name)) {
         toolNames.add(name);
         try {
           toolRegistry.set(name, {
@@ -889,108 +801,7 @@ async function main() {
       };
     }
   );
-
-  // Run: tool://run/{name}/{paramsB64}
-  // paramsB64 is base64-encoded JSON object matching the tool input schema
-  if (TOOL_RES_ENABLED) server.registerResource(
-    "tools_run",
-    "tool://run",
-    {
-      title: "Tool Run",
-      description: "Execute a tool by name using base64-encoded JSON params (set MCP_TOOL_RESOURCES_EXEC=1)",
-      mimeType: "application/json",
-    },
-    async (uri) => {
-      const href = uri.href;
-      const m = href.match(/^tool:\/\/run\/?([^\/?#]+)?\/?([^\/?#]+)?/);
-      const name = m && m[1] ? decodeURIComponent(m[1]) : undefined;
-      const paramsB64 = m && m[2] ? decodeURIComponent(m[2]) : undefined;
-      if (!TOOL_RES_EXEC) {
-        return {
-          contents: [
-            {
-              uri: href,
-              text: JSON.stringify({ error: 'tool-run via resource disabled (set MCP_TOOL_RESOURCES_EXEC=1)' }, null, 2),
-              mimeType: "application/json",
-            },
-          ],
-        };
-      }
-      if (!name) {
-        return {
-          contents: [
-            {
-              uri: href,
-              text: JSON.stringify({ error: 'name required' }, null, 2),
-              mimeType: "application/json",
-            },
-          ],
-        };
-      }
-      const meta = toolRegistry.get(name);
-      if (!meta || typeof meta.handler !== 'function') {
-        return {
-          contents: [
-            {
-              uri: href,
-              text: JSON.stringify({ error: `Tool not found or not executable: ${name}` }, null, 2),
-              mimeType: "application/json",
-            },
-          ],
-        };
-      }
-      let params: any = {};
-      if (paramsB64 && paramsB64.length > 0) {
-        let decodedOk = false;
-        try {
-          const json = Buffer.from(normalizeBase64(paramsB64), 'base64').toString('utf8');
-          params = JSON.parse(json);
-          decodedOk = true;
-        } catch {}
-        if (!decodedOk) {
-          try {
-            const asJson = decodeURIComponent(paramsB64);
-            params = JSON.parse(asJson);
-            decodedOk = true;
-          } catch (e: any) {
-            return {
-              contents: [
-                {
-                  uri: href,
-                  text: JSON.stringify({ error: `invalid params (expect base64url or urlencoded JSON): ${e?.message || String(e)}` }, null, 2),
-                  mimeType: "application/json",
-                },
-              ],
-            };
-          }
-        }
-      }
-      try {
-        const result = await meta.handler(params);
-        // Tools typically return { content: [{ type: 'text', text: JSON-string }] }
-        const outText = JSON.stringify(result, null, 2);
-        return {
-          contents: [
-            {
-              uri: href,
-              text: outText,
-              mimeType: "application/json",
-            },
-          ],
-        };
-      } catch (e: any) {
-        return {
-          contents: [
-            {
-              uri: href,
-              text: JSON.stringify({ error: e?.message || String(e) }, null, 2),
-              mimeType: "application/json",
-            },
-          ],
-        };
-      }
-    }
-  );
+  // Note: tool://run resource removed — use tools_run tool (RPC) instead.
 
   // ===== Prompt Library: Catalog & Search =====
   server.registerTool(
@@ -3215,120 +3026,41 @@ async function main() {
     );
   } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://project — skipping'); else throw e; }
 
-  // ===== Create via Resources (Tasks & Knowledge) =====
-  // tasks://create/{project}/{paramsB64|urljson}
-  // params can be either a single task object { title, description?, priority?, tags?, links?, parentId? }
-  // or { items: TaskInput[] } for bulk
-  try {
-    server.registerResource(
-      'tasks_create',
-      'tasks://create',
-      { title: 'Tasks Create (Resource)', description: 'Create one or many tasks via base64url or urlencoded JSON params', mimeType: 'application/json' },
-      async (u) => {
-        const href = u.href;
-        // Support exact-URI with query: tasks://create?project=...&params=...
-        // Fallback to path form: tasks://create/{project}/{params}
-        let project: string | undefined;
-        let raw: string | undefined;
-        try {
-          const url = new URL(href);
-          project = url.searchParams.get('project') || undefined;
-          raw = url.searchParams.get('params') || undefined;
-        } catch {}
-        if (!project || !raw) {
-          const m = href.match(/^tasks:\/\/create\/([^\/]+)\/(.+)$/);
-          if (m) {
-            project = decodeURIComponent(m[1]);
-            raw = decodeURIComponent(m[2]);
-          }
-        }
-        if (!project || !raw) {
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tasks://create path', examples: ['tasks://create/{project}/{paramsB64|urljson}', 'tasks://create?project={id}&params={base64url|urljson}'] }, null, 2), mimeType: 'application/json' }] };
-        }
-        let params: any = {};
-        let decodedOk = false;
-        try { params = JSON.parse(Buffer.from(normalizeBase64(raw), 'base64').toString('utf8')); decodedOk = true; } catch {}
-        if (!decodedOk) {
-          try { params = JSON.parse(raw); decodedOk = true; } catch {}
-        }
-        if (!decodedOk) {
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid params (expect base64url or urlencoded JSON)' }, null, 2), mimeType: 'application/json' }] };
-        }
-        const outputs: any[] = [];
-        const items: any[] = Array.isArray(params?.items) ? params.items : [params];
-        for (const it of items) {
-          const created = await createTask({
-            project,
-            title: String(it?.title || '').trim() || 'untitled',
-            description: typeof it?.description === 'string' ? it.description : undefined,
-            priority: it?.priority,
-            tags: Array.isArray(it?.tags) ? it.tags : undefined,
-            links: Array.isArray(it?.links) ? it.links : undefined,
-            parentId: typeof it?.parentId === 'string' ? it.parentId : undefined,
-          } as any);
-          outputs.push(created);
-        }
-        return { contents: [{ uri: href, text: JSON.stringify(outputs, null, 2), mimeType: 'application/json' }] };
-      }
-    );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://create — skipping'); else throw e; }
+  // [removed] POST-like resource creators (tasks://create, knowledge://create) — use tools.run instead
+  // This block intentionally left blank
 
-  // knowledge://create/{project}/{paramsB64|urljson}
-  // params can be either a single doc { title, content, tags?, source?, parentId?, type? }
-  // or { items: DocInput[] } for bulk
+  // ===== Task Actions via Resource (Exact URI) =====
+  // task://action/{project}/{id}/{action}
+  // action ∈ start | complete | close | trash | restore | archive
   try {
     server.registerResource(
-      'knowledge_create',
-      'knowledge://create',
-      { title: 'Knowledge Create (Resource)', description: 'Create one or many knowledge docs via base64url or urlencoded JSON params', mimeType: 'application/json' },
+      'task_action',
+      'task://action',
+      { title: 'Task Action', description: 'Change task status via exact URI: task://action/{project}/{id}/{action}', mimeType: 'application/json' },
       async (u) => {
         const href = u.href;
-        // Support exact-URI with query: knowledge://create?project=...&params=...
-        // Fallback to path form: knowledge://create/{project}/{params}
-        let project: string | undefined;
-        let raw: string | undefined;
+        const m = href.match(/^task:\/\/action\/([^\/]+)\/([^\/]+)\/(start|complete|close|trash|restore|archive)$/);
+        if (!m) {
+          return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'invalid task action path', example: 'task://action/{project}/{id}/{start|complete|close|trash|restore|archive}' }, null, 2), mimeType: 'application/json' }] };
+        }
+        const project = decodeURIComponent(m[1]);
+        const id = decodeURIComponent(m[2]);
+        const action = m[3] as 'start'|'complete'|'close'|'trash'|'restore'|'archive';
         try {
-          const url = new URL(href);
-          project = url.searchParams.get('project') || undefined;
-          raw = url.searchParams.get('params') || undefined;
-        } catch {}
-        if (!project || !raw) {
-          const m = href.match(/^knowledge:\/\/create\/([^\/]+)\/(.+)$/);
-          if (m) {
-            project = decodeURIComponent(m[1]);
-            raw = decodeURIComponent(m[2]);
-          }
+          let payload: any = null;
+          if (action === 'start') payload = await updateTask(project, id, { status: 'in_progress' } as any);
+          else if (action === 'complete') payload = await updateTask(project, id, { status: 'completed' } as any);
+          else if (action === 'close') payload = await closeTask(project, id);
+          else if (action === 'trash') payload = await trashTask(project, id);
+          else if (action === 'restore') payload = await restoreTask(project, id);
+          else if (action === 'archive') payload = await archiveTask(project, id);
+          return { contents: [{ uri: href, text: JSON.stringify({ ok: true, project, id, action, data: payload ?? null }, null, 2), mimeType: 'application/json' }] };
+        } catch (e: any) {
+          return { contents: [{ uri: href, text: JSON.stringify({ ok: false, project, id, action, error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
         }
-        if (!project || !raw) {
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid knowledge://create path', examples: ['knowledge://create/{project}/{paramsB64|urljson}', 'knowledge://create?project={id}&params={base64url|urljson}'] }, null, 2), mimeType: 'application/json' }] };
-        }
-        let params: any = {};
-        let decodedOk = false;
-        try { params = JSON.parse(Buffer.from(normalizeBase64(raw), 'base64').toString('utf8')); decodedOk = true; } catch {}
-        if (!decodedOk) {
-          try { params = JSON.parse(raw); decodedOk = true; } catch {}
-        }
-        if (!decodedOk) {
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid params (expect base64url or urlencoded JSON)' }, null, 2), mimeType: 'application/json' }] };
-        }
-        const outputs: any[] = [];
-        const items: any[] = Array.isArray(params?.items) ? params.items : [params];
-        for (const it of items) {
-          const created = await createDoc({
-            project,
-            title: String(it?.title || '').trim() || 'untitled',
-            content: String(it?.content || ''),
-            tags: Array.isArray(it?.tags) ? it.tags : undefined,
-            source: typeof it?.source === 'string' ? it.source : undefined,
-            parentId: typeof it?.parentId === 'string' ? it.parentId : undefined,
-            type: typeof it?.type === 'string' ? it.type : undefined,
-          } as any);
-          outputs.push(created);
-        }
-        return { contents: [{ uri: href, text: JSON.stringify(outputs, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://create — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: task://action — skipping'); else throw e; }
 
   // ===== Search Aliases =====
   try {
@@ -3504,6 +3236,51 @@ async function main() {
         exampleCall: { name, params: example },
       };
       return ok(help);
+    }
+  );
+
+  // tools_run — bulk executor for tools via RPC (not a resource)
+  server.registerTool(
+    "tools_run",
+    {
+      title: "Tools Run (Bulk)",
+      description: "Execute one or many tools by name with params via RPC.",
+      inputSchema: {
+        name: z.string().optional(),
+        params: z.any().optional(),
+        items: z.array(z.object({ name: z.string(), params: z.any().optional() })).optional(),
+        stopOnError: z.boolean().optional(),
+      },
+    },
+    async ({ name, params, items, stopOnError }: { name?: string; params?: any; items?: Array<{ name: string; params?: any }>; stopOnError?: boolean }) => {
+      const runs: Array<{ name: string; params?: any }> = [];
+      if (Array.isArray(items) && items.length > 0) runs.push(...items.map((i) => ({ name: i.name, params: i.params })));
+      if (name) runs.push({ name, params });
+      if (runs.length === 0) return err('no tool specified');
+
+      const results: any[] = [];
+      for (const r of runs) {
+        const meta = toolRegistry.get(r.name);
+        if (!meta || typeof meta.handler !== 'function') {
+          const e = { name: r.name, ok: false, error: `Tool not found or not executable: ${r.name}` };
+          results.push(e);
+          if (stopOnError) break;
+          continue;
+        }
+        try {
+          const res = await meta.handler(r.params ?? {});
+          let payload: any = res;
+          try {
+            const maybe = (res as any)?.content?.[0]?.text;
+            if (typeof maybe === 'string' && maybe.trim().length > 0) payload = JSON.parse(maybe);
+          } catch {}
+          results.push({ name: r.name, ok: true, data: payload });
+        } catch (e: any) {
+          results.push({ name: r.name, ok: false, error: e?.message || String(e) });
+          if (stopOnError) break;
+        }
+      }
+      return ok({ count: results.length, results });
     }
   );
 

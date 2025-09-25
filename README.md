@@ -158,15 +158,32 @@ expect(res.content?.[0]?.text).toContain('Refusing to proceed')
 - `knowledge://docs` — список документов знаний (`knowledge://{project}/{id}`).
 - `prompt://catalog` — каталог промптов (`prompt://{project}/{id}@{version}`).
 - `export://files` — список экспортированных артефактов (`export://{project}/{type}/{filename}`).
-- Инструменты как ресурсы:
+- Инструменты как ресурсы (интроспекция, без выполнения):
   - `tool://catalog`, `tool://schema/{name}`, `tool://{name}`
-  - Запуск: `tool://run/{name}` или `tool://run/{name}/{params}` (поддержка base64url и URL‑encoded JSON)
 
-Примеры запуска инструментов через ресурсный раннер:
+Выполнение инструментов через ресурсы не поддерживается. Для «POST»-подобных операций используйте RPC вызовы инструментов (tools.run). Для пакетного запуска есть инструмент `tools_run`.
+
+Примеры интроспекции ресурсов инструментов:
 
 ```
-tool://run/project_get_current
-tool://run/tasks_list/%7B%22project%22%3A%22mcp%22%7D
+tool://catalog
+tool://schema/tasks_list
+tool://tasks_list
+```
+
+Пример пакетного запуска через инструмент `tools_run` (RPC):
+
+```json
+{
+  "name": "tools_run",
+  "arguments": {
+    "items": [
+      { "name": "tasks_list", "params": { "project": "mcp" } },
+      { "name": "knowledge_list", "params": { "project": "mcp" } }
+    ],
+    "stopOnError": false
+  }
+}
 ```
 
 ### Docker: режим «ресурсы‑только» (без регистрации tools)
@@ -177,7 +194,6 @@ docker run --rm -it \
   -e CURRENT_PROJECT=mcp \
   -e MCP_TOOLS_ENABLED=false \
   -e MCP_TOOL_RESOURCES_ENABLED=true \
-  -e MCP_TOOL_RESOURCES_EXEC=true \
   -v "$PWD/.data":/data \
   ghcr.io/desure85/mcp-task-knowledge:bm25-latest
 ```
@@ -403,9 +419,8 @@ MCP_STRICT_TOOL_DEDUP=1 npm run dev
 | Переменная | Описание | Значение по умолчанию |
 |------------|----------|----------------------|
 | `MCP_STRICT_TOOL_DEDUP` | Строгий режим защиты от повторной регистрации MCP‑инструментов (1 — включить, иначе мягкий режим с предупреждением) | `0` |
-| `MCP_TOOLS_ENABLED` | Регистрация классических MCP‑инструментов (tools.run). При `false` сервер НЕ регистрирует инструменты в SDK, но может предоставлять их через ресурсные обёртки | `true` |
-| `MCP_TOOL_RESOURCES_ENABLED` | Регистрация ресурсных обёрток `tool://*` (каталог/схема/раннер) | `true` |
-| `MCP_TOOL_RESOURCES_EXEC` | Разрешить выполнение инструментов через ресурсные URI (`tool://run/...`, `tool://{name}/run/...`) | `true` |
+| `MCP_TOOLS_ENABLED` | Регистрация классических MCP‑инструментов (tools.run). При `false` сервер НЕ регистрирует большинство инструментов в SDK; при этом доступны интроспекционные ресурсы (`tool://catalog`, `tool://schema/...`), а ядро `tools_*` остаётся зарегистрированным | `true` |
+| `MCP_TOOL_RESOURCES_ENABLED` | Регистрация ресурсных обёрток `tool://*` (каталог/схема) | `true` |
 
 ### Конфигурация через JSON
 

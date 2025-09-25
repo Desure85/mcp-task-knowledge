@@ -68,45 +68,32 @@ export://mcp/catalog/prompts.catalog.json  # Каталог промптов
 ### 5. Ресурсы инструментов (Tools)
 
 - **Каталог инструментов**: `tool://catalog`
-- **Схема инструмента**: `tool://schema/{name}` или `tool://{name}`
-- **Запуск инструмента (ресурсный раннер)**:
-  - `tool://run/{name}` — запустить с параметрами `{}` (по умолчанию)
-  - `tool://run/{name}/{params}` — запустить с параметрами `params`
-  - Альтернатива: `tool://{name}/run/{params}`
+- **Схема (метаданные) инструмента**: `tool://schema/{name}` или `tool://{name}`
 
-Выполнение через ресурсы контролируется фичефлагами окружения:
+Важно: выполнение инструментов через ресурсы не поддерживается. Для «POST»-подобных операций используйте RPC-вызовы инструментов (tools.run). Для пакетного запуска доступен инструмент `tools_run`.
+
+Примеры чтения ресурсов-интроспекции:
 
 ```
-# Включить/выключить регистрацию ресурсных обёрток tool://* (по умолчанию: true)
-MCP_TOOL_RESOURCES_ENABLED=true|false
-
-# Разрешить выполнение инструментов через ресурсные URI (по умолчанию: true)
-MCP_TOOL_RESOURCES_EXEC=true|false
+tool://catalog                # список всех tools с ключевыми полями
+tool://schema/tasks_list      # метаданные и ключи параметров для инструмента tasks_list
+tool://tasks_list             # короткий алиас на схему
 ```
 
-**Примеры использования**:
+Пример пакетного запуска через инструмент `tools_run` (RPC):
 
+```json
+{
+  "name": "tools_run",
+  "arguments": {
+    "items": [
+      { "name": "tasks_list", "params": { "project": "mcp" } },
+      { "name": "knowledge_list", "params": { "project": "mcp" } }
+    ],
+    "stopOnError": false
+  }
+}
 ```
-tool://catalog                         # список всех tools с ключевыми полями
-tool://schema/tasks_list               # метаданные и ключи параметров для tools/tasks_list
-tool://tasks_list                      # то же самое, по короткому алиасу
-
-# 1) Запуск без параметров ({}):
-tool://run/project_get_current
-
-# 2) URL-encoded JSON параметры:
-#   { "project": "neirogen" } -> %7B%22project%22%3A%22neirogen%22%7D
-tool://run/tasks_list/%7B%22project%22%3A%22neirogen%22%7D
-
-# 3) base64url параметры (пример для {"project":"neirogen"}):
-#   eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
-tool://run/tasks_list/eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
-
-# Альтернативный путь запуска с параметрами:
-tool://tasks_list/run/eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
-```
-
-Ответ ресурса содержит развёрнутый JSON-результат MCP-инструмента (например `{ "ok": true, "data": ... }`).
 
 ### 6. Ресурсы проекта (Project)
 
@@ -160,12 +147,12 @@ tasks://current/tree
 
 #### Переходы статусов одной задачи (без bulk)
 
-- `task://{project}/{id}/start` → `status: in_progress`
-- `task://{project}/{id}/complete` → `status: completed`
-- `task://{project}/{id}/close` → `status: closed`
-- `task://{project}/{id}/trash` → пометить как удалённую
-- `task://{project}/{id}/restore` → восстановить из архива/корзины
-- `task://{project}/{id}/archive` → пометить как архив
+- `task://action/{project}/{id}/start` → `status: in_progress`
+- `task://action/{project}/{id}/complete` → `status: completed`
+- `task://action/{project}/{id}/close` → `status: closed`
+- `task://action/{project}/{id}/trash` → пометить как удалённую
+- `task://action/{project}/{id}/restore` → восстановить из архива/корзины
+- `task://action/{project}/{id}/archive` → пометить как архив
 
 Ответ: `{ ok: true, project, id, action, data }` либо `{ ok: false, error }`.
 
