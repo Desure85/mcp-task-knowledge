@@ -7,7 +7,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR, isPromptsBuildEnabled } from "./config.js";
 import { createServiceCatalogProvider } from "./catalog/provider.js";
- import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
+import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
 import { createDoc, listDocs, readDoc, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from "./storage/knowledge.js";
 import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from "./search/index.js";
 import { getVectorAdapter } from "./search/vector.js";
@@ -99,8 +99,8 @@ async function main() {
     }
   }
 
-  // Simple in-memory registry of tools for introspection (no aliases)
-  const toolRegistry: Map<string, { title?: string; description?: string; inputSchema?: Record<string, any> }> = new Map();
+  // Simple in-memory registry of tools for introspection and execution (no aliases)
+  const toolRegistry: Map<string, { title?: string; description?: string; inputSchema?: Record<string, any>; handler?: (params: any) => Promise<any> }> = new Map();
 
   // Unified response helpers imported from utils/respond
 
@@ -109,6 +109,75 @@ async function main() {
   // Патчим метод registerTool так, чтобы молча игнорировать ошибку "already registered".
   const toolNames = new Set<string>();
   const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
+  // Helper: register each tool as a dedicated resource tool://{name}
+  function registerToolAsResource(name: string) {
+    const baseUri = `tool://${encodeURIComponent(name)}`;
+    const TOOL_RES_EXEC = process.env.MCP_TOOL_RESOURCES_EXEC === '1';
+    try {
+      server.registerResource(
+        `tool_${name}`,
+        baseUri,
+        {
+          title: `Tool: ${name}`,
+          description: `Resource wrapper for tool ${name}. Read base URI to get schema. Read /run/{paramsB64} to execute (MCP_TOOL_RESOURCES_EXEC=1).`,
+          mimeType: "application/json",
+        },
+        async (uri) => {
+          const href = uri.href;
+          // tool://{name} or tool://{name}/schema
+          const schemaMatch = href.match(/^tool:\/\/([^\/?#]+)(?:\/schema)?$/);
+          const runMatch = href.match(/^tool:\/\/([^\/?#]+)\/run\/(.+)$/);
+          if (schemaMatch && decodeURIComponent(schemaMatch[1]) === name) {
+            const meta = toolRegistry.get(name);
+            if (!meta) {
+              return { contents: [{ uri: href, text: JSON.stringify({ error: `Tool not found: ${name}` }, null, 2), mimeType: 'application/json' }] };
+            }
+            const payload = {
+              name,
+              title: meta.title ?? null,
+              description: meta.description ?? null,
+              inputKeys: meta.inputSchema ? Object.keys(meta.inputSchema) : [],
+            };
+            return { contents: [{ uri: href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
+          }
+          if (runMatch && decodeURIComponent(runMatch[1]) === name) {
+            if (!TOOL_RES_EXEC) {
+              return { contents: [{ uri: href, text: JSON.stringify({ error: 'tool-run via resource disabled (set MCP_TOOL_RESOURCES_EXEC=1)' }, null, 2), mimeType: 'application/json' }] };
+            }
+            const paramsB64 = runMatch[2];
+            const meta = toolRegistry.get(name);
+            if (!meta || typeof meta.handler !== 'function') {
+              return { contents: [{ uri: href, text: JSON.stringify({ error: `Tool not found or not executable: ${name}` }, null, 2), mimeType: 'application/json' }] };
+            }
+            let params: any = {};
+            if (paramsB64 && paramsB64.length > 0) {
+              try {
+                const jsonStr = Buffer.from(paramsB64, 'base64').toString('utf8');
+                params = JSON.parse(jsonStr);
+              } catch (e: any) {
+                return { contents: [{ uri: href, text: JSON.stringify({ error: `invalid paramsB64: ${e?.message || String(e)}` }, null, 2), mimeType: 'application/json' }] };
+              }
+            }
+            try {
+              const result = await meta.handler(params);
+              return { contents: [{ uri: href, text: JSON.stringify(result, null, 2), mimeType: 'application/json' }] };
+            } catch (e: any) {
+              return { contents: [{ uri: href, text: JSON.stringify({ error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
+            }
+          }
+          // Otherwise help
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tool resource path', examples: [`${baseUri}`, `${baseUri}/schema`, `${baseUri}/run/{paramsB64}`] }, null, 2), mimeType: 'application/json' }] };
+        }
+      );
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (typeof msg === 'string' && msg.includes('already registered')) {
+        console.warn(`[resources] already registered for tool resource: ${name} — skipping`);
+      } else {
+        throw e;
+      }
+    }
+  }
   (server as any).registerTool = ((orig: any) => {
     return function (name: string, def: any, handler: any) {
       // Явная проверка дубликатов до вызова оригинального метода
@@ -124,7 +193,10 @@ async function main() {
               title: def?.title,
               description: def?.description,
               inputSchema: def?.inputSchema,
+              handler,
             });
+            // Idempotent: attempt to register resource too
+            registerToolAsResource(name);
           } catch {}
           return;
         }
@@ -140,7 +212,10 @@ async function main() {
             title: def?.title,
             description: def?.description,
             inputSchema: def?.inputSchema,
+            handler,
           });
+          // Also expose tool as a resource
+          registerToolAsResource(name);
         } catch {}
         return res;
       } catch (e: any) {
@@ -154,6 +229,7 @@ async function main() {
               title: def?.title,
               description: def?.description,
               inputSchema: def?.inputSchema,
+              handler,
             });
           } catch {}
           return;
@@ -323,6 +399,462 @@ async function main() {
   } else {
     console.warn('[startup][catalog] catalog read disabled — query tool will not be registered');
   }
+
+  // ===== Resources Registration =====
+  
+  // Register task resources: task://{project}/{id}
+  server.registerResource(
+    "tasks",
+    "task://tasks",
+    {
+      title: "Task Resources",
+      description: "Access individual tasks by project and ID",
+      mimeType: "application/json"
+    },
+    async (uri) => {
+      // Handle list resources case - return all available tasks
+      if (uri.href === "task://tasks") {
+        const projectsData = await listProjects(getCurrentProject);
+        const allTasks: any[] = [];
+        
+        for (const project of projectsData.projects.map((p: any) => p.name)) {
+          try {
+            const tasks = await listTasks({ project, includeArchived: false });
+            for (const task of tasks) {
+              allTasks.push({
+                ...task,
+                uri: `task://${project}/${task.id}`,
+                name: `Task: ${task.title}`,
+                description: `Project: ${project}, Status: ${task.status}, Priority: ${task.priority}`,
+                project
+              });
+            }
+          } catch {}
+        }
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(allTasks, null, 2),
+              mimeType: "application/json"
+            }
+          ]
+        };
+      }
+      
+      // Handle specific task resource: task://{project}/{id}
+      const match = uri.href.match(/^task:\/\/([^\/]+)\/(.+)$/);
+      if (!match) throw new Error("Invalid task URI format. Expected: task://{project}/{id}");
+      
+      const [, project, id] = match;
+      const task = await getTask({ project, id });
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(task, null, 2),
+            mimeType: "application/json"
+          }
+        ]
+      };
+    }
+  );
+
+  // Register knowledge resources: knowledge://{project}/{id}
+  server.registerResource(
+    "knowledge",
+    "knowledge://docs",
+    {
+      title: "Knowledge Resources",
+      description: "Access individual knowledge documents by project and ID",
+      mimeType: "application/json"
+    },
+    async (uri) => {
+      // Handle list resources case - return all available knowledge docs
+      if (uri.href === "knowledge://docs") {
+        const projectsData = await listProjects(getCurrentProject);
+        const allDocs: any[] = [];
+        
+        for (const project of projectsData.projects.map((p: any) => p.name)) {
+          try {
+            const docs = await listDocs({ project, includeArchived: false });
+            for (const doc of docs) {
+              allDocs.push({
+                ...doc,
+                uri: `knowledge://${project}/${doc.id}`,
+                name: `Knowledge: ${doc.title}`,
+                description: `Project: ${project}, Type: ${doc.type || 'document'}, Tags: ${(doc.tags || []).join(', ')}`,
+                project
+              });
+            }
+          } catch {}
+        }
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(allDocs, null, 2),
+              mimeType: "application/json"
+            }
+          ]
+        };
+      }
+      
+      // Handle specific knowledge document: knowledge://{project}/{id}
+      const match = uri.href.match(/^knowledge:\/\/([^\/]+)\/(.+)$/);
+      if (!match) throw new Error("Invalid knowledge URI format. Expected: knowledge://{project}/{id}");
+      
+      const [, project, id] = match;
+      const doc = await readDoc(project, id);
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(doc, null, 2),
+            mimeType: "application/json"
+          }
+        ]
+      };
+    }
+  );
+
+  // Register prompt resources: prompt://{project}/{id}@{version}  
+  server.registerResource(
+    "prompts",
+    "prompt://catalog",
+    {
+      title: "Prompt Resources",
+      description: "Access individual prompts by project, ID and version",
+      mimeType: "application/json"
+    },
+    async (uri) => {
+      // Handle list resources case - return all available prompts
+      if (uri.href === "prompt://catalog") {
+        const projectsData = await listProjects(getCurrentProject);
+        const allPrompts: any[] = [];
+        
+        for (const project of projectsData.projects.map((p: any) => p.name)) {
+          try {
+            const catalog = await readPromptsCatalog(project);
+            for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
+              const version = meta.version || meta.buildVersion || 'latest';
+              allPrompts.push({
+                ...meta,
+                uri: `prompt://${project}/${key}@${version}`,
+                name: `Prompt: ${meta.title || key}`,
+                description: `Project: ${project}, Kind: ${meta.kind || 'prompt'}, Domain: ${meta.domain}, Status: ${meta.status}`,
+                project,
+                key,
+                version
+              });
+            }
+          } catch {}
+        }
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(allPrompts, null, 2),
+              mimeType: "application/json"
+            }
+          ]
+        };
+      }
+      
+      // Handle specific prompt: prompt://{project}/{id}@{version}
+      const match = uri.href.match(/^prompt:\/\/([^\/]+)\/([^@]+)@(.+)$/);
+      if (!match) throw new Error("Invalid prompt URI format. Expected: prompt://{project}/{id}@{version}");
+      
+      const [, project, id, version] = match;
+      const filePath = await findFileByIdVersion(project, id, version);
+      if (!filePath) throw new Error(`Prompt not found: ${id}@${version} in project ${project}`);
+      
+      const content = await fs.readFile(filePath, 'utf8');
+      const prompt = JSON.parse(content);
+      
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(prompt, null, 2),
+            mimeType: "application/json"
+          }
+        ]
+      };
+    }
+  );
+
+  // Register export resources: export://{project}/{type}/{filename}
+  server.registerResource(
+    "exports",
+    "export://files",
+    {
+      title: "Export Resources",
+      description: "Access exported prompt artifacts and files",
+      mimeType: "application/json"
+    },
+    async (uri) => {
+      // Handle list resources case - return all available exports
+      if (uri.href === "export://files") {
+        const projectsData = await listProjects(getCurrentProject);
+        const allExports: any[] = [];
+        
+        for (const project of projectsData.projects.map((p: any) => p.name)) {
+          try {
+            const base = path.join(PROMPTS_DIR, project, 'exports');
+            const types = ['builds', 'catalog', 'json', 'markdown'];
+            
+            for (const type of types) {
+              try {
+                const typeDir = path.join(base, type);
+                const files = await listFilesRecursive(typeDir);
+                
+                for (const filePath of files) {
+                  const relativePath = path.relative(typeDir, filePath);
+                  const fileName = path.basename(filePath);
+                  const ext = path.extname(filePath).toLowerCase();
+                  
+                  let mimeType = "text/plain";
+                  if (ext === '.json') mimeType = "application/json";
+                  else if (ext === '.md') mimeType = "text/markdown";
+                  
+                  allExports.push({
+                    uri: `export://${project}/${type}/${relativePath}`,
+                    name: `Export: ${fileName}`,
+                    description: `Project: ${project}, Type: ${type}, Path: ${relativePath}`,
+                    project,
+                    type,
+                    filename: relativePath,
+                    mimeType
+                  });
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: JSON.stringify(allExports, null, 2),
+              mimeType: "application/json"
+            }
+          ]
+        };
+      }
+      
+      // Handle specific export file: export://{project}/{type}/{filename}
+      const match = uri.href.match(/^export:\/\/([^\/]+)\/([^\/]+)\/(.+)$/);
+      if (!match) throw new Error("Invalid export URI format. Expected: export://{project}/{type}/{filename}");
+      
+      const [, project, type, filename] = match;
+      const filePath = path.join(PROMPTS_DIR, project, 'exports', type, filename);
+      
+      try {
+        const content = await fs.readFile(filePath, 'utf8');
+        const ext = path.extname(filePath).toLowerCase();
+        
+        let mimeType = "text/plain";
+        if (ext === '.json') mimeType = "application/json";
+        else if (ext === '.md') mimeType = "text/markdown";
+        
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              text: content,
+              mimeType
+            }
+          ]
+        };
+      } catch (error: any) {
+        throw new Error(`Failed to read export file: ${error.message}`);
+      }
+    }
+  );
+
+  // ===== Tools as Resources =====
+  const TOOL_RES_EXEC = process.env.MCP_TOOL_RESOURCES_EXEC === '1';
+
+  // Catalog: tool://catalog — list all tools with metadata
+  server.registerResource(
+    "tools_catalog",
+    "tool://catalog",
+    {
+      title: "Tools Catalog",
+      description: "List registered tools and their metadata",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const items = Array.from(toolRegistry.entries()).map(([name, meta]) => ({
+        name,
+        title: meta.title ?? null,
+        description: meta.description ?? null,
+        inputKeys: meta.inputSchema ? Object.keys(meta.inputSchema) : [],
+      }));
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify({ total: items.length, items }, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    }
+  );
+
+  // Schema: tool://schema and tool://schema/{name}
+  server.registerResource(
+    "tools_schema",
+    "tool://schema",
+    {
+      title: "Tool Schema",
+      description: "Return metadata for a given tool name",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const href = uri.href;
+      const m = href.match(/^tool:\/\/schema\/?([^\/?#]+)?/);
+      const name = m && m[1] ? decodeURIComponent(m[1]) : undefined;
+      if (!name) {
+        const items = Array.from(toolRegistry.keys());
+        return {
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify({ error: 'name required', available: items }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+      const meta = toolRegistry.get(name);
+      if (!meta) {
+        return {
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify({ error: `Tool not found: ${name}` }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+      const payload = {
+        name,
+        title: meta.title ?? null,
+        description: meta.description ?? null,
+        inputKeys: meta.inputSchema ? Object.keys(meta.inputSchema) : [],
+      };
+      return {
+        contents: [
+          {
+            uri: href,
+            text: JSON.stringify(payload, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    }
+  );
+
+  // Run: tool://run/{name}/{paramsB64}
+  // paramsB64 is base64-encoded JSON object matching the tool input schema
+  server.registerResource(
+    "tools_run",
+    "tool://run",
+    {
+      title: "Tool Run",
+      description: "Execute a tool by name using base64-encoded JSON params (set MCP_TOOL_RESOURCES_EXEC=1)",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const href = uri.href;
+      const m = href.match(/^tool:\/\/run\/?([^\/?#]+)?\/?([^\/?#]+)?/);
+      const name = m && m[1] ? decodeURIComponent(m[1]) : undefined;
+      const paramsB64 = m && m[2] ? decodeURIComponent(m[2]) : undefined;
+      if (!TOOL_RES_EXEC) {
+        return {
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify({ error: 'tool-run via resource disabled (set MCP_TOOL_RESOURCES_EXEC=1)' }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+      if (!name) {
+        return {
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify({ error: 'name required' }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+      const meta = toolRegistry.get(name);
+      if (!meta || typeof meta.handler !== 'function') {
+        return {
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify({ error: `Tool not found or not executable: ${name}` }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+      let params: any = {};
+      if (paramsB64 && paramsB64.length > 0) {
+        try {
+          const json = Buffer.from(paramsB64, 'base64').toString('utf8');
+          params = JSON.parse(json);
+        } catch (e: any) {
+          return {
+            contents: [
+              {
+                uri: href,
+                text: JSON.stringify({ error: `invalid paramsB64: ${e?.message || String(e)}` }, null, 2),
+                mimeType: "application/json",
+              },
+            ],
+          };
+        }
+      }
+      try {
+        const result = await meta.handler(params);
+        // Tools typically return { content: [{ type: 'text', text: JSON-string }] }
+        const outText = JSON.stringify(result, null, 2);
+        return {
+          contents: [
+            {
+              uri: href,
+              text: outText,
+              mimeType: "application/json",
+            },
+          ],
+        };
+      } catch (e: any) {
+        return {
+          contents: [
+            {
+              uri: href,
+              text: JSON.stringify({ error: e?.message || String(e) }, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    }
+  );
 
   // ===== Prompt Library: Catalog & Search =====
   server.registerTool(
