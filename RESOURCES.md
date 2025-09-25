@@ -73,6 +73,11 @@ export://mcp/catalog/prompts.catalog.json  # Каталог промптов
   - `tool://run/{name}` — запустить с параметрами `{}` (по умолчанию)
   - `tool://run/{name}/{params}` — запустить с параметрами `params`
   - Альтернатива: `tool://{name}/run/{params}`
+
+Выполнение через ресурсы контролируется фичефлагами окружения:
+
+```
+# Включить/выключить регистрацию ресурсных обёрток tool://* (по умолчанию: true)
 MCP_TOOL_RESOURCES_ENABLED=true|false
 
 # Разрешить выполнение инструментов через ресурсные URI (по умолчанию: true)
@@ -107,6 +112,8 @@ tool://tasks_list/run/eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
 
 - **Текущий проект**: `project://current`
 - **Быстрое переключение проекта**: `project://use/{projectId}`
+- **Список проектов**: `project://projects`
+- **Обновить алиасы (без рестарта)**: `project://refresh`
 
 **Описание**:
 
@@ -123,18 +130,71 @@ project://current           # теперь {"project":"neirogen"}
 
 > Примечание: ресурсы `project://use/{projectId}` регистрируются статически на старте на основе `listProjects(...)`. Если вы добавили новый проект на диске, перезапустите сервер MCP, чтобы соответствующий ресурс появился.
 
-### 7. Ресурсы задач по проекту (Tasks by Project)
+Альтернатива без рестарта: `project://refresh` пере-регистрирует per-project алиасы `project://use/{id}` и `tasks://project/{id}` динамически.
 
-- **URI**: `tasks://project/{id}`
+### 7. Задачи: алиасы и фильтры (Tasks)
 
-**Описание**: Возвращает список задач только для указанного проекта `{id}` (по умолчанию `includeArchived=false`). Удобно для клиентов, где хочется точного URI без параметров.
+- **Текущий проект**:
+  - `tasks://current` — список задач текущего проекта
+  - `tasks://current/tree` — дерево задач текущего проекта
+
+- **По проекту**:
+  - `tasks://project/{id}` — список задач проекта
+  - `tasks://project/{id}/tree` — дерево задач проекта
+  - `tasks://project/{id}/status/{pending|in_progress|completed|closed}` — фильтр по статусу
+  - `tasks://project/{id}/tag/{tag}` — фильтр по тегу
+
+**Описание**: Удобные URI без JSON‑параметров, по умолчанию скрывают архив и корзину (`includeArchived=false`, `includeTrashed=false`).
 
 **Примеры**:
 
 ```
 tasks://project/mcp
 tasks://project/neirogen
+tasks://project/neirogen/tree
+tasks://project/neirogen/status/in_progress
+tasks://project/neirogen/tag/infra
+tasks://current
+tasks://current/tree
 ```
+
+#### Переходы статусов одной задачи (без bulk)
+
+- `task://{project}/{id}/start` → `status: in_progress`
+- `task://{project}/{id}/complete` → `status: completed`
+- `task://{project}/{id}/close` → `status: closed`
+- `task://{project}/{id}/trash` → пометить как удалённую
+- `task://{project}/{id}/restore` → восстановить из архива/корзины
+- `task://{project}/{id}/archive` → пометить как архив
+
+Ответ: `{ ok: true, project, id, action, data }` либо `{ ok: false, error }`.
+
+### 8. Знания: алисы и фильтры (Knowledge)
+
+- **Текущий проект**:
+  - `knowledge://current` — список документов
+  - `knowledge://current/tree` — простое дерево по первой метке (tag)
+
+- **По проекту**:
+  - `knowledge://project/{id}` — список документов
+  - `knowledge://project/{id}/tree` — дерево по первой метке
+  - `knowledge://project/{id}/tag/{tag}` — фильтр по тегу
+  - `knowledge://project/{id}/type/{type}` — фильтр по типу (`note`, `spec`, ...)
+
+### 9. Поиск (алиасы)
+
+- `search://tasks/{project}/recent` — последние задачи (по updatedAt desc, top‑20)
+- `search://tasks/{project}/{paramsB64}` — гибридный поиск по задачам
+- `search://knowledge/{project}/recent` — последние документы (top‑20)
+- `search://knowledge/{project}/{paramsB64}` — двухстадийный гибридный поиск по знаниям
+
+Где `paramsB64` — base64url или URL‑encoded JSON, например:
+
+```
+{ "query": "health endpoint", "limit": 20 }
+```
+
+Пример кодирования в URL (base64url): `eyJxdWVyeSI6ImhlYWx0aCBlbmRwb2ludCIsImxpbWl0IjoyMH0`
 
 ## Формат ответов
 
