@@ -69,34 +69,52 @@ export://mcp/catalog/prompts.catalog.json  # Каталог промптов
 
 - **Каталог инструментов**: `tool://catalog`
 - **Схема инструмента**: `tool://schema/{name}` или `tool://{name}`
-- **Запуск инструмента**: `tool://run/{name}/{paramsB64}` или `tool://{name}/run/{paramsB64}`
+- **Запуск инструмента (ресурсный раннер)**:
+  - `tool://run/{name}` — запустить с параметрами `{}` (по умолчанию)
+  - `tool://run/{name}/{params}` — запустить с параметрами `params`
+  - Альтернатива: `tool://{name}/run/{params}`
 
-Где `paramsB64` — это base64 от JSON-объекта параметров (соответствует `inputSchema` инструмента). Выполнение через ресурс отключено по умолчанию и включается переменной окружения:
+Где `params` может быть в одном из форматов:
+
+- base64url от JSON-объекта (поддерживаются `-` и `_`, padding не обязателен)
+- URL-encoded JSON (результат `encodeURIComponent(JSON.stringify(obj))`)
+
+Выполнение через ресурсы контролируется фичефлагами окружения:
 
 ```
-MCP_TOOL_RESOURCES_EXEC=1
+# Включить/выключить регистрацию инструментов как tools.run (по умолчанию: true)
+MCP_TOOLS_ENABLED=true|false
+
+# Включить/выключить регистрацию ресурсных обёрток tool://* (по умолчанию: true)
+MCP_TOOL_RESOURCES_ENABLED=true|false
+
+# Разрешить выполнение инструментов через ресурсные URI (по умолчанию: true)
+MCP_TOOL_RESOURCES_EXEC=true|false
 ```
 
 **Примеры использования**:
 
 ```
-tool://catalog                       # список всех tools с ключевыми полями
-tool://schema/prompts_list           # метаданные и ключи параметров для инструмента prompts_list
-tool://prompts_list                  # то же самое, по короткому алиасу
+tool://catalog                         # список всех tools с ключевыми полями
+tool://schema/tasks_list               # метаданные и ключи параметров для tools/tasks_list
+tool://tasks_list                      # то же самое, по короткому алиасу
 
-# подготовим JSON и закодируем в base64 (пример)
-{
-  "project": "mcp-sandbox",
-  "kind": "prompt",
-  "latest": true
-}
-# -> base64: eyJwcm9qZWN0IjoibWNwLXNhbmRib3giLCJraW5kIjoicHJvbXB0IiwibGF0ZXN0Ijp0cnVlfQ==
+# 1) Запуск без параметров ({}):
+tool://run/project_get_current
 
-tool://run/prompts_list/eyJwcm9qZWN0IjoibWNwLXNhbmRib3giLCJraW5kIjoicHJvbXB0IiwibGF0ZXN0Ijp0cnVlfQ==
-tool://prompts_list/run/eyJwcm9qZWN0IjoibWNwLXNhbmRib3giLCJraW5kIjoicHJvbXB0IiwibGF0ZXN0Ijp0cnVlfQ==
+# 2) URL-encoded JSON параметры:
+#   { "project": "neirogen" } -> %7B%22project%22%3A%22neirogen%22%7D
+tool://run/tasks_list/%7B%22project%22%3A%22neirogen%22%7D
+
+# 3) base64url параметры (пример для {"project":"neirogen"}):
+#   eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
+tool://run/tasks_list/eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
+
+# Альтернативный путь запуска с параметрами:
+tool://tasks_list/run/eyJwcm9qZWN0IjoibmVpcm9nZW4ifQ
 ```
 
-Ответ содержит JSON-результат вызова MCP-инструмента (такой же, как если бы вы вызывали `server.registerTool`).
+Ответ ресурса содержит развёрнутый JSON-результат MCP-инструмента (например `{ "ok": true, "data": ... }`).
 
 ## Формат ответов
 

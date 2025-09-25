@@ -288,6 +288,29 @@ function parseNum(v: any, def: number): number {
   return Number.isFinite(n) ? n : def;
 }
 
+// ===== Tools and Tools-as-Resources feature flags =====
+// Allow disabling classic MCP tools registration and/or enabling tools execution via resources
+export function isToolsEnabled(): boolean {
+  // default: enabled for backward compatibility
+  const cfgFlag = (fileConfig?.tools?.enabled as boolean | undefined);
+  const envFlag = process.env.MCP_TOOLS_ENABLED;
+  return parseBool(cfgFlag ?? envFlag, true);
+}
+
+export function isToolResourcesEnabled(): boolean {
+  // default: enabled to provide IDE-friendly resource interface
+  const cfgFlag = (fileConfig?.tools?.resources?.enabled as boolean | undefined);
+  const envFlag = process.env.MCP_TOOL_RESOURCES_ENABLED;
+  return parseBool(cfgFlag ?? envFlag, true);
+}
+
+export function isToolResourcesExecEnabled(): boolean {
+  // default: enabled so tool://{name}/run/{params} works out of the box
+  const cfgFlag = (fileConfig?.tools?.resources?.execEnabled as boolean | undefined);
+  const envFlag = process.env.MCP_TOOL_RESOURCES_EXEC;
+  return parseBool(cfgFlag ?? envFlag, true);
+}
+
 export function loadCatalogConfig(): CatalogConfig {
   const fc = fileConfig?.catalog ?? {};
 

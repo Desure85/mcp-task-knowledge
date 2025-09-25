@@ -150,6 +150,38 @@ expect(res.content?.[0]?.text).toContain('Refusing to proceed')
   tsconfig.json
 ```
 
+## MCP Resources (ресурсы)
+
+Сервер предоставляет доступ к данным и инструментам через URI‑ресурсы MCP. Подробно см. `RESOURCES.md`. Кратко:
+
+- `task://tasks` — список задач (каждый элемент содержит `uri` вида `task://{project}/{id}`).
+- `knowledge://docs` — список документов знаний (`knowledge://{project}/{id}`).
+- `prompt://catalog` — каталог промптов (`prompt://{project}/{id}@{version}`).
+- `export://files` — список экспортированных артефактов (`export://{project}/{type}/{filename}`).
+- Инструменты как ресурсы:
+  - `tool://catalog`, `tool://schema/{name}`, `tool://{name}`
+  - Запуск: `tool://run/{name}` или `tool://run/{name}/{params}` (поддержка base64url и URL‑encoded JSON)
+
+Примеры запуска инструментов через ресурсный раннер:
+
+```
+tool://run/project_get_current
+tool://run/tasks_list/%7B%22project%22%3A%22mcp%22%7D
+```
+
+### Docker: режим «ресурсы‑только» (без регистрации tools)
+
+```zsh
+docker run --rm -it \
+  -e DATA_DIR=/data \
+  -e CURRENT_PROJECT=mcp \
+  -e MCP_TOOLS_ENABLED=false \
+  -e MCP_TOOL_RESOURCES_ENABLED=true \
+  -e MCP_TOOL_RESOURCES_EXEC=true \
+  -v "$PWD/.data":/data \
+  ghcr.io/desure85/mcp-task-knowledge:bm25-latest
+```
+
 ## Установка и запуск (Node.js)
 
 1. Установка зависимостей
@@ -371,6 +403,9 @@ MCP_STRICT_TOOL_DEDUP=1 npm run dev
 | Переменная | Описание | Значение по умолчанию |
 |------------|----------|----------------------|
 | `MCP_STRICT_TOOL_DEDUP` | Строгий режим защиты от повторной регистрации MCP‑инструментов (1 — включить, иначе мягкий режим с предупреждением) | `0` |
+| `MCP_TOOLS_ENABLED` | Регистрация классических MCP‑инструментов (tools.run). При `false` сервер НЕ регистрирует инструменты в SDK, но может предоставлять их через ресурсные обёртки | `true` |
+| `MCP_TOOL_RESOURCES_ENABLED` | Регистрация ресурсных обёрток `tool://*` (каталог/схема/раннер) | `true` |
+| `MCP_TOOL_RESOURCES_EXEC` | Разрешить выполнение инструментов через ресурсные URI (`tool://run/...`, `tool://{name}/run/...`) | `true` |
 
 ### Конфигурация через JSON
 

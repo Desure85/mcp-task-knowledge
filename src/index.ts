@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR, isPromptsBuildEnabled } from "./config.js";
+import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR, isPromptsBuildEnabled, isToolsEnabled, isToolResourcesEnabled, isToolResourcesExecEnabled } from "./config.js";
 import { createServiceCatalogProvider } from "./catalog/provider.js";
 import { createTask, listTasks, updateTask, closeTask, listTasksTree, archiveTask, trashTask, restoreTask, deleteTaskPermanent, getTask } from "./storage/tasks.js";
 import { createDoc, listDocs, readDoc, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from "./storage/knowledge.js";
@@ -61,8 +61,13 @@ async function main() {
     console.error('[startup][catalog]', { mode: catalogCfg.mode, prefer: catalogCfg.prefer, remoteEnabled: catalogCfg.remote.enabled, hasRemoteBaseUrl: Boolean(catalogCfg.remote.baseUrl), embeddedEnabled: catalogCfg.embedded.enabled, embeddedStore: catalogCfg.embedded.store });
   }
   const catalogProvider = createServiceCatalogProvider(catalogCfg);
+  // Feature flags for tools and tools-as-resources
+  const TOOLS_ENABLED = isToolsEnabled();
+  const TOOL_RES_ENABLED = isToolResourcesEnabled();
+  const TOOL_RES_EXEC = isToolResourcesExecEnabled();
   if (SHOW_STARTUP) {
     console.error('[startup][embeddings]', { mode: cfg.embeddings.mode, hasModelPath: Boolean(cfg.embeddings.modelPath), dim: cfg.embeddings.dim ?? null, cacheDir: cfg.embeddings.cacheDir || null });
+    console.error('[startup][tools]', { toolsEnabled: TOOLS_ENABLED, toolResourcesEnabled: TOOL_RES_ENABLED, toolResourcesExec: TOOL_RES_EXEC });
   }
   // LAZY: Vector adapter is initialized only on first use to avoid ORT teardown crashes
   let vectorAdapter: any | undefined;
@@ -118,7 +123,6 @@ async function main() {
   // Helper: register each tool as a dedicated resource tool://{name}
   function registerToolAsResource(name: string) {
     const baseUri = `tool://${encodeURIComponent(name)}`;
-    const TOOL_RES_EXEC = process.env.MCP_TOOL_RESOURCES_EXEC === '1';
     try {
       server.registerResource(
         `tool_${name}`,
@@ -157,16 +161,34 @@ async function main() {
             }
             let params: any = {};
             if (paramsB64 && paramsB64.length > 0) {
+              // Try url-safe base64 first, then URL-encoded JSON
+              let decodedOk = false;
               try {
-                const jsonStr = Buffer.from(paramsB64, 'base64').toString('utf8');
+                const jsonStr = Buffer.from(normalizeBase64(paramsB64), 'base64').toString('utf8');
                 params = JSON.parse(jsonStr);
-              } catch (e: any) {
-                return { contents: [{ uri: href, text: JSON.stringify({ error: `invalid paramsB64: ${e?.message || String(e)}` }, null, 2), mimeType: 'application/json' }] };
+                decodedOk = true;
+              } catch {}
+              if (!decodedOk) {
+                try {
+                  const asJson = decodeURIComponent(paramsB64);
+                  params = JSON.parse(asJson);
+                  decodedOk = true;
+                } catch (e: any) {
+                  return { contents: [{ uri: href, text: JSON.stringify({ error: `invalid params (expect base64url or urlencoded JSON): ${e?.message || String(e)}` }, null, 2), mimeType: 'application/json' }] };
+                }
               }
             }
             try {
               const result = await meta.handler(params);
-              return { contents: [{ uri: href, text: JSON.stringify(result, null, 2), mimeType: 'application/json' }] };
+              // Unwrap MCP SDK envelope if present
+              let payload: any = result;
+              try {
+                const maybe = (result as any)?.content?.[0]?.text;
+                if (typeof maybe === 'string' && maybe.trim().length > 0) {
+                  payload = JSON.parse(maybe);
+                }
+              } catch {}
+              return { contents: [{ uri: href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
             } catch (e: any) {
               return { contents: [{ uri: href, text: JSON.stringify({ error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
             }
@@ -175,6 +197,53 @@ async function main() {
           return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tool resource path', examples: [`${baseUri}`, `${baseUri}/schema`, `${baseUri}/run/{paramsB64}`] }, null, 2), mimeType: 'application/json' }] };
         }
       );
+
+      // Additionally, register static execution resource so clients can call exact URI tool://run/{name}
+      // Without relying on dynamic subpaths which MCP resource registry does not support
+      if (TOOL_RES_ENABLED) {
+        const runUri = `tool://run/${encodeURIComponent(name)}`;
+        try {
+          server.registerResource(
+            `tool_run_${name}`,
+            runUri,
+            {
+              title: `Tool Run: ${name}`,
+              description: `Execute tool ${name} with default params {}. For custom params use classic tools.run or schema from tool://${encodeURIComponent(name)} to construct callTool` ,
+              mimeType: 'application/json',
+            },
+            async (uri) => {
+              if (!TOOL_RES_EXEC) {
+                return { contents: [{ uri: uri.href, text: JSON.stringify({ error: 'tool-run via resource disabled (set MCP_TOOL_RESOURCES_EXEC=1)' }, null, 2), mimeType: 'application/json' }] };
+              }
+              const meta = toolRegistry.get(name);
+              if (!meta || typeof meta.handler !== 'function') {
+                return { contents: [{ uri: uri.href, text: JSON.stringify({ error: `Tool not found or not executable: ${name}` }, null, 2), mimeType: 'application/json' }] };
+              }
+              try {
+                const result = await meta.handler({});
+                // Unwrap MCP SDK envelope if present (content[0].text)
+                let payload: any = result;
+                try {
+                  const maybe = (result as any)?.content?.[0]?.text;
+                  if (typeof maybe === 'string' && maybe.trim().length > 0) {
+                    payload = JSON.parse(maybe);
+                  }
+                } catch {}
+                return { contents: [{ uri: uri.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
+              } catch (e: any) {
+                return { contents: [{ uri: uri.href, text: JSON.stringify({ error: e?.message || String(e) }, null, 2), mimeType: 'application/json' }] };
+              }
+            }
+          );
+        } catch (e: any) {
+          const msg = e?.message || String(e);
+          if (typeof msg === 'string' && msg.includes('already registered')) {
+            console.warn(`[resources] already registered for tool run resource: ${name} — skipping`);
+          } else {
+            throw e;
+          }
+        }
+      }
     } catch (e: any) {
       const msg = e?.message || String(e);
       if (typeof msg === 'string' && msg.includes('already registered')) {
@@ -201,11 +270,26 @@ async function main() {
               inputSchema: def?.inputSchema,
               handler,
             });
-            // Idempotent: attempt to register resource too
-            registerToolAsResource(name);
+            // Idempotent: attempt to register resource too (respect flag)
+            if (TOOL_RES_ENABLED) registerToolAsResource(name);
           } catch {}
           return;
         }
+      }
+
+      // If classic tools are disabled, don't register with SDK, but keep resource path
+      if (!TOOLS_ENABLED) {
+        toolNames.add(name);
+        try {
+          toolRegistry.set(name, {
+            title: def?.title,
+            description: def?.description,
+            inputSchema: def?.inputSchema,
+            handler,
+          });
+          if (TOOL_RES_ENABLED) registerToolAsResource(name);
+        } catch {}
+        return;
       }
 
       try {
@@ -220,8 +304,8 @@ async function main() {
             inputSchema: def?.inputSchema,
             handler,
           });
-          // Also expose tool as a resource
-          registerToolAsResource(name);
+          // Also expose tool as a resource (respect flag)
+          if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
         return res;
       } catch (e: any) {
@@ -684,10 +768,9 @@ async function main() {
   );
 
   // ===== Tools as Resources =====
-  const TOOL_RES_EXEC = process.env.MCP_TOOL_RESOURCES_EXEC === '1';
 
   // Catalog: tool://catalog — list all tools with metadata
-  server.registerResource(
+  if (TOOL_RES_ENABLED) server.registerResource(
     "tools_catalog",
     "tool://catalog",
     {
@@ -715,7 +798,7 @@ async function main() {
   );
 
   // Schema: tool://schema and tool://schema/{name}
-  server.registerResource(
+  if (TOOL_RES_ENABLED) server.registerResource(
     "tools_schema",
     "tool://schema",
     {
@@ -771,7 +854,7 @@ async function main() {
 
   // Run: tool://run/{name}/{paramsB64}
   // paramsB64 is base64-encoded JSON object matching the tool input schema
-  server.registerResource(
+  if (TOOL_RES_ENABLED) server.registerResource(
     "tools_run",
     "tool://run",
     {
@@ -820,19 +903,28 @@ async function main() {
       }
       let params: any = {};
       if (paramsB64 && paramsB64.length > 0) {
+        let decodedOk = false;
         try {
           const json = Buffer.from(normalizeBase64(paramsB64), 'base64').toString('utf8');
           params = JSON.parse(json);
-        } catch (e: any) {
-          return {
-            contents: [
-              {
-                uri: href,
-                text: JSON.stringify({ error: `invalid paramsB64: ${e?.message || String(e)}` }, null, 2),
-                mimeType: "application/json",
-              },
-            ],
-          };
+          decodedOk = true;
+        } catch {}
+        if (!decodedOk) {
+          try {
+            const asJson = decodeURIComponent(paramsB64);
+            params = JSON.parse(asJson);
+            decodedOk = true;
+          } catch (e: any) {
+            return {
+              contents: [
+                {
+                  uri: href,
+                  text: JSON.stringify({ error: `invalid params (expect base64url or urlencoded JSON): ${e?.message || String(e)}` }, null, 2),
+                  mimeType: "application/json",
+                },
+              ],
+            };
+          }
         }
       }
       try {
