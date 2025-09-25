@@ -417,7 +417,7 @@ async function main() {
         const projectsData = await listProjects(getCurrentProject);
         const allTasks: any[] = [];
         
-        for (const project of projectsData.projects.map((p: any) => p.name)) {
+        for (const project of projectsData.projects.map((p: any) => p.id)) {
           try {
             const tasks = await listTasks({ project, includeArchived: false });
             for (const task of tasks) {
@@ -448,7 +448,7 @@ async function main() {
       if (!match) throw new Error("Invalid task URI format. Expected: task://{project}/{id}");
       
       const [, project, id] = match;
-      const task = await getTask({ project, id });
+      const task = await getTask(project, id);
       return {
         contents: [
           {
@@ -476,7 +476,7 @@ async function main() {
         const projectsData = await listProjects(getCurrentProject);
         const allDocs: any[] = [];
         
-        for (const project of projectsData.projects.map((p: any) => p.name)) {
+        for (const project of projectsData.projects.map((p: any) => p.id)) {
           try {
             const docs = await listDocs({ project, includeArchived: false });
             for (const doc of docs) {
@@ -535,7 +535,7 @@ async function main() {
         const projectsData = await listProjects(getCurrentProject);
         const allPrompts: any[] = [];
         
-        for (const project of projectsData.projects.map((p: any) => p.name)) {
+        for (const project of projectsData.projects.map((p: any) => p.id)) {
           try {
             const catalog = await readPromptsCatalog(project);
             for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
@@ -602,7 +602,7 @@ async function main() {
         const projectsData = await listProjects(getCurrentProject);
         const allExports: any[] = [];
         
-        for (const project of projectsData.projects.map((p: any) => p.name)) {
+        for (const project of projectsData.projects.map((p: any) => p.id)) {
           try {
             const base = path.join(PROMPTS_DIR, project, 'exports');
             const types = ['builds', 'catalog', 'json', 'markdown'];

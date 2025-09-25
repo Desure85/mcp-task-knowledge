@@ -59,8 +59,8 @@ export://mcp/catalog/prompts.catalog.json  # Каталог промптов
 
 ### 5. Ресурсы инструментов (Tools)
 - **Каталог инструментов**: `tool://catalog`
-- **Схема инструмента**: `tool://schema/{name}`
-- **Запуск инструмента**: `tool://run/{name}/{paramsB64}`
+- **Схема инструмента**: `tool://schema/{name}` или `tool://{name}`
+- **Запуск инструмента**: `tool://run/{name}/{paramsB64}` или `tool://{name}/run/{paramsB64}`
 
 Где `paramsB64` — это base64 от JSON-объекта параметров (соответствует `inputSchema` инструмента). Выполнение через ресурс отключено по умолчанию и включается переменной окружения:
 
@@ -72,6 +72,7 @@ MCP_TOOL_RESOURCES_EXEC=1
 ```
 tool://catalog                       # список всех tools с ключевыми полями
 tool://schema/prompts_list           # метаданные и ключи параметров для инструмента prompts_list
+tool://prompts_list                  # то же самое, по короткому алиасу
 
 # подготовим JSON и закодируем в base64 (пример)
 {
@@ -82,6 +83,7 @@ tool://schema/prompts_list           # метаданные и ключи пар
 # -> base64: eyJwcm9qZWN0IjoibWNwLXNhbmRib3giLCJraW5kIjoicHJvbXB0IiwibGF0ZXN0Ijp0cnVlfQ==
 
 tool://run/prompts_list/eyJwcm9qZWN0IjoibWNwLXNhbmRib3giLCJraW5kIjoicHJvbXB0IiwibGF0ZXN0Ijp0cnVlfQ==
+tool://prompts_list/run/eyJwcm9qZWN0IjoibWNwLXNhbmRib3giLCJraW5kIjoicHJvbXB0IiwibGF0ZXN0Ijp0cnVlfQ==
 ```
 
 Ответ содержит JSON-результат вызова MCP-инструмента (такой же, как если бы вы вызывали `server.registerTool`).
