@@ -102,6 +102,12 @@ async function main() {
   // Simple in-memory registry of tools for introspection and execution (no aliases)
   const toolRegistry: Map<string, { title?: string; description?: string; inputSchema?: Record<string, any>; handler?: (params: any) => Promise<any> }> = new Map();
 
+  function normalizeBase64(input: string): string {
+    const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = (4 - (normalized.length % 4)) % 4;
+    return normalized + '='.repeat(padding);
+  }
+
   // Unified response helpers imported from utils/respond
 
   // Сделать регистрацию инструментов идемпотентной, чтобы не падать при повторном старте/горячей перезагрузке
@@ -815,7 +821,7 @@ async function main() {
       let params: any = {};
       if (paramsB64 && paramsB64.length > 0) {
         try {
-          const json = Buffer.from(paramsB64, 'base64').toString('utf8');
+          const json = Buffer.from(normalizeBase64(paramsB64), 'base64').toString('utf8');
           params = JSON.parse(json);
         } catch (e: any) {
           return {
