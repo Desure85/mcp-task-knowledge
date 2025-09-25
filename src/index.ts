@@ -3226,12 +3226,25 @@ async function main() {
       { title: 'Tasks Create (Resource)', description: 'Create one or many tasks via base64url or urlencoded JSON params', mimeType: 'application/json' },
       async (u) => {
         const href = u.href;
-        const m = href.match(/^tasks:\/\/create\/([^\/]+)\/(.+)$/);
-        if (!m) {
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tasks://create path', example: 'tasks://create/{project}/{paramsB64|urljson}' }, null, 2), mimeType: 'application/json' }] };
+        // Support exact-URI with query: tasks://create?project=...&params=...
+        // Fallback to path form: tasks://create/{project}/{params}
+        let project: string | undefined;
+        let raw: string | undefined;
+        try {
+          const url = new URL(href);
+          project = url.searchParams.get('project') || undefined;
+          raw = url.searchParams.get('params') || undefined;
+        } catch {}
+        if (!project || !raw) {
+          const m = href.match(/^tasks:\/\/create\/([^\/]+)\/(.+)$/);
+          if (m) {
+            project = decodeURIComponent(m[1]);
+            raw = decodeURIComponent(m[2]);
+          }
         }
-        const project = decodeURIComponent(m[1]);
-        const raw = decodeURIComponent(m[2]);
+        if (!project || !raw) {
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tasks://create path', examples: ['tasks://create/{project}/{paramsB64|urljson}', 'tasks://create?project={id}&params={base64url|urljson}'] }, null, 2), mimeType: 'application/json' }] };
+        }
         let params: any = {};
         let decodedOk = false;
         try { params = JSON.parse(Buffer.from(normalizeBase64(raw), 'base64').toString('utf8')); decodedOk = true; } catch {}
@@ -3270,12 +3283,25 @@ async function main() {
       { title: 'Knowledge Create (Resource)', description: 'Create one or many knowledge docs via base64url or urlencoded JSON params', mimeType: 'application/json' },
       async (u) => {
         const href = u.href;
-        const m = href.match(/^knowledge:\/\/create\/([^\/]+)\/(.+)$/);
-        if (!m) {
-          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid knowledge://create path', example: 'knowledge://create/{project}/{paramsB64|urljson}' }, null, 2), mimeType: 'application/json' }] };
+        // Support exact-URI with query: knowledge://create?project=...&params=...
+        // Fallback to path form: knowledge://create/{project}/{params}
+        let project: string | undefined;
+        let raw: string | undefined;
+        try {
+          const url = new URL(href);
+          project = url.searchParams.get('project') || undefined;
+          raw = url.searchParams.get('params') || undefined;
+        } catch {}
+        if (!project || !raw) {
+          const m = href.match(/^knowledge:\/\/create\/([^\/]+)\/(.+)$/);
+          if (m) {
+            project = decodeURIComponent(m[1]);
+            raw = decodeURIComponent(m[2]);
+          }
         }
-        const project = decodeURIComponent(m[1]);
-        const raw = decodeURIComponent(m[2]);
+        if (!project || !raw) {
+          return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid knowledge://create path', examples: ['knowledge://create/{project}/{paramsB64|urljson}', 'knowledge://create?project={id}&params={base64url|urljson}'] }, null, 2), mimeType: 'application/json' }] };
+        }
         let params: any = {};
         let decodedOk = false;
         try { params = JSON.parse(Buffer.from(normalizeBase64(raw), 'base64').toString('utf8')); decodedOk = true; } catch {}
