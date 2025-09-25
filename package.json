@@ -1,6 +1,6 @@
 {
   "name": "mcp-task-knowledge",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -25,6 +25,7 @@
     "prompts:export:json": "node scripts/prompts.mjs export-json",
     "prompts:export:md": "node scripts/prompts.mjs export-md",
     "prompts:build": "node scripts/prompts.mjs build",
+    "test:resources": "node scripts/test_resources.mjs",
     "prompts:catalog": "node scripts/prompts.mjs catalog",
     "prompts:list": "node scripts/prompts.mjs list",
     "prompts:ab:report": "node scripts/prompts.mjs ab:report",
