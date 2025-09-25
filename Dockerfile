@@ -136,6 +136,7 @@ COPY --from=deps-prod /app/node_modules ./node_modules
 # ---------- runtime-bm25-extbase (external base image with node_modules) ----------
 FROM ${BASE_DEPS_IMAGE} AS runtime-bm25-extbase
 WORKDIR /app
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 ENV DATA_DIR=/data
 VOLUME ["/data"]
@@ -166,6 +167,7 @@ CMD ["node", "dist/index.js"]
 # production node_modules and ONNX models. Only the small dist layer is added.
 FROM ${BASE_MODELS_IMAGE} AS runtime-onnx-cpu-extbase
 WORKDIR /app
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 ENV DATA_DIR=/data
 VOLUME ["/data"]
@@ -174,6 +176,7 @@ CMD ["node", "dist/index.js"]
 # ---------- runtime-onnx-cpu-cat-extbase (external CPU base with embedded catalog) ----------
 FROM ${BASE_MODELS_IMAGE_CAT} AS runtime-onnx-cpu-cat-extbase
 WORKDIR /app
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 ENV DATA_DIR=/data
 VOLUME ["/data"]
@@ -236,6 +239,7 @@ CMD ["node", "/app/dist/index.js"]
 # ---------- runtime-onnx-gpu-cat-extbase (external GPU base with embedded catalog) ----------
 FROM ${BASE_GPU_IMAGE_CAT} AS runtime-onnx-gpu-cat-extbase
 WORKDIR /app
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 VOLUME ["/data"]
 COPY bin/entrypoint.sh ./bin/entrypoint.sh
@@ -246,6 +250,7 @@ CMD ["node", "/app/dist/index.js"]
 # ---------- runtime-onnx-gpu-extbase (external GPU base) ----------
 FROM ${BASE_GPU_IMAGE} AS runtime-onnx-gpu-extbase
 WORKDIR /app
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/dist ./dist
 VOLUME ["/data"]
 COPY bin/entrypoint.sh ./bin/entrypoint.sh
