@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { DEFAULT_PROJECT, loadConfig, resolveProject, getCurrentProject, setCurrentProject, loadCatalogConfig, TASKS_DIR, KNOWLEDGE_DIR, isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled, PROMPTS_DIR, isPromptsBuildEnabled, isToolsEnabled, isToolResourcesEnabled, isToolResourcesExecEnabled } from "./config.js";
@@ -37,7 +37,13 @@ async function main() {
     }
   }
   const version = await getPackageVersion();
-  const server = new McpServer({ name: "mcp-task-knowledge", version });
+  const SERVER_CAPS = { resources: { list: true, read: true }, tools: { call: true } } as const;
+  const server = new McpServer({
+    name: "mcp-task-knowledge",
+    version,
+    // Explicitly declare capabilities to help clients enable Resources panel
+    capabilities: SERVER_CAPS as any,
+  });
   // Default: silent. Enable explicitly via env.
   const SHOW_STARTUP = (
     process.env.LOG_STARTUP === '1' ||
@@ -106,6 +112,42 @@ async function main() {
 
   // Simple in-memory registry of tools for introspection and execution (no aliases)
   const toolRegistry: Map<string, { title?: string; description?: string; inputSchema?: Record<string, any>; handler?: (params: any) => Promise<any> }> = new Map();
+
+  // Simple in-memory registry of resources for manual catalog
+  const resourceRegistry: Array<{ id: string; uri: string; kind: 'static'|'template'; title?: string; description?: string; mimeType?: string }> = [];
+
+  function extractTemplateString(x: any): string | undefined {
+    if (!x) return undefined;
+    if (typeof x === 'string') return x;
+    // Common fields to try on ResourceTemplate / underlying url-template
+    const tryOne = (v: any): string | undefined => {
+      if (!v) return undefined;
+      if (typeof v === 'string') return v.startsWith('[object') ? undefined : v;
+      if (typeof v.toString === 'function') {
+        const s = v.toString();
+        if (typeof s === 'string' && !s.startsWith('[object')) return s;
+      }
+      if (typeof (v as any).template === 'string') return (v as any).template;
+      if ((v as any).template) return tryOne((v as any).template);
+      if (typeof (v as any).pattern === 'string') return (v as any).pattern;
+      if ((v as any).pattern) return tryOne((v as any).pattern);
+      if (typeof (v as any).hrefTemplate === 'string') return (v as any).hrefTemplate;
+      return undefined;
+    };
+    return tryOne(x) || tryOne((x as any).template);
+  }
+
+  // Monkey-patch server.registerResource to keep a catalog
+  (server as any).registerResource = ((orig: any) => {
+    return function(id: string, uriOrTemplate: any, info: { title?: string; description?: string; mimeType?: string }, handler: any) {
+      try {
+        const isTemplate = typeof uriOrTemplate !== 'string';
+        const uriStr = isTemplate ? (extractTemplateString(uriOrTemplate) || '<template>') : String(uriOrTemplate);
+        resourceRegistry.push({ id, uri: uriStr, kind: isTemplate ? 'template' : 'static', title: info?.title, description: info?.description, mimeType: info?.mimeType });
+      } catch {}
+      return orig.call(server, id, uriOrTemplate, info, handler);
+    };
+  })((server as any).registerResource);
 
   function normalizeBase64(input: string): string {
     const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
@@ -408,100 +450,428 @@ async function main() {
   // ===== Resources Registration =====
   
   // Register task resources: task://{project}/{id}
+  const buildTaskResponder = (baseTitle: string, baseDescription: string) => async (uri: { href: string }) => {
+    const url = new URL(uri.href);
+    const host = url.hostname;
+    const rawPath = url.pathname.replace(/^\/+/, '');
+    const pathSegments = rawPath ? rawPath.split('/').filter(Boolean) : [];
+
+    const respond = (payload: Record<string, any>) => ({
+      contents: [
+        {
+          uri: uri.href,
+          text: JSON.stringify(payload, null, 2),
+          mimeType: 'application/json',
+        },
+      ],
+    });
+
+    const handleAction = async (projectRaw: string | null, idRaw: string | null, actionRaw: string | null, statusHint?: string | null) => {
+      const project = (projectRaw ?? '').trim();
+      const id = (idRaw ?? '').trim();
+      const actionInput = (actionRaw ?? '').trim();
+      if (!project || !id || !actionInput) {
+        return respond({
+          ok: false,
+          error: 'project, id and action are required',
+          example: 'task://action?project=proj&id=uuid&action=start',
+        });
+      }
+
+      const action = actionInput.toLowerCase();
+      const normalizedStatusHint = statusHint ? statusHint.trim().toLowerCase().replace(/-/g, '_') : undefined;
+
+      const runAndRespond = async (resolver: () => Promise<any>, label: string) => {
+        try {
+          const data = await resolver();
+          if (!data) {
+            return respond({ ok: false, project, id, action: label, error: 'task not found' });
+          }
+          return respond({ ok: true, project, id, action: label, status: data.status ?? null, data });
+        } catch (error: any) {
+          return respond({ ok: false, project, id, action: label, error: error?.message || String(error) });
+        }
+      };
+
+      const directActions: Record<string, { label: string; handler: () => Promise<any> }> = {
+        start: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
+        in_progress: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
+        progress: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
+        pending: { label: 'status:pending', handler: () => updateTask(project, id, { status: 'pending' } as any) },
+        reopen: { label: 'status:pending', handler: () => updateTask(project, id, { status: 'pending' } as any) },
+        complete: { label: 'status:completed', handler: () => updateTask(project, id, { status: 'completed' } as any) },
+        completed: { label: 'status:completed', handler: () => updateTask(project, id, { status: 'completed' } as any) },
+        close: { label: 'status:closed', handler: () => closeTask(project, id) },
+        closed: { label: 'status:closed', handler: () => closeTask(project, id) },
+        trash: { label: 'trash', handler: () => trashTask(project, id) },
+        restore: { label: 'restore', handler: () => restoreTask(project, id) },
+        archive: { label: 'archive', handler: () => archiveTask(project, id) },
+      };
+
+      const direct = directActions[action];
+      if (direct) {
+        return runAndRespond(direct.handler, direct.label);
+      }
+
+      if (action === 'status' || action === 'set-status' || action === 'set_status') {
+        if (!normalizedStatusHint) {
+          return respond({ ok: false, project, id, action, error: 'status query parameter is required' });
+        }
+        const allowedStatuses = new Map<string, 'pending' | 'in_progress' | 'completed' | 'closed'>([
+          ['pending', 'pending'],
+          ['todo', 'pending'],
+          ['in_progress', 'in_progress'],
+          ['inprogress', 'in_progress'],
+          ['working', 'in_progress'],
+          ['completed', 'completed'],
+          ['complete', 'completed'],
+          ['done', 'completed'],
+          ['closed', 'closed'],
+          ['close', 'closed'],
+        ]);
+        const resolvedStatus = allowedStatuses.get(normalizedStatusHint);
+        if (!resolvedStatus) {
+          return respond({ ok: false, project, id, action, error: `unsupported status value: ${normalizedStatusHint}` });
+        }
+        return runAndRespond(() => updateTask(project, id, { status: resolvedStatus } as any), `status:${resolvedStatus}`);
+      }
+
+      return respond({
+        ok: false,
+        project,
+        id,
+        action,
+        error: 'unsupported action',
+        supported: Object.keys(directActions).concat(['status (with ?status=...)']),
+      });
+    };
+
+    const actionFromQuery = url.searchParams.get('action') ?? url.searchParams.get('cmd');
+    const statusFromQuery = url.searchParams.get('status') ?? url.searchParams.get('value');
+
+    // List all tasks: task://tasks
+    if ((host === 'tasks' || host === '') && pathSegments.length === 0 && !actionFromQuery) {
+      const projectsData = await listProjects(getCurrentProject);
+      const allTasks: any[] = [];
+
+      for (const project of projectsData.projects.map((p: any) => p.id)) {
+        try {
+          const tasks = await listTasks({ project, includeArchived: false });
+          for (const task of tasks) {
+            allTasks.push({
+              ...task,
+              uri: `task://${project}/${task.id}`,
+              name: `Task: ${task.title}`,
+              description: `Project: ${project}, Status: ${task.status}, Priority: ${task.priority}`,
+              project,
+            });
+          }
+        } catch {}
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(allTasks, null, 2),
+            mimeType: 'application/json',
+          },
+        ],
+      };
+    }
+
+    // Handle router host: task://router/{project}/{id}/{action}
+    if (host === 'router') {
+      if (pathSegments.length < 2) {
+        return respond({
+          ok: false,
+          error: 'invalid router path',
+          examples: [
+            'task://router/{project}/{id}/start',
+            'task://router/{project}/{id}/action/close',
+            'task://router/{project}/{id}?action=status&status=pending'
+          ],
+        });
+      }
+      const projectSegment = decodeURIComponent(pathSegments[0]);
+      const idSegment = decodeURIComponent(pathSegments[1]);
+      const actionSegment = pathSegments[2] ? decodeURIComponent(pathSegments[2]) : actionFromQuery;
+      const finalAction = (pathSegments[2] && pathSegments[2].toLowerCase() === 'action' && pathSegments[3])
+        ? decodeURIComponent(pathSegments[3])
+        : actionSegment;
+      return handleAction(
+        projectSegment,
+        idSegment,
+        finalAction,
+        statusFromQuery,
+      );
+    }
+
+    // Handle direct action host: task://action/... or task://action?...query
+    if (host === 'action') {
+      const projectSegment = pathSegments[0] ? decodeURIComponent(pathSegments[0]) : null;
+      const idSegment = pathSegments[1] ? decodeURIComponent(pathSegments[1]) : null;
+      const actionSegment = pathSegments[2] ? decodeURIComponent(pathSegments[2]) : null;
+      const projectParam = url.searchParams.get('project');
+      const idParam = url.searchParams.get('id');
+
+      if (!projectSegment && !projectParam && !actionSegment && !actionFromQuery) {
+        return respond({
+          ok: false,
+          error: 'invalid task action request',
+          examples: [
+            'task://action?project=proj&id=uuid&action=start',
+            'task://action?project=proj&id=uuid&action=status&status=pending',
+            'task://action/{project}/{id}/{start|complete|close|trash|restore|archive}'
+          ],
+        });
+      }
+
+      return handleAction(
+        projectSegment ?? projectParam,
+        idSegment ?? idParam,
+        actionSegment ?? actionFromQuery,
+        statusFromQuery,
+      );
+    }
+
+    // Allow action via query on task://tasks?project=...&action=...
+    if ((host === 'tasks' || host === '') && actionFromQuery) {
+      return handleAction(
+        url.searchParams.get('project'),
+        url.searchParams.get('id'),
+        actionFromQuery,
+        statusFromQuery,
+      );
+    }
+
+    // task://{project}/{id}/{action}
+    if (host && pathSegments.length >= 2) {
+      const project = decodeURIComponent(host);
+      const taskId = decodeURIComponent(pathSegments[0]);
+      let actionSegment = decodeURIComponent(pathSegments[1]);
+
+      if (actionSegment.toLowerCase() === 'action') {
+        if (pathSegments.length < 3) {
+          return respond({ ok: false, error: 'missing action after /action segment', example: `task://${project}/${taskId}/action/start` });
+        }
+        actionSegment = decodeURIComponent(pathSegments[2]);
+      }
+
+      return handleAction(project, taskId, actionSegment, statusFromQuery);
+    }
+
+    // task://{project}/{id}
+    if (!host) {
+      return respond({ ok: false, error: 'Invalid task URI: missing project segment' });
+    }
+    if (pathSegments.length === 0) {
+      return respond({ ok: false, error: 'Invalid task URI format. Expected: task://{project}/{id}' });
+    }
+
+    const project = decodeURIComponent(host);
+    const id = decodeURIComponent(pathSegments.join('/'));
+    const task = await getTask(project, id);
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          text: JSON.stringify(task, null, 2),
+          mimeType: 'application/json',
+        },
+      ],
+    };
+  };
+
+  const taskResourceHandler = buildTaskResponder(
+    "Task Resources",
+    "Access tasks by project/ID and trigger actions via task://action or task://{project}/{id}/{action}"
+  );
+
   server.registerResource(
     "tasks",
     "task://tasks",
     {
       title: "Task Resources",
-      description: "Access individual tasks by project and ID",
+      description: "Access tasks by project/ID and trigger actions via task://action or task://{project}/{id}/{action}",
       mimeType: "application/json"
     },
-    async (uri) => {
-      // Handle list resources case - return all available tasks
-      if (uri.href === "task://tasks") {
-        const projectsData = await listProjects(getCurrentProject);
-        const allTasks: any[] = [];
-        
-        for (const project of projectsData.projects.map((p: any) => p.id)) {
-          try {
-            const tasks = await listTasks({ project, includeArchived: false });
-            for (const task of tasks) {
-              allTasks.push({
-                ...task,
-                uri: `task://${project}/${task.id}`,
-                name: `Task: ${task.title}`,
-                description: `Project: ${project}, Status: ${task.status}, Priority: ${task.priority}`,
-                project
-              });
-            }
-          } catch {}
-        }
-        
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: JSON.stringify(allTasks, null, 2),
-              mimeType: "application/json"
-            }
-          ]
-        };
-      }
-      
-      // Handle task status transitions via resource actions
-      // task://{project}/{id}/{action}
-      // action in: start | complete | close | trash | restore | archive
-      const actionM = uri.href.match(/^task:\/\/([^\/]+)\/([^\/]+)\/(start|complete|close|trash|restore|archive)$/);
-      if (actionM) {
-        const project = actionM[1];
-        const id = actionM[2];
-        const action = actionM[3] as 'start'|'complete'|'close'|'trash'|'restore'|'archive';
-        try {
-          let payload: any = null;
-          if (action === 'start') payload = await updateTask(project, id, { status: 'in_progress' } as any);
-          else if (action === 'complete') payload = await updateTask(project, id, { status: 'completed' } as any);
-          else if (action === 'close') payload = await closeTask(project, id);
-          else if (action === 'trash') payload = await trashTask(project, id);
-          else if (action === 'restore') payload = await restoreTask(project, id);
-          else if (action === 'archive') payload = await archiveTask(project, id);
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: JSON.stringify({ ok: true, project, id, action, data: payload ?? null }, null, 2),
-                mimeType: 'application/json',
-              },
-            ],
-          };
-        } catch (e: any) {
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: JSON.stringify({ ok: false, error: e?.message || String(e), project, id, action }, null, 2),
-                mimeType: 'application/json',
-              },
-            ],
-          };
-        }
-      }
+    taskResourceHandler
+  );
 
-      // Handle specific task resource: task://{project}/{id}
-      const match = uri.href.match(/^task:\/\/([^\/]+)\/(.+)$/);
-      if (!match) throw new Error("Invalid task URI format. Expected: task://{project}/{id}");
-      
-      const [, project, id] = match;
-      const task = await getTask(project, id);
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: JSON.stringify(task, null, 2),
-            mimeType: "application/json"
-          }
-        ]
-      };
+  server.registerResource(
+    "task_action",
+    "task://action",
+    {
+      title: "Task Actions",
+      description: "Trigger task status changes via task://action or task://{project}/{id}/{action}",
+      mimeType: "application/json"
+    },
+    taskResourceHandler
+  );
+
+  // Wildcard via ResourceTemplate: task://action{?project,id,action,status}
+  server.registerResource(
+    "task_action_query_tpl",
+    new ResourceTemplate("task://action{?project,id,action,status}" as any),
+    {
+      title: "Task Action (Query Template)",
+      description: "Perform actions via query parameters",
+      mimeType: "application/json",
+    },
+    async (uri: URL, vars: any) => {
+      const respond = (payload: any) => ({ contents: [{ uri: uri.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+      const project = String(vars?.project ?? '').trim();
+      const id = String(vars?.id ?? '').trim();
+      const action = String(vars?.action ?? '').trim().toLowerCase();
+      const status = String(vars?.status ?? '').trim().toLowerCase().replace(/-/g, '_');
+      if (!project || !id || !action) return respond({ ok: false, error: 'project, id and action are required' });
+      try {
+        if (action === 'status' || action === 'set-status' || action === 'set_status') {
+          const allowed = new Map<string, 'pending'|'in_progress'|'completed'|'closed'>([
+            ['pending','pending'], ['todo','pending'],
+            ['in_progress','in_progress'], ['inprogress','in_progress'], ['working','in_progress'],
+            ['completed','completed'], ['complete','completed'], ['done','completed'],
+            ['closed','closed'], ['close','closed'],
+          ]);
+          const st = allowed.get(status);
+          if (!st) return respond({ ok: false, project, id, action: 'status', error: `invalid status: ${vars?.status ?? ''}` });
+          const data = await updateTask(project, id, { status: st } as any);
+          return respond({ ok: true, project, id, action: `status:${st}`, data });
+        }
+        let data: any = null;
+        if (['start','in_progress','progress'].includes(action)) data = await updateTask(project, id, { status: 'in_progress' } as any);
+        else if (['pending','reopen'].includes(action)) data = await updateTask(project, id, { status: 'pending' } as any);
+        else if (['complete','completed','done'].includes(action)) data = await updateTask(project, id, { status: 'completed' } as any);
+        else if (['close','closed'].includes(action)) data = await closeTask(project, id);
+        else if (action === 'trash') data = await trashTask(project, id);
+        else if (action === 'restore') data = await restoreTask(project, id);
+        else if (action === 'archive') data = await archiveTask(project, id);
+        else return respond({ ok: false, project, id, action, error: 'unsupported action' });
+        return respond({ ok: true, project, id, action, data });
+      } catch (e: any) {
+        return respond({ ok: false, project, id, action, error: e?.message || String(e) });
+      }
     }
+  );
+
+  // Wildcard via ResourceTemplate: task://action/{project}/{id}/status/{value}
+  server.registerResource(
+    "task_action_status_tpl",
+    new ResourceTemplate("task://action/{project}/{id}/status/{value}" as any),
+    {
+      title: "Task Action (Status Path)",
+      description: "Set status via path: task://action/{project}/{id}/status/{pending|in_progress|completed|closed}",
+      mimeType: "application/json",
+    },
+    async (uri: URL, vars: any) => {
+      const respond = (payload: any) => ({ contents: [{ uri: uri.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+      const project = String(vars?.project ?? '').trim();
+      const id = String(vars?.id ?? '').trim();
+      const raw = String(vars?.value ?? '').trim().toLowerCase().replace(/-/g, '_');
+      if (!project || !id || !raw) return respond({ ok: false, error: 'project, id and status value are required' });
+      const map = new Map<string, 'pending'|'in_progress'|'completed'|'closed'>([
+        ['pending','pending'], ['todo','pending'],
+        ['in_progress','in_progress'], ['inprogress','in_progress'], ['working','in_progress'],
+        ['completed','completed'], ['complete','completed'], ['done','completed'],
+        ['closed','closed'], ['close','closed'],
+      ]);
+      const status = map.get(raw);
+      if (!status) return respond({ ok: false, project, id, error: `invalid status: ${raw}` });
+      try {
+        const data = await updateTask(project, id, { status } as any);
+        return respond({ ok: true, project, id, action: `status:${status}`, data });
+      } catch (e: any) {
+        return respond({ ok: false, project, id, action: `status:${raw}`, error: e?.message || String(e) });
+      }
+    }
+  );
+
+  // Wildcard via ResourceTemplate: task://action/{project}/{id}/{action}
+  server.registerResource(
+    "task_action_path_tpl",
+    new ResourceTemplate("task://action/{project}/{id}/{action}" as any),
+    {
+      title: "Task Action (Path Template)",
+      description: "Perform actions via path segments",
+      mimeType: "application/json",
+    },
+    async (uri: URL, vars: any) => {
+      const respond = (payload: any) => ({ contents: [{ uri: uri.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+      const project = String(vars?.project ?? '').trim();
+      const id = String(vars?.id ?? '').trim();
+      const action = String(vars?.action ?? '').trim().toLowerCase();
+      if (!project || !id || !action) return respond({ ok: false, error: 'project, id and action are required' });
+      try {
+        let data: any = null;
+        if (['start','in_progress','progress'].includes(action)) data = await updateTask(project, id, { status: 'in_progress' } as any);
+        else if (['pending','reopen'].includes(action)) data = await updateTask(project, id, { status: 'pending' } as any);
+        else if (['complete','completed','done'].includes(action)) data = await updateTask(project, id, { status: 'completed' } as any);
+        else if (['close','closed'].includes(action)) data = await closeTask(project, id);
+        else if (action === 'trash') data = await trashTask(project, id);
+        else if (action === 'restore') data = await restoreTask(project, id);
+        else if (action === 'archive') data = await archiveTask(project, id);
+        else return respond({ ok: false, project, id, action, error: 'unsupported action' });
+        return respond({ ok: true, project, id, action, data });
+      } catch (e: any) {
+        return respond({ ok: false, project, id, action, error: e?.message || String(e) });
+      }
+    }
+  );
+
+  // Wildcard via ResourceTemplate: task://{project}/{id}/action/{action}
+  server.registerResource(
+    "task_item_action_tpl",
+    new ResourceTemplate("task://{project}/{id}/action/{action}" as any),
+    {
+      title: "Task Item Action",
+      description: "Actions on task item via path",
+      mimeType: "application/json",
+    },
+    async (uri: URL, vars: any) => {
+      const respond = (payload: any) => ({ contents: [{ uri: uri.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+      const project = String(vars?.project ?? '').trim();
+      const id = String(vars?.id ?? '').trim();
+      const action = String(vars?.action ?? '').trim().toLowerCase();
+      if (!project || !id || !action) return respond({ ok: false, error: 'project, id and action are required' });
+      try {
+        let data: any = null;
+        if (['start','in_progress','progress'].includes(action)) data = await updateTask(project, id, { status: 'in_progress' } as any);
+        else if (['pending','reopen'].includes(action)) data = await updateTask(project, id, { status: 'pending' } as any);
+        else if (['complete','completed','done'].includes(action)) data = await updateTask(project, id, { status: 'completed' } as any);
+        else if (['close','closed'].includes(action)) data = await closeTask(project, id);
+        else if (action === 'trash') data = await trashTask(project, id);
+        else if (action === 'restore') data = await restoreTask(project, id);
+        else if (action === 'archive') data = await archiveTask(project, id);
+        else return respond({ ok: false, project, id, action, error: 'unsupported action' });
+        return respond({ ok: true, project, id, action, data });
+      } catch (e: any) {
+        return respond({ ok: false, project, id, action, error: e?.message || String(e) });
+      }
+    }
+  );
+
+  server.registerResource(
+    "task_router",
+    "task://router",
+    {
+      title: "Task Router",
+      description: "Flexible router: task://router/{project}/{id}/{action}",
+      mimeType: "application/json"
+    },
+    taskResourceHandler
+  );
+
+  // Base prefix router for task:// scheme — used together with SDK monkey-patch to enable prefix delegation
+  server.registerResource(
+    "task_router_prefix",
+    "task://",
+    {
+      title: "Task Router (Prefix)",
+      description: "Prefix router for task://{project}/{id}[/{action}] — requires SDK tolerant resolver",
+      mimeType: "application/json"
+    },
+    taskResourceHandler
   );
 
   // Register knowledge resources: knowledge://{project}/{id}
@@ -2652,141 +3022,64 @@ async function main() {
     }
   }
 
-  // project://use/{projectId} — switch current project by reading this resource
+  // project://use/{project} — switch current project via template
   try {
-    const projectsData = await listProjects(getCurrentProject);
-    const projectIds: string[] = (projectsData?.projects || []).map((p: any) => String(p.id));
-    for (const pid of projectIds) {
-      const uri = `project://use/${encodeURIComponent(pid)}`;
-      try {
-        server.registerResource(
-          `project_use_${pid}`,
-          uri,
-          {
-            title: `Use Project: ${pid}`,
-            description: `Switch current project to "${pid}"`,
-            mimeType: "application/json",
-          },
-          async (u) => {
-            const next = setCurrentProject(pid);
-            return {
-              contents: [
-                {
-                  uri: u.href,
-                  text: JSON.stringify({ project: next }, null, 2),
-                  mimeType: "application/json",
-                },
-              ],
-            };
-          }
-        );
-      } catch (e: any) {
-        const msg = e?.message || String(e);
-        if (typeof msg === 'string' && msg.includes('already registered')) {
-          console.warn(`[resources] already registered: ${uri} — skipping`);
-        } else {
-          throw e;
-        }
+    server.registerResource(
+      'project_use_tpl',
+      new ResourceTemplate('project://use/{project}' as any),
+      {
+        title: 'Use Project',
+        description: 'Switch current project to the given project id',
+        mimeType: 'application/json',
+      },
+      async (u: URL, vars: any) => {
+        const pid = String(vars?.project || '').trim();
+        const next = setCurrentProject(pid);
+        return { contents: [{ uri: u.href, text: JSON.stringify({ project: next }, null, 2), mimeType: 'application/json' }] };
       }
-    }
+    );
   } catch (e) {
-    console.warn('[resources] failed to register project use resources:', e);
+    console.warn('[resources] failed to register project use template:', e);
   }
 
   // ===== Tasks by Project Resources =====
   // For each known project, register a static resource:
   //   tasks://project/{id} — lists tasks for that project (non-archived by default)
+  // Consolidated: static per-project aliases removed.
+  // Dynamic router 'tasks://project' below serves:
+  //   tasks://project/{id}
+  //   tasks://project/{id}/tree
+  //   tasks://project/{id}/status/{status}
+  //   tasks://project/{id}/tag/{tag}
+
+  // ===== Search Recent Aliases via ResourceTemplate =====
   try {
-    const projectsData2 = await listProjects(getCurrentProject);
-    const projectIds2: string[] = (projectsData2?.projects || []).map((p: any) => String(p.id));
-    for (const pid of projectIds2) {
-      const uri = `tasks://project/${encodeURIComponent(pid)}`;
-      try {
-        server.registerResource(
-          `tasks_project_${pid}`,
-          uri,
-          {
-            title: `Tasks for Project: ${pid}`,
-            description: `List tasks for project "${pid}" (includeArchived=false)`,
-            mimeType: "application/json",
-          },
-          async (u) => {
-            try {
-              const items = await listTasks({ project: pid, includeArchived: false });
-              return {
-                contents: [
-                  {
-                    uri: u.href,
-                    text: JSON.stringify(items, null, 2),
-                    mimeType: "application/json",
-                  },
-                ],
-              };
-            } catch (e: any) {
-              return {
-                contents: [
-                  {
-                    uri: u.href,
-                    text: JSON.stringify({ error: e?.message || String(e) }, null, 2),
-                    mimeType: "application/json",
-                  },
-                ],
-              };
-            }
-          }
-        );
-      } catch (e: any) {
-        const msg = e?.message || String(e);
-        if (typeof msg === 'string' && msg.includes('already registered')) {
-          console.warn(`[resources] already registered: ${uri} — skipping`);
-        } else {
-          throw e;
-        }
+    server.registerResource(
+      'search_tasks_recent_tpl',
+      new ResourceTemplate('search://tasks/{project}/recent' as any),
+      { title: 'Search Tasks Recent', description: 'Recent tasks for project', mimeType: 'application/json' },
+      async (uri: URL, vars: any) => {
+        const pid = String(vars?.project || '').trim();
+        const items: any[] = await listTasks({ project: pid, includeArchived: false } as any);
+        items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+        return { contents: [{ uri: uri.href, text: JSON.stringify(items.slice(0, 20), null, 2), mimeType: 'application/json' }] };
       }
-    }
-  } catch (e) {
-    console.warn('[resources] failed to register tasks by project resources:', e);
-  }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://tasks/{project}/recent — skipping'); else throw e; }
 
-  // ===== Search Recent Static Aliases by Project =====
-  // Register exact URIs so clients that require exact resource keys can read them directly
   try {
-    const projectsData3 = await listProjects(getCurrentProject);
-    const projectIds3: string[] = (projectsData3?.projects || []).map((p: any) => String(p.id));
-    for (const pid of projectIds3) {
-      // search://tasks/{project}/recent
-      try {
-        const uri = `search://tasks/${encodeURIComponent(pid)}/recent`;
-        server.registerResource(
-          `search_tasks_${pid}_recent`,
-          uri,
-          { title: `Search Tasks Recent: ${pid}`, description: `Recent tasks for project "${pid}"`, mimeType: 'application/json' },
-          async (u) => {
-            const items: any[] = await listTasks({ project: pid, includeArchived: false } as any);
-            items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-            return { contents: [{ uri: u.href, text: JSON.stringify(items.slice(0, 20), null, 2), mimeType: 'application/json' }] };
-          }
-        );
-      } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
-
-      // search://knowledge/{project}/recent
-      try {
-        const uri = `search://knowledge/${encodeURIComponent(pid)}/recent`;
-        server.registerResource(
-          `search_knowledge_${pid}_recent`,
-          uri,
-          { title: `Search Knowledge Recent: ${pid}`, description: `Recent knowledge for project "${pid}"`, mimeType: 'application/json' },
-          async (u) => {
-            const items: any[] = await listDocs({ project: pid, includeArchived: false } as any);
-            const sorted = items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-            return { contents: [{ uri: u.href, text: JSON.stringify(sorted.slice(0, 20), null, 2), mimeType: 'application/json' }] };
-          }
-        );
-      } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
-    }
-  } catch (e) {
-    console.warn('[resources] failed to register search recent aliases:', e);
-  }
+    server.registerResource(
+      'search_knowledge_recent_tpl',
+      new ResourceTemplate('search://knowledge/{project}/recent' as any),
+      { title: 'Search Knowledge Recent', description: 'Recent knowledge for project', mimeType: 'application/json' },
+      async (uri: URL, vars: any) => {
+        const pid = String(vars?.project || '').trim();
+        const items: any[] = await listDocs({ project: pid, includeArchived: false } as any);
+        const sorted = items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+        return { contents: [{ uri: uri.href, text: JSON.stringify(sorted.slice(0, 20), null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://knowledge/{project}/recent — skipping'); else throw e; }
 
   // ===== Project: list and refresh resources =====
   try {
@@ -2810,87 +3103,7 @@ async function main() {
     } else { throw e; }
   }
 
-  try {
-    server.registerResource(
-      'project_refresh',
-      'project://refresh',
-      {
-        title: 'Project Resources Refresh',
-        description: 'Re-scan projects and ensure per-project aliases are registered',
-        mimeType: 'application/json',
-      },
-      async (u) => {
-        const projectsData = await listProjects(getCurrentProject);
-        const projectIds: string[] = (projectsData?.projects || []).map((p: any) => String(p.id));
-        let ensured = 0;
-        for (const pid of projectIds) {
-          const useUri = `project://use/${encodeURIComponent(pid)}`;
-          try {
-            server.registerResource(
-              `project_use_${pid}`,
-              useUri,
-              { title: `Use Project: ${pid}`, description: `Switch current project to "${pid}"`, mimeType: 'application/json' },
-              async (x) => ({ contents: [{ uri: x.href, text: JSON.stringify({ project: setCurrentProject(pid) }, null, 2), mimeType: 'application/json' }] })
-            );
-            ensured++;
-          } catch (e: any) {
-            const m = e?.message || String(e);
-            if (!(typeof m === 'string' && m.includes('already registered'))) throw e;
-          }
-          try {
-            server.registerResource(
-              `tasks_project_${pid}`,
-              `tasks://project/${encodeURIComponent(pid)}`,
-              { title: `Tasks for Project: ${pid}`, description: `List tasks for project "${pid}"`, mimeType: 'application/json' },
-              async (x) => {
-                const items = await listTasks({ project: pid, includeArchived: false });
-                return { contents: [{ uri: x.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
-              }
-            );
-            ensured++;
-          } catch (e: any) {
-            const m = e?.message || String(e);
-            if (!(typeof m === 'string' && m.includes('already registered'))) throw e;
-          }
-          // Ensure static search recent aliases
-          try {
-            const uri = `search://tasks/${encodeURIComponent(pid)}/recent`;
-            server.registerResource(
-              `search_tasks_${pid}_recent`,
-              uri,
-              { title: `Search Tasks Recent: ${pid}`, description: `Recent tasks for project "${pid}"`, mimeType: 'application/json' },
-              async (x) => {
-                const items: any[] = await listTasks({ project: pid, includeArchived: false } as any);
-                items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-                return { contents: [{ uri: x.href, text: JSON.stringify(items.slice(0, 20), null, 2), mimeType: 'application/json' }] };
-              }
-            );
-            ensured++;
-          } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
-          try {
-            const uri = `search://knowledge/${encodeURIComponent(pid)}/recent`;
-            server.registerResource(
-              `search_knowledge_${pid}_recent`,
-              uri,
-              { title: `Search Knowledge Recent: ${pid}`, description: `Recent knowledge for project "${pid}"`, mimeType: 'application/json' },
-              async (x) => {
-                const items: any[] = await listDocs({ project: pid, includeArchived: false } as any);
-                const sorted = items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-                return { contents: [{ uri: x.href, text: JSON.stringify(sorted.slice(0, 20), null, 2), mimeType: 'application/json' }] };
-              }
-            );
-            ensured++;
-          } catch (e: any) { const m = e?.message || String(e); if (!(typeof m === 'string' && m.includes('already registered'))) throw e; }
-        }
-        return { contents: [{ uri: u.href, text: JSON.stringify({ ok: true, ensured }, null, 2), mimeType: 'application/json' }] };
-      }
-    );
-  } catch (e: any) {
-    const msg = e?.message || String(e);
-    if (typeof msg === 'string' && msg.includes('already registered')) {
-      console.warn('[resources] already registered: project://refresh — skipping');
-    } else { throw e; }
-  }
+  // project://refresh — removed in templated mode; kept intentionally unregistered.
 
   // ===== Tasks Aliases (current) and Dynamic Filters =====
   try {
@@ -2952,6 +3165,384 @@ async function main() {
       }
     );
   } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project — skipping'); else throw e; }
+
+  // ResourceTemplate: tasks://project/{id}
+  try {
+    server.registerResource(
+      'tasks_project_id_tpl',
+      new ResourceTemplate('tasks://project/{id}' as any),
+      { title: 'Tasks by Project', description: 'List tasks for project by id', mimeType: 'application/json' },
+      async (uri: URL, vars: any) => {
+        const id = String(vars?.id || '').trim();
+        const items = await listTasks({ project: id, includeArchived: false });
+        return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id} — skipping'); else throw e; }
+
+  // ResourceTemplate: tasks://project/{id}/tree
+  try {
+    server.registerResource(
+      'tasks_project_tree_tpl',
+      new ResourceTemplate('tasks://project/{id}/tree' as any),
+      { title: 'Tasks Tree by Project', description: 'Tree of tasks for project by id', mimeType: 'application/json' },
+      async (uri: URL, vars: any) => {
+        const id = String(vars?.id || '').trim();
+        const items = await listTasksTree({ project: id, includeArchived: false });
+        return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id}/tree — skipping'); else throw e; }
+
+  // ResourceTemplate: tasks://project/{id}/status/{status}
+  try {
+    server.registerResource(
+      'tasks_project_status_tpl',
+      new ResourceTemplate('tasks://project/{id}/status/{status}' as any),
+      { title: 'Tasks by Project (Status)', description: 'List tasks for project filtered by status', mimeType: 'application/json' },
+      async (uri: URL, vars: any) => {
+        const id = String(vars?.id || '').trim();
+        const status = String(vars?.status || '').trim();
+        const allowed = new Set(['pending','in_progress','completed','closed']);
+        if (!allowed.has(status)) {
+          return { contents: [{ uri: uri.href, text: JSON.stringify({ ok: false, error: `invalid status: ${status}` }, null, 2), mimeType: 'application/json' }] };
+        }
+        const items = await listTasks({ project: id, status: status as any, includeArchived: false } as any);
+        return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id}/status/{status} — skipping'); else throw e; }
+
+  // ResourceTemplate: tasks://project/{id}/tag/{tag}
+  try {
+    server.registerResource(
+      'tasks_project_tag_tpl',
+      new ResourceTemplate('tasks://project/{id}/tag/{tag}' as any),
+      { title: 'Tasks by Project (Tag)', description: 'List tasks for project filtered by tag', mimeType: 'application/json' },
+      async (uri: URL, vars: any) => {
+        const id = String(vars?.id || '').trim();
+        const tag = String(vars?.tag || '').trim();
+        const items = await listTasks({ project: id, tag, includeArchived: false } as any);
+        return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id}/tag/{tag} — skipping'); else throw e; }
+
+  // New: Tasks Actions (Dynamic) — tasks://action/{project}/{id}/{action}, tasks://action/{project}/{id}/status/{value}
+  try {
+    server.registerResource(
+      'tasks_action_dynamic',
+      'tasks://action',
+      { title: 'Tasks Action (Dynamic)', description: 'Dynamic: /{project}/{id}/{start|complete|close|trash|restore|archive} or /{project}/{id}/status/{pending|in_progress|completed|closed}', mimeType: 'application/json' },
+      async (u) => {
+        const href = u.href;
+
+        const respond = (payload: any) => ({ contents: [{ uri: href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+
+        // Path: tasks://action/{project}/{id}/{action}
+        const actM = href.match(/^tasks:\/\/action\/([^\/]+)\/([^\/]+)\/(start|complete|close|trash|restore|archive)$/);
+        if (actM) {
+          const project = decodeURIComponent(actM[1]);
+          const id = decodeURIComponent(actM[2]);
+          const action = actM[3] as 'start'|'complete'|'close'|'trash'|'restore'|'archive';
+          try {
+            let payload: any = null;
+            if (action === 'start') payload = await updateTask(project, id, { status: 'in_progress' } as any);
+            else if (action === 'complete') payload = await updateTask(project, id, { status: 'completed' } as any);
+            else if (action === 'close') payload = await closeTask(project, id);
+            else if (action === 'trash') payload = await trashTask(project, id);
+            else if (action === 'restore') payload = await restoreTask(project, id);
+            else if (action === 'archive') payload = await archiveTask(project, id);
+            return respond({ ok: true, project, id, action, data: payload ?? null });
+          } catch (e: any) {
+            return respond({ ok: false, project, id, action, error: e?.message || String(e) });
+          }
+        }
+
+        // Path: tasks://action/{project}/{id}/status/{value}
+        const stM = href.match(/^tasks:\/\/action\/([^\/]+)\/([^\/]+)\/status\/([^\/]+)$/);
+        if (stM) {
+          const project = decodeURIComponent(stM[1]);
+          const id = decodeURIComponent(stM[2]);
+          const value = decodeURIComponent(stM[3]).toLowerCase();
+          const allowed = new Map<string, 'pending'|'in_progress'|'completed'|'closed'>([
+            ['pending','pending'],['todo','pending'],
+            ['in_progress','in_progress'],['inprogress','in_progress'],['working','in_progress'],
+            ['completed','completed'],['complete','completed'],['done','completed'],
+            ['closed','closed'],['close','closed']
+          ]);
+          const status = allowed.get(value);
+          if (!status) return respond({ ok: false, project, id, error: `invalid status: ${value}` });
+          try {
+            const payload = await updateTask(project, id, { status } as any);
+            return respond({ ok: true, project, id, action: `status:${status}`, data: payload ?? null });
+          } catch (e: any) {
+            return respond({ ok: false, project, id, action: `status:${value}`, error: e?.message || String(e) });
+          }
+        }
+
+        // Query: tasks://action?project=...&id=...&action=...&status=...
+        try {
+          const url = new URL(href);
+          const projectQ = url.searchParams.get('project');
+          const idQ = url.searchParams.get('id');
+          const actionQ = url.searchParams.get('action') || url.searchParams.get('cmd');
+          const statusQ = url.searchParams.get('status') || url.searchParams.get('value');
+          if (projectQ && idQ && actionQ) {
+            const act = actionQ.toLowerCase();
+            if (act === 'status') {
+              if (!statusQ) return respond({ ok: false, error: 'status is required for action=status' });
+              const value = statusQ.toLowerCase();
+              const allowed = new Map<string, 'pending'|'in_progress'|'completed'|'closed'>([
+                ['pending','pending'],['todo','pending'],
+                ['in_progress','in_progress'],['inprogress','in_progress'],['working','in_progress'],
+                ['completed','completed'],['complete','completed'],['done','completed'],
+                ['closed','closed'],['close','closed']
+              ]);
+              const status = allowed.get(value);
+              if (!status) return respond({ ok: false, project: projectQ, id: idQ, error: `invalid status: ${value}` });
+              try { const payload = await updateTask(projectQ, idQ, { status } as any); return respond({ ok: true, project: projectQ, id: idQ, action: `status:${status}`, data: payload ?? null }); }
+              catch (e: any) { return respond({ ok: false, project: projectQ, id: idQ, action: `status:${value}`, error: e?.message || String(e) }); }
+            }
+            // direct actions
+            try {
+              let payload: any = null;
+              if (act === 'start') payload = await updateTask(projectQ, idQ, { status: 'in_progress' } as any);
+              else if (act === 'complete') payload = await updateTask(projectQ, idQ, { status: 'completed' } as any);
+              else if (act === 'close') payload = await closeTask(projectQ, idQ);
+              else if (act === 'trash') payload = await trashTask(projectQ, idQ);
+              else if (act === 'restore') payload = await restoreTask(projectQ, idQ);
+              else if (act === 'archive') payload = await archiveTask(projectQ, idQ);
+              else return respond({ ok: false, project: projectQ, id: idQ, action: act, error: 'unsupported action' });
+              return respond({ ok: true, project: projectQ, id: idQ, action: act, data: payload ?? null });
+            } catch (e: any) {
+              return respond({ ok: false, project: projectQ, id: idQ, action: actionQ, error: e?.message || String(e) });
+            }
+          }
+        } catch {}
+
+        return respond({
+          ok: false,
+          error: 'unsupported tasks://action path',
+          examples: [
+            'tasks://action/{project}/{id}/start',
+            'tasks://action/{project}/{id}/status/pending',
+            'tasks://action?project=proj&id=uuid&action=status&status=completed'
+          ]
+        });
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://action — skipping'); else throw e; }
+
+  // ===== TEMP: Exact aliases for recent tasks actions (SDK has no wildcard) =====
+  const RECENT_ALIAS_LIMIT = Math.max(1, Math.min(50, Number(process.env.RECENT_ALIAS_LIMIT ?? 10)));
+
+  async function listRecentTasks(project: string, limit = RECENT_ALIAS_LIMIT): Promise<any[]> {
+    try {
+      const tasks = await listTasks({ project, includeArchived: false } as any);
+      const sorted = tasks.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+      return sorted.slice(0, limit);
+    } catch {
+      return [];
+    }
+  }
+
+  async function registerRecentAliasesForProject(project: string, limit = RECENT_ALIAS_LIMIT): Promise<void> {
+    const recent = await listRecentTasks(project, limit);
+
+    // List endpoint: tasks://recent/{project}
+    try {
+      server.registerResource(
+        `tasks_recent_${project}`,
+        `tasks://recent/${encodeURIComponent(project)}`,
+        { title: `Recent Tasks (${project})`, description: `Top ${limit} tasks by updatedAt with pre-registered action URIs`, mimeType: 'application/json' },
+        async (u) => {
+          const items = await listRecentTasks(project, limit);
+          const withUris = items.map((t: any, i: number) => ({
+            index: i,
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            priority: t.priority,
+            updatedAt: t.updatedAt ?? null,
+            actionUris: {
+              start: `tasks://recent/${project}/${i}/start`,
+              complete: `tasks://recent/${project}/${i}/complete`,
+              close: `tasks://recent/${project}/${i}/close`,
+              trash: `tasks://recent/${project}/${i}/trash`,
+              restore: `tasks://recent/${project}/${i}/restore`,
+              archive: `tasks://recent/${project}/${i}/archive`,
+              status: {
+                pending: `tasks://recent/${project}/${i}/status/pending`,
+                in_progress: `tasks://recent/${project}/${i}/status/in_progress`,
+                completed: `tasks://recent/${project}/${i}/status/completed`,
+                closed: `tasks://recent/${project}/${i}/status/closed`,
+              },
+            },
+          }));
+          return { contents: [{ uri: u.href, text: JSON.stringify({ project, limit, items: withUris }, null, 2), mimeType: 'application/json' }] };
+        }
+      );
+    } catch (e: any) {
+      const m = e?.message || String(e);
+      if (typeof m === 'string' && m.includes('already registered')) {
+        console.warn(`[resources] already registered: tasks://recent/${project} — skipping`);
+      } else throw e;
+    }
+
+    // Also register list endpoint under task://recent/{project}
+    try {
+      server.registerResource(
+        `task_recent_${project}`,
+        `task://recent/${encodeURIComponent(project)}`,
+        { title: `Recent Tasks (${project})`, description: `Top ${limit} tasks by updatedAt with pre-registered action URIs`, mimeType: 'application/json' },
+        async (u) => {
+          const items = await listRecentTasks(project, limit);
+          const withUris = items.map((t: any, i: number) => ({
+            index: i,
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            priority: t.priority,
+            updatedAt: t.updatedAt ?? null,
+            actionUris: {
+              start: `task://recent/${project}/${i}/start`,
+              complete: `task://recent/${project}/${i}/complete`,
+              close: `task://recent/${project}/${i}/close`,
+              trash: `task://recent/${project}/${i}/trash`,
+              restore: `task://recent/${project}/${i}/restore`,
+              archive: `task://recent/${project}/${i}/archive`,
+              status: {
+                pending: `task://recent/${project}/${i}/status/pending`,
+                in_progress: `task://recent/${project}/${i}/status/in_progress`,
+                completed: `task://recent/${project}/${i}/status/completed`,
+                closed: `task://recent/${project}/${i}/status/closed`,
+              },
+            },
+          }));
+          return { contents: [{ uri: u.href, text: JSON.stringify({ project, limit, items: withUris }, null, 2), mimeType: 'application/json' }] };
+        }
+      );
+    } catch (e: any) {
+      const m = e?.message || String(e);
+      if (typeof m === 'string' && m.includes('already registered')) {
+        console.warn(`[resources] already registered: task://recent/${project} — skipping`);
+      } else throw e;
+    }
+
+    // Register exact action URIs for indices 0..limit-1
+    const directActions = ['start','complete','close','trash','restore','archive'] as const;
+    function actionHandlerFactory(project: string, index: number, action: typeof directActions[number]) {
+      return async (u: { href: string }) => {
+        const items = await listRecentTasks(project, limit);
+        const t = items[index];
+        const respond = (payload: any) => ({ contents: [{ uri: u.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+        if (!t) return respond({ ok: false, project, index, error: 'no task at this index' });
+        try {
+          let payload: any = null;
+          if (action === 'start') payload = await updateTask(project, t.id, { status: 'in_progress' } as any);
+          else if (action === 'complete') payload = await updateTask(project, t.id, { status: 'completed' } as any);
+          else if (action === 'close') payload = await closeTask(project, t.id);
+          else if (action === 'trash') payload = await trashTask(project, t.id);
+          else if (action === 'restore') payload = await restoreTask(project, t.id);
+          else if (action === 'archive') payload = await archiveTask(project, t.id);
+          return respond({ ok: true, project, index, id: t.id, action, data: payload ?? null });
+        } catch (e: any) {
+          return respond({ ok: false, project, index, id: t.id, action, error: e?.message || String(e) });
+        }
+      };
+    }
+
+    function statusHandlerFactory(project: string, index: number, status: 'pending'|'in_progress'|'completed'|'closed') {
+      return async (u: { href: string }) => {
+        const items = await listRecentTasks(project, limit);
+        const t = items[index];
+        const respond = (payload: any) => ({ contents: [{ uri: u.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
+        if (!t) return respond({ ok: false, project, index, error: 'no task at this index' });
+        try {
+          const payload = await updateTask(project, t.id, { status } as any);
+          return respond({ ok: true, project, index, id: t.id, action: `status:${status}`, data: payload ?? null });
+        } catch (e: any) {
+          return respond({ ok: false, project, index, id: t.id, action: `status:${status}`, error: e?.message || String(e) });
+        }
+      };
+    }
+
+    for (let i = 0; i < limit; i++) {
+      for (const a of directActions) {
+        const uri = `tasks://recent/${project}/${i}/${a}`;
+        try {
+          server.registerResource(
+            `tasks_recent_${project}_${i}_${a}`,
+            uri,
+            { title: `Recent Task Action`, description: `Execute action ${a} on recent[${i}] for ${project}`, mimeType: 'application/json' },
+            actionHandlerFactory(project, i, a)
+          );
+        } catch (e: any) {
+          const m = e?.message || String(e);
+          if (typeof m === 'string' && m.includes('already registered')) {
+            // best-effort: skip
+          } else throw e;
+        }
+        // duplicate under task:// scheme
+        const uri2 = `task://recent/${project}/${i}/${a}`;
+        try {
+          server.registerResource(
+            `task_recent_${project}_${i}_${a}`,
+            uri2,
+            { title: `Recent Task Action`, description: `Execute action ${a} on recent[${i}] for ${project}`, mimeType: 'application/json' },
+            actionHandlerFactory(project, i, a)
+          );
+        } catch (e: any) {
+          const m = e?.message || String(e);
+          if (typeof m === 'string' && m.includes('already registered')) {
+            // best-effort: skip
+          } else throw e;
+        }
+      }
+
+      for (const s of ['pending','in_progress','completed','closed'] as const) {
+        const uri = `tasks://recent/${project}/${i}/status/${s}`;
+        try {
+          server.registerResource(
+            `tasks_recent_${project}_${i}_status_${s}`,
+            uri,
+            { title: `Recent Task Status`, description: `Set status ${s} on recent[${i}] for ${project}`, mimeType: 'application/json' },
+            statusHandlerFactory(project, i, s)
+          );
+        } catch (e: any) {
+          const m = e?.message || String(e);
+          if (typeof m === 'string' && m.includes('already registered')) {
+            // best-effort: skip
+          } else throw e;
+        }
+        // duplicate under task:// scheme
+        const uri2 = `task://recent/${project}/${i}/status/${s}`;
+        try {
+          server.registerResource(
+            `task_recent_${project}_${i}_status_${s}`,
+            uri2,
+            { title: `Recent Task Status`, description: `Set status ${s} on recent[${i}] for ${project}`, mimeType: 'application/json' },
+            statusHandlerFactory(project, i, s)
+          );
+        } catch (e: any) {
+          const m = e?.message || String(e);
+          if (typeof m === 'string' && m.includes('already registered')) {
+            // best-effort: skip
+          } else throw e;
+        }
+      }
+    }
+  }
+
+  // Register aliases for current project at startup (TEMP workaround)
+  try {
+    const prj = getCurrentProject();
+    await registerRecentAliasesForProject(prj, RECENT_ALIAS_LIMIT);
+    console.warn(`[recent-aliases] registered exact action URIs for project=${prj}, limit=${RECENT_ALIAS_LIMIT}`);
+  } catch (e) {
+    console.warn('[recent-aliases] failed to register aliases at startup', e);
+  }
 
   // ===== Knowledge Aliases and Dynamic Filters =====
   try {
@@ -3031,134 +3622,6 @@ async function main() {
 
   // [removed] POST-like resource creators (tasks://create, knowledge://create) — use tools.run instead
   // This block intentionally left blank
-
-  // ===== Task Actions via Resource (Exact URI) =====
-  // task://action/{project}/{id}/{action}
-  // action ∈ start | complete | close | trash | restore | archive
-  try {
-    server.registerResource(
-      'task_action',
-      'task://action',
-      { title: 'Task Action', description: 'Change task status via URI path or query params', mimeType: 'application/json' },
-      async (u) => {
-        const href = u.href;
-
-        const respond = (payload: Record<string, any>) => ({
-          contents: [
-            {
-              uri: href,
-              text: JSON.stringify(payload, null, 2),
-              mimeType: 'application/json',
-            },
-          ],
-        });
-
-        const handleAction = async (projectRaw: string | null, idRaw: string | null, actionRaw: string | null, statusHint?: string | null) => {
-          const project = (projectRaw ?? '').trim();
-          const id = (idRaw ?? '').trim();
-          const actionInput = (actionRaw ?? '').trim();
-          if (!project || !id || !actionInput) {
-            return respond({
-              ok: false,
-              error: 'project, id and action are required',
-              example: 'task://action?project=proj&id=uuid&action=start',
-            });
-          }
-
-          const action = actionInput.toLowerCase();
-          const normalizedStatusHint = statusHint ? statusHint.trim().toLowerCase().replace(/-/g, '_') : undefined;
-
-          const runAndRespond = async (resolver: () => Promise<any>, label: string) => {
-            try {
-              const data = await resolver();
-              if (!data) {
-                return respond({ ok: false, project, id, action: label, error: 'task not found' });
-              }
-              return respond({ ok: true, project, id, action: label, status: data.status ?? null, data });
-            } catch (error: any) {
-              return respond({ ok: false, project, id, action: label, error: error?.message || String(error) });
-            }
-          };
-
-          const directActions: Record<string, { label: string; handler: () => Promise<any> }> = {
-            start: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
-            in_progress: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
-            progress: { label: 'status:in_progress', handler: () => updateTask(project, id, { status: 'in_progress' } as any) },
-            pending: { label: 'status:pending', handler: () => updateTask(project, id, { status: 'pending' } as any) },
-            reopen: { label: 'status:pending', handler: () => updateTask(project, id, { status: 'pending' } as any) },
-            complete: { label: 'status:completed', handler: () => updateTask(project, id, { status: 'completed' } as any) },
-            completed: { label: 'status:completed', handler: () => updateTask(project, id, { status: 'completed' } as any) },
-            close: { label: 'status:closed', handler: () => closeTask(project, id) },
-            closed: { label: 'status:closed', handler: () => closeTask(project, id) },
-            trash: { label: 'trash', handler: () => trashTask(project, id) },
-            restore: { label: 'restore', handler: () => restoreTask(project, id) },
-            archive: { label: 'archive', handler: () => archiveTask(project, id) },
-          };
-
-          const direct = directActions[action];
-          if (direct) {
-            return runAndRespond(direct.handler, direct.label);
-          }
-
-          if (action === 'status' || action === 'set-status' || action === 'set_status') {
-            if (!normalizedStatusHint) {
-              return respond({ ok: false, project, id, action, error: 'status query parameter is required' });
-            }
-            const allowedStatuses = new Map<string, 'pending' | 'in_progress' | 'completed' | 'closed'>([
-              ['pending', 'pending'],
-              ['todo', 'pending'],
-              ['in_progress', 'in_progress'],
-              ['inprogress', 'in_progress'],
-              ['working', 'in_progress'],
-              ['completed', 'completed'],
-              ['complete', 'completed'],
-              ['done', 'completed'],
-              ['closed', 'closed'],
-              ['close', 'closed'],
-            ]);
-            const resolvedStatus = allowedStatuses.get(normalizedStatusHint);
-            if (!resolvedStatus) {
-              return respond({ ok: false, project, id, action, error: `unsupported status value: ${normalizedStatusHint}` });
-            }
-            return runAndRespond(() => updateTask(project, id, { status: resolvedStatus } as any), `status:${resolvedStatus}`);
-          }
-
-          return respond({
-            ok: false,
-            project,
-            id,
-            action,
-            error: 'unsupported action',
-            supported: Object.keys(directActions).concat(['status (with ?status=...)']),
-          });
-        };
-
-        const projectQuery = u.searchParams.get('project');
-        const idQuery = u.searchParams.get('id');
-        const actionQuery = u.searchParams.get('action') ?? u.searchParams.get('cmd');
-        const statusQuery = u.searchParams.get('status') ?? u.searchParams.get('value');
-
-        if (projectQuery || idQuery || actionQuery) {
-          return handleAction(projectQuery, idQuery, actionQuery, statusQuery);
-        }
-
-        const pathMatch = href.match(/^task:\/\/action\/([^\/]+)\/([^\/]+)\/([^\/?#]+)$/);
-        if (pathMatch) {
-          return handleAction(decodeURIComponent(pathMatch[1]), decodeURIComponent(pathMatch[2]), decodeURIComponent(pathMatch[3]));
-        }
-
-        return respond({
-          ok: false,
-          error: 'invalid task action request',
-          examples: [
-            'task://action?project=proj&id=uuid&action=start',
-            'task://action?project=proj&id=uuid&action=status&status=pending',
-            'task://action/{project}/{id}/{start|complete|close|trash|restore|archive}'
-          ],
-        });
-      }
-    );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: task://action — skipping'); else throw e; }
 
   // ===== Search Aliases =====
   try {
@@ -3394,6 +3857,77 @@ async function main() {
       return ok({ count: results.length, results });
     }
   );
+
+  // ===== Debug/Introspection Resources =====
+  try {
+    server.registerResource(
+      'resource_catalog',
+      'resource://catalog',
+      { title: 'Resources Catalog', description: 'List of registered resources (supports ?q=&scheme=&kind=&sort=&order=&offset=&limit=)', mimeType: 'application/json' },
+      async (u) => {
+        const url = new URL(u.href);
+        const q = (url.searchParams.get('q') || '').toLowerCase();
+        const schemeFilter = (url.searchParams.get('scheme') || '').trim();
+        const kindFilter = (url.searchParams.get('kind') || '').trim(); // 'static' | 'template'
+        const sort = (url.searchParams.get('sort') || 'uri').toLowerCase(); // id|uri|scheme|title
+        const order = (url.searchParams.get('order') || 'asc').toLowerCase(); // asc|desc
+        const offset = Math.max(0, Number(url.searchParams.get('offset') || 0));
+        const limitRaw = Number(url.searchParams.get('limit') || 1000);
+        const limit = Math.max(1, Math.min(5000, isNaN(limitRaw) ? 1000 : limitRaw));
+
+        const getScheme = (uri: string): string => {
+          const m = uri.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//);
+          return m ? m[1] : 'unknown';
+        };
+
+        const total = resourceRegistry.length;
+        let items = resourceRegistry.map(r => ({ ...r, scheme: getScheme(r.uri) }));
+
+        if (kindFilter === 'static' || kindFilter === 'template') {
+          items = items.filter(i => i.kind === kindFilter);
+        }
+        if (schemeFilter) {
+          const s = schemeFilter.toLowerCase();
+          items = items.filter(i => i.scheme.toLowerCase() === s);
+        }
+        if (q) {
+          items = items.filter(i => (
+            i.id.toLowerCase().includes(q) ||
+            i.uri.toLowerCase().includes(q) ||
+            (i.title || '').toLowerCase().includes(q) ||
+            (i.description || '').toLowerCase().includes(q)
+          ));
+        }
+
+        const cmp = (a: any, b: any): number => {
+          const dir = order === 'desc' ? -1 : 1;
+          const pick = (k: string) => {
+            if (k === 'scheme') return String(a.scheme || '').localeCompare(String(b.scheme || '')) * dir;
+            if (k === 'id') return String(a.id || '').localeCompare(String(b.id || '')) * dir;
+            if (k === 'title') return String(a.title || '').localeCompare(String(b.title || '')) * dir;
+            // default uri
+            return String(a.uri || '').localeCompare(String(b.uri || '')) * dir;
+          };
+          return pick(sort);
+        };
+        items.sort(cmp);
+
+        const filtered = items.length;
+        const sliced = items.slice(offset, offset + limit);
+        const payload = { total, filtered, offset, limit, sort, order, items: sliced };
+        return { contents: [{ uri: u.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
+      }
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: resource://catalog — skipping'); else throw e; }
+
+  try {
+    server.registerResource(
+      'mcp_capabilities',
+      'mcp://capabilities',
+      { title: 'MCP Capabilities', description: 'Declared server capabilities for client debugging', mimeType: 'application/json' },
+      async (u) => ({ contents: [{ uri: u.href, text: JSON.stringify(SERVER_CAPS, null, 2), mimeType: 'application/json' }] })
+    );
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: mcp://capabilities — skipping'); else throw e; }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

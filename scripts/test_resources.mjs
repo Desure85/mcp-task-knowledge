@@ -205,8 +205,7 @@ async function main() {
     await readAndValidate('project://current');
   }
 
-  // Ensure aliases are registered (idempotent)
-  await readAndValidate('project://refresh');
+  // project://refresh removed in templated mode; no-op
 
   // 3) Tasks resources
   await readAndValidate('task://tasks');

@@ -100,7 +100,6 @@ tool://tasks_list             # короткий алиас на схему
 - **Текущий проект**: `project://current`
 - **Быстрое переключение проекта**: `project://use/{projectId}`
 - **Список проектов**: `project://projects`
-- **Обновить алиасы (без рестарта)**: `project://refresh`
 
 **Описание**:
 
@@ -115,9 +114,7 @@ project://use/neirogen      # переключает текущий проект
 project://current           # теперь {"project":"neirogen"}
 ```
 
-> Примечание: ресурсы `project://use/{projectId}` регистрируются статически на старте на основе `listProjects(...)`. Если вы добавили новый проект на диске, перезапустите сервер MCP, чтобы соответствующий ресурс появился.
-
-Альтернатива без рестарта: `project://refresh` пере-регистрирует per-project алиасы `project://use/{id}` и `tasks://project/{id}` динамически.
+> Примечание: переключение проекта выполняется через шаблонный ресурс `project://use/{projectId}` (ResourceTemplate). Отдельный ресурс `project://refresh` удалён и больше не требуется. Если вы добавили новый проект на диске и хотите, чтобы он участвовал в сканировании данных (задачи/знания/промпты), перезапустите сервер MCP.
 
 ### 7. Задачи: алиасы и фильтры (Tasks)
 
@@ -170,10 +167,17 @@ tasks://current/tree
 
 ### 9. Поиск (алиасы)
 
-- `search://tasks/{project}/recent` — последние задачи (по updatedAt desc, top‑20)
-- `search://tasks/{project}/{paramsB64}` — гибридный поиск по задачам
-- `search://knowledge/{project}/recent` — последние документы (top‑20)
-- `search://knowledge/{project}/{paramsB64}` — двухстадийный гибридный поиск по знаниям
+- `search://tasks/{project}/recent` — последние задачи (по updatedAt desc, top‑20) — реализовано как шаблон ресурса
+- `search://tasks/{project}/{paramsB64}` — гибридный поиск по задачам (динамический роутер)
+- `search://knowledge/{project}/recent` — последние документы (top‑20) — реализовано как шаблон ресурса
+- `search://knowledge/{project}/{paramsB64}` — двухстадийный гибридный поиск по знаниям (динамический роутер)
+
+Примеры recent:
+
+```
+search://tasks/neirogen/recent
+search://knowledge/mcp/recent
+```
 
 Где `paramsB64` — base64url или URL‑encoded JSON, например:
 
@@ -253,11 +257,19 @@ tasks://current/tree
 
 ## Интеграция с MCP клиентами
 
+Сервер объявляет capabilities для ресурсов и инструментов:
+
+```
+{"resources": {"list": true, "read": true}, "tools": {"call": true}}
+```
+
 Эти ресурсы автоматически доступны всем MCP клиентам, подключенным к серверу. Клиенты могут:
 
 1. Запросить список доступных ресурсов
 2. Читать содержимое ресурсов по URI
 3. Использовать ресурсы в контексте работы с LLM
+
+Если ваш клиент временно не показывает панель ресурсов, откройте `resource://catalog` — это внутренний каталог, который вернет полный список зарегистрированных ресурсов (включая шаблоны) с возможностью фильтрации и сортировки (см. ниже).
 
 ## Примеры интеграции
 
@@ -269,6 +281,34 @@ tasks://current/tree
 
 # Прочитать ресурс
 {"method": "resources/read", "params": {"uri": "task://tasks"}}
+```
+
+### Интроспекция и отладка
+
+- `mcp://capabilities` — возвращает объявленные сервером возможности (capabilities):
+
+```
+{"resources": {"list": true, "read": true}, "tools": {"call": true}}
+```
+
+- `resource://catalog` — каталог зарегистрированных ресурсов (как статических, так и шаблонов). Поддерживает фильтры и пагинацию:
+
+Параметры запроса:
+
+- `q` — полнотекстовый поиск по `id`, `uri`, `title`, `description`
+- `scheme` — фильтр по схеме (`task`, `knowledge`, `prompt`, `export`, `tool`, `project`, `tasks`, `search`, ...)
+- `kind` — тип ресурса: `static` или `template`
+- `sort` — поле сортировки: `id` | `uri` | `scheme` | `title` (по умолчанию `uri`)
+- `order` — порядок: `asc` или `desc` (по умолчанию `asc`)
+- `offset` — смещение (по умолчанию 0)
+- `limit` — размер страницы (по умолчанию 1000, максимум 5000)
+
+Примеры:
+
+```
+resource://catalog?q=project%2F%7Bid%7D
+resource://catalog?scheme=tasks&kind=template&sort=title
+resource://catalog?scheme=tool&kind=static&sort=uri&order=desc&limit=50
 ```
 
 ### С Claude Desktop
