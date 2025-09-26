@@ -204,6 +204,8 @@ async function main() {
   const toolNames = new Set<string>();
   const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
   // Helper: register each tool as a dedicated resource tool://{name}
+  const makeResourceTemplate = (pattern: string) => new ResourceTemplate(pattern, {} as any);
+
   function registerToolAsResource(name: string) {
     const baseUri = `tool://${encodeURIComponent(name)}`;
     try {
@@ -751,7 +753,7 @@ async function main() {
   // Wildcard via ResourceTemplate: task://action{?project,id,action,status}
   server.registerResource(
     "task_action_query_tpl",
-    new ResourceTemplate("task://action{?project,id,action,status}" as any),
+    makeResourceTemplate("task://action{?project,id,action,status}"),
     {
       title: "Task Action (Query Template)",
       description: "Perform actions via query parameters",
@@ -796,7 +798,7 @@ async function main() {
   // Wildcard via ResourceTemplate: task://action/{project}/{id}/status/{value}
   server.registerResource(
     "task_action_status_tpl",
-    new ResourceTemplate("task://action/{project}/{id}/status/{value}" as any),
+    makeResourceTemplate("task://action/{project}/{id}/status/{value}"),
     {
       title: "Task Action (Status Path)",
       description: "Set status via path: task://action/{project}/{id}/status/{pending|in_progress|completed|closed}",
@@ -828,7 +830,7 @@ async function main() {
   // Wildcard via ResourceTemplate: task://action/{project}/{id}/{action}
   server.registerResource(
     "task_action_path_tpl",
-    new ResourceTemplate("task://action/{project}/{id}/{action}" as any),
+    makeResourceTemplate("task://action/{project}/{id}/{action}"),
     {
       title: "Task Action (Path Template)",
       description: "Perform actions via path segments",
@@ -860,7 +862,7 @@ async function main() {
   // Wildcard via ResourceTemplate: task://{project}/{id}/action/{action}
   server.registerResource(
     "task_item_action_tpl",
-    new ResourceTemplate("task://{project}/{id}/action/{action}" as any),
+    makeResourceTemplate("task://{project}/{id}/action/{action}"),
     {
       title: "Task Item Action",
       description: "Actions on task item via path",
@@ -3064,7 +3066,7 @@ async function main() {
   try {
     server.registerResource(
       'project_use_tpl',
-      new ResourceTemplate('project://use/{project}' as any),
+      makeResourceTemplate('project://use/{project}'),
       {
         title: 'Use Project',
         description: 'Switch current project to the given project id',
@@ -3094,7 +3096,7 @@ async function main() {
   try {
     server.registerResource(
       'search_tasks_recent_tpl',
-      new ResourceTemplate('search://tasks/{project}/recent' as any),
+      makeResourceTemplate('search://tasks/{project}/recent'),
       { title: 'Search Tasks Recent', description: 'Recent tasks for project', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const pid = String(vars?.project || '').trim();
@@ -3108,7 +3110,7 @@ async function main() {
   try {
     server.registerResource(
       'search_knowledge_recent_tpl',
-      new ResourceTemplate('search://knowledge/{project}/recent' as any),
+      makeResourceTemplate('search://knowledge/{project}/recent'),
       { title: 'Search Knowledge Recent', description: 'Recent knowledge for project', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const pid = String(vars?.project || '').trim();
@@ -3208,7 +3210,7 @@ async function main() {
   try {
     server.registerResource(
       'tasks_project_id_tpl',
-      new ResourceTemplate('tasks://project/{id}' as any),
+      makeResourceTemplate('tasks://project/{id}'),
       { title: 'Tasks by Project', description: 'List tasks for project by id', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
@@ -3222,7 +3224,7 @@ async function main() {
   try {
     server.registerResource(
       'tasks_project_tree_tpl',
-      new ResourceTemplate('tasks://project/{id}/tree' as any),
+      makeResourceTemplate('tasks://project/{id}/tree'),
       { title: 'Tasks Tree by Project', description: 'Tree of tasks for project by id', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
@@ -3236,7 +3238,7 @@ async function main() {
   try {
     server.registerResource(
       'tasks_project_status_tpl',
-      new ResourceTemplate('tasks://project/{id}/status/{status}' as any),
+      makeResourceTemplate('tasks://project/{id}/status/{status}'),
       { title: 'Tasks by Project (Status)', description: 'List tasks for project filtered by status', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
@@ -3255,7 +3257,7 @@ async function main() {
   try {
     server.registerResource(
       'tasks_project_tag_tpl',
-      new ResourceTemplate('tasks://project/{id}/tag/{tag}' as any),
+      makeResourceTemplate('tasks://project/{id}/tag/{tag}'),
       { title: 'Tasks by Project (Tag)', description: 'List tasks for project filtered by tag', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
