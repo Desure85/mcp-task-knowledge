@@ -1,0 +1,19 @@
+services:
+  tester:
+    image: node:20-bullseye
+    working_dir: /app
+    volumes:
+      - ./:/app
+    environment:
+      - NODE_ENV=development
+      - DATA_DIR=/app/.data
+      - OBSIDIAN_VAULT_ROOT=/app/.data/obsidian
+      - EMBEDDINGS_MODE=none
+      - STARTUP_SILENT=1
+      - LOG_STARTUP=0
+      - MCP_TOOLS_ENABLED=true
+      - MCP_TOOL_RESOURCES_ENABLED=true
+      - MCP_TOOL_RESOURCES_EXEC=true
+    command: >-
+      bash -lc "set -euo pipefail; npm ci; node scripts/test_resources.mjs"
+    # No ports needed; MCP runs via stdio inside this container only.
