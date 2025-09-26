@@ -369,9 +369,9 @@ services:
 
 ### Хранилище знаний: modern vs legacy
 
-- __Modern (рекомендуемая)__: `DATA_DIR/knowledge/<project>/<id>.md`
+- **Modern (рекомендуемая)**: `DATA_DIR/knowledge/<project>/<id>.md`
   - Используется по умолчанию всеми инструментами.
-- __Legacy (поддерживается для обратной совместимости)__: `DATA_DIR/knowledge/<id>.md`
+- **Legacy (поддерживается для обратной совместимости)**: `DATA_DIR/knowledge/<id>.md`
   - Подходит для старых репозиториев без проектных подпапок.
 
 Поведение чтения/поиска:
@@ -629,8 +629,8 @@ export CATALOG_EMBEDDED_SQLITE_DRIVER=auto
 Цель — безопасно управлять embedded‑копией каталога при наличии удалённого сервиса.
 
 - Варианты сценариев:
-  - __One‑time миграция remote → embedded__: разовый экспорт remote в embedded‑файл для офлайн/локальной работы.
-  - __Периодическая синхронизация__: регулярное обновление embedded из remote (read‑only с точки зрения embedded), с опциональной отправкой локальных изменений обратно (двусторонняя синхронизация — по договорённости политики).
+  - **One‑time миграция remote → embedded**: разовый экспорт remote в embedded‑файл для офлайн/локальной работы.
+  - **Периодическая синхронизация**: регулярное обновление embedded из remote (read‑only с точки зрения embedded), с опциональной отправкой локальных изменений обратно (двусторонняя синхронизация — по договорённости политики).
 
 - Рекомендуемая конфигурация для миграции remote → embedded:
   - `CATALOG_MODE=hybrid`
@@ -829,18 +829,18 @@ node scripts/prompts.mjs ab:report
 
 #### MCP инструменты: Prompts (сервер)
 
-- __prompts_catalog_get__ — вернуть `prompts.catalog.json` из `exports/catalog` (если есть).
-- __prompts_list__ — список промптов (фильтры поверх каталога: id/kind/status/tags/domain/latest и т.д.).
-- __prompts_search__ — гибридный поиск по билдам/markdown (лексический/семантический, при наличии векторов).
-- __prompts_feedback_log__ — дозапись пассивной обратной связи (JSONL) в `data/prompts/<project>/metrics/feedback/`.
-- __prompts_feedback_validate__ — быстрая проверка JSONL-файла обратной связи (сводка/образцы, ошибки парсинга).
-- __prompts_ab_report__ — агрегированный отчёт: A/B метрики + пассивная обратная связь по всем ключам.
-- __prompts_exports_get__ — список артефактов экспорта: `exports/catalog`, `exports/builds`, `exports/markdown`.
-- __prompts_variants_list__ — доступные варианты для `promptKey` (из эксперимента или из билдов).
-- __prompts_variants_stats__ — агрегированные метрики по вариантам для `promptKey`.
-- __prompts_bandit_next__ — выбор следующего варианта для `promptKey` (epsilon-greedy по агрегатам).
-- __prompts_metrics_log_bulk__ — пакетная запись событий метрик и обновление агрегатов.
-- __prompts_experiments_upsert__ — создание/обновление манифеста эксперимента (variants) для `promptKey`.
+- **prompts_catalog_get** — вернуть `prompts.catalog.json` из `exports/catalog` (если есть).
+- **prompts_list** — список промптов (фильтры поверх каталога: id/kind/status/tags/domain/latest и т.д.).
+- **prompts_search** — гибридный поиск по билдам/markdown (лексический/семантический, при наличии векторов).
+- **prompts_feedback_log** — дозапись пассивной обратной связи (JSONL) в `data/prompts/<project>/metrics/feedback/`.
+- **prompts_feedback_validate** — быстрая проверка JSONL-файла обратной связи (сводка/образцы, ошибки парсинга).
+- **prompts_ab_report** — агрегированный отчёт: A/B метрики + пассивная обратная связь по всем ключам.
+- **prompts_exports_get** — список артефактов экспорта: `exports/catalog`, `exports/builds`, `exports/markdown`.
+- **prompts_variants_list** — доступные варианты для `promptKey` (из эксперимента или из билдов).
+- **prompts_variants_stats** — агрегированные метрики по вариантам для `promptKey`.
+- **prompts_bandit_next** — выбор следующего варианта для `promptKey` (epsilon-greedy по агрегатам).
+- **prompts_metrics_log_bulk** — пакетная запись событий метрик и обновление агрегатов.
+- **prompts_experiments_upsert** — создание/обновление манифеста эксперимента (variants) для `promptKey`.
 
 Подсказки:
 
@@ -974,10 +974,10 @@ docker run --rm -it \
 
 ### Ускоренная сборка и кэш BuildKit
 
-- __Локальный файловый кэш (по умолчанию)__
+- **Локальный файловый кэш (по умолчанию)**
   - Сборки через `docker buildx` используют локальный кэш в каталоге `.buildx-cache/` в корне репозитория. Это ускоряет повторные сборки на этой машине.
 
-- __Локальный registry‑кэш (персистентный)__
+- **Локальный registry‑кэш (персистентный)**
   - Можно поднять локальный Docker Registry и использовать его как источник/приёмник кэша.
   - Запустить реестр:
 
@@ -1003,7 +1003,7 @@ docker run --rm -it \
     - Используйте `127.0.0.1` вместо `localhost`, чтобы избежать разрешения в IPv6 (`::1`) и возможных ошибок подключения.
     - Без TLS это «insecure registry». При необходимости настройте доверие в Docker daemon или используйте реестр с TLS.
 
-- __NPM registry__
+- **NPM registry**
   - Чтобы уменьшить флейки/ретраи при установке пакетов, можно переопределить реестр npm:
 
     ```bash
@@ -1012,11 +1012,11 @@ docker run --rm -it \
 
 ### Быстрая кэшированная сборка (<60с)
 
-- __Предусловия__
+- **Предусловия**
   - Создайте buildx-builder с доступом к локальному реестру и сети хоста (для опции registry-кэша, если будете использовать её). Впрочем, для локального файлового кэша достаточно стандартного builder.
   - Убедитесь, что `.dockerignore` исключает артефакты, тесты и лишние файлы (в репозитории уже настроено).
 
-- __Инициализационная сборка (заполнить кэш)__
+- **Инициализационная сборка (заполнить кэш)**
 
   ```bash
   docker buildx build \
@@ -1028,7 +1028,7 @@ docker run --rm -it \
     .
   ```
 
-- __Повторная сборка и бенчмарк (<60с при кэше)__
+- **Повторная сборка и бенчмарк (<60с при кэше)**
 
   ```bash
   /usr/bin/time -f "real:%E user:%U sys:%S maxrss:%M" \
@@ -1042,12 +1042,12 @@ docker run --rm -it \
     .
   ```
 
-- __Ожидаемое поведение__
+- **Ожидаемое поведение**
   - При отсутствии изменений в `src/` и манифестах (`package.json`, `package-lock.json`, `tsconfig.json`) повторная сборка должна занимать <60 секунд на типичной машине разработчика.
   - Изменение исходников инвалидирует только слой `builder` (`COPY src` + `npm run build`), что даёт быстрый ребилд.
   - Зависимости фиксируются через `npm ci` и кэшируются с `--mount=type=cache,target=/root/.npm` в слое `deps`.
 
-- __Подсказки__
+- **Подсказки**
   - Если корпоративный прокси/зеркало нестабильно — укажите реестр: `--build-arg NPM_REGISTRY=https://registry.npmjs.org/`.
   - Для более агрессивного/общего кэша используйте registry-кэш из раздела выше (образ кэша в локальном реестре).
   - Проверяйте, что build контекст мал: `docker buildx build --no-cache --progress=plain . | head -n 50` покажет ранние шаги и размер контекста.
@@ -1182,23 +1182,23 @@ npm run test
 
 Для проверки CLI-инструментов `obsidian_import_project` и `obsidian_export_project` через MCP stdio есть отдельные e2e-тесты.
 
-- __ENV по умолчанию (локально)__:
+- **ENV по умолчанию (локально)**:
   - `EMBEDDINGS_MODE=none`
   - `DATA_DIR=$(mktemp -d)` или путь к изолированному каталогу
   - `OBSIDIAN_VAULT_ROOT=<путь к временному vault>`, например `.tmp/obsidian`
 
-- __Скрипт запуска только CLI e2e__:
+- **Скрипт запуска только CLI e2e**:
 
 ```bash
 npm run e2e:cli
 ```
 
-- __Что покрыто__:
+- **Что покрыто**:
   - `dryRun` для экспорта/импорта
   - `replace` с `confirm: false` (ошибка) и `confirm: true` (успех)
   - `mergeStrategy`: `overwrite` (идемпотентен по состоянию), `append` (создаёт дубликаты), `skip` (ничего нового), `fail` (ошибка при конфликтах)
 
-- __Ссылки на тесты__:
+- **Ссылки на тесты**:
   - `tests/obsidian.export.e2e.cli-server.test.ts`
   - `tests/obsidian.import.e2e.cli-server.test.ts`
   - `tests/obsidian.import.idempotency.e2e.cli-server.test.ts`
@@ -1534,7 +1534,7 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
 
 Оба bulk‑инструмента поддерживают отвязку элемента к корню, если передать `parentId: null`.
 
-- __Задачи__: `tasks_bulk_update`
+- **Задачи**: `tasks_bulk_update`
 
 ```json
 {
@@ -1547,7 +1547,7 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
 
 Примечание: валидация выполняется на уровне стораджа задач. Учитывается существование нового родителя (если задан) и невозможность циклов в дереве.
 
-- __Документы знаний__: `knowledge_bulk_update`
+- **Документы знаний**: `knowledge_bulk_update`
 
 ```json
 {
@@ -1571,7 +1571,7 @@ DATA_DIR=$(mktemp -d) EMBEDDINGS_MODE=none npm run -s project:purge:tracker -- \
 
 Интроспекционные инструменты помогают программно обнаруживать доступные инструменты MCP, их входные параметры и получать пример вызова. Все ответы возвращаются в стандартном JSON‑конверте `{ ok, data?, error? }`.
 
-__tools_list__ — получить список зарегистрированных инструментов с метаданными
+**tools_list** — получить список зарегистрированных инструментов с метаданными
 
 ```
 tools_list -> {}
@@ -1589,7 +1589,7 @@ tools_list -> {}
 }
 ```
 
-__tool_schema__ — получить метаданные и пример payload по имени инструмента
+**tool_schema** — получить метаданные и пример payload по имени инструмента
 
 ```
 tool_schema -> { "name": "tasks_list" }
@@ -1611,7 +1611,7 @@ tool_schema -> { "name": "tasks_list" }
 }
 ```
 
-__tool_help__ — короткая справка по инструменту с примером вызова
+**tool_help** — короткая справка по инструменту с примером вызова
 
 ```
 tool_help -> { "name": "knowledge_bulk_create" }
@@ -1644,8 +1644,8 @@ tool_help -> { "name": "knowledge_bulk_create" }
 
 Замечания:
 
-- __Канонические имена__: интроспекция возвращает только канонические имена инструментов, без алиасов.
-- __Генерация примеров__: поля `project` подставляются из текущего контекста проекта, остальные — осмысленные значения по умолчанию.
+- **Канонические имена**: интроспекция возвращает только канонические имена инструментов, без алиасов.
+- **Генерация примеров**: поля `project` подставляются из текущего контекста проекта, остальные — осмысленные значения по умолчанию.
 
 ### Embeddings / Векторный поиск
 
@@ -1674,7 +1674,7 @@ embeddings_compare -> {
 
 Примечание: используйте `knowledge_bulk_delete_permanent` для перманентного удаления.
 
-__Archive несколько документов__
+**Archive несколько документов**
 
 ```
 knowledge_bulk_archive -> {
@@ -1683,7 +1683,7 @@ knowledge_bulk_archive -> {
 }
 ```
 
-__Restore (из trash/архива)__
+**Restore (из trash/архива)**
 
 ```
 knowledge_bulk_restore -> {
@@ -1692,7 +1692,7 @@ knowledge_bulk_restore -> {
 }
 ```
 
-__Trash (переместить в корзину)__
+**Trash (переместить в корзину)**
 
 ```
 knowledge_bulk_trash -> {
@@ -1701,7 +1701,7 @@ knowledge_bulk_trash -> {
 }
 ```
 
-__Delete (перманентно, осторожно)__
+**Delete (перманентно, осторожно)**
 
 ```
 knowledge_bulk_delete_permanent -> {
@@ -1714,7 +1714,7 @@ knowledge_bulk_delete_permanent -> {
 
 Примечание: инструмент поддерживает `confirm`/`dryRun` (подтверждение и безопасный предпросмотр).
 
-__Формат ответа (агрегированный)__
+**Формат ответа (агрегированный)**
 
 ```json
 {
@@ -1874,7 +1874,7 @@ obsidian_export_project -> {
 { "ok": false, "error": { "message": "Export replace not confirmed: pass confirm=true to proceed" } }
 ```
 
-__Import project from Obsidian Vault__
+**Import project from Obsidian Vault**
 
 ```
 obsidian_import_project -> {
@@ -2059,13 +2059,13 @@ obsidian_import_project -> {
 
 ### FAQ/Частые проблемы импорта Obsidian
 
-- __Отсутствует `INDEX.md` в папке__: родительский узел не будет создан/обновлён, но «листовые» файлы `*.md` из папки импортируются как дочерние к верхнему родителю (если он есть).
-- __Дублирующиеся `title`__: в `merge` при `overwriteByTitle=true` будет обновлён первый найденный элемент с таким заголовком (по текущей индексации). Рекомендуется уникализировать `title`.
-- __Неверные `status`/`priority` у задач__: значения вне множества игнорируются. Поддерживаемые: `status` ∈ {`pending`,`in_progress`,`completed`,`closed`}, `priority` ∈ {`low`,`medium`,`high`}.
-- __Пустой или отсутствующий `title`__: берётся из имени файла/папки, после санитаризации (замена недопустимых символов на `_`).
-- __Не задан `OBSIDIAN_VAULT_ROOT`__: инструменты вернут ошибку запуска. По умолчанию ожидается `/data/obsidian`.
-- __Кодировка__: используйте UTF‑8 без BOM. Неизвестные поля фронтматтера игнорируются.
-- __Фильтры__: импорт поддерживает `includePaths`/`excludePaths`, `includeTags`/`excludeTags`, `includeTypes` (только для знаний), `includeStatus`/`includePriority` (только для задач). Фильтры по датам/архиву доступны только в экспорте.
+- **Отсутствует `INDEX.md` в папке**: родительский узел не будет создан/обновлён, но «листовые» файлы `*.md` из папки импортируются как дочерние к верхнему родителю (если он есть).
+- **Дублирующиеся `title`**: в `merge` при `overwriteByTitle=true` будет обновлён первый найденный элемент с таким заголовком (по текущей индексации). Рекомендуется уникализировать `title`.
+- **Неверные `status`/`priority` у задач**: значения вне множества игнорируются. Поддерживаемые: `status` ∈ {`pending`,`in_progress`,`completed`,`closed`}, `priority` ∈ {`low`,`medium`,`high`}.
+- **Пустой или отсутствующий `title`**: берётся из имени файла/папки, после санитаризации (замена недопустимых символов на `_`).
+- **Не задан `OBSIDIAN_VAULT_ROOT`**: инструменты вернут ошибку запуска. По умолчанию ожидается `/data/obsidian`.
+- **Кодировка**: используйте UTF‑8 без BOM. Неизвестные поля фронтматтера игнорируются.
+- **Фильтры**: импорт поддерживает `includePaths`/`excludePaths`, `includeTags`/`excludeTags`, `includeTypes` (только для знаний), `includeStatus`/`includePriority` (только для задач). Фильтры по датам/архиву доступны только в экспорте.
 
 ### Шаблоны фронтматтера (готовые примеры)
 
@@ -2503,11 +2503,11 @@ make docker-bench-bm25-cached-cat
 
 ### Наблюдаемые времена (пример)
 
-- __BM25 cached (no catalog)__: ~35.5s `real`
-- __BM25 extbase (no catalog)__: ~0.84s `real`
-- __BM25 cached (with catalog)__: ~6.3s `real`
-- __CPU cached (with catalog)__: ~28.1s `real`
-- __CPU extbase (with catalog)__: ожидается <60s (зависит от кэша и сети)
+- **BM25 cached (no catalog)**: ~35.5s `real`
+- **BM25 extbase (no catalog)**: ~0.84s `real`
+- **BM25 cached (with catalog)**: ~6.3s `real`
+- **CPU cached (with catalog)**: ~28.1s `real`
+- **CPU extbase (with catalog)**: ожидается <60s (зависит от кэша и сети)
 
 Подсказки:
 
