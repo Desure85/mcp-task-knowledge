@@ -160,6 +160,8 @@ expect(res.content?.[0]?.text).toContain('Refusing to proceed')
 - `export://files` — список экспортированных артефактов (`export://{project}/{type}/{filename}`).
 - Инструменты как ресурсы (интроспекция, без выполнения):
   - `tool://catalog`, `tool://schema/{name}`, `tool://{name}`
+  - `tool://prompts_metrics_log_bulk` — ресурс-интроспекция для bulk-метрик
+  - `tool://tools_run` — интроспекция пакетного инструмента
 
 Выполнение инструментов через ресурсы не поддерживается. Для «POST»-подобных операций используйте RPC вызовы инструментов (tools.run). Для пакетного запуска есть инструмент `tools_run`.
 
@@ -169,6 +171,8 @@ expect(res.content?.[0]?.text).toContain('Refusing to proceed')
 tool://catalog
 tool://schema/tasks_list
 tool://tasks_list
+tool://prompts_metrics_log_bulk
+tool://tools_run
 ```
 
 Пример пакетного запуска через инструмент `tools_run` (RPC):
@@ -356,6 +360,12 @@ services:
 
 - `data/tasks/<project>/<uuid>.json`
 - `data/knowledge/<project>/<uuid>.md`
+
+### Ограничения и советы по работе с ресурсами
+
+- **Динамические URI требуют параметров.** `task://action`, `task://router`, `tasks://action`, а также `search://tasks` и `search://knowledge` следует вызывать с сегментами пути или query-параметрами (например, `task://action/{project}/{id}/start`, `task://action?project=proj&id=uuid&action=status&status=pending`, `search://tasks/neirogen/recent`). Пустые вызовы вернут диагностическое сообщение.
+- **Статические URI не принимают `?limit=` и прочие query.** Обращения вроде `resource://catalog?limit=200` вернут ошибку — используйте штатные параметры инструмента или RPC-вызовы (`tools_list`, `search_tasks`, `search_knowledge`) для фильтрации и пагинации.
+- **Интроспекция охватывает все инструменты.** Любой зарегистрированный инструмент доступен через `tool://{name}` (включая `tool://tools_run`); выполнение по-прежнему происходит через RPC (`tools.run`).
 
 ### Хранилище знаний: modern vs legacy
 

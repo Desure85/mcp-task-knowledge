@@ -205,9 +205,6 @@ async function main() {
   const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
   // Helper: register each tool as a dedicated resource tool://{name}
   function registerToolAsResource(name: string) {
-    if (name.includes('bulk') || name === 'tools_run') {
-      return;
-    }
     const baseUri = `tool://${encodeURIComponent(name)}`;
     try {
       server.registerResource(
