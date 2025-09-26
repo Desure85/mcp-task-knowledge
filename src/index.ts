@@ -155,6 +155,47 @@ async function main() {
     return normalized + '='.repeat(padding);
   }
 
+  const initResourceHandlers = (server as any)?.setResourceRequestHandlers;
+  if (typeof initResourceHandlers === 'function') {
+    initResourceHandlers.call(server);
+  }
+
+  const baseServer = (server as any)?.server;
+  if (baseServer) {
+    const listHandler = async () => {
+      const resources = resourceRegistry
+        .filter((r) => r.kind === 'static')
+        .map((r) => ({
+          uri: r.uri,
+          name: r.title ?? null,
+          description: r.description ?? null,
+          mimeType: r.mimeType ?? null,
+        }));
+
+      const resourceTemplates = resourceRegistry
+        .filter((r) => r.kind === 'template')
+        .map((r) => ({
+          name: r.id,
+          uriTemplate: r.uri,
+          title: r.title ?? null,
+          description: r.description ?? null,
+          mimeType: r.mimeType ?? null,
+        }));
+
+      return { resources, resourceTemplates };
+    };
+
+    if (baseServer._requestHandlers instanceof Map) {
+      baseServer._requestHandlers.set('resources/list', async (_req: any, _extra: any) => listHandler());
+    }
+
+    if (typeof baseServer.registerCapabilities === 'function') {
+      baseServer.registerCapabilities({ resources: { list: true, read: true } });
+    }
+  }
+
+
+
   // Unified response helpers imported from utils/respond
 
   // Сделать регистрацию инструментов идемпотентной, чтобы не падать при повторном старте/горячей перезагрузке
@@ -3334,215 +3375,8 @@ async function main() {
     );
   } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://action — skipping'); else throw e; }
 
-  // ===== TEMP: Exact aliases for recent tasks actions (SDK has no wildcard) =====
-  const RECENT_ALIAS_LIMIT = Math.max(1, Math.min(50, Number(process.env.RECENT_ALIAS_LIMIT ?? 10)));
-
-  async function listRecentTasks(project: string, limit = RECENT_ALIAS_LIMIT): Promise<any[]> {
-    try {
-      const tasks = await listTasks({ project, includeArchived: false } as any);
-      const sorted = tasks.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-      return sorted.slice(0, limit);
-    } catch {
-      return [];
-    }
-  }
-
-  async function registerRecentAliasesForProject(project: string, limit = RECENT_ALIAS_LIMIT): Promise<void> {
-    const recent = await listRecentTasks(project, limit);
-
-    // List endpoint: tasks://recent/{project}
-    try {
-      server.registerResource(
-        `tasks_recent_${project}`,
-        `tasks://recent/${encodeURIComponent(project)}`,
-        { title: `Recent Tasks (${project})`, description: `Top ${limit} tasks by updatedAt with pre-registered action URIs`, mimeType: 'application/json' },
-        async (u) => {
-          const items = await listRecentTasks(project, limit);
-          const withUris = items.map((t: any, i: number) => ({
-            index: i,
-            id: t.id,
-            title: t.title,
-            status: t.status,
-            priority: t.priority,
-            updatedAt: t.updatedAt ?? null,
-            actionUris: {
-              start: `tasks://recent/${project}/${i}/start`,
-              complete: `tasks://recent/${project}/${i}/complete`,
-              close: `tasks://recent/${project}/${i}/close`,
-              trash: `tasks://recent/${project}/${i}/trash`,
-              restore: `tasks://recent/${project}/${i}/restore`,
-              archive: `tasks://recent/${project}/${i}/archive`,
-              status: {
-                pending: `tasks://recent/${project}/${i}/status/pending`,
-                in_progress: `tasks://recent/${project}/${i}/status/in_progress`,
-                completed: `tasks://recent/${project}/${i}/status/completed`,
-                closed: `tasks://recent/${project}/${i}/status/closed`,
-              },
-            },
-          }));
-          return { contents: [{ uri: u.href, text: JSON.stringify({ project, limit, items: withUris }, null, 2), mimeType: 'application/json' }] };
-        }
-      );
-    } catch (e: any) {
-      const m = e?.message || String(e);
-      if (typeof m === 'string' && m.includes('already registered')) {
-        console.warn(`[resources] already registered: tasks://recent/${project} — skipping`);
-      } else throw e;
-    }
-
-    // Also register list endpoint under task://recent/{project}
-    try {
-      server.registerResource(
-        `task_recent_${project}`,
-        `task://recent/${encodeURIComponent(project)}`,
-        { title: `Recent Tasks (${project})`, description: `Top ${limit} tasks by updatedAt with pre-registered action URIs`, mimeType: 'application/json' },
-        async (u) => {
-          const items = await listRecentTasks(project, limit);
-          const withUris = items.map((t: any, i: number) => ({
-            index: i,
-            id: t.id,
-            title: t.title,
-            status: t.status,
-            priority: t.priority,
-            updatedAt: t.updatedAt ?? null,
-            actionUris: {
-              start: `task://recent/${project}/${i}/start`,
-              complete: `task://recent/${project}/${i}/complete`,
-              close: `task://recent/${project}/${i}/close`,
-              trash: `task://recent/${project}/${i}/trash`,
-              restore: `task://recent/${project}/${i}/restore`,
-              archive: `task://recent/${project}/${i}/archive`,
-              status: {
-                pending: `task://recent/${project}/${i}/status/pending`,
-                in_progress: `task://recent/${project}/${i}/status/in_progress`,
-                completed: `task://recent/${project}/${i}/status/completed`,
-                closed: `task://recent/${project}/${i}/status/closed`,
-              },
-            },
-          }));
-          return { contents: [{ uri: u.href, text: JSON.stringify({ project, limit, items: withUris }, null, 2), mimeType: 'application/json' }] };
-        }
-      );
-    } catch (e: any) {
-      const m = e?.message || String(e);
-      if (typeof m === 'string' && m.includes('already registered')) {
-        console.warn(`[resources] already registered: task://recent/${project} — skipping`);
-      } else throw e;
-    }
-
-    // Register exact action URIs for indices 0..limit-1
-    const directActions = ['start','complete','close','trash','restore','archive'] as const;
-    function actionHandlerFactory(project: string, index: number, action: typeof directActions[number]) {
-      return async (u: { href: string }) => {
-        const items = await listRecentTasks(project, limit);
-        const t = items[index];
-        const respond = (payload: any) => ({ contents: [{ uri: u.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
-        if (!t) return respond({ ok: false, project, index, error: 'no task at this index' });
-        try {
-          let payload: any = null;
-          if (action === 'start') payload = await updateTask(project, t.id, { status: 'in_progress' } as any);
-          else if (action === 'complete') payload = await updateTask(project, t.id, { status: 'completed' } as any);
-          else if (action === 'close') payload = await closeTask(project, t.id);
-          else if (action === 'trash') payload = await trashTask(project, t.id);
-          else if (action === 'restore') payload = await restoreTask(project, t.id);
-          else if (action === 'archive') payload = await archiveTask(project, t.id);
-          return respond({ ok: true, project, index, id: t.id, action, data: payload ?? null });
-        } catch (e: any) {
-          return respond({ ok: false, project, index, id: t.id, action, error: e?.message || String(e) });
-        }
-      };
-    }
-
-    function statusHandlerFactory(project: string, index: number, status: 'pending'|'in_progress'|'completed'|'closed') {
-      return async (u: { href: string }) => {
-        const items = await listRecentTasks(project, limit);
-        const t = items[index];
-        const respond = (payload: any) => ({ contents: [{ uri: u.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] });
-        if (!t) return respond({ ok: false, project, index, error: 'no task at this index' });
-        try {
-          const payload = await updateTask(project, t.id, { status } as any);
-          return respond({ ok: true, project, index, id: t.id, action: `status:${status}`, data: payload ?? null });
-        } catch (e: any) {
-          return respond({ ok: false, project, index, id: t.id, action: `status:${status}`, error: e?.message || String(e) });
-        }
-      };
-    }
-
-    for (let i = 0; i < limit; i++) {
-      for (const a of directActions) {
-        const uri = `tasks://recent/${project}/${i}/${a}`;
-        try {
-          server.registerResource(
-            `tasks_recent_${project}_${i}_${a}`,
-            uri,
-            { title: `Recent Task Action`, description: `Execute action ${a} on recent[${i}] for ${project}`, mimeType: 'application/json' },
-            actionHandlerFactory(project, i, a)
-          );
-        } catch (e: any) {
-          const m = e?.message || String(e);
-          if (typeof m === 'string' && m.includes('already registered')) {
-            // best-effort: skip
-          } else throw e;
-        }
-        // duplicate under task:// scheme
-        const uri2 = `task://recent/${project}/${i}/${a}`;
-        try {
-          server.registerResource(
-            `task_recent_${project}_${i}_${a}`,
-            uri2,
-            { title: `Recent Task Action`, description: `Execute action ${a} on recent[${i}] for ${project}`, mimeType: 'application/json' },
-            actionHandlerFactory(project, i, a)
-          );
-        } catch (e: any) {
-          const m = e?.message || String(e);
-          if (typeof m === 'string' && m.includes('already registered')) {
-            // best-effort: skip
-          } else throw e;
-        }
-      }
-
-      for (const s of ['pending','in_progress','completed','closed'] as const) {
-        const uri = `tasks://recent/${project}/${i}/status/${s}`;
-        try {
-          server.registerResource(
-            `tasks_recent_${project}_${i}_status_${s}`,
-            uri,
-            { title: `Recent Task Status`, description: `Set status ${s} on recent[${i}] for ${project}`, mimeType: 'application/json' },
-            statusHandlerFactory(project, i, s)
-          );
-        } catch (e: any) {
-          const m = e?.message || String(e);
-          if (typeof m === 'string' && m.includes('already registered')) {
-            // best-effort: skip
-          } else throw e;
-        }
-        // duplicate under task:// scheme
-        const uri2 = `task://recent/${project}/${i}/status/${s}`;
-        try {
-          server.registerResource(
-            `task_recent_${project}_${i}_status_${s}`,
-            uri2,
-            { title: `Recent Task Status`, description: `Set status ${s} on recent[${i}] for ${project}`, mimeType: 'application/json' },
-            statusHandlerFactory(project, i, s)
-          );
-        } catch (e: any) {
-          const m = e?.message || String(e);
-          if (typeof m === 'string' && m.includes('already registered')) {
-            // best-effort: skip
-          } else throw e;
-        }
-      }
-    }
-  }
-
-  // Register aliases for current project at startup (TEMP workaround)
-  try {
-    const prj = getCurrentProject();
-    await registerRecentAliasesForProject(prj, RECENT_ALIAS_LIMIT);
-    console.warn(`[recent-aliases] registered exact action URIs for project=${prj}, limit=${RECENT_ALIAS_LIMIT}`);
-  } catch (e) {
-    console.warn('[recent-aliases] failed to register aliases at startup', e);
-  }
+  // Removed static recent task aliases; rely on template resources like `tasks://project/{id}` and
+  // action endpoints `tasks://action/{project}/{id}/{...}`.
 
   // ===== Knowledge Aliases and Dynamic Filters =====
   try {
