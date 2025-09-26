@@ -363,7 +363,7 @@ services:
 
 ### Ограничения и советы по работе с ресурсами
 
-- **Динамические URI требуют параметров.** `task://action`, `task://router`, `tasks://action`, а также `search://tasks` и `search://knowledge` следует вызывать с сегментами пути или query-параметрами (например, `task://action/{project}/{id}/start`, `task://action?project=proj&id=uuid&action=status&status=pending`, `search://tasks/neirogen/recent`). Пустые вызовы вернут диагностическое сообщение.
+- **Динамические URI требуют параметров.** `task://action`, `tasks://action`, а также `search://tasks` и `search://knowledge` следует вызывать с сегментами пути или query-параметрами (например, `task://action/{project}/{id}/start`, `task://action?project=proj&id=uuid&action=status&status=pending`, `search://tasks/neirogen/recent`). Пустые вызовы вернут диагностическое сообщение.
 - **Статические URI не принимают `?limit=` и прочие query.** Обращения вроде `resource://catalog?limit=200` вернут ошибку — используйте штатные параметры инструмента или RPC-вызовы (`tools_list`, `search_tasks`, `search_knowledge`) для фильтрации и пагинации.
 - **Интроспекция охватывает все инструменты.** Любой зарегистрированный инструмент доступен через `tool://{name}` (включая `tool://tools_run`); выполнение по-прежнему происходит через RPC (`tools.run`).
 

@@ -620,33 +620,6 @@ async function main() {
       };
     }
 
-    // Handle router host: task://router/{project}/{id}/{action}
-    if (host === 'router') {
-      if (pathSegments.length < 2) {
-        return respond({
-          ok: false,
-          error: 'invalid router path',
-          examples: [
-            'task://router/{project}/{id}/start',
-            'task://router/{project}/{id}/action/close',
-            'task://router/{project}/{id}?action=status&status=pending'
-          ],
-        });
-      }
-      const projectSegment = decodeURIComponent(pathSegments[0]);
-      const idSegment = decodeURIComponent(pathSegments[1]);
-      const actionSegment = pathSegments[2] ? decodeURIComponent(pathSegments[2]) : actionFromQuery;
-      const finalAction = (pathSegments[2] && pathSegments[2].toLowerCase() === 'action' && pathSegments[3])
-        ? decodeURIComponent(pathSegments[3])
-        : actionSegment;
-      return handleAction(
-        projectSegment,
-        idSegment,
-        finalAction,
-        statusFromQuery,
-      );
-    }
-
     // Handle direct action host: task://action/... or task://action?...query
     if (host === 'action') {
       const projectSegment = pathSegments[0] ? decodeURIComponent(pathSegments[0]) : null;
@@ -725,7 +698,7 @@ async function main() {
 
   const taskResourceHandler = buildTaskResponder(
     "Task Resources",
-    "Access tasks by project/ID and trigger actions via task://action or task://{project}/{id}/{action}"
+    "Read tasks via task://{project}/{id}. Supported actions: start|in_progress|pending|complete|close|trash|restore|archive via task://{project}/{id}/action/{action} or task://action?..."
   );
 
   server.registerResource(
@@ -733,7 +706,7 @@ async function main() {
     "task://tasks",
     {
       title: "Task Resources",
-      description: "Access tasks by project/ID and trigger actions via task://action or task://{project}/{id}/{action}",
+      description: "List all tasks. Read single task: task://<project>/<id>. Execute actions: task://<project>/<id>/action/{start|in_progress|pending|complete|close|trash|restore|archive}",
       mimeType: "application/json"
     },
     taskResourceHandler
@@ -744,7 +717,7 @@ async function main() {
     "task://action",
     {
       title: "Task Actions",
-      description: "Trigger task status changes via task://action or task://{project}/{id}/{action}",
+      description: "Query form. Example: task://action?project=<project>&id=<id>&action=complete (for status use action=status&status=pending)",
       mimeType: "application/json"
     },
     taskResourceHandler
@@ -756,7 +729,7 @@ async function main() {
     makeResourceTemplate("task://action{?project,id,action,status}"),
     {
       title: "Task Action (Query Template)",
-      description: "Perform actions via query parameters",
+      description: "Examples: task://action?project=<project>&id=<id>&action=start; task://action?project=<project>&id=<id>&action=status&status=completed",
       mimeType: "application/json",
     },
     async (uri: URL, vars: any) => {
@@ -801,7 +774,7 @@ async function main() {
     makeResourceTemplate("task://action/{project}/{id}/status/{value}"),
     {
       title: "Task Action (Status Path)",
-      description: "Set status via path: task://action/{project}/{id}/status/{pending|in_progress|completed|closed}",
+      description: "Status path: task://action/<project>/<id>/status/{pending|in_progress|completed|closed}",
       mimeType: "application/json",
     },
     async (uri: URL, vars: any) => {
@@ -833,7 +806,7 @@ async function main() {
     makeResourceTemplate("task://action/{project}/{id}/{action}"),
     {
       title: "Task Action (Path Template)",
-      description: "Perform actions via path segments",
+      description: "Path actions: task://action/<project>/<id>/{start|pending|complete|close|trash|restore|archive}",
       mimeType: "application/json",
     },
     async (uri: URL, vars: any) => {
@@ -865,7 +838,7 @@ async function main() {
     makeResourceTemplate("task://{project}/{id}/action/{action}"),
     {
       title: "Task Item Action",
-      description: "Actions on task item via path",
+      description: "Preferred path form. Example: task://<project>/<id>/action/start (supports same verbs as task://action/...)",
       mimeType: "application/json",
     },
     async (uri: URL, vars: any) => {
@@ -891,24 +864,13 @@ async function main() {
     }
   );
 
-  server.registerResource(
-    "task_router",
-    "task://router",
-    {
-      title: "Task Router",
-      description: "Flexible router: task://router/{project}/{id}/{action}",
-      mimeType: "application/json"
-    },
-    taskResourceHandler
-  );
-
   // Base prefix router for task:// scheme — used together with SDK monkey-patch to enable prefix delegation
   server.registerResource(
     "task_router_prefix",
     "task://",
     {
-      title: "Task Router (Prefix)",
-      description: "Prefix router for task://{project}/{id}[/{action}] — requires SDK tolerant resolver",
+      title: "Task Prefix Handler",
+      description: "Handles task://{project}/{id}[/{action}] URIs (use project name as host)",
       mimeType: "application/json"
     },
     taskResourceHandler
