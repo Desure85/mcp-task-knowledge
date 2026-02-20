@@ -9,6 +9,7 @@
 This document summarizes the roadmap for the MCP server evolution from a single stdio process to a production-grade, multi-user, networked platform with authorization, ACL, thin proxy, synchronization, and a Web UI for tasks/prompts/knowledge.
 
 Key outcomes:
+
 - Unified JSON‑RPC engine and transport abstractions (stdio/TCP/Unix/WS).
 - Multi-user sessions with auth (Bearer/JWT) and ACL.
 - Thin Proxy ↔ Thick Server architecture.
@@ -23,6 +24,7 @@ Export to Obsidian is configured in merge mode. See your vault under `/data/obsi
 Этот документ описывает дорожную карту развития MCP‑сервера: от процесса stdio к промышленной многопользовательской платформе с авторизацией, ACL, тонким прокси, синхронизацией и Web UI для задач/промптов/знаний.
 
 Ключевые результаты:
+
 - Единый JSON‑RPC движок и абстракции транспорта (stdio/TCP/Unix/WS).
 - Многопользовательские сессии, авторизация (Bearer/JWT), ACL.
 - Архитектура Thin Proxy ↔ Thick Server.
@@ -221,4 +223,3 @@ Export to Obsidian is configured in merge mode. See your vault under `/data/obsi
   - [ ] 13.5 Realtime-обновления (WebSocket)
   - [ ] 13.6 Обратная связь и аналитика
   - [ ] 13.7 Docker/CI для Web UI
-
