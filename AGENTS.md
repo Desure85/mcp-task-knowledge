@@ -192,23 +192,22 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-04-04
-**Текущая feature-ветка:** feat/agent-tracking-files
-**Текущий этап ROADMAP:** Исследование рынка (pre-stage-0)
+**Текущая feature-ветка:** feat/market-research
+**Текущий этап ROADMAP:** Исследование рынка → приоритизация (pre-stage-0)
 **Статус:** in_progress
 
 ### Последние действия
 
-- Создана трекинг-тройка (AGENTS.md, BACKLOG.md, ROADMAP.md)
-- Открыт PR #23: https://github.com/Desure85/mcp-task-knowledge/pull/23
-- Проведено конкурентное исследование рынка MCP-серверов
-- Задан вопрос о востребованности (исследование в процессе)
+- PR #23, #24, #25 — merged (трекинг-тройки, workflow rules)
+- PR #26 — закрыт как устаревший (конфликт с PR #25)
+- Market research завершён: PDF отчёт + 14 приоритизированных задач (MR-001..MR-014)
+- Web UI построен (Next.js, Kanban, Knowledge, Search) — готов к push в PR
 
 ### Что дальше
 
-- Завершить анализ востребованности и приоритизацию бэклога
-- Сравнить найденное с ROADMAP
-- Обновить BACKLOG.md с приоритетами на основе исследования
-- Закоммитить результаты исследования и открыть PR
+- Запушить результаты исследования (feat/market-research → PR)
+- Запушить Web UI в отдельный PR (feat/ui)
+- Начать реализацию MR-001 (Streamable HTTP transport) — top priority
 
 ---
 
