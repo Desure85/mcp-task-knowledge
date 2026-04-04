@@ -1,6 +1,9 @@
 # MCP Server Roadmap / Дорожная карта MCP-сервера
 
-Дата: 2025-09-27 09:50 (+03)
+**Последнее обновление:** 2026-04-04
+**Обновлено агентом:** да
+
+> **Важно для агента:** После каждого завершённого подэтапа отметь `[x]` в чек-листе и обнови дату выше. Также обнови BACKLOG.md (статусы задач) и AGENTS.md (текущее состояние).
 
 ---
 
@@ -9,10 +12,11 @@
 This document summarizes the roadmap for the MCP server evolution from a single stdio process to a production-grade, multi-user, networked platform with authorization, ACL, thin proxy, synchronization, and a Web UI for tasks/prompts/knowledge.
 
 Key outcomes:
-- Unified JSON‑RPC engine and transport abstractions (stdio/TCP/Unix/WS).
+
+- Unified JSON-RPC engine and transport abstractions (stdio/TCP/Unix/WS).
 - Multi-user sessions with auth (Bearer/JWT) and ACL.
 - Thin Proxy ↔ Thick Server architecture.
-- Reliable catalog synchronization (delta/snapshot/ack, conflict‑resolution).
+- Reliable catalog synchronization (delta/snapshot/ack, conflict-resolution).
 - Comprehensive testing (E2E, load, fuzz, chaos).
 - Web UI (Next.js) for tasks/prompts/knowledge with realtime updates.
 
@@ -20,21 +24,58 @@ Export to Obsidian is configured in merge mode. See your vault under `/data/obsi
 
 ## Обзор (RU)
 
-Этот документ описывает дорожную карту развития MCP‑сервера: от процесса stdio к промышленной многопользовательской платформе с авторизацией, ACL, тонким прокси, синхронизацией и Web UI для задач/промптов/знаний.
+Этот документ описывает дорожную карту развития MCP-сервера: от процесса stdio к промышленной многопользовательской платформе с авторизацией, ACL, тонким прокси, синхронизацией и Web UI для задач/промптов/знаний.
 
 Ключевые результаты:
-- Единый JSON‑RPC движок и абстракции транспорта (stdio/TCP/Unix/WS).
+
+- Единый JSON-RPC движок и абстракции транспорта (stdio/TCP/Unix/WS).
 - Многопользовательские сессии, авторизация (Bearer/JWT), ACL.
 - Архитектура Thin Proxy ↔ Thick Server.
 - Надёжная синхронизация каталога (delta/snapshot/ack, разрешение конфликтов).
-- Полное тестирование (E2E, нагрузка, фаззинг, хаос‑тесты).
-- Web UI (Next.js) для задач/промптов/знаний с realtime‑обновлениями.
+- Полное тестирование (E2E, нагрузка, фаззинг, хаос-тесты).
+- Web UI (Next.js) для задач/промптов/знаний с realtime-обновлениями.
+
+---
+
+## Трекинг-тройка
+
+| Файл | Назначение |
+|------|------------|
+| `AGENTS.md` | Инструкция для AI-агента, контекст проекта, стандарты |
+| `BACKLOG.md` | Бэклог задач с приоритетами и статусами |
+| `ROADMAP.md` | Дорожная карта (этапы 0-13) с чек-листами |
+
+**Протокол:** после каждого этапа/подэтапа агент обновляет все три файла.
+
+---
+
+## Прогресс
+
+> Агент обновляет после каждого изменения.
+
+| Этап | Название | Задач | Готово | Прогресс |
+|------|----------|-------|--------|----------|
+| 0 | Архитектурный каркас | 5 | 0 | 0% |
+| 1 | Транспорт | 3 | 0 | 0% |
+| 2 | Сессии | 3 | 0 | 0% |
+| 3 | Авторизация | 3 | 0 | 0% |
+| 4 | ACL | 3 | 0 | 0% |
+| 5 | Thin Proxy | 4 | 0 | 0% |
+| 6 | Синхронизация | 5 | 0 | 0% |
+| 7 | Тестирование | 5 | 0 | 0% |
+| 8 | Безопасность | 5 | 0 | 0% |
+| 9 | DX | 5 | 0 | 0% |
+| 10 | Масштабируемость | 5 | 0 | 0% |
+| 11 | Интеграции | 4 | 0 | 0% |
+| 12 | Умные фичи | 4 | 0 | 0% |
+| 13 | Web UI | 7 | 0 | 0% |
+| | **Итого** | **61** | **0** | **0%** |
 
 ---
 
 ## Phases (EN)
 
-- **Stage 0 — Architectural foundation**: JSON‑RPC engine, transport layer, registry, configuration/logging/metrics.
+- **Stage 0 — Architectural foundation**: JSON-RPC engine, transport layer, registry, configuration/logging/metrics.
 - **Stage 1 — Transport**: stdio/TCP/Unix support, multi-client server.
 - **Stage 2 — Sessions**: SessionManager, ToolExecutor/ToolContext, per-session rate limiting.
 - **Stage 3 — Authorization**: Bearer/JWT flow, JWKS validation, pre-auth method window.
@@ -51,17 +92,17 @@ Export to Obsidian is configured in merge mode. See your vault under `/data/obsi
 
 ## Этапы (RU)
 
-- **Этап 0 — Архитектурный каркас**: JSON‑RPC ядро, транспорт, реестр, конфигурация/логи/метрики.
+- **Этап 0 — Архитектурный каркас**: JSON-RPC ядро, транспорт, реестр, конфигурация/логи/метрики.
 - **Этап 1 — Транспорт**: поддержка stdio/TCP/Unix, многоклиентский сервер.
 - **Этап 2 — Сессии**: SessionManager, ToolExecutor/ToolContext, пер-сессионные лимиты.
 - **Этап 3 — Авторизация**: Bearer/JWT, проверка JWKS, окно разрешённых методов до входа.
 - **Этап 4 — ACL**: модель политик, фильтрация списков, проверки при вызове инструментов.
 - **Этап 5 — Тонкий прокси**: bootstrap, зеркалирование описаний, проброс запросов/уведомлений, устойчивость.
-- **Этап 6 — Синхронизация**: протокол delta/snapshot/ack, разрешение конфликтов, event‑sourcing, E2E устойчивость.
-- **Этап 7 — Тестирование и качество**: e2e, нагрузка, фаззинг, хаос‑тесты, CI-отчётность.
-- **Этап 8 — Безопасность**: short‑lived токены, аудит, TLS/mTLS, управление секретами, защита аутентификации.
+- **Этап 6 — Синхронизация**: протокол delta/snapshot/ack, разрешение конфликтов, event-sourcing, E2E устойчивость.
+- **Этап 7 — Тестирование и качество**: e2e, нагрузка, фаззинг, хаос-тесты, CI-отчётность.
+- **Этап 8 — Безопасность**: short-lived токены, аудит, TLS/mTLS, управление секретами, защита аутентификации.
 - **Этап 9 — DX**: горячая регистрация, namespaces/filters, кеш в прокси, Dev CLI, hot reload.
-- **Этап 10 — Масштабируемость**: LB и sticky sessions, шардирование, синхронизация состояния кластера, readiness/drain, авто‑скейлинг.
+- **Этап 10 — Масштабируемость**: LB и sticky sessions, шардирование, синхронизация состояния кластера, readiness/drain, авто-скейлинг.
 - **Этап 11 — Интеграции**: Pub/Sub события, WebSocket транспорт, REST и gRPC-обёртки.
 - **Этап 12 — Умные фичи**: Dynamic tools, policy-as-code, аналитика использования, рекомендации.
 - **Этап 13 — Web UI**: базис на Next.js, доска Kanban, редактор MDX, управление промптами, realtime, обратная связь, CI/Docker.
@@ -222,3 +263,11 @@ Export to Obsidian is configured in merge mode. See your vault under `/data/obsi
   - [ ] 13.6 Обратная связь и аналитика
   - [ ] 13.7 Docker/CI для Web UI
 
+---
+
+## История обновлений
+
+| Дата | Обновление | Автор |
+|------|-----------|-------|
+| 2026-04-04 | Добавлена трекинг-тройка, прогресс-таблица, секция для агента | agent |
+| 2025-09-27 | Первичная версия с чек-листами EN/RU | Desure85 |
