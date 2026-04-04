@@ -6,6 +6,41 @@
 
 ---
 
+## Стратегия
+
+### Этап 0 — Фундамент
+- [ ] F-001: Рефакторинг `src/index.ts` (4010 строк → модули)
+- [ ] F-002: Абстракция Transport Layer
+
+### Этап 1 — Рыночная конкурентоспособность
+- [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
+- [ ] MR-001: Streamable HTTP transport
+- [ ] MR-010: npm publish + MCPMarket listing
+- [ ] MR-005: Task dependency graph (DAG)
+- [ ] MR-003: Semantic search (BM25 + embeddings)
+
+### Этап 2 — Документация и распространение
+- [ ] MR-014: README overhaul
+- [ ] MR-013: Claude Code / Windsurf integration guides
+- [ ] MR-011: Claude Desktop / Cursor certified config
+- [ ] MR-006: VS Code extension
+
+### Этап 3 — Качество и инфраструктура
+- [ ] Q-001–Q-003: Unit-тесты (search, tasks, knowledge)
+- [ ] Q-004: E2E тесты MCP-инструментов
+- [ ] TD-001: Рефакторинг монолитного index.ts
+- [ ] TD-002: Типизация (убрать any)
+
+### Критический путь
+```
+F-001 (refactor) → MR-001 (HTTP transport) → MR-010 (npm publish)
+                                     → MR-011 (certified configs)
+                                     → MR-006 (VS Code extension)
+MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
+```
+
+---
+
 ## Статусы
 
 | Статус | Описание |
@@ -31,7 +66,7 @@
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| F-001 | Рефакторинг `src/index.ts`: вынести регистрацию инструментов в отдельные модули | high | pending | 0.1 | — |
+| F-001 | Рефакторинг `src/index.ts`: вынести регистрацию инструментов в отдельные модули | critical | pending | 0.1 | — |
 | F-002 | Создать абстракцию Transport Layer (подготовка к TCP/WS) | medium | pending | 0.2 | F-001 |
 | F-003 | Реестр инструментов: версионирование, etag, пагинация | medium | pending | 0.3 | F-001 |
 | F-004 | Добавить структурированное логирование (Pino или Winston) | medium | pending | 0.4 | — |
@@ -99,8 +134,8 @@
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| MR-001 | Streamable HTTP transport (вместо stdio) | critical | pending | — | F-001 |
-| MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | done | — | — |
+| MR-001 | Streamable HTTP transport (вместо stdio) | critical | blocked | — | F-001 |
+| MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | review | — | — | PR #29 |
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | pending | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | pending | — | MR-002 |
@@ -108,12 +143,12 @@
 | MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | pending | — | — |
 | MR-009 | Markdown import/export для knowledge base | medium | pending | — | — |
-| MR-010 | MCPMarket listing + npm publish | critical | pending | — | MR-001 |
+| MR-010 | MCPMarket listing + npm publish | critical | blocked | — | MR-001 |
 | MR-011 | Claude Desktop / Cursor certified config | high | pending | — | MR-001 |
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | MR-001 |
 | MR-013 | Claude Code / Windsurf integration guides | high | pending | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | pending | — | — |
-| MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | done | — | — |
+| MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | review | — | — |
 
 ---
 
@@ -132,7 +167,7 @@
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| TD-001 | Рефакторинг монолитного `src/index.ts` (разделение на модули) | high | pending | F-001 | — |
+| TD-001 | Рефакторинг монолитного `src/index.ts` (разделение на модули) | high | pending | — | F-001 → duplicate of F-001 |
 | TD-002 | Типизация: заменить `any` на конкретные типы | medium | pending | F-006 | — |
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred | — | — |
 | TD-004 | Rate limiting на уровне инструментов | medium | pending | S-003 | — |
@@ -178,6 +213,35 @@
 | AI-004 | Автоматическое обновление трекинг-троек в CI | low | pending | — | AI-001..AI-003 |
 | AI-005 | Market research отчёт (PDF) | high | done | — | — |
 | AI-006 | Web UI: Kanban, Knowledge, Search (Next.js) | high | done | — | — |
+
+---
+
+## Блокированные
+
+| ID | Задача | Причина | Статус |
+|----|--------|---------|--------|
+| MR-001 | Streamable HTTP transport | Ждёт F-001 (refactor index.ts) | blocked |
+| MR-010 | npm publish + MCPMarket listing | Ждёт MR-001 (HTTP transport) | blocked |
+| MR-011 | Claude Desktop / Cursor certified config | Ждёт MR-001 (HTTP transport) | blocked |
+| MR-006 | VS Code extension | Ждёт MR-001 (HTTP transport) | blocked |
+| MR-012 | Real-time collaboration (WebSocket) | Ждёт MR-001 (HTTP transport) | blocked |
+| T-001 | AppContainer: композиция с lifecycle | Ждёт F-001, F-002 | blocked |
+| T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
+| S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
+| A-001 | mcp.authenticate + pre-auth | Ждёт S-001 | blocked |
+
+---
+
+## Архив (последние 20)
+
+| ID | Задача | Закрыто | PR |
+|----|--------|---------|-----|
+| AI-001 | Создать AGENTS.md | 2026-04-04 | #24 |
+| AI-002 | Создать BACKLOG.md | 2026-04-04 | #24 |
+| AI-003 | Актуализировать ROADMAP.md | 2026-04-04 | #24 |
+| AI-005 | Market research отчёт (PDF) | 2026-04-04 | #27 |
+| MR-002 | Task hierarchy (parentId, depth, cascade) | 2026-04-04 | #29 |
+| MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 
 ---
 
