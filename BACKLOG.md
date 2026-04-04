@@ -100,7 +100,7 @@
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | MR-001 | Streamable HTTP transport (вместо stdio) | critical | pending | — | F-001 |
-| MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | pending | — | — |
+| MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | done | — | — |
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | pending | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | pending | — | MR-002 |
@@ -196,9 +196,9 @@
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 12 | 0 | 1 | 0 | 0 |
+| Market Research | 15 | 11 | 0 | 2 | 0 | 0 |
 | Tech Debt | 8 | 7 | 0 | 0 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **59** | **0** | **6** | **0** | **1** |
+| **Итого** | **66** | **58** | **0** | **7** | **0** | **1** |

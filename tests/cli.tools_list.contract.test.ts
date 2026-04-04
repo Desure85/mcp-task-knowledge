@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // Contract: CLI must expose only bulk/list/tree/get for tasks/knowledge (no single-tools)
-// We assert by parsing src/index.ts for server.registerTool("...") occurrences.
+// Updated for MR-002: tasks_create, tasks_update, tasks_close are now allowed (hierarchy features)
+// Still banned: archive, trash, restore, delete_permanent (must use bulk variants)
 
 describe('CLI tools contract — no single-tools registered', () => {
   it('does not register banned single-tools', () => {
@@ -18,14 +19,12 @@ describe('CLI tools contract — no single-tools registered', () => {
       names.add(m[1]);
     }
 
-    // Explicit banned names for single-tools we removed during CLI refactor
+    // Banned single-tools — must use bulk_* variants instead
+    // Note: tasks_create, tasks_update, tasks_close are intentionally allowed (MR-002: task hierarchy)
     const banned = [
-      'tasks_create',
-      'tasks_update',
       'tasks_archive',
       'tasks_trash',
       'tasks_restore',
-      'tasks_close',
       'tasks_delete_permanent',
       'knowledge_create',
       'knowledge_update',
