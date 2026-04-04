@@ -37,10 +37,20 @@ export async function createTask(input: {
   title: string;
   description?: string;
   priority?: Priority;
+  status?: Status;
   tags?: string[];
   links?: string[];
   parentId?: string;
 }): Promise<Task> {
+  // Validate parent exists and depth limit
+  if (input.parentId) {
+    const parent = await getTask(input.project, input.parentId);
+    if (!parent) {
+      throw new Error(`Parent task not found: ${input.project}/${input.parentId}`);
+    }
+    await validateParentDepth(input.project, '__new__', input.parentId);
+  }
+
   const id = uuidv4();
   const now = new Date().toISOString();
   const task: Task = {
@@ -48,7 +58,7 @@ export async function createTask(input: {
     project: input.project,
     title: input.title,
     description: input.description,
-    status: 'pending',
+    status: input.status || 'pending',
     priority: input.priority || 'medium',
     tags: input.tags || [],
     links: input.links || [],
@@ -174,6 +184,10 @@ export async function updateTask(project: string, id: string, patch: Partial<Omi
       }
     }
     normalizedPatch.parentId = parentId as any;
+    // Validate depth limit
+    if (parentId) {
+      await validateParentDepth(project, id, parentId);
+    }
   }
 
   const updated: Task = {
@@ -191,6 +205,135 @@ export async function updateTask(project: string, id: string, patch: Partial<Omi
 
 export async function closeTask(project: string, id: string): Promise<Task | null> {
   return updateTask(project, id, { status: 'closed' as Status });
+}
+
+// --- Hierarchy helpers ---
+
+/** Maximum allowed nesting depth for task trees */
+export const MAX_TASK_DEPTH = 10;
+
+/**
+ * Compute the depth of a task in the hierarchy (root = 0).
+ * Returns -1 if the task does not exist.
+ */
+export async function getTaskDepth(project: string, id: string): Promise<number> {
+  const tasks = await listTasks({ project, includeArchived: true, includeTrashed: true });
+  const byId = new Map(tasks.map((t) => [t.id, t] as const));
+  let depth = 0;
+  let current = byId.get(id);
+  if (!current) return -1;
+  while (current?.parentId && byId.has(current.parentId)) {
+    depth++;
+    current = byId.get(current.parentId)!;
+  }
+  return depth;
+}
+
+/**
+ * Validate that setting `parentId` on a task would not exceed MAX_TASK_DEPTH.
+ * Throws if the resulting depth would be too deep.
+ */
+export async function validateParentDepth(
+  project: string,
+  taskId: string,
+  newParentId: string | undefined
+): Promise<void> {
+  if (!newParentId) return;
+  const parentDepth = await getTaskDepth(project, newParentId);
+  if (parentDepth < 0) {
+    throw new Error(`Parent task not found: ${project}/${newParentId}`);
+  }
+  if (parentDepth + 1 >= MAX_TASK_DEPTH) {
+    throw new Error(
+      `Maximum task depth (${MAX_TASK_DEPTH}) exceeded. ` +
+      `Parent is at depth ${parentDepth}, child would be at depth ${parentDepth + 1}.`
+    );
+  }
+}
+
+/**
+ * Get a specific task and all its descendants as a tree.
+ * Returns null if the root task is not found.
+ */
+export async function getTaskSubtree(project: string, rootId: string): Promise<TaskTreeNode | null> {
+  const tasks = await listTasks({ project, includeArchived: true, includeTrashed: true });
+  const byId = new Map<string, Task>();
+  for (const t of tasks) {
+    byId.set(t.id, t);
+  }
+  const root = byId.get(rootId);
+  if (!root) return null;
+
+  // Recursively collect all descendants
+  const allDescendants: Task[] = [];
+  const collect = (parentId: string) => {
+    const children = tasks.filter((t) => t.parentId === parentId);
+    for (const child of children) {
+      allDescendants.push(child);
+      collect(child.id);
+    }
+  };
+  collect(rootId);
+
+  // Build tree from root + all descendants
+  const allNodes = [root, ...allDescendants];
+  const treeNodeMap = new Map<string, TaskTreeNode>();
+  for (const t of allNodes) {
+    treeNodeMap.set(t.id, { ...t, children: [] });
+  }
+  let rootNode = treeNodeMap.get(rootId)!;
+  for (const node of treeNodeMap.values()) {
+    if (node.id === rootId) continue;
+    if (node.parentId && treeNodeMap.has(node.parentId)) {
+      treeNodeMap.get(node.parentId)!.children.push(node);
+    }
+  }
+
+  // Sort children recursively
+  const sortRec = (n: TaskTreeNode) => {
+    n.children.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    n.children.forEach(sortRec);
+  };
+  sortRec(rootNode);
+
+  return rootNode;
+}
+
+/**
+ * Get all direct children of a task (one level only).
+ * Returns empty array if the task is not found.
+ */
+export async function getDirectChildren(project: string, parentId: string): Promise<Task[]> {
+  const tasks = await listTasks({ project, includeArchived: true, includeTrashed: true });
+  return tasks.filter((t) => t.parentId === parentId);
+}
+
+/**
+ * Close a task and optionally cascade the close to all descendants.
+ * Returns an array of all closed tasks (root + descendants if cascaded).
+ */
+export async function closeTaskWithCascade(
+  project: string,
+  id: string,
+  cascade: boolean = false
+): Promise<{ root: Task | null; cascaded: Task[] }> {
+  const root = await closeTask(project, id);
+  if (!root) return { root: null, cascaded: [] };
+  if (!cascade) return { root, cascaded: [] };
+
+  // Collect all descendants
+  const children = await getDirectChildren(project, id);
+  const cascaded: Task[] = [];
+  const queue = [...children];
+  while (queue.length > 0) {
+    const child = queue.shift()!;
+    const closed = await closeTask(project, child.id);
+    if (closed) cascaded.push(closed);
+    const grandchildren = await getDirectChildren(project, child.id);
+    queue.push(...grandchildren);
+  }
+
+  return { root, cascaded };
 }
 
 async function listAllProjects(): Promise<string[]> {
