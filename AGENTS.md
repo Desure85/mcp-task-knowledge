@@ -199,7 +199,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 ### Последние действия
 
 - Создана трекинг-тройка (AGENTS.md, BACKLOG.md, ROADMAP.md)
-- Открыт PR #23: https://github.com/Desure85/mcp-task-knowledge/pull/23
+- Открыт PR #23: <https://github.com/Desure85/mcp-task-knowledge/pull/23>
 - Проведено конкурентное исследование рынка MCP-серверов
 - Задан вопрос о востребованности (исследование в процессе)
 
