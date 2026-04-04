@@ -93,8 +93,9 @@
 
 ## Market Research Phase — Приоритеты по результатам исследования рынка (апр. 2026)
 
-> Отчёт: `mcp-market-research-2026.pdf`. Конкуренты: Agentic Tools MCP (81 stars), TaskMaster v2, TaskMaster v1.
+> Отчёт: `docs/market-research/mcp-market-research-2026.pdf`. Конкуренты: Agentic Tools MCP (81★), TaskMaster v2, TaskMaster v1.
 > Ключевые gaps: HTTP transport, semantic search, task hierarchy, VS Code extension.
+> Скриншоты UI: `docs/market-research/ui-screenshot.png`, `ui-knowledge.png`, `ui-search.png`.
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
@@ -112,6 +113,7 @@
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | MR-001 |
 | MR-013 | Claude Code / Windsurf integration guides | high | pending | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | pending | — | — |
+| MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | done | — | — |
 
 ---
 
@@ -194,9 +196,9 @@
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 14 | 12 | 0 | 0 | 0 | 0 |
+| Market Research | 15 | 12 | 0 | 1 | 0 | 0 |
 | Tech Debt | 8 | 7 | 0 | 0 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **65** | **59** | **0** | **5** | **0** | **1** |
+| **Итого** | **66** | **59** | **0** | **6** | **0** | **1** |
