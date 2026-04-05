@@ -145,7 +145,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | done | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | done | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | done | — | MR-002 |
-| MR-006 | VS Code extension (companion для Web UI) | high | pending | — | MR-001 |
+| MR-006 | VS Code extension (companion для Web UI) | high | done | — | MR-001 |
 | MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | pending | — | — |
 | MR-009 | Markdown import/export для knowledge base | medium | pending | — | — |
@@ -229,7 +229,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-001 | Streamable HTTP transport | Завершён | done |
 | MR-010 | npm publish + MCPMarket listing | — | done |
 | MR-011 | Claude Desktop / Cursor certified config | — | done |
-| MR-006 | VS Code extension | — | pending |
+| MR-006 | VS Code extension | — | done |
 | MR-012 | Real-time collaboration (WebSocket) | — | pending |
 | T-001 | AppContainer: композиция с lifecycle | Ждёт F-002 | blocked |
 | T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
@@ -254,6 +254,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
 | MR-014 | README overhaul for npm | 2026-04-05 | #33 |
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
+| MR-006 | VS Code extension | 2026-04-05 | #36 |
 
 ---
 
@@ -272,9 +273,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 5 | 0 | 8 | 0 | 0 |
+| Market Research | 15 | 4 | 0 | 9 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **49** | **0** | **15** | **0** | **1** |
+| **Итого** | **66** | **48** | **0** | **16** | **0** | **1** |

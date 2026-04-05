@@ -1,0 +1,266 @@
+{
+  "name": "mcp-task-knowledge",
+  "displayName": "MCP Task & Knowledge",
+  "description": "VS Code companion for mcp-task-knowledge MCP server — manage tasks, knowledge base, and prompts directly from the editor",
+  "version": "0.1.0",
+  "publisher": "desure",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Snippets"
+  ],
+  "keywords": [
+    "mcp",
+    "task management",
+    "knowledge base",
+    "ai",
+    "kanban"
+  ],
+  "activationEvents": [
+    "onView:taskKnowledgeExplorer",
+    "onCommand:mcpTaskKnowledge.refreshTasks",
+    "onCommand:mcpTaskKnowledge.refreshKnowledge",
+    "onCommand:mcpTaskKnowledge.createTask",
+    "onCommand:mcpTaskKnowledge.updateTaskStatus",
+    "onCommand:mcpTaskKnowledge.addKnowledge",
+    "onCommand:mcpTaskKnowledge.searchAll",
+    "onCommand:mcpTaskKnowledge.openWebUI",
+    "onCommand:mcpTaskKnowledge.showDAG"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "taskKnowledgeExplorer",
+          "title": "MCP Tasks",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "taskKnowledgeExplorer": [
+        {
+          "id": "tasksTree",
+          "name": "Tasks"
+        },
+        {
+          "id": "knowledgeTree",
+          "name": "Knowledge"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "tasksTree",
+        "contents": "Connect to MCP server to see your tasks.\n[Configure Server](command:mcpTaskKnowledge.configureServer)",
+        "when": "!mcpTaskKnowledge.connected"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mcpTaskKnowledge.refreshTasks",
+        "title": "MCP: Refresh Tasks",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcpTaskKnowledge.refreshKnowledge",
+        "title": "MCP: Refresh Knowledge",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mcpTaskKnowledge.createTask",
+        "title": "MCP: Create Task",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mcpTaskKnowledge.updateTaskStatus",
+        "title": "MCP: Change Task Status"
+      },
+      {
+        "command": "mcpTaskKnowledge.addKnowledge",
+        "title": "MCP: Add Knowledge Entry",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mcpTaskKnowledge.searchAll",
+        "title": "MCP: Search Tasks & Knowledge"
+      },
+      {
+        "command": "mcpTaskKnowledge.openWebUI",
+        "title": "MCP: Open Web UI"
+      },
+      {
+        "command": "mcpTaskKnowledge.showDAG",
+        "title": "MCP: Show Dependency Graph"
+      },
+      {
+        "command": "mcpTaskKnowledge.configureServer",
+        "title": "MCP: Configure Server Connection"
+      },
+      {
+        "command": "mcpTaskKnowledge.reconnectServer",
+        "title": "MCP: Reconnect to Server",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "mcpTaskKnowledge.showTaskDetails",
+        "title": "MCP: Show Task Details"
+      },
+      {
+        "command": "mcpTaskKnowledge.showKnowledgeEntry",
+        "title": "MCP: Show Knowledge Entry"
+      },
+      {
+        "command": "mcpTaskKnowledge.addSubtask",
+        "title": "MCP: Add Subtask"
+      },
+      {
+        "command": "mcpTaskKnowledge.openTaskTree",
+        "title": "MCP: Open Task Tree"
+      },
+      {
+        "command": "mcpTaskKnowledge.setDependencies",
+        "title": "MCP: Set Task Dependencies"
+      },
+      {
+        "command": "mcpTaskKnowledge.archiveTasks",
+        "title": "MCP: Archive Completed Tasks"
+      },
+      {
+        "command": "mcpTaskKnowledge.exportMermaid",
+        "title": "MCP: Export Task Graph (Mermaid)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mcpTaskKnowledge.createTask",
+          "when": "view == tasksTree && mcpTaskKnowledge.connected",
+          "group": "navigation"
+        },
+        {
+          "command": "mcpTaskKnowledge.refreshTasks",
+          "when": "view == tasksTree && mcpTaskKnowledge.connected",
+          "group": "navigation"
+        },
+        {
+          "command": "mcpTaskKnowledge.addKnowledge",
+          "when": "view == knowledgeTree && mcpTaskKnowledge.connected",
+          "group": "navigation"
+        },
+        {
+          "command": "mcpTaskKnowledge.refreshKnowledge",
+          "when": "view == knowledgeTree && mcpTaskKnowledge.connected",
+          "group": "navigation"
+        },
+        {
+          "command": "mcpTaskKnowledge.reconnectServer",
+          "when": "view == tasksTree",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mcpTaskKnowledge.showTaskDetails",
+          "when": "view == tasksTree && viewItem == task",
+          "group": "inline"
+        },
+        {
+          "command": "mcpTaskKnowledge.updateTaskStatus",
+          "when": "view == tasksTree && viewItem == task",
+          "group": "1_status@1"
+        },
+        {
+          "command": "mcpTaskKnowledge.addSubtask",
+          "when": "view == tasksTree && viewItem == task",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "mcpTaskKnowledge.setDependencies",
+          "when": "view == tasksTree && viewItem == task",
+          "group": "2_edit@2"
+        },
+        {
+          "command": "mcpTaskKnowledge.showKnowledgeEntry",
+          "when": "view == knowledgeTree && viewItem == knowledge",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MCP Task & Knowledge",
+      "properties": {
+        "mcpTaskKnowledge.transport": {
+          "type": "string",
+          "enum": ["stdio", "http"],
+          "default": "stdio",
+          "description": "Transport type for MCP server connection",
+          "order": 1
+        },
+        "mcpTaskKnowledge.serverCommand": {
+          "type": "string",
+          "default": "npx",
+          "description": "Command to start MCP server (stdio transport). E.g. 'npx', 'node', or full path to binary.",
+          "order": 2
+        },
+        "mcpTaskKnowledge.serverArgs": {
+          "type": "array",
+          "default": ["-y", "mcp-task-knowledge"],
+          "items": { "type": "string" },
+          "description": "Arguments for MCP server command (stdio transport).",
+          "order": 3
+        },
+        "mcpTaskKnowledge.httpUrl": {
+          "type": "string",
+          "default": "http://localhost:3001",
+          "description": "URL of MCP server (HTTP transport).",
+          "order": 4
+        },
+        "mcpTaskKnowledge.project": {
+          "type": "string",
+          "default": "default",
+          "description": "Default project name for tasks and knowledge.",
+          "order": 5
+        },
+        "mcpTaskKnowledge.webUIUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "URL of the Web UI dashboard.",
+          "order": 6
+        },
+        "mcpTaskKnowledge.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh task list after changes.",
+          "order": 7
+        },
+        "mcpTaskKnowledge.refreshInterval": {
+          "type": "number",
+          "default": 30,
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Auto-refresh interval in seconds (0 to disable).",
+          "order": 8
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "npx @vscode/vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}
