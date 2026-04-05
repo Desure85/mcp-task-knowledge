@@ -77,11 +77,67 @@ Add to `.cursor/mcp.json`:
 }
 ```
 
-### Windsurf / Claude Code
+### Claude Code
 
-```bash
-DATA_DIR=/path/to/data CURRENT_PROJECT=my-project npx mcp-task-knowledge
+Add to `~/.claude/settings.json` (global) or `.claude/settings.json` (per-project):
+
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "env": {
+        "DATA_DIR": "~/.mcp-task-knowledge",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
 ```
+
+See [Claude Code Integration Guide](docs/integration-guides/claude-code.md) for HTTP transport, npx mode, troubleshooting, and usage examples.
+
+### Cursor
+
+Add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "env": {
+        "DATA_DIR": "/path/to/data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
+```
+
+### Windsurf
+
+Add to `.windsurf/mcp.json` (per-project) or via **Settings → MCP Servers**:
+
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "env": {
+        "DATA_DIR": ".windsurf-data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
+```
+
+See [Windsurf Integration Guide](docs/integration-guides/windsurf.md) for Cascade AI workflows, multi-project setup, and troubleshooting.
+
+### VS Code
+
+See [`extensions/vscode/`](extensions/vscode/) for the companion extension with task sidebar, DAG viewer, and unified search.
 
 ## HTTP Transport
 

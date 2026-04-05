@@ -25,9 +25,9 @@
 ### Этап 2 — Документация и распространение
 
 - [x] MR-014: README overhaul
-- [ ] MR-013: Claude Code / Windsurf integration guides
+- [x] MR-013: Claude Code / Windsurf integration guides
 - [x] MR-011: Claude Desktop / Cursor certified config
-- [ ] MR-006: VS Code extension
+- [x] MR-006: VS Code extension
 
 ### Этап 3 — Качество и инфраструктура
 
@@ -152,7 +152,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-010 | MCPMarket listing + npm publish | critical | done | — | — |
 | MR-011 | Claude Desktop / Cursor certified config | high | done | — | — |
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
-| MR-013 | Claude Code / Windsurf integration guides | high | pending | — | — |
+| MR-013 | Claude Code / Windsurf integration guides | high | done | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | done | — | — |
 | MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | review | — | — |
 
@@ -255,6 +255,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-014 | README overhaul for npm | 2026-04-05 | #33 |
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 | MR-006 | VS Code extension | 2026-04-05 | #36 |
+| MR-013 | Claude Code / Windsurf integration guides | 2026-04-05 | #37 |
 
 ---
 
@@ -273,9 +274,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 4 | 0 | 9 | 0 | 0 |
+| Market Research | 15 | 3 | 0 | 10 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **48** | **0** | **16** | **0** | **1** |
+| **Итого** | **66** | **47** | **0** | **17** | **0** | **1** |
