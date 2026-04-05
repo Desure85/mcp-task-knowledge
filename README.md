@@ -130,6 +130,7 @@ docker run --rm -it \
 Browse tasks, knowledge base, and dependency graphs directly in VS Code. See [`extensions/vscode/`](extensions/vscode/) for source and installation instructions.
 
 Key features:
+
 - **Task sidebar** — tasks grouped by status, quick status changes
 - **Knowledge sidebar** — documents grouped by type
 - **Dependency graph** — visual DAG with Mermaid rendering
