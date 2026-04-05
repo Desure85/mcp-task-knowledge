@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { z } from 'zod';
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
@@ -32,7 +33,7 @@ export function registerHelpers(ctx: ServerContext) {
     {
       title: "Prompts Catalog Get",
       description: "Return prompts catalog JSON if present",
-      inputSchema: { project: require("zod").string().optional() },
+      inputSchema: { project: z.string().optional() },
     },
     async ({ project }: { project?: string }) => {
       const prj = resolveProject(project);
