@@ -1,53 +1,226 @@
-# MCP Task & Knowledge (file-backed)
+# MCP Task & Knowledge
 
-## MCP: prompts_build — Build Prompt Workflows
+File-backed MCP server for task management and knowledge base — works with Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
-Инструмент MCP `prompts_build` собирает артефакты для промптов вида `workflow` (где `metadata.kind === "workflow"`). Сборка рендерит составной Markdown и JSON build (`metadata.kind = "build"`) в каталог `prompts/<project>/exports/builds/`.
+## Features
 
-Поля запроса:
+- **Task management** — create, update, close, archive, trash, restore tasks with priorities, tags, and links
+- **Task hierarchy** — subtasks with `parentId`, depth validation (up to 10 levels), cascade close
+- **Knowledge base** — Markdown documents with frontmatter, tags, types, full CRUD
+- **Search** — BM25 full-text search across tasks and knowledge (hybrid vector+BM25 with ONNX)
+- **Multi-project** — isolated namespaces per project with project switching
+- **Bulk operations** — batch create, update, close, archive, trash, restore, delete
+- **Obsidian integration** — import/export projects from Obsidian vaults
+- **Prompts library** — versioned prompt templates, A/B experiments, workflow builds
+- **Service catalog** — query, upsert, manage microservice registry (embedded or remote)
+- **MCP Resources** — tool introspection, task/knowledge URIs for resource-based access
+- **Dual transport** — stdio (default) + Streamable HTTP (`MCP_TRANSPORT=http`)
 
-- `project?: string` — проект (по умолчанию `CURRENT_PROJECT`/`mcp`).
-- `ids?: string[]` — явные workflow-id для сборки.
-- `includeKinds?: string[]` — какие типы ссылок включать (`rule`, `template`, `policy`, ...).
-- `excludeKinds?: string[]` — исключаемые типы.
-- `includeTags?: string[]` — включать только элементы, у которых есть хотя бы один из тегов.
-- `excludeTags?: string[]` — исключать элементы, у которых есть любой из этих тегов.
-- `latest?: boolean` — зарезервировано для выбора последних версий.
-- `dryRun?: boolean` — план без записи.
-- `force?: boolean` — зарезервировано под инвалидацию.
-- `separator?: string` — глобальный разделитель секций (по умолчанию `---`).
+## Quick Start
 
-Поддержка ссылок и рендеринга:
+### Install
 
-- В `workflow.compose[]` шаги содержат `ref` на элемент библиотеки. Возможен пин версии: `id@version`.
-- Рендер каждой секции включает заголовок (по умолчанию из `metadata.title` или `id`), уровень `level` (1..3), а также опциональные `prefix`, `suffix` и локальный `separator`.
-- В самом `workflow` поддерживаются поля `pre` и `post` — глобальные секции до и после контента.
+```bash
+npm install -g mcp-task-knowledge
+```
 
-Пример compose шага:
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
-  "ref": "rule-1@1.0.0",
-  "title": "Rule One",
-  "level": 2,
-  "prefix": "Intro text",
-  "suffix": "Outro text",
-  "separator": "***"
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "node",
+      "args": ["/absolute/path/to/dist/index.js"],
+      "env": {
+        "DATA_DIR": "/path/to/data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
 }
 ```
 
-Включение инструмента:
+Or via npm global install:
 
-- Установить переменную окружения `PROMPTS_BUILD_ENABLED=1`, либо задать в конфиге `prompts.buildEnabled: true`.
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "env": {
+        "DATA_DIR": "/path/to/data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
+```
 
-Результат вызова — JSON с полями: `built`, `outputs[]` (пути артефактов, если не `dryRun`), `skipped[]`.
+### Cursor
 
-Файловый MCP-сервер для таск-менеджмента и базы знаний по проектам.
+Add to `.cursor/mcp.json`:
 
-- Хранилище: Markdown/JSON в `data/` по неймспейсам проектов (совместимо с Obsidian)
-- Инструменты: `tasks_*`, `knowledge_*`, `search_*`
-- Поиск: BM25 по умолчанию; предусмотрен интерфейс для векторного поиска (плагин)
-- Запуск: Node.js или Docker
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "env": {
+        "DATA_DIR": "/path/to/data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
+```
+
+### Windsurf / Claude Code
+
+```bash
+DATA_DIR=/path/to/data CURRENT_PROJECT=my-project npx mcp-task-knowledge
+```
+
+## HTTP Transport
+
+Run as an HTTP server for web clients and remote access:
+
+```bash
+MCP_TRANSPORT=http MCP_PORT=3001 DATA_DIR=/path/to/data npx mcp-task-knowledge
+```
+
+Then configure Claude Desktop with SSE transport:
+
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "type": "sse",
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+## Docker
+
+```bash
+# Minimal (BM25 search only)
+docker pull ghcr.io/desure85/mcp-task-knowledge:bm25-latest
+
+docker run --rm -it \
+  -e DATA_DIR=/data \
+  -v "$PWD/.data":/data \
+  ghcr.io/desure85/mcp-task-knowledge:bm25-latest
+
+# With ONNX CPU embeddings
+docker pull ghcr.io/desure85/mcp-task-knowledge:cpu-latest
+
+docker run --rm -it \
+  -e DATA_DIR=/data \
+  -e EMBEDDINGS_MODE=onnx-cpu \
+  -v "$PWD/.data":/data \
+  ghcr.io/desure85/mcp-task-knowledge:cpu-latest
+```
+
+## MCP Tools (60+)
+
+### Tasks
+
+| Tool | Description |
+|------|-------------|
+| `tasks_list` | List tasks with filters (status, priority, tags, dates) |
+| `tasks_create` | Create a new task |
+| `tasks_update` | Update task fields |
+| `tasks_close` | Close a task |
+| `tasks_get` | Get task by ID |
+| `tasks_tree` | Get task hierarchy tree |
+| `tasks_add_subtask` | Add a subtask (with depth validation) |
+| `tasks_get_subtree` | Get task and all descendants |
+| `tasks_bulk_create` | Batch create tasks |
+| `tasks_bulk_update` | Batch update tasks |
+| `tasks_bulk_close` | Batch close tasks |
+| `tasks_bulk_archive` | Batch archive tasks |
+| `tasks_bulk_delete_permanent` | Permanently delete tasks |
+
+### Knowledge
+
+| Tool | Description |
+|------|-------------|
+| `knowledge_list` | List documents with filters |
+| `knowledge_tree` | Document hierarchy tree |
+| `knowledge_get` | Get document by ID |
+| `knowledge_bulk_create` | Batch create documents |
+| `knowledge_bulk_update` | Batch update documents |
+| `knowledge_bulk_delete_permanent` | Permanently delete documents |
+
+### Search
+
+| Tool | Description |
+|------|-------------|
+| `search_tasks` | Full-text search across tasks (BM25) |
+| `search_knowledge` | Full-text search across knowledge (BM25) |
+| `embeddings_status` | Check vector search availability |
+
+### Project
+
+| Tool | Description |
+|------|-------------|
+| `project_list` | List all projects |
+| `project_get_current` | Get current active project |
+| `project_set_current` | Switch active project |
+| `project_purge` | Delete all project data (with confirm) |
+
+### Obsidian
+
+| Tool | Description |
+|------|-------------|
+| `obsidian_export_project` | Export project to Obsidian vault |
+| `obsidian_import_project` | Import project from Obsidian vault |
+
+### Introspection
+
+| Tool | Description |
+|------|-------------|
+| `tools_list` | List all registered MCP tools |
+| `tool_schema` | Get input schema for a tool |
+| `tool_help` | Get help text for a tool |
+| `tools_run` | Batch execute multiple tools |
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATA_DIR` | Root data directory | *(required)* |
+| `CURRENT_PROJECT` | Active project name | `mcp` |
+| `OBSIDIAN_VAULT_ROOT` | Path to Obsidian vault | `/data/obsidian` |
+| `MCP_TRANSPORT` | Transport mode: `stdio` or `http` | `stdio` |
+| `MCP_PORT` | HTTP transport port | `3001` |
+| `MCP_HOST` | HTTP transport host | `0.0.0.0` |
+| `EMBEDDINGS_MODE` | Embeddings: `onnx`, `none` | `none` |
+| `EMBEDDINGS_MODEL_PATH` | Path to ONNX model | — |
+| `EMBEDDINGS_DIM` | Vector dimension | `384` |
+| `CATALOG_ENABLED` | Enable service catalog | `false` |
+| `CATALOG_MODE` | Catalog mode: `embedded`, `remote`, `hybrid` | `embedded` |
+
+## Data Structure
+
+```
+data/
+├── tasks/<project>/<uuid>.json      # Task files
+├── knowledge/<project>/<uuid>.md     # Knowledge documents (Markdown + frontmatter)
+└── prompts/<project>/                # Prompt templates and builds
+```
+
+## License
+
+MIT
+
+---
+
+> **Internal documentation** — detailed API reference, prompts system, Obsidian integration, service catalog, Docker compose, and advanced configuration below.
 
 ## Установка
 
@@ -277,35 +450,6 @@ docker run --rm -it \
   -e MCP_TOOL_RESOURCES_ENABLED=true \
   -v "$PWD/.data":/data \
   ghcr.io/desure85/mcp-task-knowledge:bm25-latest
-```
-
-## Установка и запуск (Node.js)
-
-1. Установка зависимостей
-
-```bash
-npm i
-```
-
-2. Сборка
-
-```bash
-npm run build
-```
-
-3. Запуск
-
-```bash
-# Параметры задаются через переменные окружения; OBSIDIAN_VAULT_ROOT имеет дефолт /data/obsidian
-# Пример (PowerShell):
-$env:DATA_DIR="$PWD/data"
-$env:OBSIDIAN_VAULT_ROOT="$env:DATA_DIR/vault"
-$env:EMBEDDINGS_MODE="none"            # none|onnx-cpu|onnx-gpu
-# Если onnx-режимы, обязательно также:
-# $env:EMBEDDINGS_MODEL_PATH="C:/models/multilingual-e5-small.onnx"
-# $env:EMBEDDINGS_DIM="384"
-# $env:EMBEDDINGS_CACHE_DIR="$env:DATA_DIR/.embeddings"
-node dist/index.js
 ```
 
 ## Опубликованные Docker-образы (GHCR)
@@ -2416,182 +2560,3 @@ embeddings_compare -> {
 ```
 
 По умолчанию проект (неймспейс) — `mcp`. Если параметр `project` не указан, инструменты используют `mcp`.
-
-## Переменные окружения
-
-- Обязательные:
-  - `DATA_DIR`: путь к каталогу данных.
-  - `OBSIDIAN_VAULT_ROOT`: корень Obsidian vault для экспорта.
-  - `EMBEDDINGS_MODE`: `none | onnx-cpu | onnx-gpu`.
-- Обязательные при `EMBEDDINGS_MODE != 'none'`:
-  - `EMBEDDINGS_MODEL_PATH`: путь к `.onnx` модели.
-  - `EMBEDDINGS_DIM`: размерность эмбеддинга (число, например `384`).
-  - `EMBEDDINGS_CACHE_DIR`: каталог кэша эмбеддингов.
-Примечание: Значения по умолчанию не используются. Незаполненные обязательные переменные приводят к ошибке запуска.
-
-## Совместный запуск MCP + Service Catalog (docker-compose)
-
-Файл `docker-compose.catalog.yml` поднимает два сервиса: `service-catalog` (порт 3001) и `mcp`.
-
-Быстрый старт (из директории `mcp-task-knowledge/`):
-
-```bash
-docker compose -f docker-compose.catalog.yml up --build
-# После поднятия каталог доступен на http://localhost:3001
-# MCP общается по stdio (без порта); подключайте его как MCP-сервер в IDE.
-```
-
-Проверка каталога локально:
-
-```bash
-chmod +x scripts/smoke_catalog.sh
-CATALOG_BASE_URL=http://localhost:3001 scripts/smoke_catalog.sh
-```
-
-## Частые ошибки и решения
-
-- Bash history expansion: символ `!` внутри инлайновых скриптов в `bash -lc "..."` вызывает ошибку `event not found`.
-  - Решение: экранировать `!` как `\!`, либо предварить команду `set +H` (отключить histexpand), либо вынести скрипт в файл и примонтировать в контейнер (`-v /tmp/script.mjs:/tmp/script.mjs:ro`).
-
-- Отсутствует обязательная переменная `OBSIDIAN_VAULT_ROOT`.
-  - Решение: задайте `OBSIDIAN_VAULT_ROOT` (например, `/data/obsidian` или `/tmp/obsidian` в self-test).
-
-- Для `EMBEDDINGS_MODE != 'none'` не заданы `EMBEDDINGS_MODEL_PATH`, `EMBEDDINGS_DIM`, `EMBEDDINGS_CACHE_DIR`.
-  - Решение: выставить все три переменные; модель `.onnx` доступна в образе по пути `/app/models/encoder.onnx`, размерность можно указать явно (например, `768`).
-
-- Трудно диагностировать инициализацию векторного адаптера.
-  - Решение: включите подробные логи `DEBUG_VECTOR=1` и проверьте сообщения о выбранном ORT backend и путях модели/токенизатора.
-
-## Ускоренные extbase-сборки (внешние базовые образы)
-
-Этот репозиторий поддерживает «extbase»-паттерн для быстрых кэшированных пересборок (<60s):
-
-- Для ONNX CPU: базовый образ с node_modules и моделями.
-- Для BM25: базовый образ только с production node_modules.
-
-### Шаг 1. Локальный Docker Registry (рекомендуется)
-
-```bash
-make registry-up
-# при необходимости создайте builder с доступом к 127.0.0.1
-make buildx-create-host
-```
-
-### Шаг 2. Сборка и публикация базовых образов
-
-- ONNX CPU base (с моделями):
-
-```bash
-make docker-buildx-base-onnx-push
-# публикуется как localhost:5000/mcp-base-onnx:latest
-```
-
-- BM25 base (node_modules):
-
-```bash
-make docker-buildx-base-bm25-push
-# публикуется как localhost:5000/mcp-base-bm25:latest
-```
-
-- GPU base (onnx-gpu с моделями и ORT GPU libs):
-
-```bash
-make docker-buildx-base-gpu-push
-# публикуется как localhost:5000/mcp-base-onnx-gpu:latest
-```
-
-### Шаг 3. Быстрые extbase‑пересборки и бенчмарки
-
-- CPU extbase (без каталога):
-
-```bash
-make docker-bench-cpu-extbase \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- CPU extbase (с каталогом):
-
-```bash
-make docker-bench-cpu-extbase-cat \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- BM25 extbase (без каталога):
-
-```bash
-make docker-bench-bm25-extbase \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- BM25 extbase (с каталогом):
-
-```bash
-make docker-bench-bm25-extbase-cat \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- GPU cached (без каталога):
-
-```bash
-make docker-bench-gpu-cached \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- GPU extbase (без каталога):
-
-```bash
-make docker-bench-gpu-extbase \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- GPU cached (с каталогом):
-
-```bash
-make docker-bench-gpu-cached-cat \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-- GPU extbase (с каталогом):
-
-```bash
-make docker-bench-gpu-extbase-cat \
-  NPM_REGISTRY=https://registry.npmjs.org/
-```
-
-### Классические cached‑сборки для сравнения
-
-- CPU cached (с каталогом):
-
-```bash
-make docker-bench-cpu-cached-cat
-```
-
-- BM25 cached (без каталога):
-
-```bash
-make docker-bench-bm25-cached-noload
-```
-
-- BM25 cached (с каталогом):
-
-```bash
-make docker-bench-bm25-cached-cat
-```
-
-### Наблюдаемые времена (пример)
-
-- **BM25 cached (no catalog)**: ~35.5s `real`
-- **BM25 extbase (no catalog)**: ~0.84s `real`
-- **BM25 cached (with catalog)**: ~6.3s `real`
-- **CPU cached (with catalog)**: ~28.1s `real`
-- **CPU extbase (with catalog)**: ожидается <60s (зависит от кэша и сети)
-
-Подсказки:
-
-- Все цели используют локальный файловый кэш BuildKit: `$(BUILDX_CACHE_DIR)=.buildx-cache`.
-- Для extbase‑сборок важны аргументы `BASE_MODELS_IMAGE` (CPU) и `BASE_DEPS_IMAGE` (BM25), в Makefile уже прокинуты на локальный реестр.
-- Для воспроизводимости указывайте `NPM_REGISTRY` и держите builder с `network=host` (см. `make buildx-create-host`).
-
-## Лицензия
-
-MIT
