@@ -222,7 +222,6 @@ MIT
 
 > **Internal documentation** — detailed API reference, prompts system, Obsidian integration, service catalog, Docker compose, and advanced configuration below.
 
-
 ## Формат ответов MCP‑инструментов
 
 Все инструменты возвращают ответы в едином JSON‑конверте:
@@ -2484,4 +2483,3 @@ embeddings_compare -> {
 ```
 
 По умолчанию проект (неймспейс) — `mcp`. Если параметр `project` не указан, инструменты используют `mcp`.
-
