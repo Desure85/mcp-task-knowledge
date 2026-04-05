@@ -15,6 +15,7 @@ import { registerAliases } from './register/aliases.js';
 import { registerToolsIntrospection } from './register/tools-introspection.js';
 import { registerDebugResources } from './register/debug-resources.js';
 import { registerDependencyTools } from './register/dependencies.js';
+import { createOpenAPIHandler } from './register/openapi.js';
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -52,8 +53,18 @@ async function main() {
       sessionIdGenerator: () => randomUUID(),
     });
 
+    // OpenAPI handler (serves /api/docs, /api/openapi.json, /api/tools)
+    const apiHandler = createOpenAPIHandler(ctx);
+
     httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
-      // Collect body for POST requests
+      // Route /api/* to OpenAPI handler
+      const url = req.url || '/';
+      if (url.startsWith('/api/')) {
+        await apiHandler(req, res);
+        return;
+      }
+
+      // MCP protocol requests
       if (req.method === 'POST') {
         const bodyChunks: Buffer[] = [];
         for await (const chunk of req) {
@@ -75,7 +86,8 @@ async function main() {
     await ctx.server.connect(transport);
 
     httpServer.listen(port, host, () => {
-      console.error(`[transport] MCP Streamable HTTP listening on http://${host}:${port}/mcp`);
+      console.error(`[transport] MCP Streamable HTTP listening on http://${host}:${port}`);
+      console.error(`[transport] API docs: http://${host}:${port}/api/docs`);
     });
 
     process.on('SIGTERM', async () => {
