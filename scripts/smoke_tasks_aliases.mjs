@@ -1,15 +1,31 @@
 // e2e smoke to ensure removed alias and single CLI tools are ABSENT in built MCP server bundle
 // This script runs inside the MCP container and validates that alias tools
-// `tasks_reparent` and `tasks_move_subtree` are NOT registered in /app/dist/index.js.
+// `tasks_reparent` and `tasks_move_subtree` are NOT registered.
 // It also asserts that bulk tools are present, while single tools are not.
+// After F-001 refactor, tools are registered across src/register/*.ts modules.
 
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import { readdirSync } from 'node:fs';
 
 (async () => {
   try {
     const APP_DIR = process.env.APP_DIR || '/app';
-    const path = `${APP_DIR}/dist/index.js`;
-    const buf = await fs.readFile(path, 'utf8');
+    const distDir = path.join(APP_DIR, 'dist');
+
+    // Read dist/index.js and all dist/register/*.js files
+    const files = [path.join(distDir, 'index.js')];
+    const registerDir = path.join(distDir, 'register');
+    try {
+      for (const f of readdirSync(registerDir).filter((f) => f.endsWith('.js'))) {
+        files.push(path.join(registerDir, f));
+      }
+    } catch {}
+
+    let buf = '';
+    for (const fp of files) {
+      try { buf += await fs.readFile(fp, 'utf8'); } catch {}
+    }
 
     // Aliases must be absent
     const hasReparentAlias = buf.includes('"tasks_reparent"') || buf.includes("'tasks_reparent'");
