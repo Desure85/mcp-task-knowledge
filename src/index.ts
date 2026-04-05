@@ -15,13 +15,9 @@ import { registerAliases } from './register/aliases.js';
 import { registerToolsIntrospection } from './register/tools-introspection.js';
 import { registerDebugResources } from './register/debug-resources.js';
 import { registerDependencyTools } from './register/dependencies.js';
-import { createOpenAPIHandler } from './register/openapi.js';
 import { registerDashboardTools } from './register/dashboard.js';
 import { registerMarkdownTools } from './register/markdown.js';
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { defaultTransportRegistry } from './transport/index.js';
 
 async function main() {
   const ctx = await createServerContext();
@@ -44,73 +40,27 @@ async function main() {
   registerDashboardTools(ctx);
   registerMarkdownTools(ctx);
 
-  // ===== Transport Selection =====
+  // ===== Transport Selection (via registry) =====
   const transportType = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
+  const port = parseInt(process.env.MCP_PORT || '3001', 10);
+  const host = process.env.MCP_HOST || '0.0.0.0';
 
-  if (transportType === 'http') {
-    // Streamable HTTP transport — serves MCP over HTTP (for Claude Desktop, Cursor, web clients)
-    const port = parseInt(process.env.MCP_PORT || '3001', 10);
-    const host = process.env.MCP_HOST || '0.0.0.0';
-    const httpServer = createHttpServer();
+  const adapter = defaultTransportRegistry.createTransport({
+    type: transportType,
+    options: { port, host },
+  });
 
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-    });
+  await adapter.connect(ctx);
 
-    // OpenAPI handler (serves /api/docs, /api/openapi.json, /api/tools)
-    const apiHandler = createOpenAPIHandler(ctx);
-
-    httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
-      // Route /api/* to OpenAPI handler
-      const url = req.url || '/';
-      if (url.startsWith('/api/')) {
-        await apiHandler(req, res);
-        return;
-      }
-
-      // MCP protocol requests
-      if (req.method === 'POST') {
-        const bodyChunks: Buffer[] = [];
-        for await (const chunk of req) {
-          bodyChunks.push(chunk);
-        }
-        const bodyStr = Buffer.concat(bodyChunks).toString('utf-8');
-        let parsedBody: unknown;
-        try {
-          parsedBody = JSON.parse(bodyStr);
-        } catch {
-          parsedBody = bodyStr;
-        }
-        await transport.handleRequest(req, res, parsedBody);
-      } else {
-        await transport.handleRequest(req, res);
-      }
-    });
-
-    await ctx.server.connect(transport);
-
-    httpServer.listen(port, host, () => {
-      console.error(`[transport] MCP Streamable HTTP listening on http://${host}:${port}`);
-      console.error(`[transport] API docs: http://${host}:${port}/api/docs`);
-    });
-
-    process.on('SIGTERM', async () => {
-      console.error('[transport] SIGTERM received, shutting down...');
-      await transport.close();
-      httpServer.close();
+  // Graceful shutdown for long-running transports (http, future ws/tcp)
+  if (transportType !== 'stdio') {
+    const shutdown = async (signal: string) => {
+      console.error(`[transport] ${signal} received, shutting down...`);
+      await adapter.close();
       process.exit(0);
-    });
-
-    process.on('SIGINT', async () => {
-      console.error('[transport] SIGINT received, shutting down...');
-      await transport.close();
-      httpServer.close();
-      process.exit(0);
-    });
-  } else {
-    // Default: stdio transport (for Claude Code, Windsurf, direct pipe usage)
-    const transport = new StdioServerTransport();
-    await ctx.server.connect(transport);
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   }
 }
 
