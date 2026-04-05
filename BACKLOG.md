@@ -18,7 +18,7 @@
 - [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
 - [x] MR-001: Streamable HTTP transport
 - [x] MR-010: npm publish + MCPMarket listing
-- [ ] MR-005: Task dependency graph (DAG)
+- [x] MR-005: Task dependency graph (DAG)
 - [x] MR-003: Semantic search (BM25 + embeddings)
 
 ### Этап 2 — Документация и распространение
@@ -143,7 +143,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | done | — | — |
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | done | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
-| MR-005 | Task dependency graph (блокировки, DAG) | high | pending | — | MR-002 |
+| MR-005 | Task dependency graph (блокировки, DAG) | high | done | — | MR-002 |
 | MR-006 | VS Code extension (companion для Web UI) | high | pending | — | MR-001 |
 | MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | pending | — | — |
@@ -249,6 +249,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-002 | Task hierarchy (parentId, depth, cascade) | 2026-04-04 | #29 |
 | MR-001 | Streamable HTTP transport (MCP_TRANSPORT=http) | 2026-04-05 | #30 |
 | MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
+| MR-005 | Task dependency graph (DAG) | 2026-04-05 | #34 |
 | MR-014 | README overhaul for npm | 2026-04-05 | #33 |
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 
@@ -269,9 +270,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 7 | 0 | 6 | 0 | 0 |
+| Market Research | 15 | 6 | 0 | 7 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **51** | **0** | **13** | **0** | **1** |
+| **Итого** | **66** | **50** | **0** | **14** | **0** | **1** |
