@@ -17,15 +17,15 @@
 
 - [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
 - [x] MR-001: Streamable HTTP transport
-- [ ] MR-010: npm publish + MCPMarket listing
+- [x] MR-010: npm publish + MCPMarket listing
 - [ ] MR-005: Task dependency graph (DAG)
 - [ ] MR-003: Semantic search (BM25 + embeddings)
 
 ### Этап 2 — Документация и распространение
 
-- [ ] MR-014: README overhaul
+- [x] MR-014: README overhaul
 - [ ] MR-013: Claude Code / Windsurf integration guides
-- [ ] MR-011: Claude Desktop / Cursor certified config
+- [x] MR-011: Claude Desktop / Cursor certified config
 - [ ] MR-006: VS Code extension
 
 ### Этап 3 — Качество и инфраструктура
@@ -148,11 +148,11 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | pending | — | — |
 | MR-009 | Markdown import/export для knowledge base | medium | pending | — | — |
-| MR-010 | MCPMarket listing + npm publish | critical | pending | — | — |
-| MR-011 | Claude Desktop / Cursor certified config | high | pending | — | — |
+| MR-010 | MCPMarket listing + npm publish | critical | done | — | — |
+| MR-011 | Claude Desktop / Cursor certified config | high | done | — | — |
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
 | MR-013 | Claude Code / Windsurf integration guides | high | pending | — | — |
-| MR-014 | README overhaul: install, features, demo GIF | high | pending | — | — |
+| MR-014 | README overhaul: install, features, demo GIF | high | done | — | — |
 | MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | review | — | — |
 
 ---
@@ -248,6 +248,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | F-001 | Рефакторинг src/index.ts → модули | 2026-04-05 | #31 |
 | MR-002 | Task hierarchy (parentId, depth, cascade) | 2026-04-04 | #29 |
 | MR-001 | Streamable HTTP transport (MCP_TRANSPORT=http) | 2026-04-05 | #30 |
+| MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
+| MR-014 | README overhaul for npm | 2026-04-05 | #33 |
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 
 ---
@@ -267,9 +269,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 9 | 0 | 3 | 0 | 0 |
+| Market Research | 15 | 7 | 0 | 6 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **53** | **0** | **10** | **0** | **1** |
+| **Итого** | **66** | **51** | **0** | **13** | **0** | **1** |
