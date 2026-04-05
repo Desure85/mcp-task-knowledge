@@ -16,6 +16,7 @@ import { registerToolsIntrospection } from './register/tools-introspection.js';
 import { registerDebugResources } from './register/debug-resources.js';
 import { registerDependencyTools } from './register/dependencies.js';
 import { createOpenAPIHandler } from './register/openapi.js';
+import { registerDashboardTools } from './register/dashboard.js';
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -39,6 +40,7 @@ async function main() {
   registerToolsIntrospection(ctx);
   registerDebugResources(ctx);
   registerDependencyTools(ctx);
+  registerDashboardTools(ctx);
 
   // ===== Transport Selection =====
   const transportType = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
