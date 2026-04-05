@@ -20,6 +20,7 @@
 - [x] MR-010: npm publish + MCPMarket listing
 - [x] MR-005: Task dependency graph (DAG)
 - [x] MR-003: Semantic search (BM25 + embeddings)
+- [x] MR-004: REST API documentation (OpenAPI/Swagger)
 
 ### Этап 2 — Документация и распространение
 
@@ -142,7 +143,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-001 | Streamable HTTP transport (вместо stdio) | critical | done | — | F-001 |
 | MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | done | — | — |
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | done | — | — |
-| MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
+| MR-004 | REST API documentation (OpenAPI/Swagger) | high | done | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | done | — | MR-002 |
 | MR-006 | VS Code extension (companion для Web UI) | high | pending | — | MR-001 |
 | MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
@@ -226,8 +227,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
 | MR-001 | Streamable HTTP transport | Завершён | done |
-| MR-010 | npm publish + MCPMarket listing | — | pending |
-| MR-011 | Claude Desktop / Cursor certified config | — | pending |
+| MR-010 | npm publish + MCPMarket listing | — | done |
+| MR-011 | Claude Desktop / Cursor certified config | — | done |
 | MR-006 | VS Code extension | — | pending |
 | MR-012 | Real-time collaboration (WebSocket) | — | pending |
 | T-001 | AppContainer: композиция с lifecycle | Ждёт F-002 | blocked |
@@ -248,8 +249,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | F-001 | Рефакторинг src/index.ts → модули | 2026-04-05 | #31 |
 | MR-002 | Task hierarchy (parentId, depth, cascade) | 2026-04-04 | #29 |
 | MR-001 | Streamable HTTP transport (MCP_TRANSPORT=http) | 2026-04-05 | #30 |
-| MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
+| MR-004 | OpenAPI 3.0 spec + API docs endpoint | 2026-04-05 | #35 |
 | MR-005 | Task dependency graph (DAG) | 2026-04-05 | #34 |
+| MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
 | MR-014 | README overhaul for npm | 2026-04-05 | #33 |
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 
@@ -270,9 +272,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 6 | 0 | 7 | 0 | 0 |
+| Market Research | 15 | 5 | 0 | 8 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **50** | **0** | **14** | **0** | **1** |
+| **Итого** | **66** | **49** | **0** | **15** | **0** | **1** |
