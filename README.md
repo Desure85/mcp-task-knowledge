@@ -88,6 +88,7 @@ npm install -g mcp-task-knowledge
 ```
 
 Запуск сервера:
+
 ```bash
 MCP_TRANSPORT=http MCP_PORT=3001 DATA_DIR=/path/to/data npx mcp-task-knowledge
 ```
