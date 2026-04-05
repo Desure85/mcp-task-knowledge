@@ -16,7 +16,7 @@
 ### Этап 1 — Рыночная конкурентоспособность
 
 - [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
-- [ ] MR-001: Streamable HTTP transport ← in_progress
+- [x] MR-001: Streamable HTTP transport
 - [ ] MR-010: npm publish + MCPMarket listing
 - [ ] MR-005: Task dependency graph (DAG)
 - [ ] MR-003: Semantic search (BM25 + embeddings)
@@ -38,10 +38,10 @@
 ### Критический путь
 
 ```
-F-001 (refactor) → MR-001 (HTTP transport) → MR-010 (npm publish)
-                                     → MR-011 (certified configs)
-                                     → MR-006 (VS Code extension)
-MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
+F-001 (refactor) ✅ → MR-001 (HTTP transport) ✅ → MR-010 (npm publish)
+                                        → MR-011 (certified configs)
+                                        → MR-006 (VS Code extension)
+MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 ```
 
 ---
@@ -139,8 +139,8 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| MR-001 | Streamable HTTP transport (вместо stdio) | critical | in_progress | — | F-001 |
-| MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | review | — | — | PR #29 |
+| MR-001 | Streamable HTTP transport (вместо stdio) | critical | done | — | F-001 |
+| MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | done | — | — |
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | pending | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | pending | — | MR-002 |
@@ -148,9 +148,9 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 | MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | pending | — | — |
 | MR-009 | Markdown import/export для knowledge base | medium | pending | — | — |
-| MR-010 | MCPMarket listing + npm publish | critical | blocked | — | MR-001 |
-| MR-011 | Claude Desktop / Cursor certified config | high | pending | — | MR-001 |
-| MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | MR-001 |
+| MR-010 | MCPMarket listing + npm publish | critical | pending | — | — |
+| MR-011 | Claude Desktop / Cursor certified config | high | pending | — | — |
+| MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
 | MR-013 | Claude Code / Windsurf integration guides | high | pending | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | pending | — | — |
 | MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | review | — | — |
@@ -225,11 +225,11 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
-| MR-001 | Streamable HTTP transport | В работе | in_progress |
-| MR-010 | npm publish + MCPMarket listing | Ждёт MR-001 (HTTP transport) | blocked |
-| MR-011 | Claude Desktop / Cursor certified config | Ждёт MR-001 (HTTP transport) | blocked |
-| MR-006 | VS Code extension | Ждёт MR-001 (HTTP transport) | blocked |
-| MR-012 | Real-time collaboration (WebSocket) | Ждёт MR-001 (HTTP transport) | blocked |
+| MR-001 | Streamable HTTP transport | Завершён | done |
+| MR-010 | npm publish + MCPMarket listing | — | pending |
+| MR-011 | Claude Desktop / Cursor certified config | — | pending |
+| MR-006 | VS Code extension | — | pending |
+| MR-012 | Real-time collaboration (WebSocket) | — | pending |
 | T-001 | AppContainer: композиция с lifecycle | Ждёт F-002 | blocked |
 | T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
 | S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
@@ -245,7 +245,9 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 | AI-002 | Создать BACKLOG.md | 2026-04-04 | #24 |
 | AI-003 | Актуализировать ROADMAP.md | 2026-04-04 | #24 |
 | AI-005 | Market research отчёт (PDF) | 2026-04-04 | #27 |
+| F-001 | Рефакторинг src/index.ts → модули | 2026-04-05 | #31 |
 | MR-002 | Task hierarchy (parentId, depth, cascade) | 2026-04-04 | #29 |
+| MR-001 | Streamable HTTP transport (MCP_TRANSPORT=http) | 2026-04-05 | #30 |
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 
 ---
@@ -265,9 +267,9 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 10 | 1 | 2 | 0 | 0 |
+| Market Research | 15 | 9 | 0 | 3 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **53** | **1** | **9** | **0** | **1** |
+| **Итого** | **66** | **53** | **0** | **10** | **0** | **1** |
