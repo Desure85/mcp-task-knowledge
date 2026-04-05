@@ -206,6 +206,20 @@ Key features:
 - **Unified search** — BM25 + semantic across tasks and knowledge
 - **Dual transport** — stdio (spawns server) or HTTP (connects to running instance)
 
+## Project Workspace
+
+Multi-project support with create, info, update, and delete operations.
+
+| Tool | Description |
+|------|-------------|
+| `project_list` | List all projects with task/knowledge counts, descriptions, creation dates |
+| `project_create` | Create a new project with optional description |
+| `project_info` | Detailed project stats: tasks by status/priority, knowledge by type, recent activity |
+| `project_update` | Update project metadata (description) |
+| `project_delete` | Delete a project (requires `force=true` if non-empty) |
+| `project_get_current` | Get current active project |
+| `project_set_current` | Switch active project |
+
 ## MCP Tools (60+)
 
 ### Tasks
