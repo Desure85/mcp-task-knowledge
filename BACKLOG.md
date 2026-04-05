@@ -9,10 +9,12 @@
 ## Стратегия
 
 ### Этап 0 — Фундамент
+
 - [x] F-001: Рефакторинг `src/index.ts` (4010 строк → модули)
 - [ ] F-002: Абстракция Transport Layer
 
 ### Этап 1 — Рыночная конкурентоспособность
+
 - [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
 - [ ] MR-001: Streamable HTTP transport ← in_progress
 - [ ] MR-010: npm publish + MCPMarket listing
@@ -20,18 +22,21 @@
 - [ ] MR-003: Semantic search (BM25 + embeddings)
 
 ### Этап 2 — Документация и распространение
+
 - [ ] MR-014: README overhaul
 - [ ] MR-013: Claude Code / Windsurf integration guides
 - [ ] MR-011: Claude Desktop / Cursor certified config
 - [ ] MR-006: VS Code extension
 
 ### Этап 3 — Качество и инфраструктура
+
 - [ ] Q-001–Q-003: Unit-тесты (search, tasks, knowledge)
 - [ ] Q-004: E2E тесты MCP-инструментов
 - [ ] TD-001: Рефакторинг монолитного index.ts
 - [ ] TD-002: Типизация (убрать any)
 
 ### Критический путь
+
 ```
 F-001 (refactor) → MR-001 (HTTP transport) → MR-010 (npm publish)
                                      → MR-011 (certified configs)
