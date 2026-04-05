@@ -19,6 +19,28 @@ export function registerProjectTools(ctx: ServerContext): void {
   );
 
   ctx.server.registerTool(
+    "project_get_current",
+    {
+      title: "Get Current Project",
+      description: "Return the name of the current project context",
+      inputSchema: {},
+    },
+    async () => ok({ project: getCurrentProject() })
+  );
+
+  ctx.server.registerTool(
+    "project_set_current",
+    {
+      title: "Set Current Project",
+      description: "Change the current project context used when project is omitted",
+      inputSchema: {
+        project: z.string().min(1),
+      },
+    },
+    async ({ project }: { project: string }) => ok({ project: setCurrentProject(project) })
+  );
+
+  ctx.server.registerTool(
     "embeddings_try_init",
     {
       title: "Embeddings Try Init",

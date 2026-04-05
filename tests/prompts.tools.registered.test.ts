@@ -2,20 +2,26 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Verifies that newly added prompts tools are registered in src/index.ts
+// Verifies that newly added prompts tools are registered in src/register/*.ts
 // This mirrors the style of tests/cli.tools_list.contract.test.ts
 
 describe('prompts tools registration', () => {
   it('registers the 3+2 prompt tools', () => {
     const ROOT = process.cwd();
-    const SRC = path.join(ROOT, 'src', 'index.ts');
-    const src = fs.readFileSync(SRC, 'utf-8');
+    const registerDir = path.join(ROOT, 'src', 'register');
 
     const re = /registerTool\(\s*["'`]([^"'`]+)["'`]/g;
     const names = new Set<string>();
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(src))) {
-      names.add(m[1]);
+
+    // Scan all .ts files in src/register/
+    const files = fs.readdirSync(registerDir).filter((f) => f.endsWith('.ts'));
+    for (const file of files) {
+      const src = fs.readFileSync(path.join(registerDir, file), 'utf-8');
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(src))) {
+        names.add(m[1]);
+      }
+      re.lastIndex = 0; // reset regex state for next file
     }
 
     const expected = [
