@@ -146,7 +146,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | done | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | done | — | MR-002 |
 | MR-006 | VS Code extension (companion для Web UI) | high | done | — | MR-001 |
-| MR-007 | Dashboard аналитика: статистика, графики | medium | pending | — | — |
+| MR-007 | Dashboard аналитика: статистика, графики | medium | done | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | pending | — | — |
 | MR-009 | Markdown import/export для knowledge base | medium | pending | — | — |
 | MR-010 | MCPMarket listing + npm publish | critical | done | — | — |
@@ -256,6 +256,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
 | MR-006 | VS Code extension | 2026-04-05 | #36 |
 | MR-013 | Claude Code / Windsurf integration guides | 2026-04-05 | #37 |
+| MR-007 | Dashboard analytics: stats, activity, trends, project summary | 2026-04-05 | #38 |
 
 ---
 
@@ -274,9 +275,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 3 | 0 | 10 | 0 | 0 |
+| Market Research | 15 | 2 | 0 | 11 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **47** | **0** | **17** | **0** | **1** |
+| **Итого** | **66** | **46** | **0** | **18** | **0** | **1** |

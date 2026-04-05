@@ -139,6 +139,19 @@ See [Windsurf Integration Guide](docs/integration-guides/windsurf.md) for Cascad
 
 See [`extensions/vscode/`](extensions/vscode/) for the companion extension with task sidebar, DAG viewer, and unified search.
 
+## Dashboard Analytics
+
+Built-in analytics tools for project dashboards, status reports, and burndown charts.
+
+| Tool | Description |
+|------|-------------|
+| `dashboard_stats` | Task counts by status/priority, knowledge counts, tag distribution, completion rate |
+| `dashboard_activity` | Chronological activity feed of recent changes |
+| `dashboard_trends` | Task creation/completion trends (daily or weekly buckets, cumulative) |
+| `dashboard_project_summary` | Multi-project overview with per-project metrics |
+
+Example: "Show me project stats — how many tasks are blocked vs in progress, and the completion rate."
+
 ## HTTP Transport
 
 Run as an HTTP server for web clients and remote access:
