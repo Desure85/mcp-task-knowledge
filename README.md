@@ -49,6 +49,83 @@
 - Поиск: BM25 по умолчанию; предусмотрен интерфейс для векторного поиска (плагин)
 - Запуск: Node.js или Docker
 
+## Установка
+
+```bash
+npm install -g mcp-task-knowledge
+```
+
+## Claude Desktop
+
+Добавьте в `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcp-task-knowledge": {
+      "command": "node",
+      "args": ["/path/to/dist/index.js"],
+      "env": {
+        "DATA_DIR": "/path/to/data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
+```
+
+### С HTTP-транспортом (MCP_TRANSPORT=http)
+
+```json
+{
+  "mcpServers": {
+    "mcp-task-knowledge": {
+      "type": "sse",
+      "url": "http://localhost:3001/mcp"
+    }
+  }
+}
+```
+
+Запуск сервера:
+
+```bash
+MCP_TRANSPORT=http MCP_PORT=3001 DATA_DIR=/path/to/data npx mcp-task-knowledge
+```
+
+## Cursor
+
+Добавьте в `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcp-task-knowledge": {
+      "command": "node",
+      "args": ["/path/to/dist/index.js"],
+      "env": {
+        "DATA_DIR": "/path/to/data",
+        "CURRENT_PROJECT": "my-project"
+      }
+    }
+  }
+}
+```
+
+## Переменные окружения
+
+| Переменная | Описание | По умолчанию |
+|-----------|----------|-------------|
+| `DATA_DIR` | Корневой каталог данных | `./data` |
+| `CURRENT_PROJECT` | Активный проект | `mcp` |
+| `OBSIDIAN_VAULT_ROOT` | Путь к Obsidian Vault | `/data/obsidian` |
+| `MCP_TRANSPORT` | Транспорт: `stdio` или `http` | `stdio` |
+| `MCP_PORT` | Порт для HTTP-транспорта | `3001` |
+| `MCP_HOST` | Хост для HTTP-транспорта | `0.0.0.0` |
+| `EMBEDDINGS_MODE` | Режим эмбеддингов: `onnx`, `none` | `none` |
+| `EMBEDDINGS_MODEL_PATH` | Путь к ONNX-модели | — |
+| `EMBEDDINGS_DIM` | Размерность векторов | `384` |
+
 ## Формат ответов MCP‑инструментов
 
 Все инструменты возвращают ответы в едином JSON‑конверте:
