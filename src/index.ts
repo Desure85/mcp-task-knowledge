@@ -14,6 +14,7 @@ import { registerSearchResources } from './register/search-resources.js';
 import { registerAliases } from './register/aliases.js';
 import { registerToolsIntrospection } from './register/tools-introspection.js';
 import { registerDebugResources } from './register/debug-resources.js';
+import { registerDependencyTools } from './register/dependencies.js';
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -36,6 +37,7 @@ async function main() {
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerDebugResources(ctx);
+  registerDependencyTools(ctx);
 
   // ===== Transport Selection =====
   const transportType = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
