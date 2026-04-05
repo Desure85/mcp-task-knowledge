@@ -1,5 +1,5 @@
 export type Priority = 'low' | 'medium' | 'high';
-export type Status = 'pending' | 'in_progress' | 'completed' | 'closed';
+export type Status = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'closed';
 
 export interface Task {
   id: string;
@@ -14,6 +14,8 @@ export interface Task {
   links?: string[]; // file paths or URLs
   // Optional parent task ID to support hierarchical task trees
   parentId?: string;
+  // Dependency graph: task IDs this task depends on (all must be completed before this can start)
+  dependsOn?: string[];
   // Soft-delete lifecycle
   archived?: boolean;
   trashed?: boolean;

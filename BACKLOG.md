@@ -19,7 +19,7 @@
 - [x] MR-001: Streamable HTTP transport
 - [x] MR-010: npm publish + MCPMarket listing
 - [ ] MR-005: Task dependency graph (DAG)
-- [ ] MR-003: Semantic search (BM25 + embeddings)
+- [x] MR-003: Semantic search (BM25 + embeddings)
 
 ### Этап 2 — Документация и распространение
 
@@ -141,7 +141,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 |----|--------|-----------|--------|---------|-------------|
 | MR-001 | Streamable HTTP transport (вместо stdio) | critical | done | — | F-001 |
 | MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | done | — | — |
-| MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | pending | — | — |
+| MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | done | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
 | MR-005 | Task dependency graph (блокировки, DAG) | high | pending | — | MR-002 |
 | MR-006 | VS Code extension (companion для Web UI) | high | pending | — | MR-001 |

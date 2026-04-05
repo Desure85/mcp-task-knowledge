@@ -162,6 +162,8 @@ export async function updateTask(project: string, id: string, patch: Partial<Omi
 
   // If parentId is being modified, validate new parent existence and protect against cycles
   const hasParentPatch = Object.prototype.hasOwnProperty.call(patch as any, 'parentId');
+  // If dependsOn is being modified, validate no cycles
+  const hasDepsPatch = Object.prototype.hasOwnProperty.call(patch as any, 'dependsOn');
   let normalizedPatch: any = { ...patch };
   if (hasParentPatch) {
     const items = await listTasks({ project, includeArchived: true });
@@ -190,6 +192,43 @@ export async function updateTask(project: string, id: string, patch: Partial<Omi
     }
   }
 
+  if (hasDepsPatch) {
+    const newDeps = (normalizedPatch as any).dependsOn as string[] | undefined;
+    if (Array.isArray(newDeps) && newDeps.length > 0) {
+      const items = await listTasks({ project, includeArchived: true, includeTrashed: true });
+      const byId = new Map(items.map((t) => [t.id, t] as const));
+
+      // Validate all dependency targets exist
+      for (const depId of newDeps) {
+        if (!byId.has(depId)) {
+          throw new Error(`Dependency task not found: ${project}/${depId}`);
+        }
+        if (depId === id) {
+          throw new Error(`Task cannot depend on itself: ${id}`);
+        }
+      }
+
+      // Validate no cycles in the new dependency graph
+      const allIds = new Set(byId.keys());
+      const existingEdges: Array<[string, string]> = [];
+      for (const t of items) {
+        if (t.id === id) continue; // skip current task (we're replacing its deps)
+        for (const depId of (t.dependsOn || [])) {
+          if (byId.has(depId)) existingEdges.push([t.id, depId]);
+        }
+      }
+      const newEdges: Array<[string, string]> = newDeps
+        .filter(depId => byId.has(depId))
+        .map(depId => [id, depId]);
+
+      const cycleNodes = detectDependencyCycle(allIds, existingEdges, newEdges);
+      if (cycleNodes.length > 0) {
+        throw new Error(`Dependency cycle detected involving tasks: ${cycleNodes.join(', ')}`);
+      }
+    }
+    normalizedPatch.dependsOn = newDeps;
+  }
+
   const updated: Task = {
     ...existing,
     ...normalizedPatch,
@@ -205,6 +244,40 @@ export async function updateTask(project: string, id: string, patch: Partial<Omi
 
 export async function closeTask(project: string, id: string): Promise<Task | null> {
   return updateTask(project, id, { status: 'closed' as Status });
+}
+
+/**
+ * Close a task and automatically unblock dependent tasks whose all
+ * dependencies are now completed/closed. Returns the closed task plus
+ * the list of tasks that were unblocked.
+ */
+export async function closeTaskAndUnblock(project: string, id: string): Promise<{
+  closed: Task | null;
+  unblocked: Task[];
+}> {
+  const closed = await closeTask(project, id);
+  if (!closed) return { closed: null, unblocked: [] };
+
+  // Find tasks that depend on the just-closed task
+  const allTasks = await listTasks({ project, includeArchived: true, includeTrashed: true });
+  const byId = new Map(allTasks.map(t => [t.id, t] as const));
+  const dependents = getBlockedByTask(id, byId);
+
+  const unblocked: Task[] = [];
+  for (const dep of dependents) {
+    // Skip if already closed/completed
+    if (dep.status === 'closed' || dep.status === 'completed') continue;
+    const { blocked } = isTaskBlocked(dep, byId);
+    if (!blocked) {
+      // Auto-transition: blocked -> pending
+      if (dep.status === 'blocked') {
+        const updated = await updateTask(project, dep.id, { status: 'pending' as Status });
+        if (updated) unblocked.push(updated);
+      }
+    }
+  }
+
+  return { closed, unblocked };
 }
 
 // --- Hierarchy helpers ---
@@ -349,4 +422,194 @@ async function listAllProjects(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+// --- Dependency Graph (DAG) helpers ---
+
+/**
+ * Validate that adding dependency edges would not create a cycle.
+ * `edges` is an array of [fromId, toId] meaning fromId depends on toId.
+ * Throws if a cycle is detected.
+ */
+export function detectDependencyCycle(
+  allIds: Set<string>,
+  edges: Array<[string, string]>,
+  newEdges?: Array<[string, string]>
+): string[] {
+  // Build adjacency list: dependency -> dependents (who depends on this)
+  const adj = new Map<string, Set<string>>();
+  for (const id of allIds) adj.set(id, new Set());
+  const allEdges = [...edges, ...(newEdges || [])];
+  for (const [from, to] of allEdges) {
+    if (!adj.has(from)) adj.set(from, new Set());
+    if (!adj.has(to)) adj.set(to, new Set());
+    adj.get(to)!.add(from); // to -> from (from depends on to)
+  }
+
+  // Kahn's algorithm: count in-degrees
+  const inDegree = new Map<string, number>();
+  for (const id of allIds) inDegree.set(id, 0);
+  for (const [from] of allEdges) {
+    inDegree.set(from, (inDegree.get(from) || 0) + 1);
+  }
+
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) queue.push(id);
+  }
+
+  const visited: string[] = [];
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    visited.push(node);
+    for (const neighbor of (adj.get(node) || [])) {
+      const newDeg = (inDegree.get(neighbor) || 1) - 1;
+      inDegree.set(neighbor, newDeg);
+      if (newDeg === 0) queue.push(neighbor);
+    }
+  }
+
+  // If not all nodes visited, there's a cycle
+  const visitedSet = new Set(visited);
+  return Array.from(allIds).filter(id => !visitedSet.has(id));
+}
+
+/**
+ * Topological sort of tasks based on dependsOn relationships.
+ * Returns tasks in execution order (dependencies first).
+ */
+export function topologicalSort(tasks: Task[]): Task[] {
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const inDegree = new Map<string, number>();
+  const adj = new Map<string, string[]>(); // dep -> [dependents]
+
+  for (const t of tasks) {
+    inDegree.set(t.id, 0);
+    adj.set(t.id, []);
+  }
+
+  for (const t of tasks) {
+    const deps = t.dependsOn || [];
+    inDegree.set(t.id, deps.length);
+    for (const depId of deps) {
+      if (adj.has(depId)) {
+        adj.get(depId)!.push(t.id);
+      }
+    }
+  }
+
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) queue.push(id);
+  }
+
+  const sorted: Task[] = [];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const task = byId.get(id);
+    if (task) sorted.push(task);
+    for (const dependent of (adj.get(id) || [])) {
+      const newDeg = (inDegree.get(dependent) || 1) - 1;
+      inDegree.set(dependent, newDeg);
+      if (newDeg === 0) queue.push(dependent);
+    }
+  }
+
+  return sorted;
+}
+
+/**
+ * Get critical path through the dependency graph.
+ * Returns the longest path of tasks from roots to leaves (by updatedAt chain).
+ */
+export function getCriticalPath(tasks: Task[]): Task[] {
+  const sorted = topologicalSort(tasks);
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const earliestEnd = new Map<string, number>();
+
+  for (const t of sorted) {
+    const deps = (t.dependsOn || []).filter(id => byId.has(id));
+    const maxDepEnd = deps.length > 0
+      ? Math.max(...deps.map(id => earliestEnd.get(id) || 0))
+      : 0;
+    // Use updatedAt timestamp as a proxy for duration
+    const start = maxDepEnd;
+    const end = start + 1; // each task has unit weight
+    earliestEnd.set(t.id, end);
+  }
+
+  // Find the task with the maximum earliestEnd
+  let maxEnd = 0;
+  let lastId = '';
+  for (const [id, end] of earliestEnd) {
+    if (end > maxEnd) { maxEnd = end; lastId = id; }
+  }
+
+  // Trace back from lastId
+  const path: Task[] = [];
+  let current = lastId;
+  const visited = new Set<string>();
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    const task = byId.get(current);
+    if (!task) break;
+    path.unshift(task);
+    // Find which dependency leads to this task's earliestEnd
+    const deps = (task.dependsOn || []).filter(id => byId.has(id));
+    if (deps.length === 0) break;
+    let bestDep = '';
+    let bestEnd = -1;
+    for (const depId of deps) {
+      const depEnd = earliestEnd.get(depId) || 0;
+      if (depEnd > bestEnd) { bestEnd = depEnd; bestDep = depId; }
+    }
+    current = bestDep;
+  }
+
+  return path;
+}
+
+/**
+ * Get tasks that are blocking a given task (its direct dependencies).
+ */
+export function getBlockingTasks(task: Task, allTasks: Map<string, Task>): Task[] {
+  return (task.dependsOn || [])
+    .map(id => allTasks.get(id))
+    .filter((t): t is Task => !!t);
+}
+
+/**
+ * Get tasks that are blocked by a given task (its dependents).
+ */
+export function getBlockedByTask(taskId: string, allTasks: Map<string, Task>): Task[] {
+  return Array.from(allTasks.values())
+    .filter(t => (t.dependsOn || []).includes(taskId));
+}
+
+/**
+ * Check if a task is blocked (has unmet dependencies).
+ * A task is blocked if it has dependsOn entries and any of them
+ * are not completed/closed.
+ */
+export function isTaskBlocked(task: Task, allTasks: Map<string, Task>): { blocked: boolean; blockingDeps: Task[] } {
+  const deps = (task.dependsOn || []).map(id => allTasks.get(id)).filter((t): t is Task => !!t);
+  const unmet = deps.filter(d => d.status !== 'completed' && d.status !== 'closed');
+  return { blocked: unmet.length > 0, blockingDeps: unmet };
+}
+
+/**
+ * Build a full DAG representation for a project.
+ * Returns nodes and edges for visualization.
+ */
+export function buildDAG(tasks: Task[]): { nodes: Task[]; edges: Array<{ from: string; to: string }> } {
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const edges: Array<{ from: string; to: string }> = [];
+  for (const t of tasks) {
+    for (const depId of (t.dependsOn || [])) {
+      if (byId.has(depId)) {
+        edges.push({ from: t.id, to: depId }); // t depends on depId
+      }
+    }
+  }
+  return { nodes: tasks, edges };
 }
