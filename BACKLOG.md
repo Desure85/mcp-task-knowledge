@@ -31,7 +31,7 @@
 
 ### Этап 3 — Качество и инфраструктура
 
-- [ ] Q-001–Q-003: Unit-тесты (search, tasks, knowledge)
+- [x] Q-001–Q-003: Unit-тесты (search, tasks, knowledge)
 - [ ] Q-004: E2E тесты MCP-инструментов
 - [ ] TD-001: Рефакторинг монолитного index.ts
 - [ ] TD-002: Типизация (убрать any)
@@ -148,7 +148,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-006 | VS Code extension (companion для Web UI) | high | done | — | MR-001 |
 | MR-007 | Dashboard аналитика: статистика, графики | medium | done | — | — |
 | MR-008 | Multi-project workspace (улучшенный selector) | medium | done | — | — |
-| MR-009 | Markdown import/export для knowledge base | medium | pending | — | — |
+| MR-009 | Markdown import/export для knowledge base | medium | done | — | — |
 | MR-010 | MCPMarket listing + npm publish | critical | done | — | — |
 | MR-011 | Claude Desktop / Cursor certified config | high | done | — | — |
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
@@ -188,9 +188,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| Q-001 | Unit-тесты для `src/search/bm25.ts` (покрытие edge-cases) | high | pending | 7.1 | — |
-| Q-002 | Unit-тесты для `src/storage/tasks.ts` | high | pending | 7.1 | — |
-| Q-003 | Unit-тесты для `src/storage/knowledge.ts` | high | pending | 7.1 | — |
+| Q-001 | Unit-тесты для `src/search/bm25.ts` (покрытие edge-cases) | high | done | 7.1 | — |
+| Q-002 | Unit-тесты для `src/storage/tasks.ts` | high | done | 7.1 | — |
+| Q-003 | Unit-тесты для `src/storage/knowledge.ts` | high | done | 7.1 | — |
 | Q-004 | Интеграционные E2E тесты для основных MCP-инструментов | medium | pending | 7.1 | — |
 | Q-005 | Coverage threshold enforcement (минимум 80%) | medium | pending | 7.4 | Q-001..Q-004 |
 | Q-006 | Нагрузочные тесты для BM25 и vector search | low | pending | 7.2 | — |
@@ -257,6 +257,10 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-006 | VS Code extension | 2026-04-05 | #36 |
 | MR-013 | Claude Code / Windsurf integration guides | 2026-04-05 | #37 |
 | MR-007 | Dashboard analytics: stats, activity, trends, project summary | 2026-04-05 | #38 |
+| MR-009 | Markdown import/export для knowledge base | 2026-04-05 | #40 |
+| Q-001 | Unit-тесты для src/search/bm25.ts | 2026-04-05 | #41 |
+| Q-002 | Unit-тесты для src/storage/tasks.ts | 2026-04-05 | #41 |
+| Q-003 | Unit-тесты для src/storage/knowledge.ts | 2026-04-05 | #41 |
 | MR-008 | Multi-project workspace: create, info, update, delete | 2026-04-05 | #39 |
 
 ---
@@ -276,9 +280,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 1 | 0 | 12 | 0 | 0 |
+| Market Research | 15 | 0 | 0 | 13 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
-| Quality | 7 | 7 | 0 | 0 | 0 | 0 |
+| Quality | 7 | 4 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **45** | **0** | **19** | **0** | **1** |
+| **Итого** | **66** | **42** | **0** | **23** | **0** | **1** |
