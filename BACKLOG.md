@@ -9,12 +9,12 @@
 ## Стратегия
 
 ### Этап 0 — Фундамент
-- [ ] F-001: Рефакторинг `src/index.ts` (4010 строк → модули)
+- [x] F-001: Рефакторинг `src/index.ts` (4010 строк → модули)
 - [ ] F-002: Абстракция Transport Layer
 
 ### Этап 1 — Рыночная конкурентоспособность
 - [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
-- [ ] MR-001: Streamable HTTP transport
+- [ ] MR-001: Streamable HTTP transport ← in_progress
 - [ ] MR-010: npm publish + MCPMarket listing
 - [ ] MR-005: Task dependency graph (DAG)
 - [ ] MR-003: Semantic search (BM25 + embeddings)
@@ -66,7 +66,7 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| F-001 | Рефакторинг `src/index.ts`: вынести регистрацию инструментов в отдельные модули | critical | pending | 0.1 | — |
+| F-001 | Рефакторинг `src/index.ts`: вынести регистрацию инструментов в отдельные модули | critical | done | 0.1 | — |
 | F-002 | Создать абстракцию Transport Layer (подготовка к TCP/WS) | medium | pending | 0.2 | F-001 |
 | F-003 | Реестр инструментов: версионирование, etag, пагинация | medium | pending | 0.3 | F-001 |
 | F-004 | Добавить структурированное логирование (Pino или Winston) | medium | pending | 0.4 | — |
@@ -79,7 +79,7 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| T-001 | AppContainer: композиция приложения с lifecycle | medium | pending | 1.1 | F-001, F-002 |
+| T-001 | AppContainer: композиция приложения с lifecycle | medium | pending | 1.1 | F-002 |
 | T-002 | TCP/Unix multi-client сервер | medium | pending | 1.2 | T-001 |
 | T-003 | Stdio single-client сервер (вынести из main) | low | pending | 1.3 | T-001 |
 
@@ -134,7 +134,7 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| MR-001 | Streamable HTTP transport (вместо stdio) | critical | blocked | — | F-001 |
+| MR-001 | Streamable HTTP transport (вместо stdio) | critical | in_progress | — | F-001 |
 | MR-002 | Task subtasks: parentId, иерархия (1+ уровней) | critical | review | — | — | PR #29 |
 | MR-003 | Semantic search: BM25 + векторные эмбеддинги | high | pending | — | — |
 | MR-004 | REST API documentation (OpenAPI/Swagger) | high | pending | — | — |
@@ -167,7 +167,7 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| TD-001 | Рефакторинг монолитного `src/index.ts` (разделение на модули) | high | pending | — | F-001 → duplicate of F-001 |
+| TD-001 | Рефакторинг монолитного `src/index.ts` (разделение на модули) | high | done | — | F-001 → done via F-001 |
 | TD-002 | Типизация: заменить `any` на конкретные типы | medium | pending | F-006 | — |
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred | — | — |
 | TD-004 | Rate limiting на уровне инструментов | medium | pending | S-003 | — |
@@ -220,12 +220,12 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
-| MR-001 | Streamable HTTP transport | Ждёт F-001 (refactor index.ts) | blocked |
+| MR-001 | Streamable HTTP transport | В работе | in_progress |
 | MR-010 | npm publish + MCPMarket listing | Ждёт MR-001 (HTTP transport) | blocked |
 | MR-011 | Claude Desktop / Cursor certified config | Ждёт MR-001 (HTTP transport) | blocked |
 | MR-006 | VS Code extension | Ждёт MR-001 (HTTP transport) | blocked |
 | MR-012 | Real-time collaboration (WebSocket) | Ждёт MR-001 (HTTP transport) | blocked |
-| T-001 | AppContainer: композиция с lifecycle | Ждёт F-001, F-002 | blocked |
+| T-001 | AppContainer: композиция с lifecycle | Ждёт F-002 | blocked |
 | T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
 | S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
 | A-001 | mcp.authenticate + pre-auth | Ждёт S-001 | blocked |
@@ -249,20 +249,20 @@ MR-002 (task hierarchy) → MR-005 (task dependency graph) ✅ (MR-002 done)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-04-04
+**Последнее обновление:** 2026-04-05
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
-| Foundation (0) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Foundation (0) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Transport (1) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 11 | 0 | 2 | 0 | 0 |
-| Tech Debt | 8 | 7 | 0 | 0 | 0 | 1 |
+| Market Research | 15 | 10 | 1 | 2 | 0 | 0 |
+| Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 7 | 0 | 0 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **58** | **0** | **7** | **0** | **1** |
+| **Итого** | **66** | **53** | **1** | **9** | **0** | **1** |
