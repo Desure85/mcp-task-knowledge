@@ -137,7 +137,7 @@ Claude Code will call `project_switch` automatically, and subsequent operations 
 ### Knowledge Base
 
 > "I have a markdown file `docs/api-reference.md`. Read it and create a knowledge entry with type 'api'."
-
+>
 > "Search the knowledge base for 'rate limiting' and show me the most relevant entries."
 
 ### Workflow: Claude Code as Project Manager
