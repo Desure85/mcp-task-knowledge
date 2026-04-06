@@ -1,4 +1,6 @@
 import type { ServerContext } from './context.js';
+import type { KnowledgeDoc } from '../types.js';
+import type { VectorSearchAdapter } from '../search/index.js';
 import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForTask, buildTextForDoc, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
@@ -69,7 +71,7 @@ export function registerSearchResources(ctx: ServerContext): void {
       const limit: number = Math.max(1, Math.min(100, Number(params.limit ?? 20)));
       const metas = await listDocs({ project, includeArchived: false } as any);
       const docs = (await Promise.all(metas.map(async (m: any) => await readDoc(project, m.id)))).filter(Boolean) as any[];
-      const results = await twoStageHybridKnowledgeSearch(query, docs as any, { limit, vectorAdapter: await ctx.ensureVectorAdapter() });
+      const results = await twoStageHybridKnowledgeSearch(query, docs as unknown as KnowledgeDoc[], { limit, vectorAdapter: await ctx.ensureVectorAdapter() as VectorSearchAdapter<{ doc: KnowledgeDoc; chunkIndex: number }> | undefined });
       return { contents: [{ uri: href, text: JSON.stringify(results, null, 2), mimeType: 'application/json' }] };
     }
     return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'unsupported search://knowledge path' }, null, 2), mimeType: 'application/json' }] };

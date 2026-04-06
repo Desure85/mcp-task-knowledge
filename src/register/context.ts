@@ -5,16 +5,19 @@
 
 import type { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolRegistry } from '../registry/tool-registry.js';
+import type { ServerConfig, CatalogConfig } from '../config.js';
+import type { ServiceCatalogProvider } from '../catalog/provider.js';
+import type { VectorSearchAdapter } from '../search/index.js';
 
 export interface ServerContext {
   server: McpServer;
-  cfg: any;
-  catalogCfg: any;
-  catalogProvider: any;
-  
-  vectorAdapter: any | undefined;
+  cfg: ServerConfig;
+  catalogCfg: CatalogConfig;
+  catalogProvider: ServiceCatalogProvider;
+
+  vectorAdapter: VectorSearchAdapter<unknown> | undefined;
   vectorInitAttempted: boolean;
-  ensureVectorAdapter: () => Promise<any | undefined>;
+  ensureVectorAdapter: () => Promise<VectorSearchAdapter<unknown> | undefined>;
 
   /** Typed tool registry with versioning, ETag, and pagination. */
   toolRegistry: ToolRegistry;

@@ -2,8 +2,11 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig, loadCatalogConfig, isToolsEnabled, isToolResourcesEnabled, isToolResourcesExecEnabled } from "../config.js";
+import type { ServerConfig, CatalogConfig } from "../config.js";
 import { createServiceCatalogProvider } from "../catalog/provider.js";
+import type { ServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
+import type { VectorSearchAdapter } from "../search/index.js";
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
@@ -41,14 +44,14 @@ export async function createServerContext(): Promise<ServerContext> {
     log.info({ ts: new Date().toISOString(), pid: process.pid }, 'mcp-task-knowledge starting...');
   }
 
-  const cfg = loadConfig();
-  const catalogCfg = loadCatalogConfig();
+  const cfg: ServerConfig = loadConfig();
+  const catalogCfg: CatalogConfig = loadCatalogConfig();
 
   if (SHOW_STARTUP) {
     log.info({ mode: catalogCfg.mode, prefer: catalogCfg.prefer, remoteEnabled: catalogCfg.remote.enabled, hasRemoteBaseUrl: Boolean(catalogCfg.remote.baseUrl), embeddedEnabled: catalogCfg.embedded.enabled, embeddedStore: catalogCfg.embedded.store }, 'catalog config');
   }
 
-  const catalogProvider = createServiceCatalogProvider(catalogCfg);
+  const catalogProvider: ServiceCatalogProvider = createServiceCatalogProvider(catalogCfg);
 
   const TOOLS_ENABLED = isToolsEnabled();
   const TOOL_RES_ENABLED = isToolResourcesEnabled();
@@ -62,13 +65,13 @@ export async function createServerContext(): Promise<ServerContext> {
   const server = new McpServer({
     name: "mcp-task-knowledge",
     version,
-    capabilities: SERVER_CAPS as any,
+    capabilities: SERVER_CAPS as unknown as ConstructorParameters<typeof McpServer>[0]['capabilities'],
   });
 
-  let vectorAdapter: any | undefined;
+  let vectorAdapter: VectorSearchAdapter<unknown> | undefined;
   let vectorInitAttempted = false;
 
-  async function ensureVectorAdapter(): Promise<any | undefined> {
+  async function ensureVectorAdapter(): Promise<VectorSearchAdapter<unknown> | undefined> {
     if (vectorAdapter) return vectorAdapter;
     if (vectorInitAttempted) return undefined;
     vectorInitAttempted = true;
@@ -85,10 +88,10 @@ export async function createServerContext(): Promise<ServerContext> {
     } catch {}
 
     try {
-      vectorAdapter = await getVectorAdapter<any>();
-      if (vectorAdapter && typeof (vectorAdapter as any).info === 'function') {
+      vectorAdapter = await getVectorAdapter<unknown>();
+      if (vectorAdapter && typeof (vectorAdapter as unknown as Record<string, unknown>).info === 'function') {
         try {
-          const info = await (vectorAdapter as any).info();
+          const info = await ((vectorAdapter as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>).info)();
           log.info({ info }, 'adapter initialized');
         } catch {}
       } else if (!vectorAdapter) {
@@ -106,28 +109,32 @@ export async function createServerContext(): Promise<ServerContext> {
   const toolNames = new Set<string>();
   const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
 
-  function extractTemplateString(x: any): string | undefined {
+  function extractTemplateString(x: unknown): string | undefined {
     if (!x) return undefined;
     if (typeof x === 'string') return x;
-    const tryOne = (v: any): string | undefined => {
+    const rec = x as Record<string, unknown>;
+    const tryOne = (v: unknown): string | undefined => {
       if (!v) return undefined;
       if (typeof v === 'string') return v.startsWith('[object') ? undefined : v;
-      if (typeof v.toString === 'function') {
-        const s = v.toString();
+      if (typeof (v as { toString?: () => string }).toString === 'function') {
+        const s = (v as { toString(): string }).toString();
         if (typeof s === 'string' && !s.startsWith('[object')) return s;
       }
-      if (typeof (v as any).template === 'string') return (v as any).template;
-      if ((v as any).template) return tryOne((v as any).template);
-      if (typeof (v as any).pattern === 'string') return (v as any).pattern;
-      if ((v as any).pattern) return tryOne((v as any).pattern);
-      if (typeof (v as any).hrefTemplate === 'string') return (v as any).hrefTemplate;
+      const r = v as Record<string, unknown>;
+      if (typeof r.template === 'string') return r.template;
+      if (r.template) return tryOne(r.template);
+      if (typeof r.pattern === 'string') return r.pattern;
+      if (r.pattern) return tryOne(r.pattern);
+      if (typeof r.hrefTemplate === 'string') return r.hrefTemplate;
       return undefined;
     };
-    return tryOne(x) || tryOne((x as any).template);
+    return tryOne(x) || tryOne(rec.template);
   }
 
-  (server as any).registerResource = ((orig: any) => {
-    return function(id: string, uriOrTemplate: any, info: { title?: string; description?: string; mimeType?: string }, handler: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawServer = server as any;
+  rawServer.registerResource = ((orig: (...args: unknown[]) => unknown) => {
+    return function(id: string, uriOrTemplate: unknown, info: { title?: string; description?: string; mimeType?: string }, handler: unknown) {
       try {
         const isTemplate = typeof uriOrTemplate !== 'string';
         const uriStr = isTemplate ? (extractTemplateString(uriOrTemplate) || '<template>') : String(uriOrTemplate);
@@ -135,7 +142,7 @@ export async function createServerContext(): Promise<ServerContext> {
       } catch {}
       return orig.call(server, id, uriOrTemplate, info, handler);
     };
-  })((server as any).registerResource);
+  })(rawServer.registerResource);
 
   function normalizeBase64(input: string): string {
     const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
@@ -143,12 +150,12 @@ export async function createServerContext(): Promise<ServerContext> {
     return normalized + '='.repeat(padding);
   }
 
-  const initResourceHandlers = (server as any)?.setResourceRequestHandlers;
+  const initResourceHandlers = rawServer?.setResourceRequestHandlers;
   if (typeof initResourceHandlers === 'function') {
     initResourceHandlers.call(server);
   }
 
-  const baseServer = (server as any)?.server;
+  const baseServer = rawServer?.server as Record<string, unknown> | undefined;
   if (baseServer) {
     const listHandler = async () => {
       const resources = resourceRegistry
@@ -174,15 +181,15 @@ export async function createServerContext(): Promise<ServerContext> {
     };
 
     if (baseServer._requestHandlers instanceof Map) {
-      baseServer._requestHandlers.set('resources/list', async (_req: any, _extra: any) => listHandler());
+      (baseServer._requestHandlers as Map<string, (...args: unknown[]) => unknown>).set('resources/list', async () => listHandler());
     }
 
     if (typeof baseServer.registerCapabilities === 'function') {
-      baseServer.registerCapabilities({ resources: { list: true, read: true } });
+      (baseServer.registerCapabilities as (caps: Record<string, unknown>) => void)({ resources: { list: true, read: true } });
     }
   }
 
-  const makeResourceTemplate = (pattern: string) => new ResourceTemplate(pattern, {} as any);
+  const makeResourceTemplate = (pattern: string) => new ResourceTemplate(pattern, { list: undefined } as unknown as ConstructorParameters<typeof ResourceTemplate>[1]);
 
   function registerToolAsResource(name: string) {
     const baseUri = `tool://${encodeURIComponent(name)}`;
@@ -214,8 +221,8 @@ export async function createServerContext(): Promise<ServerContext> {
           return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tool resource path', examples: [`${baseUri}`, `${baseUri}/schema`] }, null, 2), mimeType: 'application/json' }] };
         }
       );
-    } catch (e: any) {
-      const msg = e?.message || String(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       if (typeof msg === 'string' && msg.includes('already registered')) {
         log.warn('already registered for tool resource: %s — skipping', name);
       } else {
@@ -224,9 +231,9 @@ export async function createServerContext(): Promise<ServerContext> {
     }
   }
 
-  (server as any).registerTool = ((orig: any) => {
-    (server as any)._registerToolOrig = orig;
-    return function (name: string, def: any, handler: any) {
+  rawServer.registerTool = ((orig: (...args: unknown[]) => unknown) => {
+    rawServer._registerToolOrig = orig;
+    return function (name: string, def: Record<string, unknown> | undefined, handler: unknown) {
       if (toolRegistry.has(name)) {
         const msg = `[tools] duplicate tool registration detected: "${name}"`;
         if (STRICT_TOOL_DEDUP) {
@@ -235,10 +242,10 @@ export async function createServerContext(): Promise<ServerContext> {
           log.warn('duplicate tool registration detected: "%s" — skipping re-registration', name);
           try {
             toolRegistry.set(name, {
-              title: def?.title,
-              description: def?.description,
-              inputSchema: def?.inputSchema,
-              handler,
+              title: def?.title as string | undefined,
+              description: def?.description as string | undefined,
+              inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
+              handler: handler as ToolMetaHandler,
             });
             if (TOOL_RES_ENABLED) registerToolAsResource(name);
           } catch {}
@@ -250,10 +257,10 @@ export async function createServerContext(): Promise<ServerContext> {
         toolNames.add(name);
         try {
           toolRegistry.set(name, {
-            title: def?.title,
-            description: def?.description,
-            inputSchema: def?.inputSchema,
-            handler,
+            title: def?.title as string | undefined,
+            description: def?.description as string | undefined,
+            inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
+            handler: handler as ToolMetaHandler,
           });
           if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
@@ -265,24 +272,25 @@ export async function createServerContext(): Promise<ServerContext> {
         toolNames.add(name);
         try {
           toolRegistry.set(name, {
-            title: def?.title,
-            description: def?.description,
-            inputSchema: def?.inputSchema,
-            handler,
+            title: def?.title as string | undefined,
+            description: def?.description as string | undefined,
+            inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
+            handler: handler as ToolMetaHandler,
           });
           if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
         return res;
-      } catch (e: any) {
-        if (e && typeof e.message === 'string' && e.message.includes('already registered')) {
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : undefined;
+        if (errMsg && typeof errMsg === 'string' && errMsg.includes('already registered')) {
           log.warn('SDK reported already registered for "%s" — skipping', name);
           toolNames.add(name);
           try {
             toolRegistry.set(name, {
-              title: def?.title,
-              description: def?.description,
-              inputSchema: def?.inputSchema,
-              handler,
+              title: def?.title as string | undefined,
+              description: def?.description as string | undefined,
+              inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
+              handler: handler as ToolMetaHandler,
             });
           } catch {}
           return;
@@ -290,7 +298,7 @@ export async function createServerContext(): Promise<ServerContext> {
         throw e;
       }
     };
-  })((server as any).registerTool);
+  })(rawServer.registerTool);
 
   return {
     server,
@@ -314,3 +322,6 @@ export async function createServerContext(): Promise<ServerContext> {
     registerToolAsResource,
   };
 }
+
+/** Type alias for tool handler functions stored in ToolMeta. */
+export type ToolMetaHandler = (params: Record<string, unknown>) => Promise<unknown>;

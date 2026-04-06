@@ -15,8 +15,8 @@ import { createHash } from 'node:crypto';
 export interface ToolMeta {
   title?: string;
   description?: string;
-  inputSchema?: Record<string, any>;
-  handler?: (params: any) => Promise<any>;
+  inputSchema?: Record<string, unknown>;
+  handler?: (params: Record<string, unknown>) => Promise<unknown>;
   /** ISO timestamp when the tool was registered. */
   registeredAt?: string;
   /** ISO timestamp of last update (re-registration). */
