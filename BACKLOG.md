@@ -85,9 +85,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| T-001 | AppContainer: композиция приложения с lifecycle | medium | pending | 1.1 | F-002 ✅ |
-| T-002 | TCP/Unix multi-client сервер | medium | pending | 1.2 | T-001 |
-| T-003 | Stdio single-client сервер (вынести из main) | low | pending | 1.3 | T-001 |
+| T-001 | AppContainer: композиция приложения с lifecycle | medium | done | 1.1 | F-002 ✅ |
+| T-002 | TCP/Unix multi-client сервер | medium | pending | 1.2 | T-001 ✅ |
+| T-003 | Stdio single-client сервер (вынести из main) | low | pending | 1.3 | T-001 ✅ |
 
 ---
 
@@ -231,8 +231,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-011 | Claude Desktop / Cursor certified config | — | done |
 | MR-006 | VS Code extension | — | done |
 | MR-012 | Real-time collaboration (WebSocket) | — | pending |
-| T-001 | AppContainer: композиция с lifecycle | F-002 ✅, разблокирован | pending |
-| T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
+| T-001 | AppContainer: композиция с lifecycle | Завершён | done |
+| T-002 | TCP/Unix multi-client сервер | Ждёт T-001 ✅ | pending |
 | S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
 | A-001 | mcp.authenticate + pre-auth | Ждёт S-001 | blocked |
 | F-005 | Prometheus exporter | — | done |
@@ -268,6 +268,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | F-004 | Structured logging with Pino (child loggers, LOG_LEVEL, LOG_FORMAT) | 2026-04-07 | #44 |
 | F-005 | Prometheus exporter (tool calls, duration, resource reads, /metrics) | 2026-04-07 | #45 |
 | F-006 | Type safety: replace any with concrete types (context, tool-registry, vector, config, metrics) | 2026-04-07 | #46 |
+| T-001 | AppContainer: lifecycle manager with state machine, cleanup, signal handling | 2026-04-07 | #47 |
 
 ---
 
@@ -280,7 +281,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Transport (1) | 3 | 3 | 0 | 0 | 0 | 0 |
+| Transport (1) | 3 | 2 | 0 | 1 | 0 | 0 |
 | Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
@@ -291,4 +292,4 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | Quality | 7 | 4 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 2 | 0 | 4 | 0 | 0 |
-| **Итого** | **66** | **40** | **0** | **27** | **0** | **1** |
+| **Итого** | **66** | **39** | **0** | **28** | **0** | **1** |
