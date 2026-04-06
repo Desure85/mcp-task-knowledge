@@ -36,6 +36,47 @@
 - [ ] TD-001: Рефакторинг монолитного index.ts
 - [ ] TD-002: Типизация (убрать any)
 
+### Этап A — Skills System
+
+- [ ] SK-001: Skills CRUD (Markdown + YAML frontmatter)
+- [ ] SK-002: Skill invocation pipeline
+- [ ] SK-003: Skill discovery + импорт из awesome-cursorrules
+- [ ] SK-004: Pre-built skill templates
+- [ ] SK-005: Skill sharing + конвертеры форматов
+- [ ] SK-006: Skill permissions (Agent Skills spec)
+
+### Этап B — Rules & Policies Engine
+
+- [ ] RL-001: Rules storage (global → project → user)
+- [ ] RL-002: Rules evaluation (runtime guard checks)
+- [ ] RL-003: Policy-as-code (JSON/DSL)
+- [ ] RL-004: Built-in rule packs
+- [ ] RL-005: Rule enforcement hooks
+- [ ] RL-006: Rule import (.cursorrules, CLAUDE.md, .clinerules)
+
+### Этап C — Workflows (AI Agent Flows)
+
+- [ ] WF-001: Workflow DAG builder
+- [ ] WF-002: Workflow executor
+- [ ] WF-003: Workflow templates
+- [ ] WF-004: Human-in-the-loop
+- [ ] WF-005: Workflow state persistence
+- [ ] WF-006: Workflow chaining (subflow)
+
+### Этап D — Developer Memory & Context
+
+- [ ] MEM-001: Session memory
+- [ ] MEM-002: Entity graph
+- [ ] MEM-003: Context distillation
+- [ ] MEM-004: Memory import/export
+
+### Этап E — Integration Hub
+
+- [ ] INT-001: GitHub connector
+- [ ] INT-002: Jira/YouTrack connector
+- [ ] INT-003: Slack/Discord connector
+- [ ] INT-004: Connector framework (plug-in SDK)
+
 ### Критический путь
 
 ```
@@ -222,6 +263,88 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 ---
 
+## Этап A — Skills System (Agent Skills)
+
+> Концепция: Переиспользуемые "навыки" для AI-агента — аналог Claude Code SKILL.md, Cursor .cursorrules, Cline .clinerules.
+> Формат: Гибридный — собственный формат как основной, с конвертерами из .cursorrules / SKILL.md / .clinerules.
+> Стандарт: [agentskills.io](https://agentskills.io) — открытый спецификация для AI-скиллов.
+> Ресурсы: awesome-cursorrules (38.9K ⭐), awesome-clinerules.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| SK-001 | Skills CRUD: создание, редактирование, версионирование скиллов. Markdown + YAML frontmatter, поддержка `$ARGUMENTS`, `${VARS}` | critical | pending | — | — |
+| SK-002 | Skill invocation pipeline: триггер → контекст → выполнение → результат. `context: fork` для сабагентов, shell injection `!command`` | critical | pending | — | SK-001 |
+| SK-003 | Skill discovery: каталог с тегами, поиск, категории. Импорт из awesome-cursorrules и других источников | high | pending | — | SK-001 |
+| SK-004 | Skill templates: pre-built скиллы из коробки — code-review, deploy, test-gen, refactor, debug, architecture-review | high | pending | — | SK-001 |
+| SK-005 | Skill sharing: экспорт/импорт. Конвертеры: .cursorrules ↔ SKILL.md ↔ .clinerules ↔ наш формат. Git-native хранение | medium | pending | — | SK-001 |
+| SK-006 | Skill permissions: `allowed-tools`, `disable-model-invocation`, scope (project/user/global) по Agent Skills spec | medium | pending | — | SK-001, SK-002 |
+
+---
+
+## Этап B — Rules & Policies Engine
+
+> Концепция: Guardrails и правила для AI-агента — аналог .cursorrules, CLAUDE.md, .clinerules, policy-as-code.
+> Уровни: global → project → user. Наследование и переопределение на каждом уровне.
+> Runtime: guard checks перед вызовом MCP-инструментов, input/output validation.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| RL-001 | Rules storage: иерархия правил (global → project → user). Формат Markdown + YAML frontmatter. Наследование, переопределение | critical | pending | — | — |
+| RL-002 | Rules evaluation: runtime guard checks перед вызовом MCP-инструментов. Input/output validation, schema checks | critical | pending | — | RL-001 |
+| RL-003 | Policy-as-code: JSON/DSL описание политик. Git-native, версонируются с кодом. Условные правила (if file=*.ts then...) | high | pending | — | RL-001 |
+| RL-004 | Built-in rule packs: предустановленные наборы — security-rules, ts-strict, react-conventions, python-style, team-standards | medium | pending | — | RL-001 |
+| RL-005 | Rule enforcement hooks: pre/post hooks на MCP tool calls. Блокировка, предупреждение, логирование, auto-fix | high | pending | — | RL-002 |
+| RL-006 | Rule import: импорт из .cursorrules, CLAUDE.md, .clinerules, .windsurfrules. Конвертеры в наш формат | medium | pending | — | RL-001 |
+
+---
+
+## Этап C — Workflows (AI Agent Flows)
+
+> Концепция: Последовательности AI-действий — аналог Windsurf Flows, Cursor rules chaining, Claude Code skill flows.
+> Пример: research → plan → implement → review. Переиспользуемые шаблоны для агента.
+> Уровень абстракции: AI Agent Flows (high-level) + tool orchestration (low-level), с вложенностью.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| WF-001 | Workflow DAG builder: определение графа — nodes (tools/skills/rules), edges (dependencies), conditions, triggers | critical | pending | — | SK-001 |
+| WF-002 | Workflow executor: выполнение — sequential, parallel, conditional branching, error recovery, retry logic | critical | pending | — | WF-001 |
+| WF-003 | Workflow templates: pre-built flows — code-review-pipeline, feature-dev-flow, bug-triage, release-checklist, research-and-plan | high | pending | — | WF-001 |
+| WF-004 | Human-in-the-loop: точки останова для подтверждения пользователем. Approve/reject/modify перед критическими шагами | high | pending | — | WF-002 |
+| WF-005 | Workflow state persistence: чекпоинты, возобновление после сбоев. Resume с места остановки. Session linkage | medium | pending | — | WF-002 |
+| WF-006 | Workflow chaining: вложенные workflows (subflow), composability. Workflow как step внутри другого workflow | medium | pending | — | WF-002 |
+
+---
+
+## Этап D — Developer Memory & Context
+
+> Концепция: Персистентная память для AI-агента между сессиями. Архитектурные решения, конвенции, lesson learned.
+> Расширение текущего knowledge-base модуля специализации под AI context management.
+> Аналоги: PersistMemory MCP, Beam, CASS (310 ⭐), .claude/ project memory.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| MEM-001 | Session memory: персистентная память между сессиями AI-агента. Автосохранение контекста, архитектурные решения, конвенции | high | pending | — | — |
+| MEM-002 | Entity graph: граф сущностей проекта — файлы→модули→зависимости. Semantic search по графу, auto-discovery | medium | pending | — | MEM-001 |
+| MEM-003 | Context distillation: авто-суммаризация сырого контекста в actionable knowledge. Compress old sessions | medium | pending | — | MEM-001 |
+| MEM-004 | Memory import/export: импорт из .claude/, .cursor/, Obsidian vault. Экспорт в стандартные форматы | medium | pending | — | MEM-001 |
+
+---
+
+## Этап E — Integration Hub
+
+> Концепция: Коннекторы к внешним системам — GitHub, Jira, YouTrack, Slack, Discord.
+> Plug-in architecture: SDK + registry для добавления новых коннекторов.
+> Каждый коннектор — набор MCP-инструментов с унифицированным интерфейсом.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| INT-001 | GitHub connector: issues, PRs, commits, code search. MCP tools: github_issue_*, github_pr_*, github_repo_* | high | pending | — | — |
+| INT-002 | Jira/YouTrack connector: синхронизация задач между mcp-task-knowledge и внешними таск-трекерами | medium | pending | — | INT-004 |
+| INT-003 | Slack/Discord connector: уведомления, поиск, отправка сообщений из AI-агента | medium | pending | — | INT-004 |
+| INT-004 | Connector framework: plug-in architecture для добавления коннекторов. SDK + registry + lifecycle hooks | high | pending | — | — |
+
+---
+
 ## Блокированные
 
 | ID | Задача | Причина | Статус |
@@ -292,4 +415,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | Quality | 7 | 4 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 2 | 0 | 4 | 0 | 0 |
-| **Итого** | **66** | **39** | **0** | **28** | **0** | **1** |
+| **Skills (A)** | **6** | **6** | **0** | **0** | **0** | **0** |
+| **Rules (B)** | **6** | **6** | **0** | **0** | **0** | **0** |
+| **Workflows (C)** | **6** | **6** | **0** | **0** | **0** | **0** |
+| **Memory (D)** | **4** | **4** | **0** | **0** | **0** | **0** |
+| **Integration Hub (E)** | **4** | **4** | **0** | **0** | **0** | **0** |
+| **Итого** | **94** | **68** | **0** | **28** | **0** | **1** |
