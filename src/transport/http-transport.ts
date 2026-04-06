@@ -15,6 +15,9 @@ import { randomUUID } from 'node:crypto';
 import type { TransportConfig, TransportAdapter, TransportFactory } from './types.js';
 import type { ServerContext } from '../register/context.js';
 import { createOpenAPIHandler } from '../register/openapi.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('transport:http');
 
 // ─── Adapter ──────────────────────────────────────────────────────────
 
@@ -74,8 +77,8 @@ export class HttpTransportAdapter implements TransportAdapter {
     this.connected = true;
 
     this.httpServer.listen(this.port, this.host, () => {
-      console.error(`[transport] MCP Streamable HTTP listening on http://${this.host}:${this.port}`);
-      console.error(`[transport] API docs: http://${this.host}:${this.port}/api/docs`);
+      log.info('MCP Streamable HTTP listening on http://%s:%s', this.host, this.port);
+      log.info('API docs: http://%s:%s/api/docs', this.host, this.port);
     });
   }
 

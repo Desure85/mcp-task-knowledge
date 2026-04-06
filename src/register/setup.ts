@@ -6,6 +6,9 @@ import { createServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('setup');
 
 export async function createServerContext(): Promise<ServerContext> {
   const HERE_DIR = path.dirname(new URL(import.meta.url).pathname);
@@ -35,14 +38,14 @@ export async function createServerContext(): Promise<ServerContext> {
   );
 
   if (SHOW_STARTUP) {
-    console.error('[startup] mcp-task-knowledge starting...', { ts: new Date().toISOString(), pid: process.pid });
+    log.info({ ts: new Date().toISOString(), pid: process.pid }, 'mcp-task-knowledge starting...');
   }
 
   const cfg = loadConfig();
   const catalogCfg = loadCatalogConfig();
 
   if (SHOW_STARTUP) {
-    console.error('[startup][catalog]', { mode: catalogCfg.mode, prefer: catalogCfg.prefer, remoteEnabled: catalogCfg.remote.enabled, hasRemoteBaseUrl: Boolean(catalogCfg.remote.baseUrl), embeddedEnabled: catalogCfg.embedded.enabled, embeddedStore: catalogCfg.embedded.store });
+    log.info({ mode: catalogCfg.mode, prefer: catalogCfg.prefer, remoteEnabled: catalogCfg.remote.enabled, hasRemoteBaseUrl: Boolean(catalogCfg.remote.baseUrl), embeddedEnabled: catalogCfg.embedded.enabled, embeddedStore: catalogCfg.embedded.store }, 'catalog config');
   }
 
   const catalogProvider = createServiceCatalogProvider(catalogCfg);
@@ -52,8 +55,8 @@ export async function createServerContext(): Promise<ServerContext> {
   const TOOL_RES_EXEC = isToolResourcesExecEnabled();
 
   if (SHOW_STARTUP) {
-    console.error('[startup][embeddings]', { mode: cfg.embeddings.mode, hasModelPath: Boolean(cfg.embeddings.modelPath), dim: cfg.embeddings.dim ?? null, cacheDir: cfg.embeddings.cacheDir || null });
-    console.error('[startup][tools]', { toolsEnabled: TOOLS_ENABLED, toolResourcesEnabled: TOOL_RES_ENABLED, toolResourcesExec: TOOL_RES_EXEC });
+    log.info({ mode: cfg.embeddings.mode, hasModelPath: Boolean(cfg.embeddings.modelPath), dim: cfg.embeddings.dim ?? null, cacheDir: cfg.embeddings.cacheDir || null }, 'embeddings config');
+    log.info({ toolsEnabled: TOOLS_ENABLED, toolResourcesEnabled: TOOL_RES_ENABLED, toolResourcesExec: TOOL_RES_EXEC }, 'tools config');
   }
 
   const server = new McpServer({
@@ -73,11 +76,11 @@ export async function createServerContext(): Promise<ServerContext> {
     try {
       const mode = cfg.embeddings.mode;
       if (mode === 'none') {
-        console.warn('[embeddings] EMBEDDINGS_MODE=none — vector adapter disabled');
+        log.warn('EMBEDDINGS_MODE=none — vector adapter disabled');
         return undefined;
       }
       if (!cfg.embeddings.modelPath || !cfg.embeddings.dim) {
-        console.warn('[embeddings] Missing modelPath or dim; set EMBEDDINGS_MODEL_PATH and EMBEDDINGS_DIM');
+        log.warn('Missing modelPath or dim; set EMBEDDINGS_MODEL_PATH and EMBEDDINGS_DIM');
       }
     } catch {}
 
@@ -86,14 +89,14 @@ export async function createServerContext(): Promise<ServerContext> {
       if (vectorAdapter && typeof (vectorAdapter as any).info === 'function') {
         try {
           const info = await (vectorAdapter as any).info();
-          console.error('[embeddings] adapter initialized', info);
+          log.info({ info }, 'adapter initialized');
         } catch {}
       } else if (!vectorAdapter) {
-        console.warn('[embeddings] adapter not initialized (getVectorAdapter returned undefined)');
+        log.warn('adapter not initialized (getVectorAdapter returned undefined)');
       }
       return vectorAdapter;
     } catch (e) {
-      console.error('[embeddings] vector adapter init failed:', e);
+      log.error({ err: e }, 'vector adapter init failed');
       return undefined;
     }
   }
@@ -214,7 +217,7 @@ export async function createServerContext(): Promise<ServerContext> {
     } catch (e: any) {
       const msg = e?.message || String(e);
       if (typeof msg === 'string' && msg.includes('already registered')) {
-        console.warn(`[resources] already registered for tool resource: ${name} — skipping`);
+        log.warn('already registered for tool resource: %s — skipping', name);
       } else {
         throw e;
       }
@@ -229,7 +232,7 @@ export async function createServerContext(): Promise<ServerContext> {
         if (STRICT_TOOL_DEDUP) {
           throw new Error(msg + ' (MCP_STRICT_TOOL_DEDUP=1)');
         } else {
-          console.warn(msg + ' — skipping re-registration');
+          log.warn('duplicate tool registration detected: "%s" — skipping re-registration', name);
           try {
             toolRegistry.set(name, {
               title: def?.title,
@@ -272,7 +275,7 @@ export async function createServerContext(): Promise<ServerContext> {
         return res;
       } catch (e: any) {
         if (e && typeof e.message === 'string' && e.message.includes('already registered')) {
-          console.warn(`[tools] SDK reported already registered for "${name}" — skipping`);
+          log.warn('SDK reported already registered for "%s" — skipping', name);
           toolNames.add(name);
           try {
             toolRegistry.set(name, {

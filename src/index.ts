@@ -18,8 +18,12 @@ import { registerDependencyTools } from './register/dependencies.js';
 import { registerDashboardTools } from './register/dashboard.js';
 import { registerMarkdownTools } from './register/markdown.js';
 import { defaultTransportRegistry } from './transport/index.js';
+import { createLogger, childLogger } from './core/logger.js';
+
+const log = childLogger('main');
 
 async function main() {
+  createLogger(); // initialize root logger
   const ctx = await createServerContext();
   registerHelpers(ctx);
   registerCatalogTools(ctx);
@@ -55,7 +59,7 @@ async function main() {
   // Graceful shutdown for long-running transports (http, future ws/tcp)
   if (transportType !== 'stdio') {
     const shutdown = async (signal: string) => {
-      console.error(`[transport] ${signal} received, shutting down...`);
+      log.info('%s received, shutting down...', signal);
       await adapter.close();
       process.exit(0);
     };
@@ -64,4 +68,4 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => { log.fatal({ err }, 'unhandled error in main()'); process.exit(1); });

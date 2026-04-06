@@ -2,6 +2,9 @@ import type { ServerContext } from './context.js';
 import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForTask, buildTextForDoc, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('resources');
 
 export function registerSearchResources(ctx: ServerContext): void {
   const handleSearchTasksHref = async (href: string) => {
@@ -85,7 +88,7 @@ export function registerSearchResources(ctx: ServerContext): void {
         return handleSearchTasksHref(`search://tasks/${encodeURIComponent(project)}/recent`);
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://tasks/{project}/recent — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: search://tasks/{project}/recent — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -101,7 +104,7 @@ export function registerSearchResources(ctx: ServerContext): void {
         return handleSearchTasksHref(`search://tasks/${encodeURIComponent(project)}/${encodeURIComponent(params)}`);
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://tasks/{project}/{params} — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: search://tasks/{project}/{params} — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -116,7 +119,7 @@ export function registerSearchResources(ctx: ServerContext): void {
         return handleSearchKnowledgeHref(`search://knowledge/${encodeURIComponent(project)}/recent`);
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://knowledge/{project}/recent — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: search://knowledge/{project}/recent — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -132,7 +135,7 @@ export function registerSearchResources(ctx: ServerContext): void {
         return handleSearchKnowledgeHref(`search://knowledge/${encodeURIComponent(project)}/${encodeURIComponent(params)}`);
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://knowledge/{project}/{params} — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: search://knowledge/{project}/{params} — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -143,7 +146,7 @@ export function registerSearchResources(ctx: ServerContext): void {
         return handleSearchTasksHref(u.href);
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://tasks — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: search://tasks — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -154,5 +157,5 @@ export function registerSearchResources(ctx: ServerContext): void {
         return handleSearchKnowledgeHref(u.href);
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: search://knowledge — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: search://knowledge — skipping'); else throw e; }
 }

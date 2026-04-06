@@ -2,6 +2,9 @@ import { type VectorSearchAdapter } from './index.js';
 import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('vector');
 
 // Cosine similarity for Float32Array vectors
 function cosine(a: Float32Array, b: Float32Array): number {
@@ -57,7 +60,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         ort = await import('onnxruntime-web').catch(() => null as any);
       }
       if (!ort) {
-        console.warn('[vector] onnxruntime-web not installed; disabling vector adapter');
+        log.warn('onnxruntime-web not installed; disabling vector adapter');
         this.ready = false;
         return;
       }
@@ -67,7 +70,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // Use @xenova/transformers (pure JS) with local FS support
       const xenova: any = await import('@xenova/transformers').catch(() => null as any);
       if (!xenova) {
-        console.warn('[vector] @xenova/transformers not available. Disabling vector adapter');
+        log.warn('@xenova/transformers not available. Disabling vector adapter');
         this.ready = false;
         return;
       }
@@ -92,7 +95,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
 
       // onnxruntime: ensure model path is set
       if (!cfg.embeddings.modelPath) {
-        console.warn('[vector] embeddings.modelPath not set; disabling vector adapter');
+        log.warn('embeddings.modelPath not set; disabling vector adapter');
         this.ready = false;
         return;
       }
@@ -104,9 +107,9 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       let modelSource: any;
       if (useGpu && (ort as any)?.InferenceSession) {
         if (DEBUG) {
-          console.warn('[vector][dbg] init: useGpu=true, InferenceSession available');
-          console.warn('[vector][dbg] modelPath=', cfg.embeddings.modelPath);
-          console.warn('[vector][dbg] LD_LIBRARY_PATH=', process.env.LD_LIBRARY_PATH);
+          log.debug('init: useGpu=true, InferenceSession available');
+          log.debug('modelPath=%s', cfg.embeddings.modelPath);
+          log.debug('LD_LIBRARY_PATH=%s', process.env.LD_LIBRARY_PATH);
         }
         // Native ORT (onnxruntime-node): pass filesystem path. Try CUDA, then CPU fallback.
         modelSource = cfg.embeddings.modelPath;
@@ -117,7 +120,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
           .filter(Boolean);
         const epOrder = envEps.length ? envEps : ['cuda', 'cpu'];
         if (DEBUG) {
-          console.warn('[vector][dbg] EP order =', epOrder.join(','));
+          log.debug('EP order = %s', epOrder.join(','));
         }
         // Safe CUDA probe: try to initialize CUDA EP in a child process to avoid crashing the main process
         // If the probe fails (non-zero exit or segfault), we will skip CUDA and try CPU.
@@ -143,39 +146,39 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
             ].join('\n');
             const res = spawnSync(node, ['-e', script], { env: process.env, stdio: 'pipe' });
             if (res.signal) {
-              if (DEBUG) console.warn('[vector][dbg] CUDA probe crashed with signal:', res.signal);
+              if (DEBUG) log.debug('CUDA probe crashed with signal: %s', res.signal);
               return false;
             }
             if (res.status !== 0) {
-              if (DEBUG) console.warn('[vector][dbg] CUDA probe exited with code:', res.status, 'stderr:', res.stderr?.toString?.());
+              if (DEBUG) log.debug('CUDA probe exited with code: %s, stderr: %s', res.status, res.stderr?.toString?.());
               return false;
             }
             return true;
           } catch (e) {
-            if (DEBUG) console.warn('[vector][dbg] CUDA probe exception:', e instanceof Error ? e.message : String(e));
+            if (DEBUG) log.debug('CUDA probe exception: %s', e instanceof Error ? e.message : String(e));
             return false;
           }
         };
         const errs: string[] = [];
         for (const ep of epOrder) {
           try {
-            if (DEBUG) console.warn(`[vector][dbg] trying EP=${ep} with modelSource=path`);
+            if (DEBUG) log.debug('trying EP=%s with modelSource=path', ep);
             if (ep === 'cuda') {
               // Be explicit about device selection for CUDA EP
               const ok = await probeCuda(modelSource as string);
               if (!ok) throw new Error('CUDA probe failed');
               createOpts.executionProviders = [{ name: 'cuda', deviceId: 0 } as any];
-              if (DEBUG) console.warn('[vector][dbg] CUDA EP options:', createOpts.executionProviders[0]);
+              if (DEBUG) log.debug('CUDA EP options: %j', createOpts.executionProviders[0]);
             } else {
               createOpts.executionProviders = [ep];
             }
             this.session = await (ort as any).InferenceSession.create(modelSource, createOpts);
-            if (DEBUG) console.warn(`[vector][dbg] EP=${ep} init OK`);
+            if (DEBUG) log.debug('EP=%s init OK', ep);
             break;
           } catch (e: any) {
             const msg = e?.message ?? String(e);
             errs.push(`[${ep}] ${msg}`);
-            if (DEBUG) console.warn(`[vector][dbg] EP=${ep} failed:`, msg);
+            if (DEBUG) log.debug('EP=%s failed: %s', ep, msg);
           }
         }
         if (!this.session) {
@@ -184,8 +187,8 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       } else {
         // WASM (onnxruntime-web) expects Uint8Array/ArrayBuffer
         if (DEBUG) {
-          console.warn('[vector][dbg] init: useGpu=false or InferenceSession missing, using onnxruntime-web');
-          console.warn('[vector][dbg] modelPath=', cfg.embeddings.modelPath);
+          log.debug('init: useGpu=false or InferenceSession missing, using onnxruntime-web');
+          log.debug('modelPath=%s', cfg.embeddings.modelPath);
         }
         modelSource = await fsp.readFile(cfg.embeddings.modelPath);
         this.session = await (ort as any).InferenceSession.create(modelSource, createOpts);
@@ -193,10 +196,10 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       if (useGpu) {
         try {
           const providers = (this.session as any)?.executionProvider ?? (ort as any)?.getAvailableExecutionProviders?.();
-          console.error('[vector] ORT backend: onnxruntime-node with providers', providers || ['CUDAExecutionProvider','CPUExecutionProvider']);
+          log.info('ORT backend: onnxruntime-node with providers %j', providers || ['CUDAExecutionProvider','CPUExecutionProvider']);
         } catch {}
       } else {
-        console.error('[vector] ORT backend: onnxruntime-web (WASM/CPU)');
+        log.info('ORT backend: onnxruntime-web (WASM/CPU)');
       }
       if (!this.session) { this.ready = false; return; }
 
@@ -210,7 +213,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         try { (env as any).localModelPath = '/app'; } catch {}
         try { (env as any).HF_ENDPOINT = ''; } catch {}
         if (DEBUG) {
-          console.warn('[vector] xenova env:', {
+          log.debug('xenova env: %j', {
             useFS: (env as any).useFS,
             allowLocalModels: (env as any).allowLocalModels,
             allowRemoteModels: (env as any).allowRemoteModels,
@@ -227,19 +230,19 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         for (const p of candidates) {
           try {
             this.tokenizer = await AutoTokenizer.from_pretrained(p as any, { local_files_only: true } as any);
-            console.error(`[vector] Tokenizer ready (@xenova) from ${p}`);
+            log.info('Tokenizer ready (@xenova) from %s', p);
             lastErr = undefined;
             break;
           } catch (e) {
             lastErr = e;
             if (DEBUG) {
-              console.warn(`[vector] Tokenizer load attempt failed for ${p}: ${e instanceof Error ? e.message : String(e)}`);
+              log.debug('Tokenizer load attempt failed for %s: %s', p, e instanceof Error ? e.message : String(e));
             }
           }
         }
 
         if (!this.tokenizer) {
-          console.error('[vector] Tokenizer init failed (@xenova).');
+          log.error('Tokenizer init failed (@xenova)');
           throw lastErr ?? new Error('Tokenizer not found');
         }
       }
@@ -295,20 +298,20 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
             const raw = texts[b] as any;
             const text = typeof raw === 'string' ? raw : String(raw ?? '');
             if ((process as any)?.env?.DEBUG_VECTOR && typeof raw !== 'string') {
-              console.warn('[vector] non-string text passed to tokenizer:', { type: typeof raw, value: raw });
+              log.debug({ type: typeof raw, value: raw }, 'non-string text passed to tokenizer');
             }
             // Prefer the call form: tokenizer(text, options)
             const out = await this.tokenizer(text, { add_special_tokens: true });
             if (!out?.input_ids || !out?.attention_mask) {
               if ((process as any)?.env?.DEBUG_VECTOR) {
-                console.warn('[vector] tokenizer output missing fields', { keys: Object.keys(out || {}) });
+                log.debug({ keys: Object.keys(out || {}) }, 'tokenizer output missing fields');
               }
             }
             const ids: number[] = toNumberArray(out.input_ids).slice(0, seqLen);
             const mask: number[] = toNumberArray(out.attention_mask).slice(0, seqLen);
             if ((process as any)?.env?.DEBUG_VECTOR) {
-              if (ids.some((v) => Number.isNaN(v))) console.warn('[vector] ids contain NaN after normalization');
-              if (mask.some((v) => Number.isNaN(v))) console.warn('[vector] mask contain NaN after normalization');
+              if (ids.some((v) => Number.isNaN(v))) log.debug('ids contain NaN after normalization');
+              if (mask.some((v) => Number.isNaN(v))) log.debug('mask contain NaN after normalization');
             }
             while (ids.length < seqLen) ids.push(0);
             while (mask.length < seqLen) mask.push(0);
@@ -365,7 +368,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       this.cache = new EmbeddingsCache(this.dim);
       this.ready = true;
     } catch (e) {
-      console.warn('[vector] ONNX adapter init failed.', (e as any)?.message ?? e);
+      log.warn('ONNX adapter init failed: %s', (e as any)?.message ?? e);
       this.ready = false;
     }
   }
