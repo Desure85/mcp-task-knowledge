@@ -6,10 +6,59 @@ const log = childLogger('config');
 
 export type EmbeddingsMode = 'none' | 'onnx-cpu' | 'onnx-gpu';
 
+/** Shape of the JSON config file (merged from --config / MCP_CONFIG_JSON). */
+export interface FileConfig {
+  currentProject?: string;
+  dataDir?: string;
+  prompts?: { buildEnabled?: boolean };
+  tools?: {
+    enabled?: boolean;
+    resources?: { enabled?: boolean; execEnabled?: boolean };
+  };
+  catalog?: {
+    enabled?: boolean;
+    readEnabled?: boolean;
+    writeEnabled?: boolean;
+    mode?: CatalogMode;
+    prefer?: CatalogPrefer;
+    embedded?: {
+      enabled?: boolean;
+      prefix?: string;
+      store?: CatalogStore;
+      filePath?: string;
+      sqliteDriver?: 'auto' | 'native' | 'wasm';
+    };
+    remote?: {
+      enabled?: boolean;
+      baseUrl?: string;
+      timeoutMs?: number;
+    };
+    sync?: {
+      enabled?: boolean;
+      intervalSec?: number;
+      direction?: CatalogConfig['sync']['direction'];
+    };
+  };
+  embeddings?: {
+    mode?: EmbeddingsMode;
+    modelPath?: string;
+    dim?: number;
+    cacheDir?: string;
+    cacheMemLimitMB?: number;
+    persist?: boolean;
+    batchSize?: number;
+    maxLen?: number;
+  };
+  obsidian?: {
+    vaultRoot?: string;
+  };
+  [key: string]: unknown;
+}
+
 // Helper: read JSON config from path
-function readJsonConfig(filePath: string): any {
+function readJsonConfig(filePath: string): FileConfig {
   const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
+  return JSON.parse(raw) as FileConfig;
 }
 
 // Enable/disable prompts build MCP tool via config or env
@@ -28,7 +77,7 @@ function getCliArg(name: string): string | undefined {
 }
 
 const cliConfigPath = getCliArg('--config');
-let fileConfig: any = {};
+let fileConfig: FileConfig = {};
 if (cliConfigPath) {
   try {
     fileConfig = readJsonConfig(cliConfigPath);
@@ -252,7 +301,7 @@ export interface CatalogConfig {
   };
 }
 
-function parseBool(v: any, def = false): boolean {
+function parseBool(v: unknown, def = false): boolean {
   if (typeof v === 'boolean') return v;
   const s = String(v ?? '').toLowerCase();
   if (!s) return def;
@@ -286,7 +335,7 @@ export function isCatalogWriteEnabled(): boolean {
   return parseBool(cfgFlag ?? envFlag, false);
 }
 
-function parseNum(v: any, def: number): number {
+function parseNum(v: unknown, def: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : def;
 }

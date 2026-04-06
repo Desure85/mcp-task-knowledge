@@ -76,8 +76,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | F-002 | Создать абстракцию Transport Layer (подготовка к TCP/WS) | medium | done | 0.2 | F-001 |
 | F-003 | Реестр инструментов: версионирование, etag, пагинация | medium | done | 0.3 | F-001 |
 | F-004 | Добавить структурированное логирование (Pino или Winston) | medium | done | 0.4 | — |
-| F-005 | Метрики: Prometheus exporter (счётчики вызовов, latency) | low | pending | 0.4 | F-004 |
-| F-006 | Убрать `any` типы в критических местах (vectorAdapter, toolRegistry) | medium | pending | 0.1 | — |
+| F-005 | Метрики: Prometheus exporter (счётчики вызовов, latency) | low | done | 0.4 | F-004 ✅ |
+| F-006 | Убрать `any` типы в критических местах (vectorAdapter, toolRegistry) | medium | done | 0.1 | — |
 
 ---
 
@@ -174,7 +174,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | TD-001 | Рефакторинг монолитного `src/index.ts` (разделение на модули) | high | done | — | F-001 → done via F-001 |
-| TD-002 | Типизация: заменить `any` на конкретные типы | medium | pending | F-006 | — |
+| TD-002 | Типизация: заменить `any` на конкретные типы | medium | done | F-006 ✅ | — |
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred | — | — |
 | TD-004 | Rate limiting на уровне инструментов | medium | pending | S-003 | — |
 | TD-005 | Версионирование документов знаний | low | pending | — | — |
@@ -235,6 +235,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
 | S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
 | A-001 | mcp.authenticate + pre-auth | Ждёт S-001 | blocked |
+| F-005 | Prometheus exporter | — | done |
 
 ---
 
@@ -265,6 +266,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | F-002 | Transport Layer абстракция (registry, stdio, http) | 2026-04-06 | #42 |
 | F-003 | ToolRegistry: версионирование, ETag, пагинация | 2026-04-06 | #43 |
 | F-004 | Structured logging with Pino (child loggers, LOG_LEVEL, LOG_FORMAT) | 2026-04-07 | #44 |
+| F-005 | Prometheus exporter (tool calls, duration, resource reads, /metrics) | 2026-04-07 | #45 |
+| F-006 | Type safety: replace any with concrete types (context, tool-registry, vector, config, metrics) | 2026-04-07 | #46 |
 
 ---
 
@@ -276,7 +279,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
-| Foundation (0) | 6 | 2 | 0 | 4 | 0 | 0 |
+| Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Transport (1) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
@@ -284,8 +287,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Market Research | 15 | 2 | 0 | 13 | 0 | 0 |
-| Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
+| Tech Debt | 8 | 5 | 0 | 2 | 0 | 1 |
 | Quality | 7 | 4 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 2 | 0 | 4 | 0 | 0 |
-| **Итого** | **66** | **42** | **0** | **25** | **0** | **1** |
+| **Итого** | **66** | **40** | **0** | **27** | **0** | **1** |

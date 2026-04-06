@@ -154,10 +154,17 @@ export function updateServerInfo(opts: { version?: string; toolCount?: number })
  * Return async handler suitable for HTTP /metrics endpoint.
  * Returns undefined if metrics are disabled.
  */
-export function createMetricsHandler(): ((req: any, res: any) => Promise<void>) | undefined {
+/** Minimal interface for HTTP ServerResponse (Node.js IncomingMessage/ServerResponse). */
+export interface MetricsHttpResponse {
+  setHeader(name: string, value: string | string[]): void;
+  end(data?: string): void;
+  statusCode?: number;
+}
+
+export function createMetricsHandler(): ((req: unknown, res: MetricsHttpResponse) => Promise<void>) | undefined {
   const registry = _registry;
   if (!registry) return undefined;
-  return async (_req: any, res: any) => {
+  return async (_req: unknown, res: MetricsHttpResponse) => {
     try {
       res.setHeader('Content-Type', registry.contentType);
       res.end(await registry.metrics());
@@ -172,7 +179,7 @@ export function createMetricsHandler(): ((req: any, res: any) => Promise<void>) 
  * Wrap a tool handler with metrics collection.
  * Usage: wrapToolHandler('tool_name', originalHandler)
  */
-export function wrapToolHandler<TParams = any, TResult = any>(
+export function wrapToolHandler<TParams = Record<string, unknown>, TResult = unknown>(
   toolName: string,
   handler: (params: TParams) => Promise<TResult>,
 ): (params: TParams) => Promise<TResult> {

@@ -45,7 +45,7 @@ export interface KnowledgeDoc extends KnowledgeDocMeta {
   content: string; // markdown
 }
 
-export interface SearchResult<T = any> {
+export interface SearchResult<T> {
   id: string;
   score: number;
   item: T;

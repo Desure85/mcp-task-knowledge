@@ -38,7 +38,7 @@ export interface ServicePage {
 export interface ServiceCatalogProvider {
   mode: "embedded" | "remote" | "hybrid";
   queryServices(q: ServiceQuery): Promise<ServicePage>;
-  health(): Promise<{ ok: boolean; source: "remote" | "embedded"; detail?: any }>;
+  health(): Promise<{ ok: boolean; source: "remote" | "embedded"; detail?: Record<string, unknown> }>;
   upsertServices(items: ServiceItem[]): Promise<{ ok: boolean; count: number }>;
   deleteServices(ids: string[]): Promise<{ ok: boolean; count: number }>;
 }
@@ -117,10 +117,10 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
   };
 
   // Optional external library handle (service-catalog/lib)
-  let embeddedLibHandle: any | null = null;
+  let embeddedLibHandle: { initEmbeddedCatalog?(args: Record<string, unknown>): Promise<Record<string, unknown>>; queryServices?(q: ServiceQuery): Promise<ServicePage>; health?(): Promise<{ ok: boolean; detail?: Record<string, unknown> }>; upsertServices?(items: ServiceItem[]): Promise<{ items?: ServiceItem[] }>; deleteServices?(ids: string[]): Promise<{ ids?: string[] }> } | null = null;
   let embeddedTriedImport = false;
 
-  async function getEmbeddedLibHandle(): Promise<any | null> {
+  async function getEmbeddedLibHandle(): Promise<typeof embeddedLibHandle> {
     if (embeddedLibHandle || embeddedTriedImport) return embeddedLibHandle;
     embeddedTriedImport = true;
     try {
@@ -129,15 +129,15 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
       // @ts-ignore
       const lib = await import("service-catalog/lib");
       if (lib?.initEmbeddedCatalog) {
-        const initArgs: any = {
+        const initArgs: Record<string, unknown> = {
           // allow 'memory' | 'file' | 'sqlite' (sqlite depends on external driver availability)
           store: cfg.embedded.store,
           filePath: cfg.embedded.filePath,
           prefix: cfg.embedded.prefix,
         };
         // Optional: sqlite driver hint ('auto' | 'native' | 'wasm')
-        if (cfg.embedded.store === "sqlite" && (cfg.embedded as any).sqliteDriver) {
-          initArgs.driver = (cfg.embedded as any).sqliteDriver;
+        if (cfg.embedded.store === "sqlite" && cfg.embedded.sqliteDriver) {
+          initArgs.driver = cfg.embedded.sqliteDriver;
         }
         embeddedLibHandle = await lib.initEmbeddedCatalog(initArgs);
         return embeddedLibHandle;
@@ -220,15 +220,15 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
 
     // sort: "field:dir"
     if (q.sort) {
-      const [field, dirRaw] = q.sort.split(":");
-      const dir = (dirRaw || "asc").toLowerCase() === "desc" ? -1 : 1;
-      out = out.slice().sort((a: any, b: any) => {
-        const av = a[field];
-        const bv = b[field];
+      const sortField = q.sort.split(":")[0] as keyof ServiceItem;
+      const dir = (q.sort.split(":")[1] || "asc").toLowerCase() === "desc" ? -1 : 1;
+      out = out.slice().sort((a, b) => {
+        const av = a[sortField];
+        const bv = b[sortField];
         if (av == null && bv == null) return 0;
         if (av == null) return -1 * dir;
         if (bv == null) return 1 * dir;
-        if (field === "updatedAt") {
+        if (sortField === "updatedAt") {
           const at = Date.parse(String(av));
           const bt = Date.parse(String(bv));
           return (at - bt) * dir;
@@ -303,7 +303,7 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
         }
         // fallback to built-in
         reloadIfNeeded();
-        const detail: any = { store: cfg.embedded.store, filePath: embedded.filePath };
+        const detail: Record<string, unknown> = { store: cfg.embedded.store, filePath: embedded.filePath };
         if (cfg.embedded.store === "file") {
           const p = embedded.filePath;
           const ok = !!(p && fs.existsSync(p));
@@ -324,7 +324,7 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
           return { ok: !!r?.ok, source: "embedded", detail: r?.detail ?? { via: "lib" } };
         }
         reloadIfNeeded();
-        const detail: any = { store: cfg.embedded.store, filePath: embedded.filePath };
+        const detail: Record<string, unknown> = { store: cfg.embedded.store, filePath: embedded.filePath };
         if (cfg.embedded.store === "file") {
           const p = embedded.filePath;
           const ok2 = !!(p && fs.existsSync(p));
@@ -339,7 +339,7 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
           if (r?.ok) return { ok: true, source: "embedded", detail: r?.detail ?? { via: "lib" } };
         }
         reloadIfNeeded();
-        const detail: any = { store: cfg.embedded.store, filePath: embedded.filePath };
+        const detail: Record<string, unknown> = { store: cfg.embedded.store, filePath: embedded.filePath };
         if (cfg.embedded.store === "file") {
           const p = embedded.filePath;
           const okEmb = !!(p && fs.existsSync(p));

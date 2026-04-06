@@ -3,6 +3,8 @@ import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
 import { childLogger } from '../core/logger.js';
+import type { InferenceSession, TensorConstructor, SessionCreateOptions, ExecutionProviderConfig } from 'onnxruntime-web';
+import type { XenovaTokenizer, XenovaEnv, TokenizerOutput, TokenizerEncodeOptions } from '@xenova/transformers';
 
 const log = childLogger('vector');
 
@@ -26,16 +28,36 @@ export class NoopVectorAdapter<T> implements VectorSearchAdapter<T> {
   }
 }
 
+/** Normalize an array-like value (possibly bigint/TypedArray) to number[]. */
+function toNumberArray(arr: ArrayLike<number | bigint> | { data?: ArrayLike<number | bigint> }): number[] {
+  if (!arr) return [];
+  // Typed arrays (Int64Array, etc.)
+  if (ArrayBuffer.isView(arr)) {
+    const v = arr as ArrayLike<number | bigint>;
+    const out: number[] = new Array(v.length);
+    for (let i = 0; i < v.length; i++) out[i] = Number(v[i]);
+    return out;
+  }
+  // Regular array (may contain bigint/objects)
+  if (Array.isArray(arr)) return arr.map((v: number | bigint) => Number((v as unknown as { valueOf(): number | bigint })?.valueOf?.() ?? v));
+  // Object with 'data' field
+  if (typeof arr === 'object' && arr !== null && 'data' in (arr as Record<string, unknown>)) {
+    return toNumberArray((arr as { data: ArrayLike<number | bigint> }).data);
+  }
+  return [];
+}
+
 export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
   private ready = false;
   private encodeText!: (text: string) => Promise<Float32Array>;
   private encodeBatch!: (texts: string[]) => Promise<Float32Array[]>;
   private dim: number;
   private maxLen = 256;
-  private session: any;
-  private tokenizer: any;
+  private session!: InferenceSession;
+  private tokenizer!: XenovaTokenizer;
   private tokenizerKind: 'hf-tokenizers' | 'xenova' | undefined;
   private cache?: EmbeddingsCache;
+  private ortTensorCtor!: TensorConstructor;
 
   constructor(dim: number) {
     this.dim = dim;
@@ -52,23 +74,26 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // Select ORT backend dynamically: GPU -> onnxruntime-node (CUDA), else -> onnxruntime-web (WASM)
       const MODE = (process.env.EMBEDDINGS_MODE || '').toLowerCase();
       const useGpu = MODE === 'onnx-gpu' || MODE === 'gpu' || MODE === 'cuda';
-      // Use onnxruntime-node for GPU, otherwise onnxruntime-web (WASM) for CPU as ранее
-      let ort: any = null;
+      // Use onnxruntime-node for GPU, otherwise onnxruntime-web (WASM) for CPU
+      type OrtModule = { InferenceSession: { create(model: ArrayBuffer | Uint8Array | string, options?: SessionCreateOptions): Promise<InferenceSession> }; Tensor: TensorConstructor; env?: XenovaEnv };
+      let ortModule: OrtModule | null = null;
       if (useGpu) {
-        ort = await import('onnxruntime-node').catch(() => null as any);
+        ortModule = await import('onnxruntime-node').catch((): null => null) as OrtModule | null;
       } else {
-        ort = await import('onnxruntime-web').catch(() => null as any);
+        ortModule = await import('onnxruntime-web').catch((): null => null) as OrtModule | null;
       }
-      if (!ort) {
+      if (!ortModule) {
         log.warn('onnxruntime-web not installed; disabling vector adapter');
         this.ready = false;
         return;
       }
+      const ort = ortModule; // const for TS narrowing
+      this.ortTensorCtor = ort.Tensor;
       const fsp = await import('node:fs/promises');
       const fs = await import('node:fs');
       const DEBUG = (process.env.DEBUG_VECTOR === '1' || process.env.DEBUG_VECTOR === 'true');
       // Use @xenova/transformers (pure JS) with local FS support
-      const xenova: any = await import('@xenova/transformers').catch(() => null as any);
+      const xenova = await import('@xenova/transformers').catch((): null => null) as { env: XenovaEnv; AutoTokenizer: { from_pretrained(modelPath: string, options?: Record<string, unknown>): Promise<XenovaTokenizer> } } | null;
       if (!xenova) {
         log.warn('@xenova/transformers not available. Disabling vector adapter');
         this.ready = false;
@@ -103,9 +128,9 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // - For onnxruntime-node (native, GPU/CPU) pass a filesystem path string.
       //   Passing raw bytes can lead to provider loading issues in some builds.
       // - For onnxruntime-web (WASM) pass the model bytes.
-      const createOpts: any = {};
-      let modelSource: any;
-      if (useGpu && (ort as any)?.InferenceSession) {
+      const createOpts: SessionCreateOptions = {};
+      let modelSource: ArrayBuffer | Uint8Array | string;
+      if (useGpu && ort.InferenceSession) {
         if (DEBUG) {
           log.debug('init: useGpu=true, InferenceSession available');
           log.debug('modelPath=%s', cfg.embeddings.modelPath);
@@ -154,7 +179,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
               return false;
             }
             return true;
-          } catch (e) {
+          } catch (e: unknown) {
             if (DEBUG) log.debug('CUDA probe exception: %s', e instanceof Error ? e.message : String(e));
             return false;
           }
@@ -167,16 +192,16 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
               // Be explicit about device selection for CUDA EP
               const ok = await probeCuda(modelSource as string);
               if (!ok) throw new Error('CUDA probe failed');
-              createOpts.executionProviders = [{ name: 'cuda', deviceId: 0 } as any];
+              createOpts.executionProviders = [{ name: 'cuda', deviceId: 0 } as ExecutionProviderConfig];
               if (DEBUG) log.debug('CUDA EP options: %j', createOpts.executionProviders[0]);
             } else {
               createOpts.executionProviders = [ep];
             }
-            this.session = await (ort as any).InferenceSession.create(modelSource, createOpts);
+            this.session = await ort.InferenceSession.create(modelSource, createOpts);
             if (DEBUG) log.debug('EP=%s init OK', ep);
             break;
-          } catch (e: any) {
-            const msg = e?.message ?? String(e);
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
             errs.push(`[${ep}] ${msg}`);
             if (DEBUG) log.debug('EP=%s failed: %s', ep, msg);
           }
@@ -191,11 +216,11 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
           log.debug('modelPath=%s', cfg.embeddings.modelPath);
         }
         modelSource = await fsp.readFile(cfg.embeddings.modelPath);
-        this.session = await (ort as any).InferenceSession.create(modelSource, createOpts);
+        this.session = await ort.InferenceSession.create(modelSource, createOpts);
       }
       if (useGpu) {
         try {
-          const providers = (this.session as any)?.executionProvider ?? (ort as any)?.getAvailableExecutionProviders?.();
+          const providers = (this.session as unknown as Record<string, unknown>)?.executionProvider ?? ortModule?.env;
           log.info('ORT backend: onnxruntime-node with providers %j', providers || ['CUDAExecutionProvider','CPUExecutionProvider']);
         } catch {}
       } else {
@@ -205,20 +230,20 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
 
       // Load tokenizer using @xenova/transformers from local filesystem
       {
-        const { env, AutoTokenizer } = xenova as any;
+        const { env, AutoTokenizer } = xenova;
         // Enable local FS loading and block remote fetches
-        try { (env as any).useFS = true; } catch {}
-        try { (env as any).allowLocalModels = true; } catch {}
-        try { (env as any).allowRemoteModels = false; } catch {}
-        try { (env as any).localModelPath = '/app'; } catch {}
-        try { (env as any).HF_ENDPOINT = ''; } catch {}
+        try { env.useFS = true; } catch {}
+        try { env.allowLocalModels = true; } catch {}
+        try { env.allowRemoteModels = false; } catch {}
+        try { env.localModelPath = '/app'; } catch {}
+        try { env.HF_ENDPOINT = ''; } catch {}
         if (DEBUG) {
           log.debug('xenova env: %j', {
-            useFS: (env as any).useFS,
-            allowLocalModels: (env as any).allowLocalModels,
-            allowRemoteModels: (env as any).allowRemoteModels,
-            localModelPath: (env as any).localModelPath,
-            HF_ENDPOINT: (env as any).HF_ENDPOINT,
+            useFS: env.useFS,
+            allowLocalModels: env.allowLocalModels,
+            allowRemoteModels: env.allowRemoteModels,
+            localModelPath: env.localModelPath,
+            HF_ENDPOINT: env.HF_ENDPOINT,
           });
         }
 
@@ -226,14 +251,14 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         // CWD is /app, so 'models' should resolve to /app/models
         const candidates = ['models'];
 
-        let lastErr: any = undefined;
+        let lastErr: unknown = undefined;
         for (const p of candidates) {
           try {
-            this.tokenizer = await AutoTokenizer.from_pretrained(p as any, { local_files_only: true } as any);
+            this.tokenizer = await AutoTokenizer.from_pretrained(p, { local_files_only: true });
             log.info('Tokenizer ready (@xenova) from %s', p);
             lastErr = undefined;
             break;
-          } catch (e) {
+          } catch (e: unknown) {
             lastErr = e;
             if (DEBUG) {
               log.debug('Tokenizer load attempt failed for %s: %s', p, e instanceof Error ? e.message : String(e));
@@ -243,7 +268,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
 
         if (!this.tokenizer) {
           log.error('Tokenizer init failed (@xenova)');
-          throw lastErr ?? new Error('Tokenizer not found');
+          throw (lastErr instanceof Error ? lastErr : new Error(String(lastErr))) ?? new Error('Tokenizer not found');
         }
       }
 
@@ -261,7 +286,8 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         const tokenType = new BigInt64Array(batch * seqLen); // zeros
 
         if (this.tokenizerKind === 'hf-tokenizers') {
-          const enc = await this.tokenizer.encodeBatch(texts);
+          const hfTokenizer = this.tokenizer as unknown as { encodeBatch(texts: string[]): Promise<Array<{ ids: number[]; attention_mask: number[] }>> };
+          const enc = await hfTokenizer.encodeBatch(texts);
           batch = enc.length;
           for (let b = 0; b < batch; b++) {
             const ids: number[] = enc[b].ids.slice(0, seqLen);
@@ -277,39 +303,23 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
           }
         } else {
           // xenova: encode one-by-one
-          // helper: normalize input_ids / attention_mask to number[]
-          const toNumberArray = (arr: any): number[] => {
-            if (!arr) return [];
-            // Typed arrays
-            if (ArrayBuffer.isView(arr)) {
-              const v = arr as unknown as { length: number; [i: number]: number | bigint };
-              const out: number[] = new Array(v.length);
-              for (let i = 0; i < v.length; i++) out[i] = Number(v[i] as any);
-              return out;
-            }
-            // Regular array (may contain bigint/objects)
-            if (Array.isArray(arr)) return (arr as any[]).map((v) => Number((v as any)?.valueOf?.() ?? v));
-            // Object with 'data' field
-            if (arr?.data) return toNumberArray(arr.data);
-            return [];
-          };
-
           for (let b = 0; b < batch; b++) {
-            const raw = texts[b] as any;
+            const raw = texts[b];
             const text = typeof raw === 'string' ? raw : String(raw ?? '');
-            if ((process as any)?.env?.DEBUG_VECTOR && typeof raw !== 'string') {
+            if (process.env.DEBUG_VECTOR && typeof raw !== 'string') {
               log.debug({ type: typeof raw, value: raw }, 'non-string text passed to tokenizer');
             }
             // Prefer the call form: tokenizer(text, options)
-            const out = await this.tokenizer(text, { add_special_tokens: true });
+            const encodeOpts: TokenizerEncodeOptions = { add_special_tokens: true };
+            const out: TokenizerOutput = await this.tokenizer(text, encodeOpts);
             if (!out?.input_ids || !out?.attention_mask) {
-              if ((process as any)?.env?.DEBUG_VECTOR) {
-                log.debug({ keys: Object.keys(out || {}) }, 'tokenizer output missing fields');
+              if (process.env.DEBUG_VECTOR) {
+                log.debug({ keys: out ? Object.keys(out) : [] }, 'tokenizer output missing fields');
               }
             }
             const ids: number[] = toNumberArray(out.input_ids).slice(0, seqLen);
             const mask: number[] = toNumberArray(out.attention_mask).slice(0, seqLen);
-            if ((process as any)?.env?.DEBUG_VECTOR) {
+            if (process.env.DEBUG_VECTOR) {
               if (ids.some((v) => Number.isNaN(v))) log.debug('ids contain NaN after normalization');
               if (mask.some((v) => Number.isNaN(v))) log.debug('mask contain NaN after normalization');
             }
@@ -324,8 +334,8 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
           }
         }
 
-        const feeds: Record<string, any> = {};
-        const ortTensor = (dtype: string, data: any, dims: number[]) => new (ort as any).Tensor(dtype, data, dims);
+        const feeds: Record<string, import('onnxruntime-web').Tensor> = {};
+        const ortTensor = (dtype: string, data: ArrayLike<unknown> | ArrayBuffer, dims: number[]) => new this.ortTensorCtor(dtype, data, dims);
         const inputNames: string[] = this.session.inputNames ?? ['input_ids', 'attention_mask', 'token_type_ids'];
         // Map common names
         if (inputNames.includes('input_ids')) feeds['input_ids'] = ortTensor('int64', inputIds, [batch, seqLen]);
@@ -337,7 +347,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         const outName = this.session.outputNames?.[0] ?? Object.keys(out)[0];
         const tensor = out[outName];
         const data: Float32Array = tensor.data as Float32Array; // shape [B, S, H]
-        const [B, S, H] = tensor.dims as number[];
+        const [B, S, H] = tensor.dims as [number, number, number];
         const result: Float32Array[] = [];
 
         // Mean pooling with attention mask, then L2 normalize
@@ -367,8 +377,8 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // Initialize embeddings cache
       this.cache = new EmbeddingsCache(this.dim);
       this.ready = true;
-    } catch (e) {
-      log.warn('ONNX adapter init failed: %s', (e as any)?.message ?? e);
+    } catch (e: unknown) {
+      log.warn('ONNX adapter init failed: %s', e instanceof Error ? e.message : String(e));
       this.ready = false;
     }
   }
@@ -436,6 +446,6 @@ export async function getVectorAdapter<T>(): Promise<VectorSearchAdapter<T> | un
   if (!cfg.embeddings.dim || !cfg.embeddings.modelPath) return undefined;
   const adapter = new OnnxVectorAdapter<T>(cfg.embeddings.dim);
   await adapter.init();
-  if ((adapter as any).ready) return adapter;
+  if ((adapter as unknown as { ready: boolean }).ready) return adapter;
   return undefined;
 }

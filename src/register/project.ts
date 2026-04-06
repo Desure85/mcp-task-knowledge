@@ -172,21 +172,21 @@ export function registerProjectTools(ctx: ServerContext): void {
     async () => {
       const startedAt = Date.now();
       const c = loadConfig();
-      const result: any = { mode: c.embeddings.mode, startedAt };
+      const result: Record<string, unknown> = { mode: c.embeddings.mode, startedAt };
       try {
         const va = await ctx.ensureVectorAdapter();
         result.elapsedMs = Date.now() - startedAt;
         result.initialized = Boolean(va);
-        if (va && typeof va.info === 'function') {
-          try { result.adapterInfo = await va.info(); } catch {}
+        if (va && typeof (va as unknown as Record<string, unknown>).info === 'function') {
+          try { result.adapterInfo = await ((va as unknown as Record<string, () => Promise<unknown>>).info)(); } catch {}
         }
         if (!va) {
           result.message = 'vector adapter not available after init attempt';
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         result.elapsedMs = Date.now() - startedAt;
         result.initialized = false;
-        result.error = String(e?.message || e);
+        result.error = e instanceof Error ? e.message : String(e);
       }
       return ok(result);
     }
