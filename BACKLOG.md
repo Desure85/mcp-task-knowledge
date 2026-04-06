@@ -36,7 +36,7 @@
 ### Этап 3 — Транспорт и сессии (текущий)
 
 - [x] T-001: AppContainer (lifecycle, state machine)
-- [ ] T-002: TCP/Unix multi-client сервер
+- [x] T-002: TCP/Unix multi-client сервер (PR #49)
 - [ ] T-003: Stdio single-client сервер (вынести из main)
 - [ ] S-001: SessionManager (TTL, idle timeout, lifecycle)
 - [ ] S-002: ToolExecutor и ToolContext (per-session)
@@ -190,7 +190,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | T-001 | AppContainer: композиция приложения с lifecycle | medium | done | 1.1 | F-002 ✅ |
-| T-002 | TCP/Unix multi-client сервер | medium | pending | 1.2 | T-001 ✅ |
+| T-002 | TCP/Unix multi-client сервер | medium | **done** ✅ | 1.2 | T-001 ✅ |
 | T-003 | Stdio single-client сервер (вынести из main) | low | pending | 1.3 | T-001 ✅ |
 
 ---
