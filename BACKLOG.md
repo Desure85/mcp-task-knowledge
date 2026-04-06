@@ -37,7 +37,7 @@
 
 - [x] T-001: AppContainer (lifecycle, state machine)
 - [x] T-002: TCP/Unix multi-client сервер (PR #49)
-- [ ] T-003: Stdio single-client сервер (вынести из main)
+- [x] T-003: Stdio single-client сервер (вынести из main) (PR #50)
 - [ ] S-001: SessionManager (TTL, idle timeout, lifecycle)
 - [ ] S-002: ToolExecutor и ToolContext (per-session)
 - [ ] S-003: Per-session rate limiting (token bucket)
@@ -191,7 +191,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|
 | T-001 | AppContainer: композиция приложения с lifecycle | medium | done | 1.1 | F-002 ✅ |
 | T-002 | TCP/Unix multi-client сервер | medium | **done** ✅ | 1.2 | T-001 ✅ |
-| T-003 | Stdio single-client сервер (вынести из main) | low | pending | 1.3 | T-001 ✅ |
+| T-003 | Stdio single-client сервер (вынести из main) | low | **done** ✅ | 1.3 | T-001 ✅ |
 
 ---
 

@@ -33,6 +33,9 @@ export interface TransportAdapter {
   /** Transport type identifier (matches registry key). */
   readonly type: string;
 
+  /** Whether the transport is currently connected. */
+  readonly connected: boolean;
+
   /**
    * Wire the transport to the MCP server and start listening.
    * Must be called exactly once.

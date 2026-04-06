@@ -26,15 +26,19 @@ export class HttpTransportAdapter implements TransportAdapter {
   readonly type = 'http';
   private transport?: SdkHttpTransport;
   private httpServer?: HttpServer;
-  private connected = false;
+  private _connected = false;
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
     private readonly host: string = process.env.MCP_HOST || '0.0.0.0',
   ) {}
 
+  get connected(): boolean {
+    return this._connected;
+  }
+
   async connect(ctx: ServerContext): Promise<void> {
-    if (this.connected) {
+    if (this._connected) {
       throw new Error('[http] already connected');
     }
 
@@ -84,7 +88,7 @@ export class HttpTransportAdapter implements TransportAdapter {
     });
 
     await ctx.server.connect(this.transport);
-    this.connected = true;
+    this._connected = true;
 
     this.httpServer.listen(this.port, this.host, () => {
       log.info('MCP Streamable HTTP listening on http://%s:%s', this.host, this.port);
@@ -96,7 +100,7 @@ export class HttpTransportAdapter implements TransportAdapter {
   }
 
   async close(): Promise<void> {
-    if (!this.connected) {
+    if (!this._connected) {
       return;
     }
 
@@ -110,7 +114,7 @@ export class HttpTransportAdapter implements TransportAdapter {
         });
       }
     } finally {
-      this.connected = false;
+      this._connected = false;
       this.transport = undefined;
       this.httpServer = undefined;
     }

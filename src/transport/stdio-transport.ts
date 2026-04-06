@@ -14,27 +14,31 @@ import type { ServerContext } from '../register/context.js';
 export class StdioTransportAdapter implements TransportAdapter {
   readonly type = 'stdio';
   private transport?: SdkStdioTransport;
-  private connected = false;
+  private _connected = false;
+
+  get connected(): boolean {
+    return this._connected;
+  }
 
   async connect(ctx: ServerContext): Promise<void> {
-    if (this.connected) {
+    if (this._connected) {
       throw new Error('[stdio] already connected');
     }
 
     this.transport = new SdkStdioTransport();
     await ctx.server.connect(this.transport);
-    this.connected = true;
+    this._connected = true;
   }
 
   async close(): Promise<void> {
-    if (!this.connected || !this.transport) {
+    if (!this._connected || !this.transport) {
       return;
     }
 
     try {
       await this.transport.close();
     } finally {
-      this.connected = false;
+      this._connected = false;
       this.transport = undefined;
     }
   }
