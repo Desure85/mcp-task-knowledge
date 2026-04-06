@@ -8,12 +8,16 @@
 
 ## Стратегия
 
-### Этап 0 — Фундамент
+### Этап 0 — Фундамент ✅
 
 - [x] F-001: Рефакторинг `src/index.ts` (4010 строк → модули)
 - [x] F-002: Абстракция Transport Layer
+- [x] F-003: ToolRegistry (версионирование, ETag, пагинация)
+- [x] F-004: Структурированное логирование (Pino)
+- [x] F-005: Prometheus exporter
+- [x] F-006: Убрать `any` типы
 
-### Этап 1 — Рыночная конкурентоспособность
+### Этап 1 — Рыночная конкурентоспособность ✅
 
 - [x] MR-002: Task hierarchy (parentId, depth validation, cascade close)
 - [x] MR-001: Streamable HTTP transport
@@ -22,21 +26,84 @@
 - [x] MR-003: Semantic search (BM25 + embeddings)
 - [x] MR-004: REST API documentation (OpenAPI/Swagger)
 
-### Этап 2 — Документация и распространение
+### Этап 2 — Документация и распространение ✅
 
 - [x] MR-014: README overhaul
 - [x] MR-013: Claude Code / Windsurf integration guides
 - [x] MR-011: Claude Desktop / Cursor certified config
 - [x] MR-006: VS Code extension
 
-### Этап 3 — Качество и инфраструктура
+### Этап 3 — Транспорт и сессии (текущий)
 
-- [x] Q-001–Q-003: Unit-тесты (search, tasks, knowledge)
+- [x] T-001: AppContainer (lifecycle, state machine)
+- [ ] T-002: TCP/Unix multi-client сервер
+- [ ] T-003: Stdio single-client сервер (вынести из main)
+- [ ] S-001: SessionManager (TTL, idle timeout, lifecycle)
+- [ ] S-002: ToolExecutor и ToolContext (per-session)
+- [ ] S-003: Per-session rate limiting (token bucket)
+- [ ] MW-001: Middleware pipeline для tool calls (pre/post hooks, logging, error handling)
+- [ ] MW-002: Internal event bus (pub/sub внутри сервера)
+- [ ] CFG-001: Unified configuration (env + config file + defaults + schema validation)
+
+### Этап 4 — Авторизация, ACL, безопасность
+
+- [ ] A-001: `mcp.authenticate` + pre-auth method window
+- [ ] A-002: JWT/JWKS validation
+- [ ] A-003: Привязка tokenClaims к session TTL
+- [ ] ACL-001: Модель ACL и policy definitions
+- [ ] ACL-002: Фильтрация списков инструментов/ресурсов по ACL
+- [ ] ACL-003: Проверка авторизации при вызове инструментов
+- [ ] SEC-001: Audit logging (все MCP-операции → structured audit trail)
+- [ ] SEC-002: TLS/mTLS поддержка + certificate rotation
+- [ ] SEC-003: Token refresh flow + short-lived tokens
+- [ ] SEC-004: Secret management (env, vault, KMS integration)
+- [ ] SEC-005: Authentication protection (rate-limit, lockout, brute-force prevention)
+
+### Этап 5 — Инфраструктура качества
+
 - [ ] Q-004: E2E тесты MCP-инструментов
-- [ ] TD-001: Рефакторинг монолитного index.ts
-- [ ] TD-002: Типизация (убрать any)
+- [ ] Q-005: Coverage threshold enforcement (минимум 80%)
+- [ ] Q-006: Нагрузочные тесты для BM25 и vector search
+- [ ] Q-007: Schema validation tests (ajv для schemas/*.json)
+- [ ] Q-008: Фаззинг: JSON-RPC framing/parser/validator
+- [ ] Q-009: Chaos/shutdown тесты (graceful degradation)
+- [ ] SYNC-005: E2E durability тесты (синхронизация)
 
-### Этап A — Skills System
+### Этап 6 — Proxy, синхронизация, DX
+
+- [ ] P-001: Proxy bootstrap и конфигурация
+- [ ] P-002: Зеркалирование инструментов/ресурсов через прокси
+- [ ] P-003: Проброс запросов/уведомлений, flow control
+- [ ] P-004: Устойчивость и observability прокси
+- [ ] SYNC-001: Протокол версионирования и курсоры
+- [ ] SYNC-002: RPC `mcp.sync.*` (delta/snapshot/ack)
+- [ ] SYNC-003: Conflict resolver (3-way merge)
+- [ ] SYNC-004: Event sourcing и snapshots (GC)
+- [ ] DX-001: Hot registration of tools (runtime add/remove)
+- [ ] DX-002: Namespaces и wildcard фильтры для инструментов
+- [ ] DX-003: Dev CLI (diagnostics, config validation, health check)
+- [ ] DX-004: Hot reload конфигов/политик без перезапуска
+- [ ] DX-005: Proxy response caching (ETag-based, TTL)
+
+### Этап 7 — Масштабируемость
+
+- [ ] SCALE-001: Health/readiness/drain endpoints
+- [ ] SCALE-002: Load balancer integration + sticky sessions
+- [ ] SCALE-003: Cluster state synchronization (sessions/registry)
+- [ ] SCALE-004: Tool sharding across nodes
+- [ ] SCALE-005: Auto-scaling и resource limits
+
+### Этап 8 — Интеграции
+
+- [ ] INT-004: Connector framework (plug-in SDK + registry)
+- [ ] INT-001: GitHub connector
+- [ ] INT-002: Jira/YouTrack connector
+- [ ] INT-003: Slack/Discord connector
+- [ ] MR-012: Real-time collaboration (WebSocket)
+- [ ] INT-005: REST wrappers для MCP tools
+- [ ] INT-006: gRPC wrappers для MCP tools
+
+### Этап 9 — Skills, Rules, Workflows, Memory
 
 - [ ] SK-001: Skills CRUD (Markdown + YAML frontmatter)
 - [ ] SK-002: Skill invocation pipeline
@@ -44,46 +111,42 @@
 - [ ] SK-004: Pre-built skill templates
 - [ ] SK-005: Skill sharing + конвертеры форматов
 - [ ] SK-006: Skill permissions (Agent Skills spec)
-
-### Этап B — Rules & Policies Engine
-
 - [ ] RL-001: Rules storage (global → project → user)
 - [ ] RL-002: Rules evaluation (runtime guard checks)
 - [ ] RL-003: Policy-as-code (JSON/DSL)
 - [ ] RL-004: Built-in rule packs
 - [ ] RL-005: Rule enforcement hooks
 - [ ] RL-006: Rule import (.cursorrules, CLAUDE.md, .clinerules)
-
-### Этап C — Workflows (AI Agent Flows)
-
 - [ ] WF-001: Workflow DAG builder
 - [ ] WF-002: Workflow executor
 - [ ] WF-003: Workflow templates
 - [ ] WF-004: Human-in-the-loop
 - [ ] WF-005: Workflow state persistence
 - [ ] WF-006: Workflow chaining (subflow)
-
-### Этап D — Developer Memory & Context
-
 - [ ] MEM-001: Session memory
 - [ ] MEM-002: Entity graph
 - [ ] MEM-003: Context distillation
 - [ ] MEM-004: Memory import/export
 
-### Этап E — Integration Hub
+### Этап 10 — Web UI
 
-- [ ] INT-001: GitHub connector
-- [ ] INT-002: Jira/YouTrack connector
-- [ ] INT-003: Slack/Discord connector
-- [ ] INT-004: Connector framework (plug-in SDK)
+- [ ] UI-001: Web UI foundation (Next.js + auth + API client)
+- [ ] UI-002: Tasks board (Kanban/List view)
+- [ ] UI-003: Knowledge editor (Markdown/MDX)
+- [ ] UI-004: Prompt management (versions, variants, A/B)
+- [ ] UI-005: Realtime updates (WebSocket)
+- [ ] UI-006: Feedback loop & usage analytics
+- [ ] UI-007: Docker/CI pipeline для Web UI
 
 ### Критический путь
 
 ```
-F-001 (refactor) ✅ → MR-001 (HTTP transport) ✅ → MR-010 (npm publish)
-                                        → MR-011 (certified configs)
-                                        → MR-006 (VS Code extension)
-MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
+T-001 (AppContainer) ✅ → T-002 (TCP/Unix) → S-001 (Sessions) → A-001 (Auth) → ACL-001 (ACL)
+                       → T-003 (Stdio)
+                       → MW-001 (Middleware) → RL-005 (Rule hooks), ACL-003 (Auth checks)
+MW-002 (Event bus) → INT-004 (Connector framework), SYNC-002 (Sync RPC)
+CFG-001 (Unified config) → DX-004 (Hot reload), SEC-004 (Secret management)
+SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 ```
 
 ---
@@ -132,6 +195,18 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 ---
 
+## Cross-cutting: Middleware & Infrastructure
+
+> Фундаментальные компоненты, от которых зависят ACL, Rules, Auth и другие подсистемы.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| MW-001 | Middleware pipeline: chain of pre/post interceptors для tool calls. Базовый интерфейс `ToolMiddleware { before(ctx), after(ctx, result), onError(ctx, err) }`. Порядок execution, short-circuit, error propagation | high | pending | — | T-001 |
+| MW-002 | Internal event bus: pub/sub шина внутри сервера. Топики: `tool.called`, `task.created`, `session.opened`. Подписчики: logger, metrics, rules engine, connectors. Typed events, async dispatch | high | pending | 11.1 | T-001 |
+| CFG-001 | Unified configuration: единая система конфигурации — env vars, config file (YAML/JSON), runtime defaults, schema validation (Zod). Иерархия: defaults → config file → env → CLI args. API: `config.get('server.port')` | high | pending | — | T-001 |
+
+---
+
 ## Этап 2 — Многопользовательские сессии
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
@@ -173,6 +248,20 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 ---
 
+## Этап 8 — Безопасность (Security)
+
+> Из ROADMAP stage 8. Системная безопасность — аутентификация, аудит, шифрование, секреты.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| SEC-001 | Audit logging: запись всех MCP-операций в structured audit trail — кто, что, когда, результат. Формат: JSON lines, ротация по размеру/времени. Хранение: файл + optional remote (Syslog/Loki). MCP tools: `audit.query`, `audit.export` | high | pending | 8.2 | A-002 |
+| SEC-002 | TLS/mTLS поддержка: TLS для TCP/HTTP транспорта. mTLS для server-to-server (proxy ↔ server). Certificate rotation без downtime. Конфигурация через `CFG-001` | medium | pending | 8.3 | T-002, CFG-001 |
+| SEC-003 | Token refresh flow: short-lived access tokens (15-30 min) + refresh tokens. Refresh endpoint, token revocation, token blacklist. Связь с `A-002` и `A-003` | high | pending | 8.1 | A-002 |
+| SEC-004 | Secret management: хранение секретов (API keys, tokens) — env vars, Docker secrets, HashiCorp Vault integration (optional). Шифрование at-rest для конфиденциальных данных. API: `secrets.get`, `secrets.set` | medium | pending | 8.4 | CFG-001 |
+| SEC-005 | Authentication protection: rate-limit на `mcp.authenticate` (5 attempts/min), lockout после N failures, exponential backoff. CAPTCHA integration (optional). IP-based blocking | medium | pending | 8.5 | A-001 |
+
+---
+
 ## Market Research Phase — Приоритеты по результатам исследования рынка (апр. 2026)
 
 > Отчёт: `docs/market-research/mcp-market-research-2026.pdf`. Конкуренты: Agentic Tools MCP (81★), TaskMaster v2, TaskMaster v1.
@@ -195,7 +284,6 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
 | MR-013 | Claude Code / Windsurf integration guides | high | done | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | done | — | — |
-| MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | pending | — | — |
 
 ---
 
@@ -207,6 +295,35 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | SYNC-002 | RPC `mcp.sync.*` (delta/snapshot/ack) | medium | pending | 6.2 | SYNC-001 |
 | SYNC-003 | Conflict resolver (3-way merge) | high | pending | 6.3 | SYNC-002 |
 | SYNC-004 | Event sourcing и snapshots (GC) | low | pending | 6.4 | SYNC-002 |
+| SYNC-005 | E2E durability тесты: проверка синхронизации при сбоях — disconnect, split-brain, concurrent writes. Восстановление после crash | medium | pending | 6.5 | SYNC-003 |
+
+---
+
+## Этап 9 — Developer Experience (DX)
+
+> Из ROADMAP stage 9. Улучшения для разработчиков, использующих MCP сервер.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| DX-001 | Hot registration of tools: runtime добавление/удаление инструментов без перезапуска. API: `tools.register()`, `tools.unregister()`. Уведомления клиентам через MW-002 (event bus) | medium | pending | 9.1 | MW-002 |
+| DX-002 | Namespaces и wildcard фильтры: группировка инструментов по namespace (`project.*`, `search.*`). Фильтрация при `tools/list` по паттерну (`search.*`, `*.create`). Поддержка в ACL | medium | pending | 9.2 | MW-001 |
+| DX-003 | Dev CLI: CLI-утилита для локальной разработки — `mcp-tk diagnose` (health check, config validation), `mcp-tk tools` (list registered tools), `mcp-tk sessions` (active sessions), `mcp-tk export` (data backup) | medium | pending | 9.4 | CFG-001 |
+| DX-004 | Hot reload конфигов/политик: watch на config files, reload без restart. Graceful transition (old connections continue, new connections use new config). Зависит от `CFG-001` | medium | pending | 9.5 | CFG-001, MW-002 |
+| DX-005 | Proxy response caching: ETag-based кеширование ответов в прокси. TTL per-tool. Cache invalidation при write operations. API: `cache.stats`, `cache.invalidate` | low | pending | 9.3 | P-002 |
+
+---
+
+## Этап 10 — Масштабируемость (Scalability)
+
+> Из ROADMAP stage 10. Масштабирование от single-server к кластеру.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| SCALE-001 | Health/readiness/drain endpoints: `/healthz` (liveness), `/readyz` (readiness — deps check: DB, embeddings), `/drainz` (graceful shutdown — stop accepting new sessions). Standard Kubernetes probes | high | pending | 10.4 | T-001 |
+| SCALE-002 | Load balancer integration + sticky sessions: session affinity по session ID. Support для AWS ALB, Nginx, HAProxy. Docs по настройке. Health check integration | medium | pending | 10.1 | S-001, SCALE-001 |
+| SCALE-003 | Cluster state synchronization: репликация session state и registry между нодами. Consensus protocol (Raft/etcd) или eventual consistency. Split-brain detection | low | pending | 10.3 | SYNC-002, S-001 |
+| SCALE-004 | Tool sharding across nodes: распределение инструментов по нодам (по namespace/prefix). Routing layer в прокси. Tool discovery across cluster | low | pending | 10.2 | P-002, DX-002 |
+| SCALE-005 | Auto-scaling и resource limits: HPA на основе метрик (active sessions, CPU, memory). Resource quotas per-session. Graceful degradation при нагрузке | low | pending | 10.5 | SCALE-001, S-003 |
 
 ---
 
@@ -222,10 +339,15 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | TD-006 | Добавить JSDoc для публичных функций | medium | pending | — | — |
 | TD-007 | Migration от `uuid` v9 к `crypto.randomUUID()` | low | pending | — | — |
 | TD-008 | ESM-совместимый импорт service-catalog | medium | pending | — | — |
+| TD-009 | Data migration framework: версия схемы данных, миграции up/down, rollback. CLI: `mcp-tk migrate [up\|down\|status]`. Применяется при запуске. Защита от одновременных миграций | medium | pending | — | CFG-001 |
+| TD-010 | Centralized error handling: единый error handler для tool calls — классификация ошибок (validation, not found, internal, permission), consistent error responses, error context для logging | medium | pending | — | MW-001 |
+| TD-011 | Graceful degradation: при недоступности optional сервисов (embeddings, AI models) — fallback к базовому функционалу. Circuit breaker pattern. Health status indicators | medium | pending | — | MW-001, SCALE-001 |
 
 ---
 
 ## Качество и тестирование
+
+> Из ROADMAP stage 7 + дополнительные.
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
@@ -236,6 +358,8 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | Q-005 | Coverage threshold enforcement (минимум 80%) | medium | pending | 7.4 | Q-001..Q-004 |
 | Q-006 | Нагрузочные тесты для BM25 и vector search | low | pending | 7.2 | — |
 | Q-007 | Schema validation tests (ajv для schemas/*.json) | low | pending | 7.1 | — |
+| Q-008 | Фаззинг JSON-RPC: random payloads для framing, parser, validator. Инструменты: fast-check / property-based testing. Цель — найти краш-баги и undefined behavior | medium | pending | 7.3 | — |
+| Q-009 | Chaos/shutdown тесты: SIGTERM/SIGKILL во время обработки,OOM simulation, disk full. Проверка graceful shutdown (T-001), data integrity, session recovery | medium | pending | 7.5 | T-001, Q-004 |
 
 ---
 
@@ -259,7 +383,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | AI-003 | Актуализировать ROADMAP.md | critical | done | — | — |
 | AI-004 | Автоматическое обновление трекинг-троек в CI | low | pending | — | AI-001..AI-003 |
 | AI-005 | Market research отчёт (PDF) | high | done | — | — |
-| AI-006 | Web UI: Kanban, Knowledge, Search (Next.js) | high | pending | — | — |
+| AI-006 | ~~Web UI: Kanban, Knowledge, Search (Next.js)~~ → заменена на UI-001..UI-007 | high | done | — | — |
 
 ---
 
@@ -293,7 +417,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | RL-002 | Rules evaluation: runtime guard checks перед вызовом MCP-инструментов. Input/output validation, schema checks | critical | pending | — | RL-001 |
 | RL-003 | Policy-as-code: JSON/DSL описание политик. Git-native, версонируются с кодом. Условные правила (if file=*.ts then...) | high | pending | — | RL-001 |
 | RL-004 | Built-in rule packs: предустановленные наборы — security-rules, ts-strict, react-conventions, python-style, team-standards | medium | pending | — | RL-001 |
-| RL-005 | Rule enforcement hooks: pre/post hooks на MCP tool calls. Блокировка, предупреждение, логирование, auto-fix | high | pending | — | RL-002 |
+| RL-005 | Rule enforcement hooks: pre/post hooks на MCP tool calls. Блокировка, предупреждение, логирование, auto-fix. Реализуется через `MW-001` (middleware pipeline) | high | pending | — | RL-002, MW-001 |
 | RL-006 | Rule import: импорт из .cursorrules, CLAUDE.md, .clinerules, .windsurfrules. Конвертеры в наш формат | medium | pending | — | RL-001 |
 
 ---
@@ -338,10 +462,28 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| INT-001 | GitHub connector: issues, PRs, commits, code search. MCP tools: github_issue_*, github_pr_*, github_repo_* | high | pending | — | — |
+| INT-004 | Connector framework: plug-in architecture для добавления коннекторов. SDK + registry + lifecycle hooks | high | pending | — | MW-002 |
+| INT-001 | GitHub connector: issues, PRs, commits, code search. MCP tools: github_issue_*, github_pr_*, github_repo_* | high | pending | — | INT-004 |
 | INT-002 | Jira/YouTrack connector: синхронизация задач между mcp-task-knowledge и внешними таск-трекерами | medium | pending | — | INT-004 |
 | INT-003 | Slack/Discord connector: уведомления, поиск, отправка сообщений из AI-агента | medium | pending | — | INT-004 |
-| INT-004 | Connector framework: plug-in architecture для добавления коннекторов. SDK + registry + lifecycle hooks | high | pending | — | — |
+| INT-005 | REST wrappers: генерация REST endpoints для MCP tools. Auto-generated OpenAPI spec. Поддержка GET/POST для tool invocation | low | pending | 11.3 | P-002 |
+| INT-006 | gRPC wrappers: генерация gRPC service definitions для MCP tools. Protobuf schema. Streaming support | low | pending | 11.4 | P-002 |
+
+---
+
+## Этап 13 — Web UI
+
+> Разбивка AI-006/MR-015 на конкретные задачи из ROADMAP stage 13.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| UI-001 | Web UI foundation: Next.js app, auth (OIDC/JWT), API client (typed SDK для MCP HTTP transport), layout/shell, responsive design | critical | pending | 13.1 | MR-001, A-002 |
+| UI-002 | Tasks board: Kanban view (drag&drop), list view, filters, search. CRUD для задач. Зависимости визуализация (граф). Интеграция с MR-005 (DAG) | high | pending | 13.2 | UI-001 |
+| UI-003 | Knowledge editor: Markdown/MDX редактор с preview. Синтаксис highlight, drag&drop для файлов. Связь с search (MR-003) | high | pending | 13.3 | UI-001 |
+| UI-004 | Prompt management: версионирование промптов, A/B тестирование (связь с `ab-testing/`), variant comparison, template editor | medium | pending | 13.4 | UI-001 |
+| UI-005 | Realtime updates: WebSocket подключение для live-updates задач, знаний, сессий. Presence indicators. Оптимистичные обновления UI | medium | pending | 13.5 | UI-002, MR-012 |
+| UI-006 | Feedback loop & analytics: usage tracking (anon), feedback forms, analytics dashboard. Связь с MR-007 (dashboard) | low | pending | 13.6 | UI-002 |
+| UI-007 | Docker/CI для Web UI: multi-stage Dockerfile, CI pipeline (build → test → deploy), preview environments (Vercel/Docker) | medium | pending | 13.7 | UI-001 |
 
 ---
 
@@ -349,16 +491,9 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
-| MR-001 | Streamable HTTP transport | Завершён | done |
-| MR-010 | npm publish + MCPMarket listing | — | done |
-| MR-011 | Claude Desktop / Cursor certified config | — | done |
-| MR-006 | VS Code extension | — | done |
-| MR-012 | Real-time collaboration (WebSocket) | — | pending |
-| T-001 | AppContainer: композиция с lifecycle | Завершён | done |
+| MR-012 | Real-time collaboration (WebSocket) | Ждёт UI-005 | pending |
 | T-002 | TCP/Unix multi-client сервер | Ждёт T-001 ✅ | pending |
 | S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
-| A-001 | mcp.authenticate + pre-auth | Ждёт S-001 | blocked |
-| F-005 | Prometheus exporter | — | done |
 
 ---
 
@@ -377,7 +512,6 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-005 | Task dependency graph (DAG) | 2026-04-05 | #34 |
 | MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
 | MR-014 | README overhaul for npm | 2026-04-05 | #33 |
-
 | MR-006 | VS Code extension | 2026-04-05 | #36 |
 | MR-013 | Claude Code / Windsurf integration guides | 2026-04-05 | #37 |
 | MR-007 | Dashboard analytics: stats, activity, trends, project summary | 2026-04-05 | #38 |
@@ -405,19 +539,24 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 |-----------|-------|---------|-------------|------|---------|----------|
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Transport (1) | 3 | 2 | 0 | 1 | 0 | 0 |
+| Middleware & Infra | 3 | 3 | 0 | 0 | 0 | 0 |
 | Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 2 | 0 | 13 | 0 | 0 |
-| Tech Debt | 8 | 5 | 0 | 2 | 0 | 1 |
-| Quality | 7 | 4 | 0 | 3 | 0 | 0 |
+| **Security (8)** | **5** | **5** | **0** | **0** | **0** | **0** |
+| Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
+| **DX (9)** | **5** | **5** | **0** | **0** | **0** | **0** |
+| **Scalability (10)** | **5** | **5** | **0** | **0** | **0** | **0** |
+| Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
+| Tech Debt | 11 | 9 | 0 | 2 | 0 | 0 |
+| Quality | 9 | 6 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
-| Agent Infra | 6 | 2 | 0 | 4 | 0 | 0 |
+| Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
 | **Skills (A)** | **6** | **6** | **0** | **0** | **0** | **0** |
 | **Rules (B)** | **6** | **6** | **0** | **0** | **0** | **0** |
 | **Workflows (C)** | **6** | **6** | **0** | **0** | **0** | **0** |
 | **Memory (D)** | **4** | **4** | **0** | **0** | **0** | **0** |
-| **Integration Hub (E)** | **4** | **4** | **0** | **0** | **0** | **0** |
-| **Итого** | **94** | **68** | **0** | **28** | **0** | **1** |
+| **Integration Hub (E)** | **6** | **6** | **0** | **0** | **0** | **0** |
+| **Web UI (13)** | **7** | **7** | **0** | **0** | **0** | **0** |
+| **Итого** | **123** | **97** | **0** | **28** | **0** | **0** |
