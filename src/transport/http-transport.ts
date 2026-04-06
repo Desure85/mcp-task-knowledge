@@ -16,6 +16,7 @@ import type { TransportConfig, TransportAdapter, TransportFactory } from './type
 import type { ServerContext } from '../register/context.js';
 import { createOpenAPIHandler } from '../register/openapi.js';
 import { childLogger } from '../core/logger.js';
+import { createMetricsHandler } from '../core/metrics.js';
 
 const log = childLogger('transport:http');
 
@@ -48,6 +49,15 @@ export class HttpTransportAdapter implements TransportAdapter {
     this.httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       const url = req.url || '/';
 
+      // Route /metrics to Prometheus exporter
+      if (url === '/metrics' || url === '/metrics/') {
+        const metricsHandler = createMetricsHandler();
+        if (metricsHandler) {
+          await metricsHandler(req, res);
+          return;
+        }
+      }
+
       // Route /api/* to OpenAPI handler
       if (url.startsWith('/api/')) {
         await apiHandler(req, res);
@@ -79,6 +89,9 @@ export class HttpTransportAdapter implements TransportAdapter {
     this.httpServer.listen(this.port, this.host, () => {
       log.info('MCP Streamable HTTP listening on http://%s:%s', this.host, this.port);
       log.info('API docs: http://%s:%s/api/docs', this.host, this.port);
+      if (createMetricsHandler()) {
+        log.info('Prometheus metrics: http://%s:%s/metrics', this.host, this.port);
+      }
     });
   }
 
