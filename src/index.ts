@@ -19,11 +19,13 @@ import { registerDashboardTools } from './register/dashboard.js';
 import { registerMarkdownTools } from './register/markdown.js';
 import { defaultTransportRegistry } from './transport/index.js';
 import { createLogger, childLogger } from './core/logger.js';
+import { initMetrics, updateServerInfo } from './core/metrics.js';
 
 const log = childLogger('main');
 
 async function main() {
   createLogger(); // initialize root logger
+  initMetrics(); // initialize Prometheus metrics (no-op for stdio)
   const ctx = await createServerContext();
   registerHelpers(ctx);
   registerCatalogTools(ctx);
@@ -43,6 +45,9 @@ async function main() {
   registerDependencyTools(ctx);
   registerDashboardTools(ctx);
   registerMarkdownTools(ctx);
+
+  // Update metrics with tool count
+  updateServerInfo({ toolCount: ctx.toolNames.size });
 
   // ===== Transport Selection (via registry) =====
   const transportType = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();

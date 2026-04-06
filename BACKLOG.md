@@ -75,7 +75,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | F-001 | Рефакторинг `src/index.ts`: вынести регистрацию инструментов в отдельные модули | critical | done | 0.1 | — |
 | F-002 | Создать абстракцию Transport Layer (подготовка к TCP/WS) | medium | done | 0.2 | F-001 |
 | F-003 | Реестр инструментов: версионирование, etag, пагинация | medium | done | 0.3 | F-001 |
-| F-004 | Добавить структурированное логирование (Pino или Winston) | medium | pending | 0.4 | — |
+| F-004 | Добавить структурированное логирование (Pino или Winston) | medium | done | 0.4 | — |
 | F-005 | Метрики: Prometheus exporter (счётчики вызовов, latency) | low | pending | 0.4 | F-004 |
 | F-006 | Убрать `any` типы в критических местах (vectorAdapter, toolRegistry) | medium | pending | 0.1 | — |
 
@@ -264,6 +264,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-008 | Multi-project workspace: create, info, update, delete | 2026-04-05 | #39 |
 | F-002 | Transport Layer абстракция (registry, stdio, http) | 2026-04-06 | #42 |
 | F-003 | ToolRegistry: версионирование, ETag, пагинация | 2026-04-06 | #43 |
+| F-004 | Structured logging with Pino (child loggers, LOG_LEVEL, LOG_FORMAT) | 2026-04-07 | #44 |
 
 ---
 
@@ -275,7 +276,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
-| Foundation (0) | 6 | 3 | 0 | 3 | 0 | 0 |
+| Foundation (0) | 6 | 2 | 0 | 4 | 0 | 0 |
 | Transport (1) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
@@ -287,4 +288,4 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | Quality | 7 | 4 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
 | Agent Infra | 6 | 2 | 0 | 4 | 0 | 0 |
-| **Итого** | **66** | **43** | **0** | **24** | **0** | **1** |
+| **Итого** | **66** | **42** | **0** | **25** | **0** | **1** |
