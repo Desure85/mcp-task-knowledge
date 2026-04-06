@@ -139,7 +139,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
     }
 
     // Extract server info from context
-    const rawServer = ctx.server as Record<string, unknown>;
+    const rawServer = ctx.server as unknown as Record<string, unknown>;
     const serverInfo = rawServer?.server as Record<string, unknown> | undefined;
     const implementation = serverInfo?._implementation as { name: string; version: string } | undefined;
     this.serverInfo = {
