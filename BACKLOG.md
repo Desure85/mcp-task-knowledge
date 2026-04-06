@@ -11,7 +11,7 @@
 ### Этап 0 — Фундамент
 
 - [x] F-001: Рефакторинг `src/index.ts` (4010 строк → модули)
-- [ ] F-002: Абстракция Transport Layer
+- [x] F-002: Абстракция Transport Layer
 
 ### Этап 1 — Рыночная конкурентоспособность
 
@@ -73,7 +73,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | F-001 | Рефакторинг `src/index.ts`: вынести регистрацию инструментов в отдельные модули | critical | done | 0.1 | — |
-| F-002 | Создать абстракцию Transport Layer (подготовка к TCP/WS) | medium | pending | 0.2 | F-001 |
+| F-002 | Создать абстракцию Transport Layer (подготовка к TCP/WS) | medium | done | 0.2 | F-001 |
 | F-003 | Реестр инструментов: версионирование, etag, пагинация | medium | pending | 0.3 | F-001 |
 | F-004 | Добавить структурированное логирование (Pino или Winston) | medium | pending | 0.4 | — |
 | F-005 | Метрики: Prometheus exporter (счётчики вызовов, latency) | low | pending | 0.4 | F-004 |
@@ -85,7 +85,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| T-001 | AppContainer: композиция приложения с lifecycle | medium | pending | 1.1 | F-002 |
+| T-001 | AppContainer: композиция приложения с lifecycle | medium | pending | 1.1 | F-002 ✅ |
 | T-002 | TCP/Unix multi-client сервер | medium | pending | 1.2 | T-001 |
 | T-003 | Stdio single-client сервер (вынести из main) | low | pending | 1.3 | T-001 |
 
@@ -154,7 +154,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
 | MR-013 | Claude Code / Windsurf integration guides | high | done | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | done | — | — |
-| MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | review | — | — |
+| MR-015 | Web UI push: feat/ui → PR (Kanban, Knowledge, Search, Next.js) | critical | pending | — | — |
 
 ---
 
@@ -218,7 +218,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | AI-003 | Актуализировать ROADMAP.md | critical | done | — | — |
 | AI-004 | Автоматическое обновление трекинг-троек в CI | low | pending | — | AI-001..AI-003 |
 | AI-005 | Market research отчёт (PDF) | high | done | — | — |
-| AI-006 | Web UI: Kanban, Knowledge, Search (Next.js) | high | done | — | — |
+| AI-006 | Web UI: Kanban, Knowledge, Search (Next.js) | high | pending | — | — |
 
 ---
 
@@ -231,7 +231,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-011 | Claude Desktop / Cursor certified config | — | done |
 | MR-006 | VS Code extension | — | done |
 | MR-012 | Real-time collaboration (WebSocket) | — | pending |
-| T-001 | AppContainer: композиция с lifecycle | Ждёт F-002 | blocked |
+| T-001 | AppContainer: композиция с lifecycle | F-002 ✅ | pending |
 | T-002 | TCP/Unix multi-client сервер | Ждёт T-001 | blocked |
 | S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
 | A-001 | mcp.authenticate + pre-auth | Ждёт S-001 | blocked |
@@ -253,7 +253,7 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 | MR-005 | Task dependency graph (DAG) | 2026-04-05 | #34 |
 | MR-010 | npm publish + Claude Desktop / Cursor config | 2026-04-05 | #32 |
 | MR-014 | README overhaul for npm | 2026-04-05 | #33 |
-| MR-015 | Web UI (Kanban, Knowledge, Search) | 2026-04-04 | #27 |
+
 | MR-006 | VS Code extension | 2026-04-05 | #36 |
 | MR-013 | Claude Code / Windsurf integration guides | 2026-04-05 | #37 |
 | MR-007 | Dashboard analytics: stats, activity, trends, project summary | 2026-04-05 | #38 |
@@ -273,16 +273,16 @@ MR-002 (task hierarchy) ✅ → MR-005 (task dependency graph)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
-| Foundation (0) | 6 | 5 | 0 | 1 | 0 | 0 |
+| Foundation (0) | 6 | 4 | 0 | 2 | 0 | 0 |
 | Transport (1) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Sync (6) | 4 | 4 | 0 | 0 | 0 | 0 |
-| Market Research | 15 | 0 | 0 | 13 | 0 | 0 |
+| Market Research | 15 | 2 | 0 | 13 | 0 | 0 |
 | Tech Debt | 8 | 6 | 0 | 1 | 0 | 1 |
 | Quality | 7 | 4 | 0 | 3 | 0 | 0 |
 | Docs | 4 | 4 | 0 | 0 | 0 | 0 |
-| Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Итого** | **66** | **42** | **0** | **23** | **0** | **1** |
+| Agent Infra | 6 | 2 | 0 | 4 | 0 | 0 |
+| **Итого** | **66** | **44** | **0** | **23** | **0** | **1** |
