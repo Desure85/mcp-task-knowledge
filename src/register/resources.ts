@@ -342,7 +342,7 @@ export function registerResources(ctx: ServerContext) {
     const m = href.match(/^tool:\/\/schema\/?([^\/?#]+)?/);
     const name = m && m[1] ? decodeURIComponent(m[1]) : undefined;
     if (!name) {
-      const items = Array.from(ctx.toolRegistry.keys());
+      const items = ctx.toolRegistry.names();
       return { contents: [{ uri: href, text: JSON.stringify({ error: 'name required', available: items }, null, 2), mimeType: "application/json" }] };
     }
     const meta = ctx.toolRegistry.get(name);

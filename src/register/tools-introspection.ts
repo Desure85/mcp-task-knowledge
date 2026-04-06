@@ -56,15 +56,35 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
     "tools_list",
     {
       title: "List Registered Tools",
-      description: "Return list of canonical tool names with metadata (title, description, input keys)",
-      inputSchema: {},
+      description: "Return list of canonical tool names with metadata. Supports pagination, search filtering, ETag-based cache validation.",
+      inputSchema: {
+        offset: z.number().int().min(0).optional().describe("Page offset (0-based, default 0)"),
+        limit: z.number().int().min(1).max(100).optional().describe("Items per page (default 20, max 100)"),
+        search: z.string().optional().describe("Filter tool names by substring"),
+        ifNoneMatch: z.string().optional().describe("ETag for conditional response (returns 304 if unchanged)"),
+      },
     },
-    async () => ok(Array.from(ctx.toolRegistry.entries()).map(([name, meta]) => ({
-      name,
-      title: meta?.title ?? null,
-      description: meta?.description ?? null,
-      inputKeys: meta?.inputSchema ? Object.keys(meta.inputSchema) : [],
-    })))
+    async (params?: { offset?: number; limit?: number; search?: string; ifNoneMatch?: string }) => {
+      const etag = ctx.toolRegistry.etag;
+
+      // ETag-based conditional response
+      if (params?.ifNoneMatch && ctx.toolRegistry.isFresh(params.ifNoneMatch)) {
+        return ok({ notModified: true, etag, version: ctx.toolRegistry.version, totalTools: ctx.toolRegistry.size });
+      }
+
+      const result = ctx.toolRegistry.list({
+        offset: params?.offset,
+        limit: params?.limit,
+        search: params?.search,
+      });
+
+      return ok({
+        version: ctx.toolRegistry.version,
+        etag,
+        lastChangedAt: ctx.toolRegistry.lastChangedAt,
+        ...result,
+      });
+    }
   );
 
   ctx.server.registerTool(
@@ -75,14 +95,12 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
       inputSchema: { name: z.string().min(1) },
     },
     async ({ name }: { name: string }) => {
-      const meta = ctx.toolRegistry.get(name);
-      if (!meta) return err(`Tool not found: ${name}`);
+      const entry = ctx.toolRegistry.getEntry(name);
+      if (!entry) return err(`Tool not found: ${name}`);
+      const meta = ctx.toolRegistry.get(name)!;
       const example = buildExampleFor(name, meta);
       const payload = {
-        name,
-        title: meta.title ?? null,
-        description: meta.description ?? null,
-        inputKeys: meta.inputSchema ? Object.keys(meta.inputSchema) : [],
+        ...entry,
         example,
       };
       return ok(payload);
