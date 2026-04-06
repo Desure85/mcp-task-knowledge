@@ -32,6 +32,8 @@ import type { TransportAdapter, TransportConfig } from '../transport/types.js';
 import { defaultTransportRegistry } from '../transport/index.js';
 import { createLogger, childLogger } from './logger.js';
 import { initMetrics, updateServerInfo } from './metrics.js';
+import { SessionManager } from './session-manager.js';
+import type { SessionManagerOptions } from './session-manager.js';
 import { createServerContext } from '../register/setup.js';
 import { registerHelpers } from '../register/helpers.js';
 import { registerCatalogTools } from '../register/catalog.js';
@@ -82,6 +84,12 @@ export interface AppContainerOptions {
   registerTools?: RegisterCallback;
   /** Whether to install SIGTERM/SIGINT handlers. Default: auto (true for non-stdio). */
   handleSignals?: boolean | 'auto';
+  /**
+   * SessionManager options for multi-client transports.
+   * If provided, a SessionManager is created during init() and exposed via getSessionManager().
+   * Ignored for stdio transport (single client).
+   */
+  sessionManager?: SessionManagerOptions | false;
 }
 
 // ─── Default registration ─────────────────────────────────────────────
@@ -136,6 +144,7 @@ export class AppContainer {
   private _state: AppState = 'idle';
   private ctx?: ServerContext;
   private adapter?: TransportAdapter;
+  private sessionMgr?: SessionManager;
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private readonly log = childLogger('app-container');
@@ -145,6 +154,7 @@ export class AppContainer {
     host: string;
     handleSignals: boolean;
     registerTools: RegisterCallback | undefined;
+    sessionManager: SessionManagerOptions | false | undefined;
   };
 
   constructor(options?: AppContainerOptions) {
@@ -168,6 +178,7 @@ export class AppContainer {
       host,
       handleSignals,
       registerTools: options?.registerTools,
+      sessionManager: options?.sessionManager,
     };
   }
 
@@ -192,6 +203,14 @@ export class AppContainer {
       throw new Error('[app-container] transport not available — call start() first');
     }
     return this.adapter;
+  }
+
+  /** SessionManager (available after init() for multi-client transports). Throws if not initialized or disabled. */
+  getSessionManager(): SessionManager {
+    if (!this.sessionMgr) {
+      throw new Error('[app-container] session manager not available — call init() first or check sessionManager option');
+    }
+    return this.sessionMgr;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────
@@ -227,6 +246,16 @@ export class AppContainer {
 
       // 5. Update metrics with tool count
       updateServerInfo({ toolCount: this.ctx.toolNames.size });
+
+      // 6. SessionManager for multi-client transports (auto for non-stdio, unless explicitly disabled)
+      if (this.opts.sessionManager !== false && this.opts.transportType !== 'stdio') {
+        this.sessionMgr = new SessionManager(
+          this.opts.sessionManager === undefined ? undefined : this.opts.sessionManager,
+        );
+        this.sessionMgr.startPrune();
+        this.addCleanup(() => this.sessionMgr!.closeAll());
+        this.log.info('session manager initialized');
+      }
 
       this._state = 'ready';
       this.log.info(
