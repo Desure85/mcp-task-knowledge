@@ -4,6 +4,7 @@
  */
 
 import type { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from '../registry/tool-registry.js';
 
 export interface ServerContext {
   server: McpServer;
@@ -15,12 +16,8 @@ export interface ServerContext {
   vectorInitAttempted: boolean;
   ensureVectorAdapter: () => Promise<any | undefined>;
 
-  toolRegistry: Map<string, { 
-    title?: string; 
-    description?: string; 
-    inputSchema?: Record<string, any>; 
-    handler?: (params: any) => Promise<any> 
-  }>;
+  /** Typed tool registry with versioning, ETag, and pagination. */
+  toolRegistry: ToolRegistry;
   resourceRegistry: Array<{
     id: string;
     uri: string;

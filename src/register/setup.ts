@@ -5,6 +5,7 @@ import { loadConfig, loadCatalogConfig, isToolsEnabled, isToolResourcesEnabled, 
 import { createServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
 import type { ServerContext } from './context.js';
+import { ToolRegistry } from '../registry/tool-registry.js';
 
 export async function createServerContext(): Promise<ServerContext> {
   const HERE_DIR = path.dirname(new URL(import.meta.url).pathname);
@@ -97,7 +98,7 @@ export async function createServerContext(): Promise<ServerContext> {
     }
   }
 
-  const toolRegistry: Map<string, { title?: string; description?: string; inputSchema?: Record<string, any>; handler?: (params: any) => Promise<any> }> = new Map();
+  const toolRegistry = new ToolRegistry();
   const resourceRegistry: Array<{ id: string; uri: string; kind: 'static' | 'template'; title?: string; description?: string; mimeType?: string }> = [];
   const toolNames = new Set<string>();
   const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
@@ -223,7 +224,7 @@ export async function createServerContext(): Promise<ServerContext> {
   (server as any).registerTool = ((orig: any) => {
     (server as any)._registerToolOrig = orig;
     return function (name: string, def: any, handler: any) {
-      if (toolNames.has(name)) {
+      if (toolRegistry.has(name)) {
         const msg = `[tools] duplicate tool registration detected: "${name}"`;
         if (STRICT_TOOL_DEDUP) {
           throw new Error(msg + ' (MCP_STRICT_TOOL_DEDUP=1)');
