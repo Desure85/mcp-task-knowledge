@@ -1,5 +1,8 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import { childLogger } from './core/logger.js';
+
+const log = childLogger('config');
 
 export type EmbeddingsMode = 'none' | 'onnx-cpu' | 'onnx-gpu';
 
@@ -30,13 +33,13 @@ if (cliConfigPath) {
   try {
     fileConfig = readJsonConfig(cliConfigPath);
   } catch (e) {
-    console.warn(`[config] Failed to read --config ${cliConfigPath}:`, e);
+    log.warn({ err: e }, 'Failed to read --config %s', cliConfigPath);
   }
 } else if (process.env.MCP_CONFIG_JSON) {
   try {
     fileConfig = JSON.parse(process.env.MCP_CONFIG_JSON);
   } catch (e) {
-    console.warn('[config] Failed to parse MCP_CONFIG_JSON:', e);
+    log.warn({ err: e }, 'Failed to parse MCP_CONFIG_JSON');
   }
 }
 
@@ -88,7 +91,7 @@ try {
     }
   }
 } catch (e) {
-  console.warn('[config] Failed to read state file:', e);
+  log.warn({ err: e }, 'Failed to read state file');
 }
 
 let CURRENT_PROJECT_VALUE: string =
@@ -112,7 +115,7 @@ export function setCurrentProject(name: string): string {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(STATE_FILE, JSON.stringify(next, null, 2), 'utf8');
   } catch (e) {
-    console.warn('[config] Failed to persist state file:', e);
+    log.warn({ err: e }, 'Failed to persist state file');
   }
   return CURRENT_PROJECT_VALUE;
 }
@@ -184,7 +187,7 @@ export function loadConfig(): ServerConfig {
       if (batchSize == null || !(batchSize > 0)) batchSize = 16;
       if (maxLen == null || !(maxLen > 0)) maxLen = 256;
     } catch (e) {
-      console.warn('[config] Failed to resolve ONNX defaults:', e);
+      log.warn({ err: e }, 'Failed to resolve ONNX defaults');
     }
   }
 
@@ -210,9 +213,9 @@ export function loadConfig(): ServerConfig {
     if (!cfg.embeddings.cacheDir) missing.push('EMBEDDINGS_CACHE_DIR');
     if (missing.length > 0) {
       if (modeFromFile) {
-        console.warn(`[config] Missing ${missing.join(', ')} for onnx mode; proceeding without downgrade (mode from file config)`);
+        log.warn('Missing %s for onnx mode; proceeding without downgrade (mode from file config)', missing.join(', '));
       } else {
-        console.warn(`[config] Missing ${missing.join(', ')} for onnx mode; falling back to EMBEDDINGS_MODE=none`);
+        log.warn('Missing %s for onnx mode; falling back to EMBEDDINGS_MODE=none', missing.join(', '));
         cfg.embeddings.mode = 'none';
       }
     }
@@ -358,7 +361,7 @@ export function loadCatalogConfig(): CatalogConfig {
 
   // Safety: if mode is remote but remote baseUrl is missing, fallback to embedded
   if (cfg.mode === 'remote' && (!cfg.remote.baseUrl || cfg.remote.baseUrl.trim().length === 0)) {
-    console.warn('[catalog] CATALOG_MODE=remote but remote.baseUrl is empty — falling back to embedded');
+    log.warn('CATALOG_MODE=remote but remote.baseUrl is empty — falling back to embedded');
     cfg.mode = 'embedded';
     cfg.prefer = 'embedded';
     cfg.embedded.enabled = true;

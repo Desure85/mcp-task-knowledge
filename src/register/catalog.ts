@@ -2,6 +2,9 @@ import type { ServerContext } from './context.js';
 import { isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled } from '../config.js';
 import { z } from 'zod';
 import { ok, err } from '../utils/respond.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('catalog');
 
 export function registerCatalogTools(ctx: ServerContext) {
   if (isCatalogEnabled() && isCatalogReadEnabled()) {
@@ -34,7 +37,7 @@ export function registerCatalogTools(ctx: ServerContext) {
       }
     );
   } else {
-    console.warn('[startup][catalog] catalog read disabled — query tool will not be registered');
+    log.warn('catalog read disabled — query tool will not be registered');
   }
 
   if (isCatalogEnabled() && isCatalogReadEnabled()) {

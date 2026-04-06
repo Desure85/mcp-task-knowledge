@@ -1,4 +1,7 @@
 import type { ServerContext } from './context.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('debug');
 
 export function registerDebugResources(ctx: ServerContext): void {
   try {
@@ -59,7 +62,7 @@ export function registerDebugResources(ctx: ServerContext): void {
         return { contents: [{ uri: u.href, text: JSON.stringify(payload, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: resource://catalog — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: resource://catalog — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -68,5 +71,5 @@ export function registerDebugResources(ctx: ServerContext): void {
       { title: 'MCP Capabilities', description: 'Declared server capabilities for client debugging', mimeType: 'application/json' },
       async (u) => ({ contents: [{ uri: u.href, text: JSON.stringify(ctx.SERVER_CAPS, null, 2), mimeType: 'application/json' }] })
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: mcp://capabilities — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: mcp://capabilities — skipping'); else throw e; }
 }

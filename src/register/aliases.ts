@@ -2,6 +2,9 @@ import type { ServerContext } from './context.js';
 import { getCurrentProject } from '../config.js';
 import { listTasks, listTasksTree, updateTask, closeTask, trashTask, restoreTask, archiveTask } from '../storage/tasks.js';
 import { listDocs } from '../storage/knowledge.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('resources');
 
 export function registerAliases(ctx: ServerContext): void {
   try {
@@ -15,7 +18,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: u.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://current — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://current — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -28,7 +31,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: u.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://current/tree — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://current/tree — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -62,7 +65,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'unsupported tasks://project path' }, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://project — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -75,7 +78,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id} — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://project/{id} — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -88,7 +91,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id}/tree — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://project/{id}/tree — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -106,7 +109,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id}/status/{status} — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://project/{id}/status/{status} — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -120,7 +123,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://project/{id}/tag/{tag} — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://project/{id}/tag/{tag} — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -181,7 +184,7 @@ export function registerAliases(ctx: ServerContext): void {
         });
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: tasks://action — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: tasks://action — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -194,7 +197,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: u.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://current — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: knowledge://current — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -213,7 +216,7 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: u.href, text: JSON.stringify(tree, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://current/tree — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: knowledge://current/tree — skipping'); else throw e; }
 
   try {
     ctx.server.registerResource(
@@ -256,5 +259,5 @@ export function registerAliases(ctx: ServerContext): void {
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'unsupported knowledge://project path' }, null, 2), mimeType: 'application/json' }] };
       }
     );
-  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) console.warn('[resources] already registered: knowledge://project — skipping'); else throw e; }
+  } catch (e: any) { const m = e?.message || String(e); if (typeof m === 'string' && m.includes('already registered')) log.warn('already registered: knowledge://project — skipping'); else throw e; }
 }

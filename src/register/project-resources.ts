@@ -1,6 +1,9 @@
 import type { ServerContext } from './context.js';
 import { getCurrentProject, setCurrentProject } from '../config.js';
 import { listProjects } from '../projects.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('resources');
 
 export function registerProjectResources(ctx: ServerContext): void {
   try {
@@ -27,7 +30,7 @@ export function registerProjectResources(ctx: ServerContext): void {
   } catch (e: any) {
     const msg = e?.message || String(e);
     if (typeof msg === 'string' && msg.includes('already registered')) {
-      console.warn('[resources] already registered: project://current — skipping');
+      log.warn('already registered: project://current — skipping');
     } else {
       throw e;
     }
@@ -49,7 +52,7 @@ export function registerProjectResources(ctx: ServerContext): void {
       }
     );
   } catch (e) {
-    console.warn('[resources] failed to register project use template:', e);
+    log.warn({ err: e }, 'failed to register project use template');
   }
 
   try {
@@ -69,7 +72,7 @@ export function registerProjectResources(ctx: ServerContext): void {
   } catch (e: any) {
     const msg = e?.message || String(e);
     if (typeof msg === 'string' && msg.includes('already registered')) {
-      console.warn('[resources] already registered: project://projects — skipping');
+      log.warn('already registered: project://projects — skipping');
     } else { throw e; }
   }
 }
