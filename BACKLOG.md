@@ -41,8 +41,11 @@
 - [x] S-001: SessionManager (TTL, idle timeout, lifecycle) (PR #51)
 - [x] S-002: ToolExecutor и ToolContext (per-session) (PR #52)
 - [x] S-003: Per-session rate limiting (token bucket) (PR #53)
+- [ ] S-004: MCP tool `session_info` — клиент может запросить своё состояние (rate limit remaining, TTL, idle timeout)
+- [ ] S-005: Session metrics — Prometheus gauges для активных сессий, duration histogram, idle timer
 - [ ] MW-001: Middleware pipeline для tool calls (pre/post hooks, logging, error handling)
 - [ ] MW-002: Internal event bus (pub/sub внутри сервера)
+- [ ] MW-003: Built-in logging middleware (request/response через MW-001)
 - [ ] CFG-001: Unified configuration (env + config file + defaults + schema validation)
 
 ### Этап 4 — Авторизация, ACL, безопасность
@@ -58,6 +61,7 @@
 - [ ] SEC-003: Token refresh flow + short-lived tokens
 - [ ] SEC-004: Secret management (env, vault, KMS integration)
 - [ ] SEC-005: Authentication protection (rate-limit, lockout, brute-force prevention)
+- [ ] SEC-006: Input sanitization (XSS, SQL injection, path traversal protection)
 
 ### Этап 5 — Инфраструктура качества
 
@@ -67,6 +71,8 @@
 - [ ] Q-007: Schema validation tests (ajv для schemas/*.json)
 - [ ] Q-008: Фаззинг: JSON-RPC framing/parser/validator
 - [ ] Q-009: Chaos/shutdown тесты (graceful degradation)
+- [ ] Q-010: Property-based testing для core-модулей (fast-check)
+- [ ] Q-011: Snapshot testing для transport adapters
 - [ ] SYNC-005: E2E durability тесты (синхронизация)
 
 ### Этап 6 — Proxy, синхронизация, DX
@@ -192,6 +198,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | T-001 | AppContainer: композиция приложения с lifecycle | medium | done | 1.1 | F-002 ✅ |
 | T-002 | TCP/Unix multi-client сервер | medium | **done** ✅ | 1.2 | T-001 ✅ |
 | T-003 | Stdio single-client сервер (вынести из main) | low | **done** ✅ | 1.3 | T-001 ✅ |
+| T-004 | Transport health check: метод `health()` на TransportAdapter — проверка что транспорт жив (socket listening, connection alive). Для SCALE-001 `/healthz`. Stdio всегда healthy | low | pending | — | T-001 |
 
 ---
 
@@ -203,6 +210,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|
 | MW-001 | Middleware pipeline: chain of pre/post interceptors для tool calls. Базовый интерфейс `ToolMiddleware { before(ctx), after(ctx, result), onError(ctx, err) }`. Порядок execution, short-circuit, error propagation | high | pending | — | T-001 |
 | MW-002 | Internal event bus: pub/sub шина внутри сервера. Топики: `tool.called`, `task.created`, `session.opened`. Подписчики: logger, metrics, rules engine, connectors. Typed events, async dispatch | high | pending | 11.1 | T-001 |
+| MW-003 | Built-in logging middleware: request/response logging для tool calls через MW-001 pipeline. Structured log: tool name, input, output (truncated), duration, sessionId, userId. Конфигурируемый verbosity | medium | pending | — | MW-001, S-002 |
 | CFG-001 | Unified configuration: единая система конфигурации — env vars, config file (YAML/JSON), runtime defaults, schema validation (Zod). Иерархия: defaults → config file → env → CLI args. API: `config.get('server.port')` | high | pending | — | T-001 |
 
 ---
@@ -214,6 +222,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | S-001 | SessionManager: TTL, idle timeout, lifecycle | medium | **done** ✅ | 2.1 | T-001 |
 | S-002 | ToolExecutor и ToolContext (per-session) | medium | **done** ✅ | 2.2 | S-001 |
 | S-003 | Per-session rate limiting (token bucket) | medium | **done** ✅ | 2.3 | S-001 |
+| S-004 | MCP tool `session_info`: клиент запрашивает своё состояние — rate limit remaining, TTL, idle timeout, session age. Для multi-client (TCP/HTTP). Через ToolExecutor pre-hook для доступа к контексту | medium | pending | — | S-001, S-003, S-002 |
+| S-005 | Session Prometheus metrics: gauges `mcp_sessions_active`, `mcp_sessions_total`, histogram `mcp_session_duration_seconds`, `mcp_session_idle_seconds`. Обновление через SessionManager callbacks | low | pending | — | S-001, F-005 |
 
 ---
 
@@ -259,6 +269,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | SEC-003 | Token refresh flow: short-lived access tokens (15-30 min) + refresh tokens. Refresh endpoint, token revocation, token blacklist. Связь с `A-002` и `A-003` | high | pending | 8.1 | A-002 |
 | SEC-004 | Secret management: хранение секретов (API keys, tokens) — env vars, Docker secrets, HashiCorp Vault integration (optional). Шифрование at-rest для конфиденциальных данных. API: `secrets.get`, `secrets.set` | medium | pending | 8.4 | CFG-001 |
 | SEC-005 | Authentication protection: rate-limit на `mcp.authenticate` (5 attempts/min), lockout после N failures, exponential backoff. CAPTCHA integration (optional). IP-based blocking | medium | pending | 8.5 | A-001 |
+| SEC-006 | Input sanitization: валидация и очистка всех tool input — XSS prevention, SQL injection, path traversal, command injection. Стандартный sanitizer перед вызовом handler. Часть MW-001 pipeline | medium | pending | — | MW-001 |
 
 ---
 
@@ -310,6 +321,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-003 | Dev CLI: CLI-утилита для локальной разработки — `mcp-tk diagnose` (health check, config validation), `mcp-tk tools` (list registered tools), `mcp-tk sessions` (active sessions), `mcp-tk export` (data backup) | medium | pending | 9.4 | CFG-001 |
 | DX-004 | Hot reload конфигов/политик: watch на config files, reload без restart. Graceful transition (old connections continue, new connections use new config). Зависит от `CFG-001` | medium | pending | 9.5 | CFG-001, MW-002 |
 | DX-005 | Proxy response caching: ETag-based кеширование ответов в прокси. TTL per-tool. Cache invalidation при write operations. API: `cache.stats`, `cache.invalidate` | low | pending | 9.3 | P-002 |
+| DX-006 | Pre-push CI hooks: husky + lint-staged — `tsc --noEmit` + `vitest run` перед каждым push. Цель: не пускать в CI код с TS-ошибками или падающими тестами. Установить: `npx husky init`, добавить `pre-push` hook | high | pending | — | — |
+| DX-007 | Shared test factories: вынести `createMockContext()`, `createMockAdapter()` и др. в `tests/helpers.ts`. Сейчас дублируется в 5 тестовых файлах (1764 строк). Единый источник правды для моков ServerContext, TransportAdapter | medium | pending | — | — |
+| DX-008 | ESLint + Prettier: добавить ESLint (strict TS config) и Prettier. CI lint job. Pre-commit hook через husky. autofix на `npm run lint:fix` | medium | pending | — | DX-006 |
 
 ---
 
@@ -342,6 +356,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TD-009 | Data migration framework: версия схемы данных, миграции up/down, rollback. CLI: `mcp-tk migrate [up\|down\|status]`. Применяется при запуске. Защита от одновременных миграций | medium | pending | — | CFG-001 |
 | TD-010 | Centralized error handling: единый error handler для tool calls — классификация ошибок (validation, not found, internal, permission), consistent error responses, error context для logging | medium | pending | — | MW-001 |
 | TD-011 | Graceful degradation: при недоступности optional сервисов (embeddings, AI models) — fallback к базовому функционалу. Circuit breaker pattern. Health status indicators | medium | pending | — | MW-001, SCALE-001 |
+| TD-012 | Mock interface sync: при изменении TransportAdapter/ServerContext/etc — автоматически проверять что моки в тестах соответствуют реальным интерфейсам. Утилита `tests/type-check.ts` или tsd | medium | pending | — | DX-007 |
+| TD-013 | Test timing safety: заменить `sleep()` на `vi.useFakeTimers()` в тестах session-manager, rate-limiter. Текущие timing-тесты flaky при высокой нагрузке CI | medium | pending | — | Q-009 |
+| TD-014 | WIP commit strategy для агента: автоматический `git commit -m "WIP"` перед началом каждой BACKLOG задачи. Восстановление после крэша без потери staged changes | low | pending | — | — |
 
 ---
 
@@ -360,6 +377,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Q-007 | Schema validation tests (ajv для schemas/*.json) | low | pending | 7.1 | — |
 | Q-008 | Фаззинг JSON-RPC: random payloads для framing, parser, validator. Инструменты: fast-check / property-based testing. Цель — найти краш-баги и undefined behavior | medium | pending | 7.3 | — |
 | Q-009 | Chaos/shutdown тесты: SIGTERM/SIGKILL во время обработки,OOM simulation, disk full. Проверка graceful shutdown (T-001), data integrity, session recovery | medium | pending | 7.5 | T-001, Q-004 |
+| Q-010 | Property-based testing для core-модулей: fast-check для SessionManager (TTL/idle edge cases), RateLimiter (burst/refill boundaries), ToolExecutor (hook ordering). Цель — найти неочевидные баги | medium | pending | — | S-001, S-003 |
+| Q-011 | Snapshot testing для transport adapters: vitest snapshots для Content-Length framing, JSON-RPC messages, handshake. Обнаружение regression в wire format | low | pending | — | T-002, T-003 |
 
 ---
 
@@ -371,6 +390,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | D-002 | Architecture Decision Records (ADR) | low | pending | — | — |
 | D-003 | CONTRIBUTING.md для контрибьюторов | low | pending | — | — |
 | D-004 | CHANGELOG.md (автоматический из conventional commits) | low | pending | — | — |
+| D-005 | Architecture diagram: Mermaid/PlantUML диаграмма — компоненты (AppContainer, SessionManager, ToolExecutor, Transport), связи, data flow. В README или /docs. Обновлять при изменении архитектуры | medium | pending | — | — |
 
 ---
 
@@ -384,6 +404,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AI-004 | Автоматическое обновление трекинг-троек в CI | low | pending | — | AI-001..AI-003 |
 | AI-005 | Market research отчёт (PDF) | high | done | — | — |
 | AI-006 | ~~Web UI: Kanban, Knowledge, Search (Next.js)~~ → заменена на UI-001..UI-007 | high | done | — | — |
+| AI-007 | Agent performance tracking: логирование времени на задачу, потреблённых токенов, количества PR. Автообновление в BACKLOG. Цель — анализировать velocity и оптимизировать процесс | low | pending | — | AI-001..AI-003 |
 
 ---
 
@@ -492,8 +513,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
 | MR-012 | Real-time collaboration (WebSocket) | Ждёт UI-005 | pending |
-| T-002 | TCP/Unix multi-client сервер | Ждёт T-001 ✅ | pending |
-| S-001 | SessionManager: TTL, idle timeout | Ждёт T-001 | blocked |
 
 ---
 
@@ -501,6 +520,11 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Закрыто | PR |
 |----|--------|---------|-----|
+| T-003 | Stdio extraction: connected getter на всех TransportAdapter | 2026-04-07 | #50 |
+| S-003 | Per-session rate limiting: token bucket algorithm | 2026-04-07 | #53 |
+| S-002 | ToolContext и ToolExecutor: per-session tool execution | 2026-04-07 | #52 |
+| S-001 | SessionManager: TTL, idle timeout, lifecycle management | 2026-04-07 | #51 |
+| T-002 | TCP/Unix multi-client transport: StreamTransportAdapter | 2026-04-07 | #49 |
 | AI-001 | Создать AGENTS.md | 2026-04-04 | #24 |
 | AI-002 | Создать BACKLOG.md | 2026-04-04 | #24 |
 | AI-003 | Актуализировать ROADMAP.md | 2026-04-04 | #24 |
@@ -516,11 +540,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | MR-013 | Claude Code / Windsurf integration guides | 2026-04-05 | #37 |
 | MR-007 | Dashboard analytics: stats, activity, trends, project summary | 2026-04-05 | #38 |
 | MR-009 | Markdown import/export для knowledge base | 2026-04-05 | #40 |
-| Q-001 | Unit-тесты для src/search/bm25.ts | 2026-04-05 | #41 |
-| Q-002 | Unit-тесты для src/storage/tasks.ts | 2026-04-05 | #41 |
-| Q-003 | Unit-тесты для src/storage/knowledge.ts | 2026-04-05 | #41 |
-| MR-008 | Multi-project workspace: create, info, update, delete | 2026-04-05 | #39 |
-| F-002 | Transport Layer абстракция (registry, stdio, http) | 2026-04-06 | #42 |
 | F-003 | ToolRegistry: версионирование, ETag, пагинация | 2026-04-06 | #43 |
 | F-004 | Structured logging with Pino (child loggers, LOG_LEVEL, LOG_FORMAT) | 2026-04-07 | #44 |
 | F-005 | Prometheus exporter (tool calls, duration, resource reads, /metrics) | 2026-04-07 | #45 |
@@ -538,25 +557,25 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Transport (1) | 3 | 2 | 0 | 1 | 0 | 0 |
-| Middleware & Infra | 3 | 3 | 0 | 0 | 0 | 0 |
-| Sessions (2) | 3 | 3 | 0 | 0 | 0 | 0 |
+| Transport (1) | 4 | 1 | 0 | 3 | 0 | 0 |
+| Middleware & Infra | 4 | 4 | 0 | 0 | 0 | 0 |
+| Sessions (2) | 5 | 2 | 0 | 3 | 0 | 0 |
 | Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
-| **Security (8)** | **5** | **5** | **0** | **0** | **0** | **0** |
+| Security (8) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
-| **DX (9)** | **5** | **5** | **0** | **0** | **0** | **0** |
-| **Scalability (10)** | **5** | **5** | **0** | **0** | **0** | **0** |
+| DX (9) | 8 | 8 | 0 | 0 | 0 | 0 |
+| Scalability (10) | 5 | 5 | 0 | 0 | 0 | 0 |
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
-| Tech Debt | 11 | 9 | 0 | 2 | 0 | 0 |
-| Quality | 9 | 6 | 0 | 3 | 0 | 0 |
-| Docs | 4 | 4 | 0 | 0 | 0 | 0 |
-| Agent Infra | 6 | 1 | 0 | 5 | 0 | 0 |
-| **Skills (A)** | **6** | **6** | **0** | **0** | **0** | **0** |
-| **Rules (B)** | **6** | **6** | **0** | **0** | **0** | **0** |
-| **Workflows (C)** | **6** | **6** | **0** | **0** | **0** | **0** |
-| **Memory (D)** | **4** | **4** | **0** | **0** | **0** | **0** |
-| **Integration Hub (E)** | **6** | **6** | **0** | **0** | **0** | **0** |
-| **Web UI (13)** | **7** | **7** | **0** | **0** | **0** | **0** |
-| **Итого** | **123** | **97** | **0** | **28** | **0** | **0** |
+| Tech Debt | 14 | 11 | 0 | 2 | 0 | 0 |
+| Quality | 11 | 8 | 0 | 3 | 0 | 0 |
+| Docs | 5 | 5 | 0 | 0 | 0 | 0 |
+| Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
+| Skills (A) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Rules (B) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Workflows (C) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Memory (D) | 4 | 4 | 0 | 0 | 0 | 0 |
+| Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
+| **Итого** | **139** | **111** | **0** | **35** | **0** | **0** |
