@@ -15,10 +15,11 @@ function createMockAdapter(): TransportAdapter & {
 } {
   const adapter = {
     type: 'stdio',
+    connected: false,
     connectCalls: 0,
     closeCalls: 0,
-    async connect() { this.connectCalls++; },
-    async close() { this.closeCalls++; },
+    async connect() { this.connectCalls++; this.connected = true; },
+    async close() { this.closeCalls++; this.connected = false; },
   };
   return adapter;
 }
