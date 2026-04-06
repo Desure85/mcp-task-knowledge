@@ -9,6 +9,8 @@
 import type { TransportConfig, TransportAdapter, TransportFactory } from './types.js';
 import { StdioTransportFactory } from './stdio-transport.js';
 import { HttpTransportFactory } from './http-transport.js';
+import { TcpTransportFactory } from './stream-transport.js';
+import { UnixTransportFactory } from './stream-transport.js';
 
 export class TransportRegistry {
   private readonly factories = new Map<string, TransportFactory>();
@@ -17,6 +19,8 @@ export class TransportRegistry {
     // Register built-in transports
     this.registerTransport(new StdioTransportFactory());
     this.registerTransport(new HttpTransportFactory());
+    this.registerTransport(new TcpTransportFactory());
+    this.registerTransport(new UnixTransportFactory());
   }
 
   /**
