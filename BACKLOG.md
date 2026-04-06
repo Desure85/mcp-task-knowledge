@@ -38,7 +38,7 @@
 - [x] T-001: AppContainer (lifecycle, state machine)
 - [x] T-002: TCP/Unix multi-client сервер (PR #49)
 - [x] T-003: Stdio single-client сервер (вынести из main) (PR #50)
-- [ ] S-001: SessionManager (TTL, idle timeout, lifecycle)
+- [x] S-001: SessionManager (TTL, idle timeout, lifecycle) (PR #51)
 - [ ] S-002: ToolExecutor и ToolContext (per-session)
 - [ ] S-003: Per-session rate limiting (token bucket)
 - [ ] MW-001: Middleware pipeline для tool calls (pre/post hooks, logging, error handling)
@@ -211,7 +211,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| S-001 | SessionManager: TTL, idle timeout, lifecycle | medium | pending | 2.1 | T-001 |
+| S-001 | SessionManager: TTL, idle timeout, lifecycle | medium | **done** ✅ | 2.1 | T-001 |
 | S-002 | ToolExecutor и ToolContext (per-session) | medium | pending | 2.2 | S-001 |
 | S-003 | Per-session rate limiting (token bucket) | medium | pending | 2.3 | S-001 |
 
