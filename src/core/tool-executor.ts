@@ -29,6 +29,8 @@
 
 import type { ServerContext } from '../register/context.js';
 import { childLogger } from './logger.js';
+import { MiddlewarePipeline } from './middleware.js';
+import type { ToolMiddleware, MiddlewareContext } from './middleware.js';
 
 const log = childLogger('tool-executor');
 
@@ -166,6 +168,7 @@ export class ToolExecutor {
   private preHooks: PreToolHook[] = [];
   private postHooks: PostToolHook[] = [];
   private errorHooks: ErrorToolHook[] = [];
+  private pipeline = new MiddlewarePipeline();
 
   /**
    * Add a pre-execution hook.
@@ -192,7 +195,33 @@ export class ToolExecutor {
   }
 
   /**
+   * Register a middleware in the execution pipeline (MW-001).
+   * Middleware run BEFORE legacy hooks. If any middleware short-circuits,
+   * the result goes through after hooks then returns — legacy hooks are skipped.
+   *
+   * @returns true if added, false if replaced existing middleware with same name
+   */
+  use(middleware: ToolMiddleware): boolean {
+    return this.pipeline.use(middleware);
+  }
+
+  /**
+   * Remove a middleware by name or reference.
+   */
+  removeMiddleware(nameOrMiddleware: string | ToolMiddleware): boolean {
+    return this.pipeline.remove(nameOrMiddleware);
+  }
+
+  /**
+   * Get the middleware pipeline (for advanced configuration).
+   */
+  getPipeline(): MiddlewarePipeline {
+    return this.pipeline;
+  }
+
+  /**
    * Remove all hooks of a given type.
+   * Does NOT affect middleware — use clearMiddleware() or pipeline.clear().
    */
   clearHooks(type?: 'pre' | 'post' | 'error'): void {
     if (!type || type === 'pre') this.preHooks = [];
@@ -201,28 +230,38 @@ export class ToolExecutor {
   }
 
   /**
+   * Clear all middleware from the pipeline.
+   */
+  clearMiddleware(): void {
+    this.pipeline.clear();
+  }
+
+  /**
    * Get hook counts for diagnostics.
    */
-  getHookCounts(): { pre: number; post: number; error: number } {
+  getHookCounts(): { pre: number; post: number; error: number; middleware: number } {
     return {
       pre: this.preHooks.length,
       post: this.postHooks.length,
       error: this.errorHooks.length,
+      middleware: this.pipeline.size,
     };
   }
 
   /**
-   * Execute a tool call with full hook pipeline.
+   * Execute a tool call with full middleware + hook pipeline.
    *
-   * Pipeline:
-   *   1. Run pre-hooks → abort if any deny
-   *   2. Call tool handler with ToolContext
-   *   3. Run post-hooks with result
-   *   4. Return result
+   * Pipeline (outer to inner):
+   *   1. Middleware before() — forward order, can short-circuit
+   *   2. Legacy pre-hooks → abort if any deny
+   *   3. Call tool handler with ToolContext
+   *   4. Legacy post-hooks with result
+   *   5. Middleware after() — reverse order, can modify result
    *
    * On error:
-   *   1. Run error hooks
-   *   2. Re-throw the error
+   *   1. Middleware onError() — can swallow or re-throw
+   *   2. Legacy error hooks (if not swallowed)
+   *   3. Re-throw the error
    *
    * @param toolName — name of the tool being called
    * @param input — parsed input parameters
@@ -235,12 +274,36 @@ export class ToolExecutor {
     context: ToolContext,
     handler: ContextAwareToolHandler<TInput, TOutput> | RawToolHandler<TInput, TOutput>,
   ): Promise<TOutput> {
+    // ── Phase 1: Middleware pipeline (outer layer) ──
+    if (this.pipeline.size > 0) {
+      const mwCtx = new (await import('./middleware.js')).MiddlewareContext(
+        toolName,
+        input as Record<string, unknown>,
+        context,
+      );
+
+      return this.pipeline.run(mwCtx, () => this.runWithHooks(toolName, mwCtx.input, context, handler)) as Promise<TOutput>;
+    }
+
+    // ── No middleware: run hooks + handler directly ──
+    return this.runWithHooks(toolName, input as Record<string, unknown>, context, handler) as Promise<TOutput>;
+  }
+
+  /**
+   * Internal: run legacy hooks + handler (without middleware).
+   */
+  private async runWithHooks<TInput, TOutput>(
+    toolName: string,
+    input: Record<string, unknown>,
+    context: ToolContext,
+    handler: ContextAwareToolHandler<TInput, TOutput> | RawToolHandler<TInput, TOutput>,
+  ): Promise<TOutput> {
     const start = Date.now();
 
     // 1. Pre-hooks
     for (const hook of this.preHooks) {
       try {
-        const result = await hook(toolName, input as Record<string, unknown>, context);
+        const result = await hook(toolName, input, context);
         if (result.deny) {
           log.warn({ toolName, sessionId: context.sessionId, reason: result.reason }, 'tool call denied by pre-hook');
           throw new ToolDeniedError(toolName, result.reason ?? 'denied by policy');
@@ -256,10 +319,10 @@ export class ToolExecutor {
     let result: TOutput;
     try {
       if (this.isContextAware(handler)) {
-        result = await handler(input, context);
+        result = await handler(input as TInput, context);
       } else {
         // Raw handler: call without context (backward compat)
-        result = await (handler as RawToolHandler<TInput, TOutput>)(input);
+        result = await (handler as RawToolHandler<TInput, TOutput>)(input as TInput);
       }
     } catch (err) {
       const duration = Date.now() - start;
@@ -267,7 +330,7 @@ export class ToolExecutor {
       // 3. Error hooks
       for (const hook of this.errorHooks) {
         try {
-          await hook(toolName, input as Record<string, unknown>, err, context, duration);
+          await hook(toolName, input, err, context, duration);
         } catch (hookErr) {
           log.error({ toolName, sessionId: context.sessionId, err: hookErr }, 'error-hook error');
         }
@@ -280,7 +343,7 @@ export class ToolExecutor {
     const duration = Date.now() - start;
     for (const hook of this.postHooks) {
       try {
-        await hook(toolName, input as Record<string, unknown>, result, context, duration);
+        await hook(toolName, input, result, context, duration);
       } catch (hookErr) {
         log.error({ toolName, sessionId: context.sessionId, err: hookErr }, 'post-hook error');
       }
