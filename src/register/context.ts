@@ -8,6 +8,7 @@ import type { ToolRegistry } from '../registry/tool-registry.js';
 import type { ServerConfig, CatalogConfig } from '../config.js';
 import type { ServiceCatalogProvider } from '../catalog/provider.js';
 import type { VectorSearchAdapter } from '../search/index.js';
+import type { ACLEngine } from '../core/acl.js';
 
 export interface ServerContext {
   server: McpServer;
@@ -44,4 +45,7 @@ export interface ServerContext {
   registerToolAsResource: (name: string) => void;
 
   triggerPromptsReindex?: (project: string) => Promise<void>;
+
+  /** Optional ACL engine for access control (ACL-002/ACL-003). */
+  acl?: ACLEngine;
 }
