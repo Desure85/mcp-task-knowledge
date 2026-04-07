@@ -1,5 +1,5 @@
 /**
- * ACL Engine tests — ACL-001
+ * ACL Engine tests — ACL-001, ACL-002, ACL-003
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -572,6 +572,489 @@ describe('ACLEngine', () => {
 
       // Unknown tool: denied (default deny)
       expect(acl.isAllowed('unknown_tool', ['user'])).toBe(false);
+    });
+  });
+
+  // ─── ACL-002: filterToolNames ─────────────────────────────────
+
+  describe('filterToolNames (ACL-002)', () => {
+    it('should return all names when ACL is disabled', () => {
+      const names = ['tasks_list', 'tasks_create', 'knowledge_get', 'admin_panel'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual(names);
+      expect(result).toHaveLength(4);
+    });
+
+    it('should return all names when ACL enabled with allow-all policy', () => {
+      acl.setEnabled(true);
+      // default policy is allow-all, no rules
+      const names = ['tasks_list', 'tasks_create', 'knowledge_get'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual(names);
+    });
+
+    it('should filter correctly with deny-by-default policy', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('filter-test', [
+        { effect: 'allow', toolPattern: 'tasks_*', roles: ['user'] },
+        { effect: 'allow', toolPattern: 'knowledge_*', roles: ['user'] },
+      ]));
+
+      const names = ['tasks_list', 'tasks_create', 'knowledge_get', 'admin_panel', 'secret_tool'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual(['tasks_list', 'tasks_create', 'knowledge_get']);
+    });
+
+    it('should return empty array for empty input', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('empty-input', [
+        { effect: 'allow', toolPattern: '*' },
+      ]));
+      expect(acl.filterToolNames([], ['user'])).toEqual([]);
+    });
+
+    it('should return empty array when no tools are allowed', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('deny-all', []));
+      const names = ['tasks_list', 'tasks_create'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual([]);
+    });
+
+    it('should filter with glob patterns correctly', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('glob-filter', [
+        { effect: 'allow', toolPattern: 'search_*' },
+        { effect: 'allow', toolPattern: 'dashboard_*' },
+      ]));
+
+      const names = ['search_tasks', 'search_knowledge', 'dashboard_overview', 'tasks_list', 'knowledge_get'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual(['search_tasks', 'search_knowledge', 'dashboard_overview']);
+    });
+
+    it('should return all tools for admin roles (admin bypass)', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('admin-test', [
+        { effect: 'allow', toolPattern: 'tasks_*', roles: ['user'] },
+      ]));
+
+      const names = ['tasks_list', 'admin_panel', 'secret_tool'];
+      const result = acl.filterToolNames(names, ['admin']);
+      expect(result).toEqual(names);
+    });
+
+    it('should filter by role: viewer vs user', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('role-filter', [
+        { effect: 'allow', toolPattern: 'tasks_list', roles: ['viewer', 'user'] },
+        { effect: 'allow', toolPattern: 'tasks_create', roles: ['user'] },
+        { effect: 'allow', toolPattern: 'knowledge_*', roles: ['user'] },
+      ]));
+
+      const names = ['tasks_list', 'tasks_create', 'knowledge_get'];
+
+      // Viewer sees only tasks_list
+      const viewerResult = acl.filterToolNames(names, ['viewer']);
+      expect(viewerResult).toEqual(['tasks_list']);
+
+      // User sees everything
+      const userResult = acl.filterToolNames(names, ['user']);
+      expect(userResult).toEqual(names);
+    });
+
+    it('should handle allow-by-default policy with deny rules', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createAllowPolicy('allow-deny', [
+        { effect: 'deny', toolPattern: 'admin_*' },
+        { effect: 'deny', toolPattern: 'secret_*' },
+      ]));
+
+      const names = ['tasks_list', 'admin_panel', 'secret_tool', 'knowledge_get'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual(['tasks_list', 'knowledge_get']);
+    });
+
+    it('should preserve order of allowed tools', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('order-test', [
+        { effect: 'allow', toolPattern: 'z_tool' },
+        { effect: 'allow', toolPattern: 'a_tool' },
+        { effect: 'allow', toolPattern: 'm_tool' },
+      ]));
+
+      const names = ['z_tool', 'b_tool', 'a_tool', 'm_tool', 'c_tool'];
+      const result = acl.filterToolNames(names, ['user']);
+      expect(result).toEqual(['z_tool', 'a_tool', 'm_tool']);
+    });
+
+    it('should not mutate the input array', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('no-mutate', [
+        { effect: 'allow', toolPattern: 'tasks_*' },
+      ]));
+
+      const names = ['tasks_list', 'secret_tool'];
+      const original = [...names];
+      acl.filterToolNames(names, ['user']);
+      expect(names).toEqual(original);
+    });
+  });
+
+  // ─── ACL-002: filterResourceUris ──────────────────────────────
+
+  describe('filterResourceUris (ACL-002)', () => {
+    it('should return all URIs when ACL is disabled', () => {
+      const uris = ['task://project/id', 'knowledge://entry/id', 'prompt://name'];
+      const result = acl.filterResourceUris(uris, ['user']);
+      expect(result).toEqual(uris);
+    });
+
+    it('should extract scheme and check virtual tool name', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('resource-test', [
+        { effect: 'allow', toolPattern: 'task_*' },
+        { effect: 'allow', toolPattern: 'knowledge_*' },
+      ]));
+
+      const uris = [
+        'task://project/default',
+        'task://project/other',
+        'knowledge://entry/some-uuid',
+        'prompt://my-prompt',
+      ];
+      const result = acl.filterResourceUris(uris, ['user']);
+      expect(result).toEqual([
+        'task://project/default',
+        'task://project/other',
+        'knowledge://entry/some-uuid',
+      ]);
+    });
+
+    it('should return empty array when no schemes match', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('no-match', [
+        { effect: 'allow', toolPattern: 'task_*' },
+      ]));
+
+      const uris = ['knowledge://entry/id', 'prompt://name'];
+      const result = acl.filterResourceUris(uris, ['user']);
+      expect(result).toEqual([]);
+    });
+
+    it('should return all URIs for admin roles', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('admin-resource', [
+        { effect: 'allow', toolPattern: 'task_*', roles: ['user'] },
+      ]));
+
+      const uris = ['task://p/id', 'knowledge://e/id', 'prompt://n'];
+      const result = acl.filterResourceUris(uris, ['admin']);
+      expect(result).toEqual(uris);
+    });
+
+    it('should return empty array for empty input', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('empty-res', [
+        { effect: 'allow', toolPattern: '*' },
+      ]));
+      expect(acl.filterResourceUris([], ['user'])).toEqual([]);
+    });
+
+    it('should handle URIs with complex paths', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('complex', [
+        { effect: 'allow', toolPattern: 'task_*' },
+      ]));
+
+      const uris = [
+        'task://project/my-project/tasks/123-456',
+        'task://project/another/sub/path',
+      ];
+      const result = acl.filterResourceUris(uris, ['user']);
+      expect(result).toEqual(uris);
+    });
+
+    it('should handle URIs without scheme separator (fallback to full URI)', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('no-scheme', [
+        { effect: 'allow', toolPattern: 'nopath_*' },
+      ]));
+
+      // No :// separator → scheme = entire URI → virtual name = "nopath_*"
+      const uris = ['nopath_value'];
+      const result = acl.filterResourceUris(uris, ['user']);
+      expect(result).toEqual(['nopath_value']);
+    });
+
+    it('should handle multiple schemes with role restrictions', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('multi-scheme', [
+        { effect: 'allow', toolPattern: 'task_*', roles: ['viewer', 'user', 'admin'] },
+        { effect: 'allow', toolPattern: 'knowledge_*', roles: ['user', 'admin'] },
+        { effect: 'allow', toolPattern: 'prompt_*', roles: ['admin'] },
+      ]));
+
+      const uris = ['task://p/id', 'knowledge://e/id', 'prompt://n'];
+
+      // Viewer: only task resources
+      expect(acl.filterResourceUris(uris, ['viewer'])).toEqual(['task://p/id']);
+
+      // User: task + knowledge
+      expect(acl.filterResourceUris(uris, ['user'])).toEqual(['task://p/id', 'knowledge://e/id']);
+
+      // Admin: everything
+      expect(acl.filterResourceUris(uris, ['admin'])).toEqual(uris);
+    });
+
+    it('should not mutate the input array', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('no-mutate-res', [
+        { effect: 'allow', toolPattern: 'task_*' },
+      ]));
+
+      const uris = ['task://p/id', 'knowledge://e/id'];
+      const original = [...uris];
+      acl.filterResourceUris(uris, ['user']);
+      expect(uris).toEqual(original);
+    });
+  });
+
+  // ─── ACL-002: getAllowedToolNames / getAllowedResourceUris aliases
+
+  describe('getAllowedToolNames (ACL-002 alias)', () => {
+    it('should be an alias for filterToolNames', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('alias', [
+        { effect: 'allow', toolPattern: 'tasks_*' },
+      ]));
+
+      const names = ['tasks_list', 'knowledge_get'];
+      expect(acl.getAllowedToolNames(names, ['user'])).toEqual(acl.filterToolNames(names, ['user']));
+    });
+  });
+
+  describe('getAllowedResourceUris (ACL-002 alias)', () => {
+    it('should be an alias for filterResourceUris', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('alias-res', [
+        { effect: 'allow', toolPattern: 'task_*' },
+      ]));
+
+      const uris = ['task://p/id', 'knowledge://e/id'];
+      expect(acl.getAllowedResourceUris(uris, ['user'])).toEqual(acl.filterResourceUris(uris, ['user']));
+    });
+  });
+
+  // ─── ACL-003: Authorization checks via middleware ──────────────
+
+  describe('ACL-003: middleware authorization integration', () => {
+    it('should block denied tool calls via ToolExecutor middleware pipeline', async () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('acl003-deny', [
+        { effect: 'allow', toolPattern: 'tasks_*', roles: ['user'] },
+      ]));
+
+      const { ToolExecutor } = await import('../src/core/tool-executor.js');
+      const { MiddlewareContext } = await import('../src/core/middleware.js');
+      const executor = new ToolExecutor();
+      executor.use(acl.createMiddleware());
+
+      const ctx = createContext(['user']);
+
+      // Allowed tool should succeed
+      await executor.execute(
+        'tasks_list',
+        {},
+        ctx,
+        async (_input, _context) => ({ success: true }),
+      );
+
+      // Denied tool should throw ToolDeniedError
+      await expect(
+        executor.execute(
+          'knowledge_get',
+          {},
+          ctx,
+          async (_input, _context) => ({ success: true }),
+        ),
+      ).rejects.toThrow(ToolDeniedError);
+    });
+
+    it('should allow admin to call any tool via middleware', async () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('acl003-admin', [
+        { effect: 'allow', toolPattern: 'tasks_*', roles: ['user'] },
+      ]));
+
+      const { ToolExecutor } = await import('../src/core/tool-executor.js');
+      const executor = new ToolExecutor();
+      executor.use(acl.createMiddleware());
+
+      const ctx = createContext(['admin']);
+
+      // Admin can call denied tools
+      const result = await executor.execute(
+        'knowledge_get',
+        {},
+        ctx,
+        async (_input, _context) => ({ success: true }),
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should pass through when ACL is disabled via middleware', async () => {
+      acl.setEnabled(false);
+      acl.setPolicy(createDenyPolicy('acl003-disabled', []));
+
+      const { ToolExecutor } = await import('../src/core/tool-executor.js');
+      const executor = new ToolExecutor();
+      executor.use(acl.createMiddleware());
+
+      const ctx = createContext(['user']);
+
+      const result = await executor.execute(
+        'any_tool',
+        {},
+        ctx,
+        async (_input, _context) => ({ ok: true }),
+      );
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('should include ACL result in middleware context for allowed calls', async () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('acl003-ctx', [
+        { effect: 'allow', toolPattern: 'tasks_*' },
+      ]));
+
+      const { ToolExecutor } = await import('../src/core/tool-executor.js');
+      const executor = new ToolExecutor();
+      executor.use(acl.createMiddleware());
+
+      // Add a post-execution observer to verify ACL result was stored
+      let capturedAclResult: ACLEvaluationResult | undefined;
+      executor.addPostHook((_toolName, _input, _result, _context, _duration) => {
+        // Can't access mw context from post-hook directly, but the middleware
+        // before() stores it — verified in separate middleware test below
+      });
+
+      const ctx = createContext(['user']);
+      await executor.execute(
+        'tasks_list',
+        {},
+        ctx,
+        async (_input, _context) => ({ data: 'test' }),
+      );
+
+      // Verify the middleware stored aclResult by calling before() directly
+      const { MiddlewareContext } = await import('../src/core/middleware.js');
+      const mw = acl.createMiddleware();
+      const mCtx = new MiddlewareContext('tasks_list', {}, ctx);
+      await mw.before!(mCtx);
+      expect(mCtx.mw.aclResult).toBeDefined();
+      expect((mCtx.mw.aclResult as ACLEvaluationResult).allowed).toBe(true);
+      expect((mCtx.mw.aclResult as ACLEvaluationResult).matchedBy).toContain('rule');
+    });
+
+    it('should respect first-match-wins in middleware', async () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('acl003-order', [
+        { effect: 'deny', toolPattern: 'tasks_*', roles: ['guest'] },
+        { effect: 'allow', toolPattern: 'tasks_*', roles: ['user'] },
+      ]));
+
+      const { ToolExecutor } = await import('../src/core/tool-executor.js');
+      const executor = new ToolExecutor();
+      executor.use(acl.createMiddleware());
+
+      // Guest: denied by first rule
+      const guestCtx = createContext(['guest']);
+      await expect(
+        executor.execute('tasks_list', {}, guestCtx, async () => ({ ok: true })),
+      ).rejects.toThrow(ToolDeniedError);
+
+      // User: allowed by second rule
+      const userCtx = createContext(['user']);
+      const result = await executor.execute(
+        'tasks_list',
+        {},
+        userCtx,
+        async () => ({ ok: true }),
+      );
+      expect(result).toEqual({ ok: true });
+    });
+  });
+
+  // ─── ACL-002 + ACL-003 combined: end-to-end filtering + enforcement
+
+  describe('ACL-002 + ACL-003 combined: filter then enforce', () => {
+    it('filtered tool list should match allowed tool invocations', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('combined', [
+        { effect: 'allow', toolPattern: 'tasks_*', roles: ['viewer', 'user', 'admin'] },
+        { effect: 'allow', toolPattern: 'knowledge_*', roles: ['user', 'admin'] },
+        { effect: 'allow', toolPattern: 'search_*', roles: ['user', 'admin'] },
+        { effect: 'allow', toolPattern: 'tools_list', roles: ['viewer', 'user', 'admin'] },
+        { effect: 'allow', toolPattern: 'tool_schema', roles: ['viewer', 'user', 'admin'] },
+        { effect: 'allow', toolPattern: 'tool_help', roles: ['viewer', 'user', 'admin'] },
+      ]));
+
+      const allTools = [
+        'tasks_list', 'tasks_create', 'tasks_update',
+        'knowledge_list', 'knowledge_get', 'knowledge_create',
+        'search_tasks', 'search_knowledge',
+        'tools_list', 'tool_schema', 'tool_help',
+        'admin_panel', 'project_delete', 'secret_tool',
+      ];
+
+      // Viewer: filter and verify each visible tool is also allowed
+      const viewerTools = acl.filterToolNames(allTools, ['viewer']);
+      for (const tool of viewerTools) {
+        expect(acl.isAllowed(tool, ['viewer'])).toBe(true);
+      }
+
+      // User: filter and verify
+      const userTools = acl.filterToolNames(allTools, ['user']);
+      for (const tool of userTools) {
+        expect(acl.isAllowed(tool, ['user'])).toBe(true);
+      }
+
+      // Admin: sees everything
+      const adminTools = acl.filterToolNames(allTools, ['admin']);
+      expect(adminTools).toEqual(allTools);
+    });
+
+    it('filtered resource list should match allowed resource access', () => {
+      acl.setEnabled(true);
+      acl.setPolicy(createDenyPolicy('res-combined', [
+        { effect: 'allow', toolPattern: 'task_*', roles: ['viewer', 'user', 'admin'] },
+        { effect: 'allow', toolPattern: 'knowledge_*', roles: ['user', 'admin'] },
+        { effect: 'allow', toolPattern: 'prompt_*', roles: ['admin'] },
+      ]));
+
+      const allResources = [
+        'task://project/default/tasks',
+        'task://project/other/tasks',
+        'knowledge://entry/uuid-1',
+        'knowledge://entry/uuid-2',
+        'prompt://my-prompt',
+        'prompt://another-prompt',
+        'admin://settings',
+      ];
+
+      // Viewer: only task resources
+      const viewerResources = acl.filterResourceUris(allResources, ['viewer']);
+      expect(viewerResources).toHaveLength(2);
+      expect(viewerResources.every((r) => r.startsWith('task://'))).toBe(true);
+
+      // User: task + knowledge
+      const userResources = acl.filterResourceUris(allResources, ['user']);
+      expect(userResources).toHaveLength(4);
+
+      // Admin: everything
+      const adminResources = acl.filterResourceUris(allResources, ['admin']);
+      expect(adminResources).toEqual(allResources);
     });
   });
 });

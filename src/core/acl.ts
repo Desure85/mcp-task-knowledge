@@ -1,5 +1,5 @@
 /**
- * ACL Engine — Access Control Layer model, policies, and enforcement (ACL-001)
+ * ACL Engine — Access Control Layer model, policies, and enforcement (ACL-001, ACL-002, ACL-003)
  *
  * Provides role-based access control for MCP tools and resources.
  * Integrates with AuthManager (A-001/A-002) for session-level roles and
@@ -13,6 +13,14 @@
  *   ACLEngine.evaluate(toolName, roles, context)
  *       ↓ (matches rules from active policy)
  *   allow / deny
+ *
+ * ACL-002: Filtering
+ *   ACLEngine.filterToolNames(names, roles) → allowed tool names
+ *   ACLEngine.filterResourceUris(uris, roles) → allowed resource URIs
+ *
+ * ACL-003: Authorization checks
+ *   ACLEngine.createMiddleware() → ToolMiddleware (enforced via ToolExecutor pipeline)
+ *   ACLEngine.createPreHook() → PreToolHook (legacy enforcement)
  *
  * Policy model:
  *   - defaultAction: 'allow' | 'deny' — what happens when no rule matches
@@ -39,7 +47,11 @@
  *     ],
  *   });
  *
- *   // As middleware (recommended)
+ *   // Filter tool/resource lists (ACL-002)
+ *   const visibleTools = acl.filterToolNames(allTools, roles);
+ *   const visibleResources = acl.filterResourceUris(allResources, roles);
+ *
+ *   // Enforce on invocation (ACL-003)
  *   executor.use(acl.createMiddleware());
  *
  *   // As pre-hook (legacy)
@@ -324,6 +336,62 @@ export class ACLEngine {
    */
   isAllowed(toolName: string, roles: string[]): boolean {
     return this.evaluate(toolName, roles).allowed;
+  }
+
+  // ─── Filtering (ACL-002) ────────────────────────────────────
+
+  /**
+   * Filter a list of tool names, keeping only those accessible to the given roles.
+   * When ACL is disabled, returns all names unchanged.
+   *
+   * @param names — tool names to filter
+   * @param roles — caller's roles
+   * @returns subset of names that are allowed
+   */
+  filterToolNames(names: string[], roles: string[]): string[] {
+    if (!this._enabled) return names;
+    return names.filter((name) => this.isAllowed(name, roles));
+  }
+
+  /**
+   * Filter a list of resource URIs, keeping only those accessible to the given roles.
+   *
+   * Resource URIs are mapped to virtual tool names using their scheme:
+   *   - `task://project/id` → checks `task_*` pattern
+   *   - `knowledge://entry/id` → checks `knowledge_*` pattern
+   *   - `prompt://name` → checks `prompt_*` pattern
+   *
+   * The scheme is extracted from the URI (before `://`) and a virtual tool
+   * name `{scheme}_*` is constructed for ACL evaluation.
+   *
+   * When ACL is disabled, returns all URIs unchanged.
+   *
+   * @param uris — resource URIs to filter
+   * @param roles — caller's roles
+   * @returns subset of URIs whose schemes are allowed
+   */
+  filterResourceUris(uris: string[], roles: string[]): string[] {
+    if (!this._enabled) return uris;
+    return uris.filter((uri) => {
+      const scheme = uri.split('://')[0] ?? uri;
+      return this.isAllowed(scheme + '_*', roles);
+    });
+  }
+
+  /**
+   * Alias for filterToolNames with a clearer name.
+   * Returns tool names that the given roles are allowed to access.
+   */
+  getAllowedToolNames(allNames: string[], roles: string[]): string[] {
+    return this.filterToolNames(allNames, roles);
+  }
+
+  /**
+   * Alias for filterResourceUris with a clearer name.
+   * Returns resource URIs that the given roles are allowed to access.
+   */
+  getAllowedResourceUris(allUris: string[], roles: string[]): string[] {
+    return this.filterResourceUris(allUris, roles);
   }
 
   // ─── Integration hooks ─────────────────────────────────────────
