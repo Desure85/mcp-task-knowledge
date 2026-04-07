@@ -52,7 +52,7 @@
 
 - [x] A-001: `mcp.authenticate` + pre-auth method window (PR #60)
 - [x] A-002: JWT/JWKS validation (PR #61)
-- [x] A-003: Привязка tokenClaims к session TTL (PR #TBD)
+- [x] A-003: Привязка tokenClaims к session TTL (PR #63)
 - [ ] ACL-001: Модель ACL и policy definitions
 - [ ] ACL-002: Фильтрация списков инструментов/ресурсов по ACL
 - [ ] ACL-003: Проверка авторизации при вызове инструментов
@@ -348,7 +348,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TD-001 | Рефакторинг монолитного `src/index.ts` (разделение на модули) | high | done | — | F-001 → done via F-001 |
 | TD-002 | Типизация: заменить `any` на конкретные типы | medium | done | F-006 ✅ | — |
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred | — | — |
-| TD-004 | Rate limiting на уровне инструментов | medium | pending | S-003 | — |
+| TD-004 | Rate limiting на уровне инструментов | medium | done | S-003 | — | покрыто S-003 (PR #53) |
 | TD-005 | Версионирование документов знаний | low | pending | — | — |
 | TD-006 | Добавить JSDoc для публичных функций | medium | pending | — | — |
 | TD-007 | Migration от `uuid` v9 к `crypto.randomUUID()` | low | pending | — | — |
@@ -520,6 +520,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Закрыто | PR |
 |----|--------|---------|-----|
+| A-003 | Привязка tokenClaims к session TTL | 2026-04-07 | #63 |
+| TD-004 | Rate limiting на уровне инструментов | 2026-04-08 | #53 (покрыто S-003) |
 | T-003 | Stdio extraction: connected getter на всех TransportAdapter | 2026-04-07 | #50 |
 | S-003 | Per-session rate limiting: token bucket algorithm | 2026-04-07 | #53 |
 | S-002 | ToolContext и ToolExecutor: per-session tool execution | 2026-04-07 | #52 |
@@ -552,15 +554,15 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-04-07
+**Последнее обновление:** 2026-04-08
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Transport (1) | 4 | 1 | 0 | 3 | 0 | 0 |
-| Middleware & Infra | 4 | 4 | 0 | 0 | 0 | 0 |
+| Middleware & Infra | 4 | 1 | 0 | 3 | 0 | 0 |
 | Sessions (2) | 5 | 2 | 0 | 3 | 0 | 0 |
-| Auth (3) | 3 | 3 | 0 | 0 | 0 | 0 |
+| Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
 | ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Security (8) | 6 | 6 | 0 | 0 | 0 | 0 |
@@ -568,7 +570,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX (9) | 8 | 8 | 0 | 0 | 0 | 0 |
 | Scalability (10) | 5 | 5 | 0 | 0 | 0 | 0 |
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
-| Tech Debt | 14 | 11 | 0 | 2 | 0 | 0 |
+| Tech Debt | 14 | 10 | 0 | 3 | 0 | 1 |
 | Quality | 11 | 8 | 0 | 3 | 0 | 0 |
 | Docs | 5 | 5 | 0 | 0 | 0 | 0 |
 | Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
@@ -578,4 +580,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Memory (D) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
-| **Итого** | **139** | **111** | **0** | **35** | **0** | **0** |
+| **Итого** | **139** | **108** | **0** | **41** | **0** | **1** |

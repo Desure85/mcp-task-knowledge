@@ -421,22 +421,22 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-04-04
-**Текущая feature-ветка:** —
-**Текущий этап:** —
-**Статус:** idle
+**Дата последнего обновления:** 2026-04-08
+**Текущая feature-ветка:** feat/acl-model-policy-definitions-acl001
+**Текущий этап:** ACL-001 — модель ACL и policy definitions
+**Статус:** in_progress
 
 ### Последние действия
 
-- PR #29 открыт (feat/task-hierarchy — MR-002: task hierarchy, depth validation, cascade close)
-- PR #27 merged (market research report + UI screenshots)
-- PR #25 merged (трекинг-тройки, workflow rules)
+- PR #63 merged (A-003: привязка tokenClaims к session TTL) — но PR назван ACL-001, фактически A-003
+- ACL-001, ACL-002, ACL-003 — реально НЕ реализованы, PR #63 не содержит ACL-кода
+- BACKLOG исправлен: статистика (108 pending, 41 done), A-003 PR reference, TD-004 → done
 
 ### Что дальше
 
-- Дождаться мерджа PR #29
-- F-001 (refactoring src/index.ts 4010 строк → модули) — следующая задача по приоритету
-- MR-001 (Streamable HTTP transport) — заблокирован F-001
+- ACL-001: реализовать модель ACL и policy definitions (реально, а не как PR #63)
+- ACL-002: фильтрация списков инструментов/ресурсов по ACL
+- ACL-003: проверка авторизации при вызове инструментов
 
 ---
 
@@ -446,11 +446,11 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 | ID | Описание | Приоритет | Статус |
 |----|----------|-----------|--------|
-| TD-001 | `src/index.ts` — монолитный файл (~4010 строк), вся регистрация инструментов и ресурсов в одном месте | high | pending |
-| TD-002 | Тип `any` в нескольких местах (vectorAdapter, toolRegistry) | medium | pending |
-| TD-003 | Legacy-поддержка путей знаний (`DATA_DIR/knowledge/<id>.md`) | low | pending |
-| TD-004 | Отсутствие rate-limit на уровне инструментов | medium | pending |
-| TD-005 | Нет версионирования документов знаний | low | pending |
+| TD-001 | `src/index.ts` — монолитный файл (~4010 строк), вся регистрация инструментов и ресурсов в одном месте | high | done | F-001 |
+| TD-002 | Тип `any` в нескольких местах (vectorAdapter, toolRegistry) | medium | done | F-006 |
+| TD-003 | Legacy-поддержка путей знаний (`DATA_DIR/knowledge/<id>.md`) | low | deferred | — |
+| TD-004 | Отсутствие rate-limit на уровне инструментов | medium | done | S-003 (#53) |
+| TD-005 | Нет версионирования документов знаний | low | pending | — |
 
 ---
 
