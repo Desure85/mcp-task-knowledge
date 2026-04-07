@@ -34,6 +34,8 @@ import { createLogger, childLogger } from './logger.js';
 import { initMetrics, updateServerInfo } from './metrics.js';
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
+import { EventBus } from './event-bus.js';
+import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
 import { createServerContext } from '../register/setup.js';
 import { registerHelpers } from '../register/helpers.js';
 import { registerCatalogTools } from '../register/catalog.js';
@@ -145,8 +147,10 @@ export class AppContainer {
   private ctx?: ServerContext;
   private adapter?: TransportAdapter;
   private sessionMgr?: SessionManager;
+  private readonly eventBus = new EventBus();
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
+  private startedAt?: number;
   private readonly log = childLogger('app-container');
   private readonly opts: {
     transportType: string;
@@ -211,6 +215,11 @@ export class AppContainer {
       throw new Error('[app-container] session manager not available — call init() first or check sessionManager option');
     }
     return this.sessionMgr;
+  }
+
+  /** EventBus for pub/sub event dispatch (MW-002). Available immediately after construction. */
+  getEventBus(): EventBus {
+    return this.eventBus;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────
@@ -298,10 +307,21 @@ export class AppContainer {
       }
 
       this._state = 'running';
+      this.startedAt = Date.now();
       this.log.info(
         { transport: this.opts.transportType, port: this.opts.port },
         'app running',
       );
+
+      // Emit server.started event
+      const startedEvent: ServerStartedEvent = {
+        type: 'server.started',
+        timestamp: Date.now(),
+        transport: this.opts.transportType,
+        port: this.opts.port,
+        toolCount: this.ctx?.toolNames.size ?? 0,
+      };
+      this.eventBus.emit(startedEvent).catch(() => {}); // fire-and-forget
     } catch (err) {
       this._state = 'error';
       this.log.error({ err }, 'start failed');
@@ -360,6 +380,16 @@ export class AppContainer {
 
       this._state = 'stopped';
       this.log.info('stopped');
+
+      // Emit server.stopped event
+      const uptimeMs = this.startedAt ? Date.now() - this.startedAt : 0;
+      const stoppedEvent: ServerStoppedEvent = {
+        type: 'server.stopped',
+        timestamp: Date.now(),
+        reason: 'explicit',
+        uptimeMs,
+      };
+      this.eventBus.emit(stoppedEvent).catch(() => {}); // fire-and-forget
     } catch (err) {
       this._state = 'error';
       this.log.error({ err }, 'stop failed');
