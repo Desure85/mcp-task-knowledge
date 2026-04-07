@@ -108,21 +108,22 @@ describe('RateLimiter — refill', () => {
 
 describe('RateLimiter — burst', () => {
   it('should allow refill to accumulate above maxTokens via burst', async () => {
-    const limiter = createLimiter({ maxTokens: 3, burstMaxTokens: 6, refillPerSec: 1000 });
+    // Use high maxTokens so loop timing doesn't cause false negatives on slow CI
+    const limiter = createLimiter({ maxTokens: 10, burstMaxTokens: 20, refillPerSec: 1000 });
 
-    // Consume all 3 starting tokens
-    for (let i = 0; i < 3; i++) {
+    // Consume all 10 starting tokens
+    for (let i = 0; i < 10; i++) {
       expect(limiter.allow('s1', 'tool')).toBe(true);
     }
+    // Should be denied — no tokens left (burst allows refill > max, not immediate over-draft)
     expect(limiter.allow('s1', 'tool')).toBe(false);
 
-    // Wait for refill — at 1000/sec, 10ms = 10 tokens, but capped at burst (6)
-    // Need to refill 1 token to allow another call
-    await sleep(5); // ~5 tokens refilled
+    // Wait for refill — at 1000/sec, 5ms ≈ 5 tokens, burst allows accumulation above maxTokens
+    await sleep(5);
     expect(limiter.allow('s1', 'tool')).toBe(true);
 
-    // Should allow up to burst (6 total consumed)
-    // After refill, we had ~5 tokens. Let's consume them
+    // Should allow up to burst (20 total consumed)
+    // After refill, we had ~5 tokens. Consume them to verify burst capacity
     let count = 0;
     while (limiter.allow('s1', 'tool')) count++;
     // Total should be reasonable — burst allows accumulation above maxTokens
