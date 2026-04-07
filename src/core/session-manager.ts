@@ -79,6 +79,9 @@ export interface CreateSessionOptions {
   onClose?: (sessionId: string) => void | Promise<void>;
 }
 
+/** Close reason for session metrics (S-005). */
+export type SessionCloseReason = 'manual' | 'expired' | 'idle_timeout';
+
 /** Configuration for SessionManager. */
 export interface SessionManagerOptions {
   /** Maximum concurrent sessions. Default: 1000. */
@@ -89,6 +92,18 @@ export interface SessionManagerOptions {
   idleTimeoutMs?: number;
   /** Interval between prune sweeps in milliseconds. Default: 60000 (1min). */
   pruneIntervalMs?: number;
+  /**
+   * Callback invoked when a new session is created (S-005).
+   * Used for metrics instrumentation.
+   */
+  onSessionCreate?: () => void;
+  /**
+   * Callback invoked when a session is closed (S-005).
+   * @param durationMs — session lifetime in milliseconds
+   * @param idleMs — idle time at close in milliseconds
+   * @param reason — close reason
+   */
+  onSessionClose?: (durationMs: number, idleMs: number, reason: SessionCloseReason) => void;
 }
 
 // ─── Internal session ────────────────────────────────────────────────
@@ -113,9 +128,11 @@ export class SessionManager {
   private readonly ttlMs: number;
   private readonly idleMs: number;
   private readonly pruneMs: number;
+  private readonly options: SessionManagerOptions | undefined;
   private _closed = false;
 
   constructor(options?: SessionManagerOptions) {
+    this.options = options;
     this.maxSessions = options?.maxSessions
       ?? parseInt(process.env.MCP_MAX_SESSIONS || '1000', 10);
     this.ttlMs = options?.sessionTtlMs
@@ -169,6 +186,9 @@ export class SessionManager {
     this.sessions.set(id, session);
     log.info({ sessionId: id, remote: opts.remote, total: this.sessions.size }, 'session created');
 
+    // S-005: notify metrics
+    this.options?.onSessionCreate?.();
+
     return this.toInfo(session);
   }
 
@@ -187,11 +207,17 @@ export class SessionManager {
   /**
    * Close a specific session by ID.
    * Calls the onClose callback if provided.
+   * @param sessionId — session to close
+   * @param reason — close reason for metrics (default: 'manual')
    * @returns true if session existed and was closed, false otherwise.
    */
-  async close(sessionId: string): Promise<boolean> {
+  async close(sessionId: string, reason?: SessionCloseReason): Promise<boolean> {
+    const closeReason: SessionCloseReason = reason ?? 'manual';
     const session = this.sessions.get(sessionId);
     if (!session) return false;
+
+    const duration = Date.now() - session.createdAt;
+    const idle = Date.now() - session.lastActivityAt;
 
     this.sessions.delete(sessionId);
 
@@ -204,8 +230,10 @@ export class SessionManager {
       }
     }
 
-    const duration = Date.now() - session.createdAt;
-    log.info({ sessionId, remote: session.remote, durationMs: duration }, 'session closed');
+    // S-005: notify metrics
+    this.options?.onSessionClose?.(duration, idle, closeReason);
+
+    log.info({ sessionId, remote: session.remote, durationMs: duration, reason: closeReason }, 'session closed');
 
     return true;
   }
@@ -285,13 +313,13 @@ export class SessionManager {
    */
   async prune(): Promise<string[]> {
     const now = Date.now();
-    const expired: string[] = [];
+    const expired: Array<{ id: string; reason: SessionCloseReason }> = [];
 
     for (const [id, session] of this.sessions) {
       // Check per-session expiry first (A-003)
       if (session.expiresAt != null && now >= session.expiresAt) {
         log.info({ sessionId: id, expiresAt: session.expiresAt, reason: 'token-expiry' }, 'session expired (token TTL)');
-        expired.push(id);
+        expired.push({ id, reason: 'expired' as const });
  } else {
         // Fall back to global TTL + idle checks
         const age = now - session.createdAt;
@@ -299,24 +327,26 @@ export class SessionManager {
 
         if (age >= this.ttlMs) {
           log.info({ sessionId: id, ageMs: age, ttlMs: this.ttlMs }, 'session TTL expired');
-          expired.push(id);
+          expired.push({ id, reason: 'expired' as const });
         } else if (idle >= this.idleMs) {
           log.info({ sessionId: id, idleMs: idle, idleTimeoutMs: this.idleMs }, 'session idle timeout');
-          expired.push(id);
+          expired.push({ id, reason: 'idle_timeout' as const });
         }
       }
     }
 
-    // Close all expired sessions
-    for (const id of expired) {
-      await this.close(id);
+    // Close all expired sessions with their reasons
+    const closedIds: string[] = [];
+    for (const { id, reason } of expired) {
+      await this.close(id, reason);
+      closedIds.push(id);
     }
 
-    if (expired.length > 0) {
-      log.info({ closed: expired.length, remaining: this.sessions.size }, 'prune sweep completed');
+    if (closedIds.length > 0) {
+      log.info({ closed: closedIds.length, remaining: this.sessions.size }, 'prune sweep completed');
     }
 
-    return expired;
+    return closedIds;
   }
 
   // ─── Per-session TTL (A-003) ────────────────────────────────────

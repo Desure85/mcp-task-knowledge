@@ -42,7 +42,7 @@
 - [x] S-002: ToolExecutor и ToolContext (per-session) (PR #52)
 - [x] S-003: Per-session rate limiting (token bucket) (PR #53)
 - [x] S-004: MCP tool `session_info` — клиент может запросить своё состояние (rate limit remaining, TTL, idle timeout) (PR #66)
-- [ ] S-005: Session metrics — Prometheus gauges для активных сессий, duration histogram, idle timer
+- [x] S-005: Session metrics — Prometheus gauges для активных сессий, duration histogram, idle timer (PR #67)
 - [x] MW-001: Middleware pipeline для tool calls (pre/post hooks, logging, error handling) (PR #55)
 - [x] MW-002: Internal event bus (pub/sub внутри сервера) (PR #57)
 - [x] MW-003: Built-in logging middleware (request/response через MW-001) (PR #59)
@@ -223,7 +223,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | S-002 | ToolExecutor и ToolContext (per-session) | medium | **done** ✅ | 2.2 | S-001 |
 | S-003 | Per-session rate limiting (token bucket) | medium | **done** ✅ | 2.3 | S-001 |
 | S-004 | MCP tool `session_info`: клиент запрашивает своё состояние — rate limit remaining, TTL, idle timeout, session age | medium | **done** | — | S-001, S-003, S-002 |
-| S-005 | Session Prometheus metrics: gauges `mcp_sessions_active`, `mcp_sessions_total`, histogram `mcp_session_duration_seconds`, `mcp_session_idle_seconds`. Обновление через SessionManager callbacks | low | pending | — | S-001, F-005 |
+| S-005 | Session Prometheus metrics: gauges `mcp_sessions_active`, `mcp_sessions_total`, histogram `mcp_session_duration_seconds`, `mcp_session_idle_seconds` | low | **done** | — | S-001, F-005 |
 
 ---
 
@@ -521,6 +521,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Закрыто | PR |
 |----|--------|---------|-----|
 | S-004 | session_info + session_list MCP tools (13 tests) | 2026-04-08 | #66 |
+| S-005 | Session Prometheus metrics (gauges, histograms, callbacks, 17 tests) | 2026-04-08 | #67 |
 | ACL-002 | Фильтрация списков инструментов/ресурсов по ACL (filterToolNames, filterResourceUris, 29 tests) | 2026-04-08 | #65 |
 | ACL-003 | Проверка авторизации при вызове инструментов (middleware integration, 4 tests) | 2026-04-08 | #65 |
 | ACL-001 | ACL model and policy definitions (ACLEngine, middleware, pre-hook, 51 tests) | 2026-04-08 | #64 |
@@ -565,7 +566,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Transport (1) | 4 | 1 | 0 | 3 | 0 | 0 |
 | Middleware & Infra | 4 | 1 | 0 | 3 | 0 | 0 |
-| Sessions (2) | 5 | 1 | 0 | 4 | 0 | 0 |
+| Sessions (2) | 5 | 0 | 0 | 5 | 0 | 0 |
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
 | ACL (4) | 3 | 0 | 0 | 3 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
@@ -584,4 +585,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Memory (D) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
-| **Итого** | **139** | **104** | **0** | **45** | **0** | **1** |
+| **Итого** | **139** | **103** | **0** | **46** | **0** | **1** |

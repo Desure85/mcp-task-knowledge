@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { initMetrics, getMetricsRegistry, recordToolCall, recordResourceRead, updateServerInfo, createMetricsHandler, wrapToolHandler, _resetMetrics } from '../src/core/metrics.js';
+import { initMetrics, getMetricsRegistry, recordToolCall, recordResourceRead, updateServerInfo, createMetricsHandler, wrapToolHandler, recordSessionCreated, recordSessionClosed, setSessionsActive, _resetMetrics } from '../src/core/metrics.js';
 
 describe('core/metrics', () => {
   beforeEach(() => {
@@ -203,6 +203,158 @@ describe('core/metrics', () => {
 
       const result = await wrapped({ x: 5 });
       expect(result).toEqual({ result: 10 });
+    });
+  });
+
+  // ─── S-005: Session metrics ───────────────────────────────────────
+
+  describe('recordSessionCreated (S-005)', () => {
+    it('does not throw when metrics are disabled', () => {
+      process.env.MCP_TRANSPORT = 'stdio';
+      initMetrics();
+      expect(() => recordSessionCreated()).not.toThrow();
+    });
+
+    it('increments sessions_total{status="opened"} and sessions_active gauge', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      recordSessionCreated();
+      recordSessionCreated();
+      recordSessionCreated();
+
+      const metrics = await reg.metrics();
+      expect(metrics).toContain('mcp_sessions_total{status="opened"} 3');
+      expect(metrics).toContain('mcp_sessions_active 3');
+    });
+  });
+
+  describe('recordSessionClosed (S-005)', () => {
+    it('does not throw when metrics are disabled', () => {
+      process.env.MCP_TRANSPORT = 'stdio';
+      initMetrics();
+      expect(() => recordSessionClosed(5000, 1000, 'manual')).not.toThrow();
+      expect(() => recordSessionClosed(3000, 500, 'expired')).not.toThrow();
+      expect(() => recordSessionClosed(2000, 2000, 'idle_timeout')).not.toThrow();
+    });
+
+    it('decrements sessions_active and records counter + histograms for manual close', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      // Create 3 sessions then close 1
+      recordSessionCreated();
+      recordSessionCreated();
+      recordSessionCreated();
+      recordSessionClosed(60_000, 5_000, 'manual');
+
+      const metrics = await reg.metrics();
+      // Counter: 3 opened + 1 closed
+      expect(metrics).toContain('mcp_sessions_total{status="opened"} 3');
+      expect(metrics).toContain('mcp_sessions_total{status="closed"} 1');
+      // Gauge: 3 created - 1 closed = 2
+      expect(metrics).toContain('mcp_sessions_active 2');
+      // Duration histogram: 60s
+      expect(metrics).toContain('mcp_session_duration_seconds_count 1');
+      // Idle histogram: 5s, reason=manual
+      expect(metrics).toContain('mcp_session_idle_seconds_count{reason="manual"} 1');
+    });
+
+    it('records expired status for expired close reason', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      recordSessionCreated();
+      recordSessionClosed(120_000, 30_000, 'expired');
+
+      const metrics = await reg.metrics();
+      expect(metrics).toContain('mcp_sessions_total{status="expired"} 1');
+      expect(metrics).toContain('mcp_sessions_active 0');
+      expect(metrics).toContain('mcp_session_idle_seconds_count{reason="expired"} 1');
+    });
+
+    it('records idle_timeout status for idle_timeout close reason', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      recordSessionCreated();
+      recordSessionClosed(60_000, 60_000, 'idle_timeout');
+
+      const metrics = await reg.metrics();
+      expect(metrics).toContain('mcp_sessions_total{status="idle_timeout"} 1');
+      expect(metrics).toContain('mcp_sessions_active 0');
+      expect(metrics).toContain('mcp_session_idle_seconds_count{reason="idle_timeout"} 1');
+    });
+
+    it('records duration in seconds (not ms)', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      // 5000ms = 5s
+      recordSessionCreated();
+      recordSessionClosed(5000, 1000, 'manual');
+
+      const metrics = await reg.metrics();
+      // 5s falls in bucket le=10
+      expect(metrics).toContain('mcp_session_duration_seconds_bucket{le="10"} 1');
+    });
+  });
+
+  describe('setSessionsActive (S-005)', () => {
+    it('does not throw when metrics are disabled', () => {
+      process.env.MCP_TRANSPORT = 'stdio';
+      initMetrics();
+      expect(() => setSessionsActive(42)).not.toThrow();
+    });
+
+    it('sets sessions_active gauge to exact value', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      setSessionsActive(10);
+      const metrics = await reg.metrics();
+      expect(metrics).toContain('mcp_sessions_active 10');
+
+      // Overwrite
+      setSessionsActive(25);
+      const metrics2 = await reg.metrics();
+      expect(metrics2).toContain('mcp_sessions_active 25');
+    });
+  });
+
+  describe('session metrics full lifecycle (S-005)', () => {
+    it('tracks create → active → close correctly across multiple sessions', async () => {
+      process.env.METRICS_ENABLED = '1';
+      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+
+      // Session A created
+      recordSessionCreated();
+      const m1 = await reg.metrics();
+      expect(m1).toContain('mcp_sessions_active 1');
+      expect(m1).toContain('mcp_sessions_total{status="opened"} 1');
+
+      // Session B created
+      recordSessionCreated();
+      const m2 = await reg.metrics();
+      expect(m2).toContain('mcp_sessions_active 2');
+      expect(m2).toContain('mcp_sessions_total{status="opened"} 2');
+
+      // Session A closed manually
+      recordSessionClosed(30_000, 5_000, 'manual');
+      const m3 = await reg.metrics();
+      expect(m3).toContain('mcp_sessions_active 1');
+      expect(m3).toContain('mcp_sessions_total{status="closed"} 1');
+
+      // Session B closed by idle timeout
+      recordSessionClosed(60_000, 30_000, 'idle_timeout');
+      const m4 = await reg.metrics();
+      expect(m4).toContain('mcp_sessions_active 0');
+      expect(m4).toContain('mcp_sessions_total{status="idle_timeout"} 1');
+
+      // Verify histogram counts
+      expect(m4).toContain('mcp_session_duration_seconds_count 2');
+      expect(m4).toContain('mcp_session_idle_seconds_count{reason="manual"} 1');
+      expect(m4).toContain('mcp_session_idle_seconds_count{reason="idle_timeout"} 1');
     });
   });
 });

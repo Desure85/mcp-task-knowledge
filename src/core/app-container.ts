@@ -31,7 +31,7 @@ import type { ServerContext } from '../register/context.js';
 import type { TransportAdapter, TransportConfig } from '../transport/types.js';
 import { defaultTransportRegistry } from '../transport/index.js';
 import { createLogger, childLogger } from './logger.js';
-import { initMetrics, updateServerInfo } from './metrics.js';
+import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClosed } from './metrics.js';
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { EventBus } from './event-bus.js';
@@ -261,9 +261,12 @@ export class AppContainer {
 
       // 6. SessionManager for multi-client transports (auto for non-stdio, unless explicitly disabled)
       if (this.opts.sessionManager !== false && this.opts.transportType !== 'stdio') {
-        this.sessionMgr = new SessionManager(
-          this.opts.sessionManager === undefined ? undefined : this.opts.sessionManager,
-        );
+        this.sessionMgr = new SessionManager({
+          ...(this.opts.sessionManager === undefined ? {} : this.opts.sessionManager),
+          // S-005: wire session metrics callbacks
+          onSessionCreate: () => recordSessionCreated(),
+          onSessionClose: (durationMs, idleMs, reason) => recordSessionClosed(durationMs, idleMs, reason),
+        });
         this.sessionMgr.startPrune();
         this.addCleanup(() => this.sessionMgr!.closeAll());
         this.log.info('session manager initialized');

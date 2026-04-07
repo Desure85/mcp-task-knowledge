@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SessionManager } from '../src/core/session-manager.js';
-import type { SessionManagerOptions, SessionInfo, CreateSessionOptions } from '../src/core/session-manager.js';
+import type { SessionManagerOptions, SessionInfo, CreateSessionOptions, SessionCloseReason } from '../src/core/session-manager.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -382,5 +382,102 @@ describe('SessionManager — SessionInfo', () => {
     expect(infoAfter.ageMs).toBeGreaterThan(infoBefore.ageMs);
     // idleMs should reset to near 0 (much less than infoBefore.idleMs)
     expect(infoAfter.idleMs).toBeLessThan(infoBefore.idleMs);
+  });
+});
+
+// ─── S-005: Metrics callbacks ──────────────────────────────────────
+
+describe('SessionManager — S-005 metrics callbacks', () => {
+  it('should call onSessionCreate callback on create', () => {
+    const onCreate = vi.fn<() => void>();
+    const sm = new SessionManager({ onSessionCreate: onCreate });
+
+    sm.create({ remote: 'test:1' });
+    expect(onCreate).toHaveBeenCalledTimes(1);
+
+    sm.create({ remote: 'test:2' });
+    expect(onCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it('should not call onSessionCreate when no callback provided', () => {
+    const sm = new SessionManager();
+    expect(() => sm.create({ remote: 'test' })).not.toThrow();
+  });
+
+  it('should call onSessionClose with manual reason on explicit close', async () => {
+    const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
+    const sm = new SessionManager({ onSessionClose: onClose });
+    const session = sm.create({ remote: 'test' });
+
+    await sleep(100);
+    await sm.close(session.id);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    const [durationMs, idleMs, reason] = onClose.mock.calls[0];
+    expect(durationMs).toBeGreaterThanOrEqual(0);
+    expect(idleMs).toBeGreaterThanOrEqual(0);
+    expect(reason).toBe('manual');
+  });
+
+  it('should call onSessionClose with expired reason on TTL prune', async () => {
+    const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
+    const sm = createFastManager({ sessionTtlMs: 200, idleTimeoutMs: 99999, onSessionClose: onClose });
+    sm.create({ remote: 'a' });
+
+    await sleep(350);
+    await sm.prune();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose.mock.calls[0][2]).toBe('expired');
+  });
+
+  it('should call onSessionClose with idle_timeout reason on idle prune', async () => {
+    const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
+    const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 200, onSessionClose: onClose });
+    sm.create({ remote: 'a' });
+
+    await sleep(300);
+    await sm.prune();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose.mock.calls[0][2]).toBe('idle_timeout');
+  });
+
+  it('should call onSessionClose with expired reason on per-session token expiry', async () => {
+    const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
+    const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 99999, onSessionClose: onClose });
+    const session = sm.create({ remote: 'a' });
+
+    // Set per-session expiry to 100ms from now
+    sm.setSessionExpiry(session.id, Date.now() + 100);
+    await sleep(200);
+    await sm.prune();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose.mock.calls[0][2]).toBe('expired');
+  });
+
+  it('should call both onSessionCreate and onSessionClose for full lifecycle', async () => {
+    const onCreate = vi.fn<() => void>();
+    const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
+    const sm = new SessionManager({ onSessionCreate: onCreate, onSessionClose: onClose });
+
+    const session = sm.create({ remote: 'a' });
+    expect(onCreate).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    await sleep(20);
+    await sm.close(session.id);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose.mock.calls[0][2]).toBe('manual');
+  });
+
+  it('should not call onSessionClose when closing nonexistent session', async () => {
+    const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
+    const sm = new SessionManager({ onSessionClose: onClose });
+
+    const result = await sm.close('nonexistent');
+    expect(result).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
