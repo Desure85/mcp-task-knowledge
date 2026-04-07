@@ -99,6 +99,16 @@ export interface AuthManagerOptions {
    * If provided, authenticate() will update the session's metadata.
    */
   sessionManager?: SessionManager;
+
+  /**
+   * Grace period before session expiry when bound to JWT token exp (A-003).
+   * Session will be closed `tokenTtlGraceMs` milliseconds before the token expires,
+   * giving the client time to refresh.
+   * Default: 30000 (30 seconds).
+   * Set to 0 to close exactly at token expiry.
+   * Set to Infinity or negative to disable (session lives until global TTL).
+   */
+  tokenTtlGraceMs?: number;
 }
 
 /** Error thrown when authentication fails. */
@@ -139,6 +149,7 @@ export class AuthManager {
   private readonly preAuthMethods: Set<string>;
   private readonly tokenValidator?: TokenValidator;
   private readonly sessionManager?: SessionManager;
+  private readonly tokenTtlGraceMs: number;
   private readonly authenticatedSessions = new Set<string>();
 
   // Default whitelist: methods allowed before auth
@@ -152,6 +163,7 @@ export class AuthManager {
     this.requireAuth = options?.requireAuth ?? false;
     this.tokenValidator = options?.tokenValidator;
     this.sessionManager = options?.sessionManager;
+    this.tokenTtlGraceMs = options?.tokenTtlGraceMs ?? 30_000;
 
     // Build pre-auth method whitelist
     this.preAuthMethods = new Set(AuthManager.DEFAULT_WHITELIST);
@@ -231,6 +243,20 @@ export class AuthManager {
         authenticatedAt: new Date().toISOString(),
         ...(result.metadata ?? {}),
       });
+
+      // A-003: Bind session TTL to JWT token expiry
+      if (result.metadata?._jwt_claims) {
+        const jwtClaims = result.metadata._jwt_claims as Record<string, unknown>;
+        const exp = jwtClaims.exp;
+        if (typeof exp === 'number') {
+          const expMs = exp * 1000;
+          const grace = this.tokenTtlGraceMs;
+          const sessionExpiry = isFinite(grace) && grace >= 0
+            ? expMs - grace
+            : expMs;
+          this.sessionManager.setSessionExpiry(sessionId, sessionExpiry);
+        }
+      }
     }
 
     return result;

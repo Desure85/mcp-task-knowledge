@@ -51,8 +51,8 @@
 ### Этап 4 — Авторизация, ACL, безопасность
 
 - [x] A-001: `mcp.authenticate` + pre-auth method window (PR #60)
-- [x] A-002: JWT/JWKS validation (PR #TBD)
-- [ ] A-003: Привязка tokenClaims к session TTL
+- [x] A-002: JWT/JWKS validation (PR #61)
+- [x] A-003: Привязка tokenClaims к session TTL (PR #TBD)
 - [ ] ACL-001: Модель ACL и policy definitions
 - [ ] ACL-002: Фильтрация списков инструментов/ресурсов по ACL
 - [ ] ACL-003: Проверка авторизации при вызове инструментов
@@ -233,7 +233,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|
 | A-001 | `mcp.authenticate` + pre-auth method window | medium | done | 3.1 | S-001 |
 | A-002 | JWT/JWKS validation | high | done | 3.2 | A-001 |
-| A-003 | Привязка tokenClaims к session TTL | medium | pending | 3.3 | A-002, S-001 |
+| A-003 | Привязка tokenClaims к session TTL | medium | done | 3.3 | A-002, S-001 |
 
 ---
 
