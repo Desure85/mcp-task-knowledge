@@ -55,6 +55,8 @@ import { registerDebugResources } from '../register/debug-resources.js';
 import { registerDependencyTools } from '../register/dependencies.js';
 import { registerDashboardTools } from '../register/dashboard.js';
 import { registerMarkdownTools } from '../register/markdown.js';
+import { registerSessionTools } from '../register/session.js';
+import { RateLimiter } from './rate-limiter.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -117,6 +119,7 @@ export function defaultRegistration(ctx: ServerContext): void {
   registerDependencyTools(ctx);
   registerDashboardTools(ctx);
   registerMarkdownTools(ctx);
+  registerSessionTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerDebugResources(ctx);
@@ -264,6 +267,14 @@ export class AppContainer {
         this.sessionMgr.startPrune();
         this.addCleanup(() => this.sessionMgr!.closeAll());
         this.log.info('session manager initialized');
+
+        // Attach sessionManager to context so session tools (S-004) can access it
+        this.ctx.sessionManager = this.sessionMgr;
+
+        // Create RateLimiter and attach to context for session tools (S-003/S-004)
+        const rateLimiter = new RateLimiter();
+        this.ctx.rateLimiter = rateLimiter;
+        this.log.info('rate limiter initialized');
       }
 
       this._state = 'ready';
