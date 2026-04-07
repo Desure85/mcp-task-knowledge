@@ -205,6 +205,18 @@ export class SessionManager {
   }
 
   /**
+   * Update session metadata (merge into existing metadata).
+   * @param sessionId — session identifier
+   * @param metadata — metadata to merge
+   */
+  updateMetadata(sessionId: string, metadata: Record<string, unknown>): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    session.metadata = { ...session.metadata, ...metadata };
+    this.heartbeat(sessionId);
+  }
+
+  /**
    * Check if a session exists.
    */
   has(sessionId: string): boolean {
