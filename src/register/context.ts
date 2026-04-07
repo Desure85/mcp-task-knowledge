@@ -9,6 +9,8 @@ import type { ServerConfig, CatalogConfig } from '../config.js';
 import type { ServiceCatalogProvider } from '../catalog/provider.js';
 import type { VectorSearchAdapter } from '../search/index.js';
 import type { ACLEngine } from '../core/acl.js';
+import type { SessionManager } from '../core/session-manager.js';
+import type { RateLimiter } from '../core/rate-limiter.js';
 
 export interface ServerContext {
   server: McpServer;
@@ -48,4 +50,10 @@ export interface ServerContext {
 
   /** Optional ACL engine for access control (ACL-002/ACL-003). */
   acl?: ACLEngine;
+
+  /** Optional SessionManager for multi-client transports (S-001, S-004). Set by AppContainer after init. */
+  sessionManager?: SessionManager;
+
+  /** Optional RateLimiter for per-session rate limiting (S-003, S-004). Set by AppContainer after init. */
+  rateLimiter?: RateLimiter;
 }
