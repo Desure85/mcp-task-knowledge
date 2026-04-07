@@ -435,14 +435,14 @@ describe('ToolExecutor — hook management', () => {
   it('should add and count hooks', () => {
     const executor = new ToolExecutor();
 
-    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 0, error: 0 });
+    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 0, error: 0, middleware: 0 });
 
     executor.addPreHook(() => ({}));
     executor.addPreHook(() => ({}));
     executor.addPostHook(() => {});
     executor.addErrorHook(() => {});
 
-    expect(executor.getHookCounts()).toEqual({ pre: 2, post: 1, error: 1 });
+    expect(executor.getHookCounts()).toEqual({ pre: 2, post: 1, error: 1, middleware: 0 });
   });
 
   it('should clear all hooks', () => {
@@ -452,7 +452,7 @@ describe('ToolExecutor — hook management', () => {
     executor.addErrorHook(() => {});
 
     executor.clearHooks();
-    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 0, error: 0 });
+    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 0, error: 0, middleware: 0 });
   });
 
   it('should clear specific hook types', () => {
@@ -462,13 +462,13 @@ describe('ToolExecutor — hook management', () => {
     executor.addErrorHook(() => {});
 
     executor.clearHooks('pre');
-    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 1, error: 1 });
+    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 1, error: 1, middleware: 0 });
 
     executor.clearHooks('error');
-    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 1, error: 0 });
+    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 1, error: 0, middleware: 0 });
 
     executor.clearHooks('post');
-    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 0, error: 0 });
+    expect(executor.getHookCounts()).toEqual({ pre: 0, post: 0, error: 0, middleware: 0 });
   });
 });
 
