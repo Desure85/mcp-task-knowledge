@@ -119,6 +119,8 @@ describe('tasks: updateTask', () => {
   it('updates title and description', async () => {
     const prj = uniqProj('update');
     const t = await tasks.createTask({ project: prj, title: 'Old Title' });
+    // Ensure at least 1ms gap so updatedAt differs (flaky-guard)
+    await new Promise((r) => setTimeout(r, 2));
     const updated = await tasks.updateTask(prj, t.id, { title: 'New Title', description: 'New desc' });
     expect(updated!.title).toBe('New Title');
     expect(updated!.description).toBe('New desc');
