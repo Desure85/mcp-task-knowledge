@@ -108,26 +108,41 @@ describe('RateLimiter — refill', () => {
 
 describe('RateLimiter — burst', () => {
   it('should allow refill to accumulate above maxTokens via burst', async () => {
-    // Use high maxTokens so loop timing doesn't cause false negatives on slow CI
-    const limiter = createLimiter({ maxTokens: 10, burstMaxTokens: 20, refillPerSec: 1000 });
+    // Use refillPerSec=0 for deterministic initial state, then test burst via time
+    const limiter = createLimiter({ maxTokens: 5, burstMaxTokens: 10, refillPerSec: 0 });
 
-    // Consume all 10 starting tokens
-    for (let i = 0; i < 10; i++) {
+    // Consume all 5 tokens
+    for (let i = 0; i < 5; i++) {
       expect(limiter.allow('s1', 'tool')).toBe(true);
     }
-    // Should be denied — no tokens left (burst allows refill > max, not immediate over-draft)
     expect(limiter.allow('s1', 'tool')).toBe(false);
 
-    // Wait for refill — at 1000/sec, 5ms ≈ 5 tokens, burst allows accumulation above maxTokens
-    await sleep(5);
-    expect(limiter.allow('s1', 'tool')).toBe(true);
+    // Verify we can't get more without refill
+    expect(limiter.allow('s1', 'tool')).toBe(false);
 
-    // Should allow up to burst (20 total consumed)
-    // After refill, we had ~5 tokens. Consume them to verify burst capacity
-    let count = 0;
-    while (limiter.allow('s1', 'tool')) count++;
-    // Total should be reasonable — burst allows accumulation above maxTokens
-    expect(count).toBeGreaterThan(0);
+    // Verify burst ceiling is properly set (no refill means tokens stay at burst max when full)
+    // Create fresh limiter and check that initial tokens = maxTokens (not burst)
+    const fresh = createLimiter({ maxTokens: 3, burstMaxTokens: 10, refillPerSec: 0 });
+    // Initially has exactly maxTokens, not burst
+    expect(fresh.allow('s1', 't')).toBe(true);
+    expect(fresh.allow('s1', 't')).toBe(true);
+    expect(fresh.allow('s1', 't')).toBe(true);
+    expect(fresh.allow('s1', 't')).toBe(false);
+
+    // Now verify burst allows accumulation via refill by using a time-based test
+    // with very small refill rate to minimize CI flakiness
+    const burstLimiter = createLimiter({ maxTokens: 1, burstMaxTokens: 3, refillPerSec: 500 });
+    expect(burstLimiter.allow('s2', 'tool')).toBe(true);
+    // The bucket is now at 0 tokens. Wait for refill:
+    // 500 tokens/sec = 0.5 tokens/ms → in 10ms = 5 tokens, capped at burst (3)
+    await sleep(10);
+    // After refill, should have tokens (burst allows accumulation above maxTokens=1)
+    expect(burstLimiter.allow('s2', 'tool')).toBe(true);
+    // And should have more tokens left (burst gives us up to 3)
+    expect(burstLimiter.allow('s2', 'tool')).toBe(true);
+    expect(burstLimiter.allow('s2', 'tool')).toBe(true);
+    // Now empty
+    expect(burstLimiter.allow('s2', 'tool')).toBe(false);
   });
 
   it('should default burst to maxTokens if burst < max', () => {
