@@ -8,6 +8,7 @@
  * Features:
  *   - Session creation/destruction with unique IDs
  *   - TTL: max session lifetime (default: 24h)
+ *   - Per-session TTL override (A-003): bind session expiry to JWT token exp
  *   - Idle timeout: close if no activity (default: 30min)
  *   - Activity heartbeat: reset idle timer on activity
  *   - Graceful cleanup with custom onClose callbacks
@@ -15,7 +16,7 @@
  *   - Integrates with AppContainer lifecycle (cleanup on stop)
  *
  * Session lifecycle:
- *   created → active → (idle timeout OR TTL OR manual close) → closed
+ *   created → active → (idle timeout OR TTL OR token expiry OR manual close) → closed
  *
  * Configuration:
  *   - maxSessions: number (default: 1000, env: MCP_MAX_SESSIONS)
@@ -23,10 +24,18 @@
  *   - idleTimeoutMs: number (default: 1800000 = 30min, env: MCP_IDLE_TIMEOUT_MS)
  *   - pruneIntervalMs: number (default: 60000 = 1min, env: MCP_PRUNE_INTERVAL_MS)
  *
+ * Per-session TTL (A-003):
+ *   - setSessionExpiry(sessionId, expiresAtMs) — override TTL for a specific session
+ *   - clearSessionExpiry(sessionId) — remove override, fall back to global TTL
+ *   - getSessionExpiry(sessionId) — get effective expiry timestamp (absolute ms)
+ *   - isSessionExpired(sessionId) — check if session has exceeded its effective TTL
+ *   - prune() respects per-session expiry (closes before global TTL if token expired)
+ *
  * Usage:
  *   const sm = new SessionManager({ maxSessions: 100 });
  *   const session = sm.create({ remote: '192.168.1.1:54321' });
  *   sm.heartbeat(session.id);  // reset idle timer
+ *   sm.setSessionExpiry(session.id, Date.now() + 3600_000); // bind to JWT exp
  *   sm.close(session.id);      // manual close
  *   await sm.closeAll();       // shutdown
  */
@@ -52,6 +61,10 @@ export interface SessionInfo {
   ageMs: number;
   /** Milliseconds since last activity. */
   idleMs: number;
+  /** Absolute timestamp (ms) when the session will expire. Undefined if using global TTL. */
+  expiresAt?: number;
+  /** Milliseconds until session expiry. Undefined if using global TTL. */
+  ttlRemainingMs?: number;
   /** Optional metadata attached by the transport or auth layer. */
   metadata?: Record<string, unknown>;
 }
@@ -87,6 +100,8 @@ interface InternalSession {
   lastActivityAt: number;
   onClose?: (sessionId: string) => void | Promise<void>;
   metadata?: Record<string, unknown>;
+  /** Per-session absolute expiry timestamp in ms (A-003). Overrides global TTL. */
+  expiresAt?: number;
 }
 
 // ─── SessionManager ──────────────────────────────────────────────────
@@ -273,15 +288,22 @@ export class SessionManager {
     const expired: string[] = [];
 
     for (const [id, session] of this.sessions) {
-      const age = now - session.createdAt;
-      const idle = now - session.lastActivityAt;
+      // Check per-session expiry first (A-003)
+      if (session.expiresAt != null && now >= session.expiresAt) {
+        log.info({ sessionId: id, expiresAt: session.expiresAt, reason: 'token-expiry' }, 'session expired (token TTL)');
+        expired.push(id);
+ } else {
+        // Fall back to global TTL + idle checks
+        const age = now - session.createdAt;
+        const idle = now - session.lastActivityAt;
 
-      if (age >= this.ttlMs) {
-        log.info({ sessionId: id, ageMs: age, ttlMs: this.ttlMs }, 'session TTL expired');
-        expired.push(id);
-      } else if (idle >= this.idleMs) {
-        log.info({ sessionId: id, idleMs: idle, idleTimeoutMs: this.idleMs }, 'session idle timeout');
-        expired.push(id);
+        if (age >= this.ttlMs) {
+          log.info({ sessionId: id, ageMs: age, ttlMs: this.ttlMs }, 'session TTL expired');
+          expired.push(id);
+        } else if (idle >= this.idleMs) {
+          log.info({ sessionId: id, idleMs: idle, idleTimeoutMs: this.idleMs }, 'session idle timeout');
+          expired.push(id);
+        }
       }
     }
 
@@ -295,6 +317,81 @@ export class SessionManager {
     }
 
     return expired;
+  }
+
+  // ─── Per-session TTL (A-003) ────────────────────────────────────
+
+  /**
+   * Set a per-session expiry timestamp (absolute, in ms).
+   * When set, the session will be closed by prune() when this time is reached,
+   * even if the global TTL has not yet elapsed.
+   *
+   * Typically called by AuthManager after JWT authentication,
+   * using the token's `exp` claim minus a grace period.
+   *
+   * @param sessionId — session to update
+   * @param expiresAtMs — absolute timestamp in milliseconds when session should expire
+   * @returns true if session exists and was updated
+   *
+   * @example
+   *   // Bind session to JWT token expiration with 30s grace
+   *   const expMs = jwtPayload.exp * 1000;
+ *   sm.setSessionExpiry(sessionId, expMs - 30_000);
+   */
+  setSessionExpiry(sessionId: string, expiresAtMs: number): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+
+    // Clamp: don't set expiry earlier than creation time
+    const effectiveExpiry = Math.max(session.createdAt, expiresAtMs);
+    session.expiresAt = effectiveExpiry;
+
+    log.info(
+      { sessionId, expiresAt: effectiveExpiry, ttlMs: effectiveExpiry - session.createdAt },
+      'session expiry set (token TTL)',
+    );
+    return true;
+  }
+
+  /**
+   * Clear per-session expiry, reverting to global TTL.
+   * @returns true if session exists and had an expiry override
+   */
+  clearSessionExpiry(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+
+    const had = session.expiresAt != null;
+    session.expiresAt = undefined;
+
+    if (had) {
+      log.info({ sessionId }, 'session expiry cleared — reverting to global TTL');
+    }
+    return had;
+  }
+
+  /**
+   * Get the effective expiry timestamp for a session.
+   * Returns per-session expiry if set, otherwise createdAt + global TTL.
+   * Returns undefined if session not found.
+   */
+  getSessionExpiry(sessionId: string): number | undefined {
+    const session = this.sessions.get(sessionId);
+    if (!session) return undefined;
+
+    return session.expiresAt ?? (session.createdAt + this.ttlMs);
+  }
+
+  /**
+   * Check if a session has exceeded its effective TTL.
+   * Respects per-session expiry override if set.
+   *
+   * @returns true if session is expired, false if valid, undefined if not found
+   */
+  isSessionExpired(sessionId: string): boolean | undefined {
+    const expiry = this.getSessionExpiry(sessionId);
+    if (expiry === undefined) return undefined;
+    return Date.now() >= expiry;
   }
 
   // ─── Shutdown ────────────────────────────────────────────────────
@@ -325,6 +422,7 @@ export class SessionManager {
 
   private toInfo(session: InternalSession): SessionInfo {
     const now = Date.now();
+    const expiresAt = session.expiresAt ?? (session.createdAt + this.ttlMs);
     return {
       id: session.id,
       remote: session.remote,
@@ -332,6 +430,8 @@ export class SessionManager {
       lastActivityAt: new Date(session.lastActivityAt).toISOString(),
       ageMs: now - session.createdAt,
       idleMs: now - session.lastActivityAt,
+      expiresAt,
+      ttlRemainingMs: Math.max(0, expiresAt - now),
       metadata: session.metadata,
     };
   }
