@@ -53,7 +53,7 @@
 - [x] A-001: `mcp.authenticate` + pre-auth method window (PR #60)
 - [x] A-002: JWT/JWKS validation (PR #61)
 - [x] A-003: Привязка tokenClaims к session TTL (PR #63)
-- [ ] ACL-001: Модель ACL и policy definitions
+- [x] ACL-001: Модель ACL и policy definitions
 - [ ] ACL-002: Фильтрация списков инструментов/ресурсов по ACL
 - [ ] ACL-003: Проверка авторизации при вызове инструментов
 - [ ] SEC-001: Audit logging (все MCP-операции → structured audit trail)
@@ -241,7 +241,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| ACL-001 | Модель ACL и policy definitions | medium | pending | 4.1 | A-002 |
+| ACL-001 | Модель ACL и policy definitions | medium | **done** | 4.1 | A-002 |
 | ACL-002 | Фильтрация списков инструментов/ресурсов по ACL | medium | pending | 4.2 | ACL-001 |
 | ACL-003 | Проверка авторизации при вызове инструментов | medium | pending | 4.3 | ACL-001 |
 
@@ -520,6 +520,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Закрыто | PR |
 |----|--------|---------|-----|
+| ACL-001 | ACL model and policy definitions (ACLEngine, middleware, pre-hook, 51 tests) | 2026-04-08 | pending PR |
 | A-003 | Привязка tokenClaims к session TTL | 2026-04-07 | #63 |
 | TD-004 | Rate limiting на уровне инструментов | 2026-04-08 | #53 (покрыто S-003) |
 | T-003 | Stdio extraction: connected getter на всех TransportAdapter | 2026-04-07 | #50 |
@@ -563,7 +564,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Middleware & Infra | 4 | 1 | 0 | 3 | 0 | 0 |
 | Sessions (2) | 5 | 2 | 0 | 3 | 0 | 0 |
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
-| ACL (4) | 3 | 3 | 0 | 0 | 0 | 0 |
+| ACL (4) | 3 | 2 | 0 | 1 | 0 | 0 |
 | Proxy (5) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Security (8) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -580,4 +581,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Memory (D) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
-| **Итого** | **139** | **108** | **0** | **41** | **0** | **1** |
+| **Итого** | **139** | **107** | **0** | **42** | **0** | **1** |
