@@ -45,7 +45,7 @@
 - [ ] S-005: Session metrics — Prometheus gauges для активных сессий, duration histogram, idle timer
 - [x] MW-001: Middleware pipeline для tool calls (pre/post hooks, logging, error handling) (PR #55)
 - [x] MW-002: Internal event bus (pub/sub внутри сервера) (PR #57)
-- [ ] MW-003: Built-in logging middleware (request/response через MW-001)
+- [x] MW-003: Built-in logging middleware (request/response через MW-001) (PR #59)
 - [ ] CFG-001: Unified configuration (env + config file + defaults + schema validation)
 
 ### Этап 4 — Авторизация, ACL, безопасность
@@ -210,7 +210,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|
 | MW-001 | Middleware pipeline: chain of pre/post interceptors для tool calls. Базовый интерфейс `ToolMiddleware { before(ctx), after(ctx, result), onError(ctx, err) }`. Порядок execution, short-circuit, error propagation | high | ✅ done | PR #55 | T-001 |
 | MW-002 | Internal event bus: pub/sub шина внутри сервера. Топики: `tool.called`, `task.created`, `session.opened`. Подписчики: logger, metrics, rules engine, connectors. Typed events, async dispatch | high | ✅ done | PR #57 | T-001 |
-| MW-003 | Built-in logging middleware: request/response logging для tool calls через MW-001 pipeline. Structured log: tool name, input, output (truncated), duration, sessionId, userId. Конфигурируемый verbosity | medium | pending | — | MW-001, S-002 |
+| MW-003 | Built-in logging middleware: request/response logging для tool calls через MW-001 pipeline. Structured log: tool name, input, output (truncated), duration, sessionId, userId. Конфигурируемый verbosity | medium | ✅ done | PR #59 | MW-001, S-002 |
 | CFG-001 | Unified configuration: единая система конфигурации — env vars, config file (YAML/JSON), runtime defaults, schema validation (Zod). Иерархия: defaults → config file → env → CLI args. API: `config.get('server.port')` | high | pending | — | T-001 |
 
 ---
