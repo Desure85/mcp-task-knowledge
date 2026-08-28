@@ -17,6 +17,8 @@ import type { ServerContext } from '../register/context.js';
 import { createOpenAPIHandler } from '../register/openapi.js';
 import { childLogger } from '../core/logger.js';
 import { createMetricsHandler } from '../core/metrics.js';
+import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
+import type { HealthChecker } from '../health/index.js';
 
 const log = childLogger('transport:http');
 
@@ -27,10 +29,12 @@ export class HttpTransportAdapter implements TransportAdapter {
   private transport?: SdkHttpTransport;
   private httpServer?: HttpServer;
   private _connected = false;
+  private healthHandlers?: ReturnType<typeof createHealthHandlers>;
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
     private readonly host: string = process.env.MCP_HOST || '0.0.0.0',
+    private readonly healthChecker?: HealthChecker,
   ) {}
 
   get connected(): boolean {
@@ -50,8 +54,22 @@ export class HttpTransportAdapter implements TransportAdapter {
 
     const apiHandler = createOpenAPIHandler(ctx);
 
+    // Create health handlers if a HealthChecker is provided
+    if (this.healthChecker) {
+      this.healthHandlers = createHealthHandlers(this.healthChecker);
+    }
+
     this.httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       const url = req.url || '/';
+
+      // Route /healthz, /readyz, /drainz to health handlers (SCALE-001)
+      if (this.healthHandlers) {
+        const healthEndpoint = matchHealthEndpoint(url);
+        if (healthEndpoint) {
+          await this.healthHandlers[healthEndpoint](req, res);
+          return;
+        }
+      }
 
       // Route /metrics to Prometheus exporter
       if (url === '/metrics' || url === '/metrics/') {
@@ -148,7 +166,8 @@ export class HttpTransportFactory implements TransportFactory {
     const host = typeof opts.host === 'string'
       ? opts.host
       : String(opts.host || process.env.MCP_HOST || '0.0.0.0');
+    const healthChecker = opts.healthChecker as HealthChecker | undefined;
 
-    return new HttpTransportAdapter(port, host);
+    return new HttpTransportAdapter(port, host, healthChecker);
   }
 }

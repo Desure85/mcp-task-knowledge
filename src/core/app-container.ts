@@ -57,6 +57,7 @@ import { registerDashboardTools } from '../register/dashboard.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
 import { RateLimiter } from './rate-limiter.js';
+import { HealthChecker } from '../health/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -151,6 +152,7 @@ export class AppContainer {
   private adapter?: TransportAdapter;
   private sessionMgr?: SessionManager;
   private readonly eventBus = new EventBus();
+  private readonly healthChecker = new HealthChecker();
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private startedAt?: number;
@@ -225,6 +227,11 @@ export class AppContainer {
     return this.eventBus;
   }
 
+  /** HealthChecker for Kubernetes probes (SCALE-001). Available immediately after construction. */
+  getHealthChecker(): HealthChecker {
+    return this.healthChecker;
+  }
+
   // ─── Lifecycle ───────────────────────────────────────────────────
 
   /**
@@ -285,6 +292,16 @@ export class AppContainer {
         { tools: this.ctx.toolNames.size, transport: this.opts.transportType },
         'app initialized',
       );
+
+      // Register health check components (SCALE-001)
+      const ctx = this.ctx;
+      this.healthChecker.register('app', () => ({
+        name: 'app',
+        status: this._state === 'running' || this._state === 'ready' ? 'healthy' : 'unhealthy',
+        ready: this._state === 'running' || this._state === 'ready',
+        message: `state: ${this._state}`,
+        details: { state: this._state, tools: ctx.toolNames.size },
+      }));
     } catch (err) {
       this._state = 'error';
       this.log.error({ err }, 'initialization failed');
@@ -310,7 +327,7 @@ export class AppContainer {
       // Create transport adapter via registry
       const config: TransportConfig = {
         type: this.opts.transportType,
-        options: { port: this.opts.port, host: this.opts.host },
+        options: { port: this.opts.port, host: this.opts.host, healthChecker: this.healthChecker },
       };
       this.adapter = defaultTransportRegistry.createTransport(config);
       await this.adapter.connect(this.ctx);
@@ -326,6 +343,18 @@ export class AppContainer {
         { transport: this.opts.transportType, port: this.opts.port },
         'app running',
       );
+
+      // Register transport health check (SCALE-001)
+      this.healthChecker.register('transport', () => {
+        const h = this.adapter?.health();
+        return {
+          name: 'transport',
+          status: h?.healthy ? 'healthy' : 'unhealthy',
+          ready: h?.healthy ?? false,
+          message: h?.healthy ? 'ok' : 'transport not healthy',
+          details: h?.details,
+        };
+      });
 
       // Emit server.started event
       const startedEvent: ServerStartedEvent = {
