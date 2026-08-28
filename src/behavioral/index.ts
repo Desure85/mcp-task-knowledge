@@ -25,3 +25,6 @@ export type { RepairPatch, SourceResolution, PatchStatus, AutoHealOptions, Trigg
 
 export { GuardrailPredictor } from './guardrail-predictor.js';
 export type { GuardPattern, PredictInput, PredictWarning, PredictResult, RiskLevel, GuardrailOptions } from './guardrail-predictor.js';
+
+export { CrossProjectSearch } from './cross-project-search.js';
+export type { ProjectMemory, CrossProjectHit, FixSearchOptions } from './cross-project-search.js';
