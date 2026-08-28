@@ -211,7 +211,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | MW-001 | Middleware pipeline: chain of pre/post interceptors для tool calls. Базовый интерфейс `ToolMiddleware { before(ctx), after(ctx, result), onError(ctx, err) }`. Порядок execution, short-circuit, error propagation | high | ✅ done | PR #55 | T-001 |
 | MW-002 | Internal event bus: pub/sub шина внутри сервера. Топики: `tool.called`, `task.created`, `session.opened`. Подписчики: logger, metrics, rules engine, connectors. Typed events, async dispatch | high | ✅ done | PR #57 | T-001 |
 | MW-003 | Built-in logging middleware: request/response logging для tool calls через MW-001 pipeline. Structured log: tool name, input, output (truncated), duration, sessionId, userId. Конфигурируемый verbosity | medium | ✅ done | PR #59 | MW-001, S-002 |
-| CFG-001 | Unified configuration: единая система конфигурации — env vars, config file (YAML/JSON), runtime defaults, schema validation (Zod). Иерархия: defaults → config file → env → CLI args. API: `config.get('server.port')` | high | pending | — | T-001 |
+| CFG-001 | Unified configuration: единая система конфигурации — env vars, config file (YAML/JSON), runtime defaults, schema validation (Zod). Иерархия: defaults → config file → env → CLI args. API: `config.get('server.port')` | high | done | PR #71 | T-001 |
 
 ---
 
@@ -614,7 +614,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |-----------|-------|---------|-------------|------|---------|----------|
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Transport (1) | 4 | 1 | 0 | 3 | 0 | 0 |
-| Middleware & Infra | 4 | 1 | 0 | 3 | 0 | 0 |
+| Middleware & Infra | 4 | 0 | 0 | 4 | 0 | 0 |
 | Sessions (2) | 5 | 0 | 0 | 5 | 0 | 0 |
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
 | ACL (4) | 3 | 0 | 0 | 3 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **121** | **2** | **48** | **0** | **1** |
+| **Итого** | **161** | **120** | **2** | **49** | **0** | **1** |
