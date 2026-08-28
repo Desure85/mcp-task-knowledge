@@ -28,3 +28,6 @@ export type { GuardPattern, PredictInput, PredictWarning, PredictResult, RiskLev
 
 export { CrossProjectSearch } from './cross-project-search.js';
 export type { ProjectMemory, CrossProjectHit, FixSearchOptions } from './cross-project-search.js';
+
+export { GuardRuleLearner } from './guard-rule-learner.js';
+export type { LearnResult, LearnerOptions } from './guard-rule-learner.js';
