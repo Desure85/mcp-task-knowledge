@@ -16,3 +16,6 @@ export type { SkillTemplate } from './skill-templates.js';
 
 export { toCursorRules, toSkillMd, toClinerules, toMarkdown, convertSkill, fileNameFor, exportSkills } from './skill-converters.js';
 export type { SkillExportFormat, ExportResult } from './skill-converters.js';
+
+export { SkillPermissions } from './skill-permissions.js';
+export type { SkillScope, InvocationCaller, InvocationContext, PermissionDecision, PermissionResult } from './skill-permissions.js';
