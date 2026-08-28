@@ -123,8 +123,8 @@
 - [ ] RL-004: Built-in rule packs
 - [ ] RL-005: Rule enforcement hooks
 - [ ] RL-006: Rule import (.cursorrules, CLAUDE.md, .clinerules)
-- [ ] WF-001: Workflow DAG builder
-- [ ] WF-002: Workflow executor
+- [x] WF-001: Workflow DAG builder
+- [x] WF-002: Workflow executor
 - [ ] WF-003: Workflow templates
 - [ ] WF-004: Human-in-the-loop
 - [ ] WF-005: Workflow state persistence
@@ -452,7 +452,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | WF-001 | Workflow DAG builder: определение графа — nodes (tools/skills/rules), edges (dependencies), conditions, triggers | critical | done | PR #93 | SK-001 |
-| WF-002 | Workflow executor: выполнение — sequential, parallel, conditional branching, error recovery, retry logic | critical | pending | — | WF-001 |
+| WF-002 | Workflow executor: выполнение — sequential, parallel, conditional branching, error recovery, retry logic | critical | done | PR #94 | WF-001 |
 | WF-003 | Workflow templates: pre-built flows — code-review-pipeline, feature-dev-flow, bug-triage, release-checklist, research-and-plan | high | pending | — | WF-001 |
 | WF-004 | Human-in-the-loop: точки останова для подтверждения пользователем. Approve/reject/modify перед критическими шагами | high | pending | — | WF-002 |
 | WF-005 | Workflow state persistence: чекпоинты, возобновление после сбоев. Resume с места остановки. Session linkage | medium | pending | — | WF-002 |
@@ -630,10 +630,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
 | Skills (A) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Rules (B) | 6 | 5 | 0 | 1 | 0 | 0 |
-| Workflows (C) | 6 | 5 | 0 | 1 | 0 | 0 |
+| Workflows (C) | 6 | 4 | 0 | 2 | 0 | 0 |
 | Memory (D) | 4 | 3 | 0 | 1 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 8 | 0 | 6 | 0 | 0 |
-| **Итого** | **161** | **97** | **2** | **72** | **0** | **1** |
+| **Итого** | **161** | **96** | **2** | **73** | **0** | **1** |
