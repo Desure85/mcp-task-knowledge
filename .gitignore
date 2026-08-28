@@ -114,3 +114,4 @@ __pycache__/
 *.temp
 *.log
 .trash/
+.test-tmp/

@@ -264,7 +264,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| SEC-001 | Audit logging: запись всех MCP-операций в structured audit trail — кто, что, когда, результат. Формат: JSON lines, ротация по размеру/времени. Хранение: файл + optional remote (Syslog/Loki). MCP tools: `audit.query`, `audit.export` | high | pending | 8.2 | A-002 |
+| SEC-001 | Audit logging: запись всех MCP-операций в structured audit trail — кто, что, когда, результат. Формат: JSON lines, ротация по размеру/времени. Хранение: файл + optional remote (Syslog/Loki). MCP tools: `audit.query`, `audit.export` | high | done | PR #76 | A-002 |
 | SEC-002 | TLS/mTLS поддержка: TLS для TCP/HTTP транспорта. mTLS для server-to-server (proxy ↔ server). Certificate rotation без downtime. Конфигурация через `CFG-001` | medium | pending | 8.3 | T-002, CFG-001 |
 | SEC-003 | Token refresh flow: short-lived access tokens (15-30 min) + refresh tokens. Refresh endpoint, token revocation, token blacklist. Связь с `A-002` и `A-003` | high | pending | 8.1 | A-002 |
 | SEC-004 | Secret management: хранение секретов (API keys, tokens) — env vars, Docker secrets, HashiCorp Vault integration (optional). Шифрование at-rest для конфиденциальных данных. API: `secrets.get`, `secrets.set` | medium | pending | 8.4 | CFG-001 |
@@ -619,7 +619,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
 | ACL (4) | 3 | 0 | 0 | 3 | 0 | 0 |
 | Proxy (5) | 4 | 0 | 0 | 4 | 0 | 0 |
-| Security (8) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Security (8) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
 | DX (9) | 8 | 8 | 0 | 0 | 0 | 0 |
 | Scalability (10) | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **115** | **2** | **54** | **0** | **1** |
+| **Итого** | **161** | **114** | **2** | **55** | **0** | **1** |
