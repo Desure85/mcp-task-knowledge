@@ -302,4 +302,181 @@ describe('WF-002: WorkflowExecutor', () => {
       expect(invoker).not.toHaveBeenCalled();
     });
   });
+
+  describe('execute() — human-in-the-loop', () => {
+    it('pauses for approval and executes on approve', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const approvalHandler = vi.fn(async () => ({ action: 'approve' as const }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'deploy', type: 'tool', label: 'Deploy', ref: 'deploy', args: { env: 'prod' }, requiresApproval: true },
+        ],
+        [{ from: 'start', to: 'deploy' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      expect(approvalHandler).toHaveBeenCalledTimes(1);
+      expect(approvalHandler).toHaveBeenCalledWith(expect.objectContaining({
+        workflowId: 'test-wf',
+        nodeId: 'deploy',
+        nodeLabel: 'Deploy',
+        ref: 'deploy',
+        args: { env: 'prod' },
+        attempt: 0,
+      }));
+      expect(invoker).toHaveBeenCalledWith('deploy', { env: 'prod' });
+    });
+
+    it('uses modified args when decision is modify', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const approvalHandler = vi.fn(async () => ({ action: 'modify' as const, args: { env: 'staging' } }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'deploy', type: 'tool', label: 'Deploy', ref: 'deploy', args: { env: 'prod' }, requiresApproval: true },
+        ],
+        [{ from: 'start', to: 'deploy' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      expect(invoker).toHaveBeenCalledWith('deploy', { env: 'staging' });
+    });
+
+    it('stops the workflow when the decision is reject', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const approvalHandler = vi.fn(async () => ({ action: 'reject' as const }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'risky', type: 'tool', label: 'Risky', ref: 'risky', requiresApproval: true },
+          { id: 'after', type: 'tool', label: 'After', ref: 'after' },
+        ],
+        [
+          { from: 'start', to: 'risky' },
+          { from: 'risky', to: 'after' },
+        ],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('rejected by user');
+      expect(invoker).not.toHaveBeenCalled();
+    });
+
+    it('continues on reject when continueOnError=true', async () => {
+      const invoker: ToolInvoker = vi.fn(async (name) => (name === 'after' ? 'ok' : 'skip'));
+      const approvalHandler = vi.fn(async () => ({ action: 'reject' as const }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler, continueOnError: true });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'risky', type: 'tool', label: 'Risky', ref: 'risky', requiresApproval: true },
+          { id: 'after', type: 'tool', label: 'After', ref: 'after' },
+        ],
+        [
+          { from: 'start', to: 'risky' },
+          { from: 'risky', to: 'after' },
+        ],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      expect(invoker).toHaveBeenCalledWith('after', {});
+    });
+
+    it('approval receives interpolated args', async () => {
+      const invoker: ToolInvoker = vi.fn(async (name, args) => args);
+      const approvalHandler = vi.fn(async () => ({ action: 'approve' as const }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'gen', type: 'tool', label: 'Gen', ref: 'gen', args: {} },
+          { id: 'publish', type: 'tool', label: 'Publish', ref: 'publish', args: { input: '${gen}' }, requiresApproval: true },
+        ],
+        [
+          { from: 'start', to: 'gen' },
+          { from: 'gen', to: 'publish' },
+        ],
+      );
+
+      const invokerFn: ToolInvoker = async (name, args) => (name === 'gen' ? 'generated' : args);
+      const exec2 = new WorkflowExecutor({ toolInvoker: invokerFn, approvalHandler });
+      const result = await exec2.execute(wf);
+      expect(result.success).toBe(true);
+      expect(approvalHandler).toHaveBeenCalledWith(expect.objectContaining({
+        nodeId: 'publish',
+        args: { input: 'generated' },
+      }));
+    });
+
+    it('action node acts as an approval checkpoint', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const approvalHandler = vi.fn(async () => ({ action: 'approve' as const }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'gate', type: 'action', label: 'Gate', requiresApproval: true },
+          { id: 'after', type: 'tool', label: 'After', ref: 'after' },
+        ],
+        [
+          { from: 'start', to: 'gate' },
+          { from: 'gate', to: 'after' },
+        ],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      expect(approvalHandler).toHaveBeenCalledTimes(1);
+      expect(invoker).toHaveBeenCalledWith('after', {});
+    });
+
+    it('fails with a clear error when no approval handler is configured', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'risky', type: 'tool', label: 'Risky', ref: 'risky', requiresApproval: true },
+        ],
+        [{ from: 'start', to: 'risky' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('no approval handler configured');
+    });
+
+    it('does not pause for nodes without requiresApproval', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const approvalHandler = vi.fn(async () => ({ action: 'approve' as const }));
+      const exec = new WorkflowExecutor({ toolInvoker: invoker, approvalHandler });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'run', type: 'tool', label: 'Run', ref: 'run' },
+        ],
+        [{ from: 'start', to: 'run' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      expect(approvalHandler).not.toHaveBeenCalled();
+    });
+  });
 });

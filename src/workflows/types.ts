@@ -18,6 +18,8 @@ export interface WorkflowNode {
   args?: Record<string, unknown>;
   /** Condition expression (for condition nodes). */
   condition?: string;
+  /** Whether this node requires human approval before execution (HITL). */
+  requiresApproval?: boolean;
   /** Arbitrary metadata. */
   metadata?: Record<string, unknown>;
 }

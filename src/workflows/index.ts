@@ -9,7 +9,10 @@ export type {
 } from './types.js';
 
 export { WorkflowExecutor } from './executor.js';
-export type { ToolInvoker, ExecutionContext, NodeResult, ExecutionResult, ExecutorOptions } from './executor.js';
+export type {
+  ToolInvoker, ExecutionContext, NodeResult, ExecutionResult, ExecutorOptions,
+  ApprovalRequest, ApprovalDecision, ApprovalHandler,
+} from './executor.js';
 
 export { workflowTemplates, listWorkflowTemplates, getWorkflowTemplate, buildWorkflowFromTemplate, installWorkflowFromTemplate } from './templates.js';
 export type { WorkflowTemplate } from './templates.js';
