@@ -68,10 +68,54 @@ No `opencode.json` registration needed.
 
 ## Planned Plugins
 
-### memory-sync.ts (OC-002)
+### memory-sync.ts (OC-002) — implemented
 
-Hook on `tool.execute.after` for `/remember` command → debounced sync of `facts.md`
-into mcp-task-knowledge knowledge base. Direct MCP call via `ctx.client`.
+Hook on `tool.execute.after` for `/remember` command → debounced sync (30s) of
+`facts.md` into mcp-task-knowledge knowledge base. Direct MCP call via `input.client`.
+
+**Installation:**
+
+```bash
+cp extensions/opencode/memory-sync.ts ~/.config/opencode/plugins/
+```
+
+**Configuration:**
+
+```jsonc
+{
+  "plugin": [
+    ["@mcp-task-knowledge/memory-sync", {
+      "project": "agent-memory",
+      "factsPath": "~/.omo/memory/facts.md",
+      "debounceMs": 30000,
+      "enabled": true
+    }]
+  ]
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `project` | `"agent-memory"` | MCP project name to sync to |
+| `factsPath` | `~/.omo/memory/facts.md` | Path to facts.md |
+| `statePath` | `~/.omo/memory/.sync-state.json` | Sync state (hashes) |
+| `debounceMs` | `30000` | Debounce delay before sync |
+| `enabled` | `true` | Enable/disable plugin |
+
+**How it works:**
+
+1. Agent runs `/remember` → writes fact to `facts.md`
+2. Plugin hook `tool.execute.after` fires
+3. Debounce 30s (multiple /remember in 30s → one sync)
+4. Parse `facts.md` into entries (## headings)
+5. Hash each entry (title + content)
+6. Compare with state file (`.sync-state.json`)
+7. New/changed entries → `knowledge_bulk_create` via MCP
+8. Update state file with synced hashes
+
+**State file:** `~/.omo/memory/.sync-state.json` tracks which entries have been
+synced (by hash). If state is lost, re-sync creates duplicates (OC-003 will fix
+this with dedup).
 
 ### memory-context.ts (OC-005)
 
