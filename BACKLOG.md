@@ -111,8 +111,8 @@
 
 ### Этап 9 — Skills, Rules, Workflows, Memory
 
-- [ ] SK-001: Skills CRUD (Markdown + YAML frontmatter)
-- [ ] SK-002: Skill invocation pipeline
+- [x] SK-001: Skills CRUD (Markdown + YAML frontmatter)
+- [x] SK-002: Skill invocation pipeline
 - [ ] SK-003: Skill discovery + импорт из awesome-cursorrules
 - [ ] SK-004: Pre-built skill templates
 - [ ] SK-005: Skill sharing + конвертеры форматов
@@ -418,7 +418,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | SK-001 | Skills CRUD: создание, редактирование, версионирование скиллов. Markdown + YAML frontmatter, поддержка `$ARGUMENTS`, `${VARS}` | critical | done | PR #89 | — |
-| SK-002 | Skill invocation pipeline: триггер → контекст → выполнение → результат. `context: fork` для сабагентов, shell injection `!command`` | critical | pending | — | SK-001 |
+| SK-002 | Skill invocation pipeline: триггер → контекст → выполнение → результат. `context: fork` для сабагентов, shell injection `!command`` | critical | done | PR #97 | SK-001 |
 | SK-003 | Skill discovery: каталог с тегами, поиск, категории. Импорт из awesome-cursorrules и других источников | high | pending | — | SK-001 |
 | SK-004 | Skill templates: pre-built скиллы из коробки — code-review, deploy, test-gen, refactor, debug, architecture-review | high | pending | — | SK-001 |
 | SK-005 | Skill sharing: экспорт/импорт. Конвертеры: .cursorrules ↔ SKILL.md ↔ .clinerules ↔ наш формат. Git-native хранение | medium | pending | — | SK-001 |
@@ -628,7 +628,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Quality | 11 | 8 | 0 | 3 | 0 | 0 |
 | Docs | 5 | 5 | 0 | 0 | 0 | 0 |
 | Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
-| Skills (A) | 6 | 5 | 0 | 1 | 0 | 0 |
+| Skills (A) | 6 | 4 | 0 | 2 | 0 | 0 |
 | Rules (B) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Workflows (C) | 6 | 2 | 0 | 4 | 0 | 0 |
 | Memory (D) | 4 | 3 | 0 | 1 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 8 | 0 | 6 | 0 | 0 |
-| **Итого** | **161** | **94** | **2** | **75** | **0** | **1** |
+| **Итого** | **161** | **93** | **2** | **76** | **0** | **1** |
