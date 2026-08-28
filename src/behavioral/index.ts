@@ -22,3 +22,6 @@ export type { LineageNode, LineageResult } from './code-lineage.js';
 
 export { AutoHealWorker } from './auto-heal.js';
 export type { RepairPatch, SourceResolution, PatchStatus, AutoHealOptions, TriggerFilter, AutoHealStatus } from './auto-heal.js';
+
+export { GuardrailPredictor } from './guardrail-predictor.js';
+export type { GuardPattern, PredictInput, PredictWarning, PredictResult, RiskLevel, GuardrailOptions } from './guardrail-predictor.js';
