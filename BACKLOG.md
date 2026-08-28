@@ -116,7 +116,7 @@
 - [x] SK-003: Skill discovery + импорт из awesome-cursorrules
 - [x] SK-004: Pre-built skill templates
 - [x] SK-005: Skill sharing + конвертеры форматов
-- [ ] SK-006: Skill permissions (Agent Skills spec)
+- [x] SK-006: Skill permissions (Agent Skills spec)
 - [x] RL-001: Rules storage (global → project → user)
 - [x] RL-002: Rules evaluation (runtime guard checks)
 - [x] RL-003: Policy-as-code (JSON/DSL)
@@ -422,7 +422,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | SK-003 | Skill discovery: каталог с тегами, поиск, категории. Импорт из awesome-cursorrules и других источников | high | done | PR #100 | SK-001 |
 | SK-004 | Skill templates: pre-built скиллы из коробки — code-review, deploy, test-gen, refactor, debug, architecture-review | high | done | PR #101 | SK-001 |
 | SK-005 | Skill sharing: экспорт/импорт. Конвертеры: .cursorrules ↔ SKILL.md ↔ .clinerules ↔ наш формат. Git-native хранение | medium | done | PR #108 | SK-001 |
-| SK-006 | Skill permissions: `allowed-tools`, `disable-model-invocation`, scope (project/user/global) по Agent Skills spec | medium | pending | — | SK-001, SK-002 |
+| SK-006 | Skill permissions: `allowed-tools`, `disable-model-invocation`, scope (project/user/global) по Agent Skills spec | medium | done | PR #109 | SK-001, SK-002 |
 
 ---
 
@@ -628,7 +628,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Quality | 11 | 8 | 0 | 3 | 0 | 0 |
 | Docs | 5 | 5 | 0 | 0 | 0 | 0 |
 | Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
-| Skills (A) | 6 | 1 | 0 | 5 | 0 | 0 |
+| Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 2 | 0 | 4 | 0 | 0 |
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Memory (D) | 4 | 3 | 0 | 1 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 6 | 0 | 8 | 0 | 0 |
-| **Итого** | **161** | **83** | **2** | **86** | **0** | **1** |
+| **Итого** | **161** | **82** | **2** | **87** | **0** | **1** |
