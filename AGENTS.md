@@ -421,22 +421,27 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-04-08
-**Текущая feature-ветка:** feat/acl-model-policy-definitions-acl001
-**Текущий этап:** ACL-001 — модель ACL и policy definitions
-**Статус:** in_progress
+**Дата последнего обновления:** 2026-08-28
+**Текущая feature-ветка:** fix/infra-gitignore-ci-base-rebuild
+**Текущий этап:** Этап F — OpenCode Integration
+**Статус:** in_progress (PR #68 — review)
 
 ### Последние действия
 
-- PR #63 merged (A-003: привязка tokenClaims к session TTL) — но PR назван ACL-001, фактически A-003
-- ACL-001, ACL-002, ACL-003 — реально НЕ реализованы, PR #63 не содержит ACL-кода
-- BACKLOG исправлен: статистика (108 pending, 41 done), A-003 PR reference, TD-004 → done
+- 2026-08-28: Аудит репозитория — master синхронизирован (был -22 коммита), build + 989 тестов OK
+- 2026-08-28: Найдена корневая причина "битого latest" — GHCR base-образы устарели (2025-08-31), нет pino/jose
+- 2026-08-28: PR #68 открыт — .gitignore fix + auto-rebuild base images trigger (FIX-1/2)
+- 2026-08-28: BACKLOG консолидирован — добавлен Этап F (OC-001..OC-008), 8 новых задач
+- 2026-08-28: OC-001 in_progress — создан extensions/opencode/memory-recall.ts (OpenCode плагин)
+- 2026-04-08: ACL-001/002/003 done (PR #64/#65), A-001/002/003 done (PR #60/61/62), S-004/005 done (PR #66/67)
 
 ### Что дальше
 
-- ACL-001: реализовать модель ACL и policy definitions (реально, а не как PR #63)
-- ACL-002: фильтрация списков инструментов/ресурсов по ACL
-- ACL-003: проверка авторизации при вызове инструментов
+- Дождаться мерджа PR #68
+- Запустить пересборку GHCR base-образов (docker-build-base.yml) вручную
+- OC-001 → review (после тестирования плагина в OpenCode)
+- OC-002 (memory-sync плагин) — следующая задача
+- CFG-001 (Unified configuration) — из основного BACKLOG
 
 ---
 

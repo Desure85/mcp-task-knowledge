@@ -508,6 +508,28 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап F — OpenCode Integration & Memory Sync
+
+> Источник: заметки 2026-08-28 (консолидация из ~/.omo/notes).
+> Часть задач уже покрыта существующими (TASK-9 → MR-001 done, TASK-10 → A-001/ACL done).
+> Здесь — только новые задачи, не дублирующие существующие.
+>
+> Концепция: Интеграция mcp-task-knowledge как memory-бэкенда для OpenCode-агента.
+> Sync facts.md/patterns.json → knowledge base, авто-инъекция контекста, OpenCode плагины.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| OC-001 | OpenCode плагин `memory-recall`: инжекция инструкции для авто-вызова `search_knowledge` в начале сессии (как session-draft.ts, но для recall). Плагин НЕ вызывает MCP сам — он инструктирует агента | high | in_progress | — | — |
+| OC-002 | OpenCode плагин `memory-sync`: hook `tool.execute.after` на `/remember` → debounce 30с → sync facts.md в knowledge base. Прямой MCP-вызов через `ctx.client` (OpenCode Plugin API) | medium | in_progress | — | OC-001 |
+| OC-003 | Дедупликация при sync: перед `knowledge_bulk_create` — `search_knowledge` по title, если найдено → `knowledge_bulk_update` вместо create. Избегает дублей при повторном sync | high | done | — | OC-002 |
+| OC-004 | patterns.json sync: парсинг structured patterns в sync-скрипт/плагин. Каждая запись → knowledge item с тегами `[pattern, importance-N]` | medium | done | — | OC-002 |
+| OC-005 | Авто-инъекция контекста: hook `experimental.chat.messages.transform` → extract query из last user message → `search_knowledge` top-5 → append compact results в system prompt. Бюджет ~2000 токенов, кэш по query hash (TTL 5 мин), min score threshold | medium | done | — | OC-001 |
+| OC-006 | P2P sync Windows ↔ Linux: git sync facts.md + re-sync index после pull. Или Syncthing для `~/mcpTrackerData/`. Документация по настройке | low | pending | — | OC-002 |
+| OC-007 | Web UI для browse/search памяти: начать с Obsidian export (уже работает), потом минимальный web UI (FastAPI/Express читающий SQLite) если Obsidian не устроит | low | pending | — | — |
+| OC-008 | Cleanup конфига opencode.json: `--config` file вместо 20 env vars. Структурированный JSON-конфиг, git-trackable. Связано с CFG-001 | medium | pending | — | CFG-001 |
+
+---
+
 ## Блокированные
 
 | ID | Задача | Причина | Статус |
@@ -559,7 +581,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-04-08
+**Последнее обновление:** 2026-08-28
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -585,4 +607,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Memory (D) | 4 | 4 | 0 | 0 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
-| **Итого** | **139** | **103** | **0** | **46** | **0** | **1** |
+| OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
+| **Итого** | **147** | **107** | **2** | **48** | **0** | **1** |

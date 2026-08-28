@@ -11,11 +11,96 @@ on:
         description: "Tag to publish (default: latest)"
         required: false
         default: "latest"
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "package.json"
+      - "package-lock.json"
 
 jobs:
+  detect-changes:
+    name: Check if deps changed
+    runs-on: ubuntu-latest
+    outputs:
+      should_rebuild: ${{ steps.check.outputs.should_rebuild }}
+    steps:
+      - name: Check event
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_rebuild=true" >> "$GITHUB_OUTPUT"
+          else
+            # On push: only rebuild if package.json or package-lock.json changed
+            # paths filter already handles this, but double-check
+            echo "should_rebuild=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build-base:
     name: Build Base ${{ matrix.name }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.should_rebuild == 'true'
     runs-on: ubuntu-latest
+    # Skip proxy toolchain images on push trigger — they don't depend on package.json
+    # and are already published in GHCR. Only rebuild on manual dispatch.
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          # Proxy toolchain images (only on workflow_dispatch)
+          - name: proxy-node20-bullseye
+            target: proxy-node20-bullseye
+            image: mcp-node
+            image_tag: 20-bullseye
+            proxy: true
+          - name: proxy-node20-alpine
+            target: proxy-node20-alpine
+            image: mcp-node
+            image_tag: 20-alpine
+            proxy: true
+          - name: proxy-python311-slim
+            target: proxy-python311-slim
+            image: mcp-python
+            image_tag: 3.11-slim
+            proxy: true
+          - name: proxy-cuda-12-4-1
+            target: proxy-cuda-12-4-1
+            image: mcp-cuda
+            image_tag: 12.4.1-cudnn-runtime-ubuntu22.04
+            proxy: true
+
+          # Base images that consume proxies via BASE_* args
+          - name: deps
+            target: base-bm25-with-deps
+            image: mcp-base-bm25
+            proxy: false
+          - name: onnx-cpu
+            target: base-onnx-cpu-with-models
+            image: mcp-base-onnx
+            proxy: false
+          - name: onnx-gpu
+            target: base-onnx-gpu-with-models
+            image: mcp-base-onnx-gpu
+            proxy: false
+
+          # Catalog-embedded base images (cat)
+          - name: deps-cat
+            target: base-bm25-with-deps
+            image: mcp-base-bm25-cat
+            embedCatalog: true
+            proxy: false
+          - name: onnx-cpu-cat
+            target: base-onnx-cpu-with-models
+            image: mcp-base-onnx-cat
+            embedCatalog: true
+            proxy: false
+          - name: onnx-gpu-cat
+            target: base-onnx-gpu-with-models
+            image: mcp-base-onnx-gpu-cat
+            embedCatalog: true
+            proxy: false
     permissions:
       contents: read
       packages: write
@@ -24,65 +109,28 @@ jobs:
       PLATFORMS: ${{ github.event.inputs.platforms || 'linux/amd64' }}
       PUBLISH_TAG: ${{ github.event.inputs.tag || 'latest' }}
 
-    strategy:
-      fail-fast: false
-      max-parallel: 1        # ограничение до 2 параллельных тасков
-      matrix:
-        include:
-          # Build proxy toolchain images first (required by following base images)
-          - name: proxy-node20-bullseye
-            target: proxy-node20-bullseye
-            image: mcp-node
-            image_tag: 20-bullseye
-          - name: proxy-node20-alpine
-            target: proxy-node20-alpine
-            image: mcp-node
-            image_tag: 20-alpine
-          - name: proxy-python311-slim
-            target: proxy-python311-slim
-            image: mcp-python
-            image_tag: 3.11-slim
-          - name: proxy-cuda-12-4-1
-            target: proxy-cuda-12-4-1
-            image: mcp-cuda
-            image_tag: 12.4.1-cudnn-runtime-ubuntu22.04
-
-          # Then build base images that consume proxies via BASE_* args
-          - name: deps
-            target: base-bm25-with-deps
-            image: mcp-base-bm25
-          - name: onnx-cpu
-            target: base-onnx-cpu-with-models
-            image: mcp-base-onnx
-          - name: onnx-gpu
-            target: base-onnx-gpu-with-models
-            image: mcp-base-onnx-gpu
-
-          # Catalog-embedded base images (cat)
-          - name: deps-cat
-            target: base-bm25-with-deps
-            image: mcp-base-bm25-cat
-            embedCatalog: true
-          - name: onnx-cpu-cat
-            target: base-onnx-cpu-with-models
-            image: mcp-base-onnx-cat
-            embedCatalog: true
-          - name: onnx-gpu-cat
-            target: base-onnx-gpu-with-models
-            image: mcp-base-onnx-gpu-cat
-            embedCatalog: true
-
     steps:
+      - name: Skip proxy on push trigger
+        id: skip-check
+        if: github.event_name == 'push' && matrix.proxy == true
+        run: |
+          echo "Skipping proxy image on push trigger (not dep-dependent)"
+          exit 0
+
       - name: Checkout
+        if: steps.skip-check.conclusion != 'success'
         uses: actions/checkout@v4
 
       - name: Set up QEMU
+        if: steps.skip-check.conclusion != 'success'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.skip-check.conclusion != 'success'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
+        if: steps.skip-check.conclusion != 'success'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -91,6 +139,7 @@ jobs:
 
 
       - name: Compute base repo owner (lowercase)
+        if: steps.skip-check.conclusion != 'success'
         id: names
         shell: bash
         run: |
@@ -100,6 +149,7 @@ jobs:
           echo "base_repo=ghcr.io/${owner_lc}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push base image
+        if: steps.skip-check.conclusion != 'success'
         uses: docker/build-push-action@v6
         with:
           context: .
