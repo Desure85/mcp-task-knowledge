@@ -7,6 +7,18 @@ node_modules
 .windsurf
 dist
 audit_bundle
+
+# Local runtime data (Docker volume mount target, root-owned)
+mcpTrackerData/
+
+# Local dev compose (repo has docker-compose.catalog.yml and docker-compose.test.yml)
+docker-compose.yml
+
+# Local temp files
+tmp.json
+
+# Session journals (agent audit trail, not for shared repo)
+.session/
 ###############################
 # OS files
 ###############################
@@ -59,7 +71,7 @@ pnpm-debug.log*
 .next/
 .nuxt/
 
-# Build artifacts (dist is intentionally NOT ignored due to repo usage)
+# Build artifacts (dist is ignored — built via tsc, not committed)
 build/
 coverage/
 reports/
