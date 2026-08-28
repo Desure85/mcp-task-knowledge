@@ -1,103 +1,16 @@
 /**
- * proxy/resilience.spec.ts — Tests for circuit breaker + health watcher (P-004).
+ * proxy/resilience.spec.ts — Tests for upstream health watcher + proxy metrics (P-004).
+ * Circuit breaker tests moved to core/circuit-breaker.spec.ts (TD-011).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  CircuitBreaker,
   UpstreamHealthWatcher,
-  DEFAULT_CIRCUIT_CONFIG,
   DEFAULT_WATCHER_CONFIG,
   _resetProxyMetrics,
+  initProxyMetrics,
+  getProxyMetrics,
 } from './resilience.js';
-
-describe('P-004: CircuitBreaker', () => {
-  it('starts in closed state', () => {
-    const cb = new CircuitBreaker();
-    expect(cb.currentState).toBe('closed');
-    expect(cb.canExecute()).toBe(true);
-  });
-
-  it('opens after failure threshold', () => {
-    const cb = new CircuitBreaker({ ...DEFAULT_CIRCUIT_CONFIG, failureThreshold: 3 });
-    cb.recordFailure();
-    cb.recordFailure();
-    expect(cb.currentState).toBe('closed'); // not yet
-    cb.recordFailure();
-    expect(cb.currentState).toBe('open');
-    expect(cb.canExecute()).toBe(false);
-  });
-
-  it('resets failure count on success in closed state', () => {
-    const cb = new CircuitBreaker({ ...DEFAULT_CIRCUIT_CONFIG, failureThreshold: 3 });
-    cb.recordFailure();
-    cb.recordFailure();
-    cb.recordSuccess();
-    cb.recordFailure();
-    expect(cb.currentState).toBe('closed'); // only 1 failure after reset
-  });
-
-  it('transitions open → half-open after reset timeout', async () => {
-    const cb = new CircuitBreaker({
-      ...DEFAULT_CIRCUIT_CONFIG,
-      failureThreshold: 1,
-      resetTimeoutMs: 50,
-    });
-    cb.recordFailure();
-    expect(cb.currentState).toBe('open');
-
-    await new Promise((r) => setTimeout(r, 60));
-    expect(cb.currentState).toBe('half-open');
-    expect(cb.canExecute()).toBe(true);
-  });
-
-  it('closes after enough successes in half-open', async () => {
-    const cb = new CircuitBreaker({
-      ...DEFAULT_CIRCUIT_CONFIG,
-      failureThreshold: 1,
-      resetTimeoutMs: 50,
-      halfOpenSuccessThreshold: 2,
-    });
-    cb.recordFailure();
-    await new Promise((r) => setTimeout(r, 60));
-
-    expect(cb.currentState).toBe('half-open');
-    cb.recordSuccess();
-    expect(cb.currentState).toBe('half-open'); // need 2
-    cb.recordSuccess();
-    expect(cb.currentState).toBe('closed');
-  });
-
-  it('goes back to open on failure in half-open', async () => {
-    const cb = new CircuitBreaker({
-      ...DEFAULT_CIRCUIT_CONFIG,
-      failureThreshold: 1,
-      resetTimeoutMs: 50,
-    });
-    cb.recordFailure();
-    await new Promise((r) => setTimeout(r, 60));
-
-    expect(cb.currentState).toBe('half-open');
-    cb.recordFailure();
-    expect(cb.currentState).toBe('open');
-  });
-
-  it('reset() forces closed state', () => {
-    const cb = new CircuitBreaker({ ...DEFAULT_CIRCUIT_CONFIG, failureThreshold: 1 });
-    cb.recordFailure();
-    expect(cb.currentState).toBe('open');
-    cb.reset();
-    expect(cb.currentState).toBe('closed');
-    expect(cb.canExecute()).toBe(true);
-  });
-
-  it('stats returns current state info', () => {
-    const cb = new CircuitBreaker({ ...DEFAULT_CIRCUIT_CONFIG, failureThreshold: 2 });
-    cb.recordFailure();
-    expect(cb.stats.failureCount).toBe(1);
-    expect(cb.stats.state).toBe('closed');
-  });
-});
 
 describe('P-004: UpstreamHealthWatcher', () => {
   afterEach(() => {
@@ -204,12 +117,6 @@ describe('P-004: UpstreamHealthWatcher', () => {
 });
 
 describe('P-004: DEFAULT configs', () => {
-  it('DEFAULT_CIRCUIT_CONFIG has sensible values', () => {
-    expect(DEFAULT_CIRCUIT_CONFIG.failureThreshold).toBe(5);
-    expect(DEFAULT_CIRCUIT_CONFIG.resetTimeoutMs).toBe(10_000);
-    expect(DEFAULT_CIRCUIT_CONFIG.halfOpenSuccessThreshold).toBe(2);
-  });
-
   it('DEFAULT_WATCHER_CONFIG has sensible values', () => {
     expect(DEFAULT_WATCHER_CONFIG.checkIntervalMs).toBe(30_000);
     expect(DEFAULT_WATCHER_CONFIG.checkTimeoutMs).toBe(5_000);
@@ -240,6 +147,3 @@ describe('P-004: Proxy metrics', () => {
     expect(getProxyMetrics()).toBeUndefined();
   });
 });
-
-// Import for metrics test
-import { initProxyMetrics, getProxyMetrics } from './resilience.js';

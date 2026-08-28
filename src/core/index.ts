@@ -43,3 +43,13 @@ export type {
   ErrorHandlerOptions,
   ErrorHandlerMeta,
 } from './error-handler.js';
+
+export { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG } from './circuit-breaker.js';
+export type { CircuitState, CircuitBreakerConfig } from './circuit-breaker.js';
+
+export { ServiceAvailability, ServiceAvailabilityRegistry, withFallback } from './graceful-degradation.js';
+export type {
+  Availability,
+  ServiceAvailabilityOptions,
+  ServiceState,
+} from './graceful-degradation.js';
