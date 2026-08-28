@@ -553,7 +553,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | BM-011 | Behavioral dashboard: zero-dep HTML single-file UI — error rate trends (90-day), fix effectiveness (which approaches succeed), event timeline (intents/failures/resolutions/runtime). Dark-themed, auto-refresh. Расширение MR-007 | low | pending | — | BM-001..BM-004, MR-007 |
 | BM-012 | LAN Relay: mDNS auto-discovery peers + AES-256-GCM encrypted WebSocket. `relay_status`, `share_brief`, `broadcast_rule`. Zero-config, no cloud. Collective guardrails — rule созданная одним dev → instant broadcast всем teammates | low | pending | — | BM-010, OC-006 |
 | BM-013 | Migration framework: SQLite _migrations table + up/down migrations + transactional batch apply. Statement cache с LRU eviction. WAL mode, busy_timeout, wal_autocheckpoint. Закрывает TD-009 | high | completed | #117 | TD-009 |
-| BM-014 | FTS5 search: SQLite built-in full-text search как fallback/дополнение к BM25+vector. Проще, без external deps, для small datasets. `query_memory` с FTS5 natural-language search + filtered query (file_path, status, since) + pagination | medium | pending | — | BM-001 |
+| BM-014 | FTS5 search: SQLite built-in full-text search как fallback/дополнение к BM25+vector. Проще, без external deps, для small datasets. `query_memory` с FTS5 natural-language search + filtered query (file_path, status, since) + pagination | medium | completed | #118 | BM-001 |
 
 ---
 
