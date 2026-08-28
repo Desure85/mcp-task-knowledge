@@ -422,12 +422,15 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-08-28
-**Текущая feature-ветка:** fix/infra-gitignore-ci-base-rebuild
-**Текущий этап:** Этап F — OpenCode Integration
-**Статус:** in_progress (PR #68 — review)
+**Текущая feature-ветка:** feat/bm-007-auto-heal-worker
+**Текущий этап:** Этап 5 — Behavioral Memory (BM-001..BM-014)
+**Статус:** BM-007 → review
 
 ### Последние действия
 
+- 2026-08-28: BM-007 — AutoHealWorker (polling unresolved failures → repair patches из proven fixes) + 24 теста
+- 2026-08-28: BM-006 done (PR #88) — CodeLineage, parent→child→grandchild
+- 2026-08-28: BM-005 done (PR #86) — RepairBrief
 - 2026-08-28: Аудит репозитория — master синхронизирован (был -22 коммита), build + 989 тестов OK
 - 2026-08-28: Найдена корневая причина "битого latest" — GHCR base-образы устарели (2025-08-31), нет pino/jose
 - 2026-08-28: PR #68 открыт — .gitignore fix + auto-rebuild base images trigger (FIX-1/2)
@@ -437,11 +440,9 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 ### Что дальше
 
-- Дождаться мерджа PR #68
-- Запустить пересборку GHCR base-образов (docker-build-base.yml) вручную
-- OC-001 → review (после тестирования плагина в OpenCode)
-- OC-002 (memory-sync плагин) — следующая задача
-- CFG-001 (Unified configuration) — из основного BACKLOG
+- Дождаться мерджа PR по BM-007
+- BM-008 (proactive guardrails, `predict_issue`) — следующая задача
+- Регистрация behavioral-инструментов в MCP (`src/register/`) пока не сделана — модули доступны как библиотека
 
 ---
 
