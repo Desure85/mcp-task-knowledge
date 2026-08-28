@@ -540,10 +540,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| BM-001 | Intent capture: MCP tool `capture_intent` — записывает why код написан (prompt, file, content hash). Возвращает stable `memory_id`. Idempotent — повторный capture того же intent возвращает `duplicate: true`. Хранится в knowledge_base с type=intent | high | pending | — | — |
-| BM-002 | Runtime observation: MCP tool `record_runtime` — записывает выполнение функции (args, return value, duration, errors, stack trace). Связывается с intent через `memory_id`. Observer API для ESM (manual) + CJS hook (auto-instrument) | high | pending | — | BM-001 |
-| BM-003 | Failure logging: MCP tool `log_failure` — записывает error привязанный к `memory_id`. Валидирует что runtime snapshots принадлежат intent. Структура: error_type, message, stack, context, timestamp | high | pending | — | BM-001, BM-002 |
-| BM-004 | Resolution logging: MCP tool `log_resolution` — связывает resolved failure с fixing intent (provenance). Записывает: какой fix применили, какой подход сработал, ссылку на commit/PR | high | pending | — | BM-003 |
+| BM-001 | Intent capture: MCP tool `capture_intent` — записывает why код написан (prompt, file, content hash). Возвращает stable `memory_id`. Idempotent — повторный capture того же intent возвращает `duplicate: true`. Хранится в knowledge_base с type=intent | high | done | PR #85 | — |
+| BM-002 | Runtime observation: MCP tool `record_runtime` — записывает выполнение функции (args, return value, duration, errors, stack trace). Связывается с intent через `memory_id`. Observer API для ESM (manual) + CJS hook (auto-instrument) | high | done | PR #85 | BM-001 |
+| BM-003 | Failure logging: MCP tool `log_failure` — записывает error привязанный к `memory_id`. Валидирует что runtime snapshots принадлежат intent. Структура: error_type, message, stack, context, timestamp | high | done | PR #85 | BM-001, BM-002 |
+| BM-004 | Resolution logging: MCP tool `log_resolution` — связывает resolved failure с fixing intent (provenance). Записывает: какой fix применили, какой подход сработал, ссылку на commit/PR | high | done | PR #85 | BM-003 |
 | BM-005 | Repair brief: MCP tool `get_repair_brief` — собирает структурированный контекст для починки: intent + runtime traces + failures + proven fixes из похожих прошлых ошибок. Один MCP-вызов вместо ручного поиска. Fuses intent + runtime + failure + suggested fix approach | critical | pending | — | BM-001..BM-004 |
 | BM-006 | Code lineage: MCP tool `get_code_lineage` — trace полной генерационной истории кода (parent → child → grandchild chains). Связь через content_hash: при изменении файла создаётся новый intent с parent=предыдущий | medium | pending | — | BM-001 |
 | BM-007 | Auto-heal worker: background thread polls unresolved failures, генерирует repair patches из historical memory. `auto_heal_trigger` (явный) + `auto_heal_status` (проверка). Patch = comment-annotated diff из proven fixes той же shape of failure | medium | pending | — | BM-005 |
@@ -635,5 +635,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
-| Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **106** | **2** | **63** | **0** | **1** |
+| Behavioral Memory (G) | 14 | 10 | 0 | 4 | 0 | 0 |
+| **Итого** | **161** | **102** | **2** | **67** | **0** | **1** |
