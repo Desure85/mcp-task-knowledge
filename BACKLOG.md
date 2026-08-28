@@ -120,7 +120,7 @@
 - [x] RL-001: Rules storage (global → project → user)
 - [x] RL-002: Rules evaluation (runtime guard checks)
 - [x] RL-003: Policy-as-code (JSON/DSL)
-- [ ] RL-004: Built-in rule packs
+- [x] RL-004: Built-in rule packs
 - [x] RL-005: Rule enforcement hooks
 - [ ] RL-006: Rule import (.cursorrules, CLAUDE.md, .clinerules)
 - [x] WF-001: Workflow DAG builder
@@ -437,7 +437,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | RL-001 | Rules storage: иерархия правил (global → project → user). Формат Markdown + YAML frontmatter. Наследование, переопределение | critical | done | PR #92 | — |
 | RL-002 | Rules evaluation: runtime guard checks перед вызовом MCP-инструментов. Input/output validation, schema checks | critical | done | PR #98 | RL-001 |
 | RL-003 | Policy-as-code: JSON/DSL описание политик. Git-native, версонируются с кодом. Условные правила (if file=*.ts then...) | high | done | PR #102 | RL-001 |
-| RL-004 | Built-in rule packs: предустановленные наборы — security-rules, ts-strict, react-conventions, python-style, team-standards | medium | pending | — | RL-001 |
+| RL-004 | Built-in rule packs: предустановленные наборы — security-rules, ts-strict, react-conventions, python-style, team-standards | medium | done | PR #110 | RL-001 |
 | RL-005 | Rule enforcement hooks: pre/post hooks на MCP tool calls. Блокировка, предупреждение, логирование, auto-fix. Реализуется через `MW-001` (middleware pipeline) | high | done | PR #104 | RL-002, MW-001 |
 | RL-006 | Rule import: импорт из .cursorrules, CLAUDE.md, .clinerules, .windsurfrules. Конвертеры в наш формат | medium | pending | — | RL-001 |
 
@@ -629,11 +629,11 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Docs | 5 | 5 | 0 | 0 | 0 | 0 |
 | Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Rules (B) | 6 | 2 | 0 | 4 | 0 | 0 |
+| Rules (B) | 6 | 1 | 0 | 5 | 0 | 0 |
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Memory (D) | 4 | 3 | 0 | 1 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 6 | 0 | 8 | 0 | 0 |
-| **Итого** | **161** | **82** | **2** | **87** | **0** | **1** |
+| **Итого** | **161** | **81** | **2** | **88** | **0** | **1** |
