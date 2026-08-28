@@ -32,10 +32,6 @@ function createLimiter(overrides?: Partial<RateLimiterOptions>): RateLimiter {
   });
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 // ─── Basic allow/deny ─────────────────────────────────────────────────
 
 describe('RateLimiter — basic allow/deny', () => {
@@ -72,19 +68,22 @@ describe('RateLimiter — basic allow/deny', () => {
 // ─── Refill ───────────────────────────────────────────────────────────
 
 describe('RateLimiter — refill', () => {
-  it('should refill tokens over time', async () => {
+  it('should refill tokens over time', () => {
+    vi.useFakeTimers();
     const limiter = createLimiter({ maxTokens: 2, refillPerSec: 100 }); // 10 tokens per 100ms
 
     expect(limiter.allow('s1', 'tool')).toBe(true);
     expect(limiter.allow('s1', 'tool')).toBe(true);
     expect(limiter.allow('s1', 'tool')).toBe(false);
 
-    // Wait for enough refill (need 1 token at 100/sec = 10ms)
-    await sleep(20);
+    // Enough refill for 1 token at 100/sec = 10ms
+    vi.advanceTimersByTime(20);
     expect(limiter.allow('s1', 'tool')).toBe(true);
+    vi.useRealTimers();
   });
 
-  it('should not exceed burst capacity', async () => {
+  it('should not exceed burst capacity', () => {
+    vi.useFakeTimers();
     const limiter = createLimiter({ maxTokens: 3, burstMaxTokens: 5, refillPerSec: 100 });
 
     // Consume 3
@@ -92,8 +91,8 @@ describe('RateLimiter — refill', () => {
       expect(limiter.allow('s1', 'tool')).toBe(true);
     }
 
-    // Wait long enough to refill to burst
-    await sleep(100);
+    // Enough time to refill to burst
+    vi.advanceTimersByTime(100);
 
     // Should be able to consume up to burst (5 total), not more
     let allowed = 0;
@@ -101,13 +100,15 @@ describe('RateLimiter — refill', () => {
       if (limiter.allow('s1', 'tool')) allowed++;
     }
     expect(allowed).toBeLessThanOrEqual(5);
+    vi.useRealTimers();
   });
 });
 
 // ─── Burst ────────────────────────────────────────────────────────────
 
 describe('RateLimiter — burst', () => {
-  it('should allow refill to accumulate above maxTokens via burst', async () => {
+  it('should allow refill to accumulate above maxTokens via burst', () => {
+    vi.useFakeTimers();
     // Use refillPerSec=0 for deterministic initial state, then test burst via time
     const limiter = createLimiter({ maxTokens: 5, burstMaxTokens: 10, refillPerSec: 0 });
 
@@ -130,12 +131,11 @@ describe('RateLimiter — burst', () => {
     expect(fresh.allow('s1', 't')).toBe(false);
 
     // Now verify burst allows accumulation via refill by using a time-based test
-    // with very small refill rate to minimize CI flakiness
     const burstLimiter = createLimiter({ maxTokens: 1, burstMaxTokens: 3, refillPerSec: 500 });
     expect(burstLimiter.allow('s2', 'tool')).toBe(true);
-    // The bucket is now at 0 tokens. Wait for refill:
+    // The bucket is now at 0 tokens. Advance time for refill:
     // 500 tokens/sec = 0.5 tokens/ms → in 10ms = 5 tokens, capped at burst (3)
-    await sleep(10);
+    vi.advanceTimersByTime(10);
     // After refill, should have tokens (burst allows accumulation above maxTokens=1)
     expect(burstLimiter.allow('s2', 'tool')).toBe(true);
     // And should have more tokens left (burst gives us up to 3)
@@ -143,6 +143,7 @@ describe('RateLimiter — burst', () => {
     expect(burstLimiter.allow('s2', 'tool')).toBe(true);
     // Now empty
     expect(burstLimiter.allow('s2', 'tool')).toBe(false);
+    vi.useRealTimers();
   });
 
   it('should default burst to maxTokens if burst < max', () => {

@@ -25,13 +25,6 @@ function createFastManager(overrides?: Partial<SessionManagerOptions>): SessionM
   });
 }
 
-/**
- * Wait for a given number of milliseconds.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 // ─── Creation ─────────────────────────────────────────────────────────
 
 describe('SessionManager — creation', () => {
@@ -85,19 +78,21 @@ describe('SessionManager — creation', () => {
 // ─── Heartbeat ────────────────────────────────────────────────────────
 
 describe('SessionManager — heartbeat', () => {
-  it('should reset idle timer on heartbeat', async () => {
+  it('should reset idle timer on heartbeat', () => {
+    vi.useFakeTimers();
     const sm = createFastManager({ idleTimeoutMs: 300, pruneIntervalMs: 50 });
     const session = sm.create({ remote: 'test:1' });
 
-    // Wait 200ms (would exceed idle=200 if not heartbeated)
-    await sleep(200);
+    // 200ms (would exceed idle=200 if not heartbeated)
+    vi.advanceTimersByTime(200);
     sm.heartbeat(session.id);
-    await sleep(200);
+    vi.advanceTimersByTime(200);
 
     // Session should still be alive (heartbeat reset idle)
     expect(sm.has(session.id)).toBe(true);
 
-    await sm.closeAll();
+    vi.useRealTimers();
+    void sm.closeAll();
   });
 
   it('should return false for unknown session', () => {
@@ -211,18 +206,20 @@ describe('SessionManager — close', () => {
 
 describe('SessionManager — TTL expiry', () => {
   it('should expire sessions after TTL via prune', async () => {
+    vi.useFakeTimers();
     const sm = createFastManager({ sessionTtlMs: 200, idleTimeoutMs: 99999 });
     sm.create({ remote: 'a' });
     sm.create({ remote: 'b' });
 
     expect(sm.size).toBe(2);
 
-    // Wait for TTL + prune interval
-    await sleep(350);
+    // Advance past TTL (200ms), then prune manually
+    vi.advanceTimersByTime(250);
 
     const expired = await sm.prune();
     expect(expired).toHaveLength(2);
     expect(sm.size).toBe(0);
+    vi.useRealTimers();
   });
 });
 
@@ -230,34 +227,38 @@ describe('SessionManager — TTL expiry', () => {
 
 describe('SessionManager — idle timeout', () => {
   it('should expire idle sessions via prune', async () => {
+    vi.useFakeTimers();
     const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 200 });
     sm.create({ remote: 'a' });
 
     expect(sm.size).toBe(1);
 
-    // Wait for idle timeout + prune
-    await sleep(300);
+    // Advance past idle timeout, then prune manually
+    vi.advanceTimersByTime(250);
 
     const expired = await sm.prune();
     expect(expired).toHaveLength(1);
     expect(sm.size).toBe(0);
+    vi.useRealTimers();
   });
 
   it('should not expire active sessions', async () => {
+    vi.useFakeTimers();
     const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 200 });
     const session = sm.create({ remote: 'a' });
 
     // Heartbeat before idle timeout
-    await sleep(100);
+    vi.advanceTimersByTime(100);
     sm.heartbeat(session.id);
-    await sleep(100);
+    vi.advanceTimersByTime(100);
 
     // Should still be alive
     const expired = await sm.prune();
     expect(expired).toHaveLength(0);
     expect(sm.has(session.id)).toBe(true);
 
-    await sm.closeAll();
+    vi.useRealTimers();
+    void sm.closeAll();
   });
 });
 
@@ -269,19 +270,21 @@ describe('SessionManager — prune timer', () => {
   });
 
   it('should auto-prune with background timer', async () => {
+    vi.useFakeTimers();
     const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 150 });
     sm.startPrune();
     sm.create({ remote: 'a' });
 
     expect(sm.size).toBe(1);
 
-    // Wait for prune timer to fire (interval=100 + idle=150)
-    await sleep(300);
+    // Fire the prune interval (100ms) — async because the interval callback is async
+    await vi.advanceTimersByTimeAsync(300);
 
     // Prune timer should have cleaned up the idle session
     expect(sm.size).toBe(0);
 
     sm.stopPrune();
+    vi.useRealTimers();
   });
 
   it('should be idempotent on startPrune', () => {
@@ -368,13 +371,14 @@ describe('SessionManager — SessionInfo', () => {
   });
 
   it('should return fresh timestamps after heartbeat', async () => {
+    vi.useFakeTimers();
     const sm = new SessionManager();
     const session = sm.create({ remote: 'test' });
 
-    await sleep(50);
+    vi.advanceTimersByTime(50);
     const infoBefore = sm.get(session.id)!;
 
-    await sleep(50);
+    vi.advanceTimersByTime(50);
     sm.heartbeat(session.id);
     const infoAfter = sm.get(session.id)!;
 
@@ -382,6 +386,7 @@ describe('SessionManager — SessionInfo', () => {
     expect(infoAfter.ageMs).toBeGreaterThan(infoBefore.ageMs);
     // idleMs should reset to near 0 (much less than infoBefore.idleMs)
     expect(infoAfter.idleMs).toBeLessThan(infoBefore.idleMs);
+    vi.useRealTimers();
   });
 });
 
@@ -405,11 +410,12 @@ describe('SessionManager — S-005 metrics callbacks', () => {
   });
 
   it('should call onSessionClose with manual reason on explicit close', async () => {
+    vi.useFakeTimers();
     const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
     const sm = new SessionManager({ onSessionClose: onClose });
     const session = sm.create({ remote: 'test' });
 
-    await sleep(100);
+    vi.advanceTimersByTime(100);
     await sm.close(session.id);
 
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -417,47 +423,55 @@ describe('SessionManager — S-005 metrics callbacks', () => {
     expect(durationMs).toBeGreaterThanOrEqual(0);
     expect(idleMs).toBeGreaterThanOrEqual(0);
     expect(reason).toBe('manual');
+    vi.useRealTimers();
   });
 
   it('should call onSessionClose with expired reason on TTL prune', async () => {
+    vi.useFakeTimers();
     const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
     const sm = createFastManager({ sessionTtlMs: 200, idleTimeoutMs: 99999, onSessionClose: onClose });
     sm.create({ remote: 'a' });
 
-    await sleep(350);
+    vi.advanceTimersByTime(250);
     await sm.prune();
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onClose.mock.calls[0][2]).toBe('expired');
+    vi.useRealTimers();
   });
 
   it('should call onSessionClose with idle_timeout reason on idle prune', async () => {
+    vi.useFakeTimers();
     const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
     const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 200, onSessionClose: onClose });
     sm.create({ remote: 'a' });
 
-    await sleep(300);
+    vi.advanceTimersByTime(250);
     await sm.prune();
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onClose.mock.calls[0][2]).toBe('idle_timeout');
+    vi.useRealTimers();
   });
 
   it('should call onSessionClose with expired reason on per-session token expiry', async () => {
+    vi.useFakeTimers();
     const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
     const sm = createFastManager({ sessionTtlMs: 99999, idleTimeoutMs: 99999, onSessionClose: onClose });
     const session = sm.create({ remote: 'a' });
 
     // Set per-session expiry to 100ms from now
     sm.setSessionExpiry(session.id, Date.now() + 100);
-    await sleep(200);
+    vi.advanceTimersByTime(200);
     await sm.prune();
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onClose.mock.calls[0][2]).toBe('expired');
+    vi.useRealTimers();
   });
 
   it('should call both onSessionCreate and onSessionClose for full lifecycle', async () => {
+    vi.useFakeTimers();
     const onCreate = vi.fn<() => void>();
     const onClose = vi.fn<(durationMs: number, idleMs: number, reason: SessionCloseReason) => void>();
     const sm = new SessionManager({ onSessionCreate: onCreate, onSessionClose: onClose });
@@ -466,10 +480,11 @@ describe('SessionManager — S-005 metrics callbacks', () => {
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
 
-    await sleep(20);
+    vi.advanceTimersByTime(20);
     await sm.close(session.id);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onClose.mock.calls[0][2]).toBe('manual');
+    vi.useRealTimers();
   });
 
   it('should not call onSessionClose when closing nonexistent session', async () => {
