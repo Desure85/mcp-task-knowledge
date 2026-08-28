@@ -91,9 +91,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Pin versions to improve Docker layer cache stability. Bump via build args when needed
 ARG OPTIMUM_VER=1.27.0
 ARG SENTENCEPIECE_VER=0.2.1
+ARG ONNXSCRIPT_VER=0.7.1
 # Install Python deps with pip cache
+# onnxscript: required by torch.onnx._internal.exporter (used by transformers.onnx.export)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install "optimum[onnxruntime]==${OPTIMUM_VER}" "sentencepiece==${SENTENCEPIECE_VER}"
+    pip install "optimum[onnxruntime]==${OPTIMUM_VER}" "sentencepiece==${SENTENCEPIECE_VER}" "onnxscript==${ONNXSCRIPT_VER}"
 COPY scripts ./scripts
 # Cache HuggingFace model/tokenizer downloads during export
 ENV HF_HOME=/root/.cache/huggingface
