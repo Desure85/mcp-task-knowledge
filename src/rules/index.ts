@@ -13,3 +13,6 @@ export type { PolicyOp, PolicyCondition, PolicyRule, PolicyEvaluation, PolicyEng
 
 export { RuleEnforcementMiddleware, createRuleEnforcement } from './rule-enforcement.js';
 export type { EnforcementMode, RuleEnforcementOptions, ViolationLogEntry } from './rule-enforcement.js';
+
+export { rulePacks, listRulePacks, getRulePack, buildRulesFromPack, installRulePack } from './rule-packs.js';
+export type { RulePack, RulePackRule, InstallPackOptions, InstallPackResult } from './rule-packs.js';
