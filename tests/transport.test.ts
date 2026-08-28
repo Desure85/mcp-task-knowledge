@@ -4,6 +4,7 @@ import { StdioTransportFactory, StdioTransportAdapter } from '../src/transport/s
 import { HttpTransportFactory, HttpTransportAdapter } from '../src/transport/http-transport.js';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from '../src/transport/types.js';
 import type { ServerContext } from '../src/register/context.js';
+import { ToolRegistry } from '../src/registry/tool-registry.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ function mockCtx(): ServerContext {
     vectorAdapter: undefined,
     vectorInitAttempted: false,
     ensureVectorAdapter: async () => undefined,
-    toolRegistry: new Map(),
+    toolRegistry: new ToolRegistry(),
     resourceRegistry: [],
     toolNames: new Set(),
     STRICT_TOOL_DEDUP: false,
