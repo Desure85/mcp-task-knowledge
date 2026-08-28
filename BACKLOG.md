@@ -635,5 +635,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
-| Behavioral Memory (G) | 14 | 9 | 0 | 5 | 0 | 0 |
-| **Итого** | **161** | **101** | **2** | **68** | **0** | **1** |
+| Behavioral Memory (G) | 14 | 8 | 0 | 6 | 0 | 0 |
+| **Итого** | **161** | **100** | **2** | **69** | **0** | **1** |
