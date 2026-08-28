@@ -1,0 +1,20 @@
+#!/bin/sh
+# DX-006: Pre-push hook — prevent pushing TS errors or failing tests
+
+echo "🔍 Running TypeScript type check..."
+npx tsc --noEmit
+if [ $? -ne 0 ]; then
+  echo "❌ TypeScript check failed. Push aborted."
+  echo "   Fix type errors above, then retry."
+  exit 1
+fi
+
+echo "🧪 Running tests..."
+npx vitest run --reporter=dot
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed. Push aborted."
+  echo "   Fix failing tests, then retry."
+  exit 1
+fi
+
+echo "✅ All checks passed. Pushing..."

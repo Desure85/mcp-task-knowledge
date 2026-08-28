@@ -321,7 +321,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-003 | Dev CLI: CLI-утилита для локальной разработки — `mcp-tk diagnose` (health check, config validation), `mcp-tk tools` (list registered tools), `mcp-tk sessions` (active sessions), `mcp-tk export` (data backup) | medium | pending | 9.4 | CFG-001 |
 | DX-004 | Hot reload конфигов/политик: watch на config files, reload без restart. Graceful transition (old connections continue, new connections use new config). Зависит от `CFG-001` | medium | pending | 9.5 | CFG-001, MW-002 |
 | DX-005 | Proxy response caching: ETag-based кеширование ответов в прокси. TTL per-tool. Cache invalidation при write operations. API: `cache.stats`, `cache.invalidate` | low | pending | 9.3 | P-002 |
-| DX-006 | Pre-push CI hooks: husky + lint-staged — `tsc --noEmit` + `vitest run` перед каждым push. Цель: не пускать в CI код с TS-ошибками или падающими тестами. Установить: `npx husky init`, добавить `pre-push` hook | high | pending | — | — |
+| DX-006 | Pre-push CI hooks: husky + lint-staged — `tsc --noEmit` + `vitest run` перед каждым push. Цель: не пускать в CI код с TS-ошибками или падающими тестами. Установить: `npx husky init`, добавить `pre-push` hook | high | done | PR #82 | — |
 | DX-007 | Shared test factories: вынести `createMockContext()`, `createMockAdapter()` и др. в `tests/helpers.ts`. Сейчас дублируется в 5 тестовых файлах (1764 строк). Единый источник правды для моков ServerContext, TransportAdapter | medium | pending | — | — |
 | DX-008 | ESLint + Prettier: добавить ESLint (strict TS config) и Prettier. CI lint job. Pre-commit hook через husky. autofix на `npm run lint:fix` | medium | pending | — | DX-006 |
 
@@ -621,7 +621,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Proxy (5) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Security (8) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
-| DX (9) | 8 | 8 | 0 | 0 | 0 | 0 |
+| DX (9) | 8 | 7 | 0 | 1 | 0 | 0 |
 | Scalability (10) | 5 | 5 | 0 | 0 | 0 | 0 |
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
 | Tech Debt | 14 | 10 | 0 | 3 | 0 | 1 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **109** | **2** | **60** | **0** | **1** |
+| **Итого** | **161** | **108** | **2** | **61** | **0** | **1** |
