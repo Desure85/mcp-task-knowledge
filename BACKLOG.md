@@ -530,6 +530,33 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап G — Behavioral Memory (извлечено из Codememory)
+
+> Источник: byte271/Codememory — runtime behavior memory для AI-generated code.
+> Ключевая идея: память не только о фактах, но и о поведении кода — intent, runtime traces,
+> failures, proven fixes. Это закрывает цикл "generate → break → guess → regenerate".
+> Наш mcp-task-knowledge уже имеет knowledge base + BM25 + vector search — добавляем
+> behavioral layer поверх существующей инфраструктуры.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
+|----|--------|-----------|--------|---------|-------------|
+| BM-001 | Intent capture: MCP tool `capture_intent` — записывает why код написан (prompt, file, content hash). Возвращает stable `memory_id`. Idempotent — повторный capture того же intent возвращает `duplicate: true`. Хранится в knowledge_base с type=intent | high | pending | — | — |
+| BM-002 | Runtime observation: MCP tool `record_runtime` — записывает выполнение функции (args, return value, duration, errors, stack trace). Связывается с intent через `memory_id`. Observer API для ESM (manual) + CJS hook (auto-instrument) | high | pending | — | BM-001 |
+| BM-003 | Failure logging: MCP tool `log_failure` — записывает error привязанный к `memory_id`. Валидирует что runtime snapshots принадлежат intent. Структура: error_type, message, stack, context, timestamp | high | pending | — | BM-001, BM-002 |
+| BM-004 | Resolution logging: MCP tool `log_resolution` — связывает resolved failure с fixing intent (provenance). Записывает: какой fix применили, какой подход сработал, ссылку на commit/PR | high | pending | — | BM-003 |
+| BM-005 | Repair brief: MCP tool `get_repair_brief` — собирает структурированный контекст для починки: intent + runtime traces + failures + proven fixes из похожих прошлых ошибок. Один MCP-вызов вместо ручного поиска. Fuses intent + runtime + failure + suggested fix approach | critical | pending | — | BM-001..BM-004 |
+| BM-006 | Code lineage: MCP tool `get_code_lineage` — trace полной генерационной истории кода (parent → child → grandchild chains). Связь через content_hash: при изменении файла создаётся новый intent с parent=предыдущий | medium | pending | — | BM-001 |
+| BM-007 | Auto-heal worker: background thread polls unresolved failures, генерирует repair patches из historical memory. `auto_heal_trigger` (явный) + `auto_heal_status` (проверка). Patch = comment-annotated diff из proven fixes той же shape of failure | medium | pending | — | BM-005 |
+| BM-008 | Proactive guardrails: MCP tool `predict_issue` — проверяет proposed code ДО записи против known failure patterns. Возвращает warnings с confidence levels + risk assessment. Guard rules auto-learned из resolved failures | high | pending | — | BM-004, RL-002 |
+| BM-009 | Cross-project search: MCP tool `cross_project_search` — поиск failures + proven fixes across ALL projects. Bug fixed once в repo A → не нужно rediscover в repo B. Guard rules из Project A применяются к Project B | medium | pending | — | BM-004, MR-008 |
+| BM-010 | Guard rules auto-learning: при resolution failure → distill approach+context в reusable rule. Rule fires на future code matching same pattern. Хранится в rules engine (RL-001). Broadcast через relay (BM-012) | medium | pending | — | BM-004, RL-001 |
+| BM-011 | Behavioral dashboard: zero-dep HTML single-file UI — error rate trends (90-day), fix effectiveness (which approaches succeed), event timeline (intents/failures/resolutions/runtime). Dark-themed, auto-refresh. Расширение MR-007 | low | pending | — | BM-001..BM-004, MR-007 |
+| BM-012 | LAN Relay: mDNS auto-discovery peers + AES-256-GCM encrypted WebSocket. `relay_status`, `share_brief`, `broadcast_rule`. Zero-config, no cloud. Collective guardrails — rule созданная одним dev → instant broadcast всем teammates | low | pending | — | BM-010, OC-006 |
+| BM-013 | Migration framework: SQLite _migrations table + up/down migrations + transactional batch apply. Statement cache с LRU eviction. WAL mode, busy_timeout, wal_autocheckpoint. Закрывает TD-009 | high | pending | — | TD-009 |
+| BM-014 | FTS5 search: SQLite built-in full-text search как fallback/дополнение к BM25+vector. Проще, без external deps, для small datasets. `query_memory` с FTS5 natural-language search + filtered query (file_path, status, since) + pagination | medium | pending | — | BM-001 |
+
+---
+
 ## Блокированные
 
 | ID | Задача | Причина | Статус |
@@ -608,4 +635,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
-| **Итого** | **147** | **107** | **2** | **48** | **0** | **1** |
+| Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
+| **Итого** | **161** | **121** | **2** | **48** | **0** | **1** |
