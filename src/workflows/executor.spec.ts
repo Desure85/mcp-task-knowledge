@@ -2,9 +2,20 @@
  * workflows/executor.spec.ts — Tests for WorkflowExecutor (WF-002).
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { WorkflowExecutor } from './executor.js';
+import { WorkflowStateStore } from './state-store.js';
 import type { Workflow, ToolInvoker } from './index.js';
+
+let stateDir: string;
+
+function makeStateStore(): WorkflowStateStore {
+  stateDir = join(process.cwd(), '.test-tmp', `wf-exec-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(stateDir, { recursive: true });
+  return new WorkflowStateStore({ storagePath: stateDir });
+}
 
 function makeWorkflow(nodes: any[], edges: any[], entryNode = 'start'): Workflow {
   return {
@@ -477,6 +488,150 @@ describe('WF-002: WorkflowExecutor', () => {
       const result = await exec.execute(wf);
       expect(result.success).toBe(true);
       expect(approvalHandler).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('execute() — checkpoints & resume (WF-005)', () => {
+    afterEach(() => {
+      try { rmSync(stateDir, { recursive: true, force: true }); } catch { /* ignore */ }
+    });
+
+    it('checkpoints run state after each node', async () => {
+      const store = makeStateStore();
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'a', type: 'tool', label: 'A', ref: 'tool-a' },
+          { id: 'b', type: 'tool', label: 'B', ref: 'tool-b' },
+        ],
+        [
+          { from: 'start', to: 'a' },
+          { from: 'a', to: 'b' },
+        ],
+      );
+
+      const result = await exec.execute(wf, { stateStore: store, runId: 'run-cp' });
+      expect(result.success).toBe(true);
+
+      const final = store.load('run-cp')!;
+      expect(final.status).toBe('completed');
+      expect(Object.keys(final.completedNodes)).toEqual(['start', 'a', 'b']);
+      expect(final.sessionId).toBeUndefined();
+    });
+
+    it('links the run to a session', async () => {
+      const store = makeStateStore();
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'a', type: 'tool', label: 'A', ref: 'tool-a' },
+        ],
+        [{ from: 'start', to: 'a' }],
+      );
+
+      await exec.execute(wf, { stateStore: store, runId: 'run-sess', sessionId: 'sess-1' });
+      expect(store.load('run-sess')!.sessionId).toBe('sess-1');
+      expect(store.list({ sessionId: 'sess-1' })).toHaveLength(1);
+    });
+
+    it('resume skips nodes completed in a previous run', async () => {
+      const store = makeStateStore();
+      const calls: string[] = [];
+      const invoker: ToolInvoker = vi.fn(async (name) => { calls.push(name); return 'ok'; });
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'a', type: 'tool', label: 'A', ref: 'tool-a' },
+          { id: 'b', type: 'tool', label: 'B', ref: 'tool-b' },
+        ],
+        [
+          { from: 'start', to: 'a' },
+          { from: 'a', to: 'b' },
+        ],
+      );
+
+      // First run completes everything
+      await exec.execute(wf, { stateStore: store, runId: 'run-resume' });
+      expect(calls).toEqual(['tool-a', 'tool-b']);
+
+      // Second run with resume — nothing is re-executed
+      calls.length = 0;
+      const result = await exec.execute(wf, { stateStore: store, runId: 'run-resume', resume: true });
+      expect(result.success).toBe(true);
+      expect(calls).toEqual([]);
+      expect(result.results).toHaveLength(3);
+    });
+
+    it('resume continues from the point of failure', async () => {
+      const store = makeStateStore();
+      let shouldFail = true;
+      const calls: string[] = [];
+      const invoker: ToolInvoker = vi.fn(async (name) => {
+        calls.push(name);
+        if (name === 'tool-b' && shouldFail) throw new Error('boom');
+        return 'ok';
+      });
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'a', type: 'tool', label: 'A', ref: 'tool-a' },
+          { id: 'b', type: 'tool', label: 'B', ref: 'tool-b' },
+          { id: 'c', type: 'tool', label: 'C', ref: 'tool-c' },
+        ],
+        [
+          { from: 'start', to: 'a' },
+          { from: 'a', to: 'b' },
+          { from: 'b', to: 'c' },
+        ],
+      );
+
+      // First run fails at b
+      const failed = await exec.execute(wf, { stateStore: store, runId: 'run-fail', resume: true });
+      expect(failed.success).toBe(false);
+      expect(failed.error).toContain('boom');
+      expect(store.load('run-fail')!.status).toBe('failed');
+
+      // Fix the failure and resume — a and start are skipped, b and c run
+      shouldFail = false;
+      calls.length = 0;
+      const resumed = await exec.execute(wf, { stateStore: store, runId: 'run-fail', resume: true });
+      expect(resumed.success).toBe(true);
+      expect(calls).toEqual(['tool-b', 'tool-c']);
+      expect(resumed.results).toHaveLength(4);
+      expect(store.load('run-fail')!.status).toBe('completed');
+    });
+
+    it('failed run records the error in state', async () => {
+      const store = makeStateStore();
+      const invoker: ToolInvoker = vi.fn(async (name) => {
+        if (name === 'tool-a') throw new Error('kaboom');
+        return 'ok';
+      });
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'a', type: 'tool', label: 'A', ref: 'tool-a' },
+        ],
+        [{ from: 'start', to: 'a' }],
+      );
+
+      const result = await exec.execute(wf, { stateStore: store, runId: 'run-err' });
+      expect(result.success).toBe(false);
+      const state = store.load('run-err')!;
+      expect(state.status).toBe('failed');
+      expect(state.error).toContain('kaboom');
     });
   });
 });
