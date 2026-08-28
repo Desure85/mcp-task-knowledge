@@ -131,7 +131,7 @@
 - [x] WF-006: Workflow chaining (subflow)
 - [x] MEM-001: Session memory
 - [x] MEM-002: Entity graph
-- [ ] MEM-003: Context distillation
+- [x] MEM-003: Context distillation
 - [ ] MEM-004: Memory import/export
 
 ### Этап 10 — Web UI
@@ -470,7 +470,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|
 | MEM-001 | Session memory: персистентная память между сессиями AI-агента. Автосохранение контекста, архитектурные решения, конвенции | high | done | PR #84 | — |
 | MEM-002 | Entity graph: граф сущностей проекта — файлы→модули→зависимости. Semantic search по графу, auto-discovery | medium | done | PR #112 | MEM-001 |
-| MEM-003 | Context distillation: авто-суммаризация сырого контекста в actionable knowledge. Compress old sessions | medium | pending | — | MEM-001 |
+| MEM-003 | Context distillation: авто-суммаризация сырого контекста в actionable knowledge. Compress old sessions | medium | done | PR #113 | MEM-001 |
 | MEM-004 | Memory import/export: импорт из .claude/, .cursor/, Obsidian vault. Экспорт в стандартные форматы | medium | pending | — | MEM-001 |
 
 ---
@@ -631,9 +631,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Memory (D) | 4 | 2 | 0 | 2 | 0 | 0 |
+| Memory (D) | 4 | 1 | 0 | 3 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 6 | 0 | 8 | 0 | 0 |
-| **Итого** | **161** | **79** | **2** | **90** | **0** | **1** |
+| **Итого** | **161** | **78** | **2** | **91** | **0** | **1** |
