@@ -119,8 +119,47 @@ cp extensions/opencode/memory-sync.ts ~/.config/opencode/plugins/
 synced (by hash). If state is lost, re-sync creates duplicates (OC-003 will fix
 this with dedup).
 
-### memory-context.ts (OC-005)
+### memory-context.ts (OC-005) — implemented (hybrid mode)
 
-Hook on `experimental.chat.messages.transform` → extract query from last user message
-→ `search_knowledge` top-5 → append compact results to system prompt. Token budget
-~2000, query hash cache (TTL 5 min).
+Auto-injects context from memory into each prompt. Uses a hybrid approach:
+- `experimental.chat.messages.transform` — extracts query from last user message
+- `experimental.chat.system.transform` — injects instruction for agent to search
+  and use results as context
+
+**Note:** Full auto-context (plugin calls MCP directly and injects results) requires
+either a shared closure between hooks (fragile) or a single hook with access to both
+messages and system (not available in current OpenCode Plugin API). Current impl
+injects an instruction similar to memory-recall but more specific (per-message vs
+per-session).
+
+**Installation:**
+
+```bash
+cp extensions/opencode/memory-context.ts ~/.config/opencode/plugins/
+```
+
+**Configuration:**
+
+```jsonc
+{
+  "plugin": [
+    ["@mcp-task-knowledge/memory-context", {
+      "project": "agent-memory",
+      "topK": 5,
+      "minScore": 1.0,
+      "maxTokensPerEntry": 400,
+      "cacheTtlMs": 300000,
+      "enabled": true
+    }]
+  ]
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `project` | `"agent-memory"` | MCP project name |
+| `topK` | `5` | Results to retrieve |
+| `minScore` | `1.0` | Min relevance score |
+| `maxTokensPerEntry` | `400` | Token budget per entry |
+| `cacheTtlMs` | `300000` | Cache TTL (5 min) |
+| `enabled` | `true` | Enable/disable |
