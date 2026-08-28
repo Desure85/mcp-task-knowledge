@@ -122,13 +122,19 @@ export async function readDoc(project: string, id: string): Promise<KnowledgeDoc
 export async function updateDoc(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {
   const existing = await readDoc(project, id);
   if (!existing) return null;
+  // Monotonic updatedAt: bump by 1ms when the new timestamp would equal the old
+  // (fast successive updates within the same millisecond must still be distinguishable)
+  let updatedAt = new Date().toISOString();
+  if (updatedAt <= existing.updatedAt) {
+    updatedAt = new Date(new Date(existing.updatedAt).getTime() + 1).toISOString();
+  }
   const updatedMeta: KnowledgeDocMeta = {
     ...existing,
     ...patch,
     id: existing.id,
     project: existing.project,
     createdAt: existing.createdAt,
-    updatedAt: new Date().toISOString(),
+    updatedAt,
   };
   const content = patch.content !== undefined ? patch.content : existing.content;
   const body = matter.stringify(content, cleanMeta(updatedMeta) as any);
