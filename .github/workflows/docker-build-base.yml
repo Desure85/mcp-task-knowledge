@@ -11,11 +11,21 @@ on:
         description: "Tag to publish (default: latest)"
         required: false
         default: "latest"
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "package.json"
+      - "package-lock.json"
 
 jobs:
   build-base:
     name: Build Base ${{ matrix.name }}
     runs-on: ubuntu-latest
+    # Skip proxy toolchain images on push trigger — they don't depend on package.json
+    # and are already published in GHCR. Only rebuild on manual dispatch.
+    if: github.event_name == 'workflow_dispatch' || !contains(matrix.name, 'proxy')
     permissions:
       contents: read
       packages: write
