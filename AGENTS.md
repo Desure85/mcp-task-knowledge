@@ -424,23 +424,28 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 **Дата последнего обновления:** 2026-08-28
 **Текущая feature-ветка:** master (все PR смержены)
 **Текущий этап:** Этап 9 — Skills, Rules, Workflows, Memory
-**Статус:** 78 задач done из 161, 1564 тестов
+**Статус:** 83 задачи done из 161, 1625 тестов
 
 ### Последние действия
 
 - 2026-08-28: PR #94 — WF-002 Workflow executor (sequential/parallel/conditional/retry, 12 тестов; починен баг retries-счётчика)
-- 2026-08-28: PR #95 — WF-003 Workflow templates (5 pre-built flows: code-review-pipeline, feature-dev-flow, bug-triage, release-checklist, research-and-plan, 12 тестов)
-- 2026-08-28: PR #96 — WF-004 Human-in-the-loop (requiresApproval + approve/reject/modify, 8 тестов)
-- 2026-08-28: PR #97 — SK-002 Skill invocation pipeline (trigger → context → execution → result, shell `!command` opt-in, `context: fork`, 11 тестов)
-- 2026-08-28: PR #98 — RL-002 Rules evaluation (guard checks: input/output schema validation, targets/wildcards, deny patterns, 12 тестов)
-- 2026-08-28: PR #99 — BM-007 Auto-heal worker (trigger/status, comment-annotated repair patches из proven fixes, apply/reject, 13 тестов)
+- 2026-08-28: PR #95 — WF-003 Workflow templates (5 pre-built flows, 12 тестов)
+- 2026-08-28: PR #96 — WF-004 Human-in-the-loop (approve/reject/modify, 8 тестов)
+- 2026-08-28: PR #97 — SK-002 Skill invocation pipeline (trigger/context/execution, shell opt-in, fork, 11 тестов)
+- 2026-08-28: PR #98 — RL-002 Rules evaluation (guard checks, schema validation, 12 тестов)
+- 2026-08-28: PR #99 — BM-007 Auto-heal worker (trigger/status, repair patches, 13 тестов); закрыт stale PR #90 (superseded)
+- 2026-08-28: PR #100 — SK-003 Skill discovery (catalog/categories/search + import .cursorrules/SKILL.md/.clinerules, 13 тестов)
+- 2026-08-28: PR #101 — SK-004 Skill templates (6 pre-built skills, 11 тестов)
+- 2026-08-28: PR #102 — RL-003 Policy-as-code (JSON/DSL условия, glob/regex, 17 тестов)
+- 2026-08-28: PR #103 — BM-008 Proactive guardrails (predict_issue, learned patterns, risk, 12 тестов)
+- 2026-08-28: PR #104 — RL-005 Rule enforcement hooks (MW-001 middleware, enforce/warn/log, auto-fix, 8 тестов)
 
 ### Что дальше
 
 - WF-005 (Workflow state persistence) / WF-006 (Workflow chaining)
-- SK-003 (Skill discovery), SK-004 (Skill templates), SK-006 (Skill permissions)
-- RL-003 (Policy-as-code), RL-004 (Built-in rule packs), RL-005 (Enforcement hooks)
-- BM-008 (Proactive guardrails — зависит от BM-004 + RL-002)
+- SK-005 (Skill sharing + конвертеры), SK-006 (Skill permissions)
+- RL-004 (Built-in rule packs), RL-006 (Rule import)
+- BM-009 (Cross-project search), BM-010 (Guard rules auto-learning)
 
 ---
 
