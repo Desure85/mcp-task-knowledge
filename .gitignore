@@ -115,3 +115,11 @@ __pycache__/
 *.log
 .trash/
 .test-tmp/
+
+# LoopX state (private goal state)
+.loopx/
+.codex/
+
+# Runtime temp caches
+.tmp-emb-cache-*/
+.omo/
