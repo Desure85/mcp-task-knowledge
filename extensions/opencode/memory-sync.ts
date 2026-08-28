@@ -152,6 +152,26 @@ function saveState(statePath: string, state: SyncState): void {
   }
 }
 
+/**
+ * Extract existing knowledge entry ID from search results if title matches exactly.
+ * Used for dedup (OC-003): if entry with same title exists, update instead of create.
+ */
+function extractExistingId(searchResult: unknown, title: string): string | null {
+  try {
+    const result = searchResult as { ok?: boolean; data?: Array<{ id: string; title: string }> };
+    if (!result?.ok || !Array.isArray(result.data) || result.data.length === 0) {
+      return null;
+    }
+    // Exact title match (case-insensitive) — avoid false positives from fuzzy search
+    const match = result.data.find(
+      (e) => e.title.toLowerCase().trim() === title.toLowerCase().trim(),
+    );
+    return match?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) => {
   const opts: Required<MemorySyncOptions> = {
     ...DEFAULTS,
@@ -185,32 +205,84 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
         return;
       }
 
-      const items = toSync.map((e) => ({
-        title: e.title,
-        content: e.content,
-        type: "note",
-        tags: e.tags.length > 0 ? e.tags : ["fact"],
-      }));
+      // OC-003: Dedup — search by title before create.
+      // If an entry with the same title exists, use knowledge_bulk_update instead.
+      const toCreate: FactsEntry[] = [];
+      const toUpdate: Array<{ entry: FactsEntry; id: string }> = [];
 
-      const result = await input.client.mcp.call({
-        server: "mcp-task-knowledge",
-        tool: "knowledge_bulk_create",
-        args: {
-          project: opts.project,
-          items,
-        },
-      });
+      for (const entry of toSync) {
+        try {
+          const searchResult = await input.client.mcp.call({
+            server: "mcp-task-knowledge",
+            tool: "search_knowledge",
+            args: {
+              project: opts.project,
+              query: entry.title,
+              limit: 1,
+            },
+          });
 
-      if (result?.ok) {
-        const now = new Date().toISOString();
-        for (const entry of toSync) {
-          state[entry.hash] = {
-            title: entry.title,
-            syncedAt: now,
-          };
+          const existingId = extractExistingId(searchResult, entry.title);
+          if (existingId) {
+            toUpdate.push({ entry, id: existingId });
+          } else {
+            toCreate.push(entry);
+          }
+        } catch {
+          // search failed — default to create (safe fallback)
+          toCreate.push(entry);
         }
-        saveState(opts.statePath, state);
       }
+
+      // Create new entries
+      if (toCreate.length > 0) {
+        const items = toCreate.map((e) => ({
+          title: e.title,
+          content: e.content,
+          type: "note",
+          tags: e.tags.length > 0 ? e.tags : ["fact"],
+        }));
+
+        await input.client.mcp.call({
+          server: "mcp-task-knowledge",
+          tool: "knowledge_bulk_create",
+          args: {
+            project: opts.project,
+            items,
+          },
+        });
+      }
+
+      // Update existing entries (dedup — avoid duplicates)
+      for (const { entry, id } of toUpdate) {
+        try {
+          await input.client.mcp.call({
+            server: "mcp-task-knowledge",
+            tool: "knowledge_bulk_update",
+            args: {
+              project: opts.project,
+              items: [{
+                id,
+                title: entry.title,
+                content: entry.content,
+                tags: entry.tags.length > 0 ? entry.tags : ["fact"],
+              }],
+            },
+          });
+        } catch {
+          // update failed — entry will be retried next sync
+        }
+      }
+
+      // Update state for both created and updated
+      const now = new Date().toISOString();
+      for (const entry of toSync) {
+        state[entry.hash] = {
+          title: entry.title,
+          syncedAt: now,
+        };
+      }
+      saveState(opts.statePath, state);
     } catch {
       // best-effort — don't block agent work on sync failures
     }
