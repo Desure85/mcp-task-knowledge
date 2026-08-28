@@ -7,3 +7,6 @@ export type { SessionRecord, SessionDecision, SessionMemoryOptions } from './ses
 
 export { EntityGraph } from './entity-graph.js';
 export type { EntityType, EdgeType, EntityNode, EntityEdge, GraphPath, SearchHit, DiscoveryResult } from './entity-graph.js';
+
+export { ContextDistiller } from './context-distiller.js';
+export type { DistilledKnowledge, DistillerOptions, CompressOptions, CompressResult } from './context-distiller.js';
