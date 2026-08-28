@@ -122,6 +122,7 @@ this with dedup).
 ### memory-context.ts (OC-005) — implemented (hybrid mode)
 
 Auto-injects context from memory into each prompt. Uses a hybrid approach:
+
 - `experimental.chat.messages.transform` — extracts query from last user message
 - `experimental.chat.system.transform` — injects instruction for agent to search
   and use results as context

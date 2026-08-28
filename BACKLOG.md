@@ -513,7 +513,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Источник: заметки 2026-08-28 (консолидация из ~/.omo/notes).
 > Часть задач уже покрыта существующими (TASK-9 → MR-001 done, TASK-10 → A-001/ACL done).
 > Здесь — только новые задачи, не дублирующие существующие.
-
+>
 > Концепция: Интеграция mcp-task-knowledge как memory-бэкенда для OpenCode-агента.
 > Sync facts.md/patterns.json → knowledge base, авто-инъекция контекста, OpenCode плагины.
 
