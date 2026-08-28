@@ -451,7 +451,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| WF-001 | Workflow DAG builder: определение графа — nodes (tools/skills/rules), edges (dependencies), conditions, triggers | critical | pending | — | SK-001 |
+| WF-001 | Workflow DAG builder: определение графа — nodes (tools/skills/rules), edges (dependencies), conditions, triggers | critical | done | PR #93 | SK-001 |
 | WF-002 | Workflow executor: выполнение — sequential, parallel, conditional branching, error recovery, retry logic | critical | pending | — | WF-001 |
 | WF-003 | Workflow templates: pre-built flows — code-review-pipeline, feature-dev-flow, bug-triage, release-checklist, research-and-plan | high | pending | — | WF-001 |
 | WF-004 | Human-in-the-loop: точки останова для подтверждения пользователем. Approve/reject/modify перед критическими шагами | high | pending | — | WF-002 |
@@ -630,10 +630,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent Infra | 7 | 2 | 0 | 5 | 0 | 0 |
 | Skills (A) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Rules (B) | 6 | 5 | 0 | 1 | 0 | 0 |
-| Workflows (C) | 6 | 6 | 0 | 0 | 0 | 0 |
+| Workflows (C) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Memory (D) | 4 | 3 | 0 | 1 | 0 | 0 |
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 8 | 0 | 6 | 0 | 0 |
-| **Итого** | **161** | **98** | **2** | **71** | **0** | **1** |
+| **Итого** | **161** | **97** | **2** | **72** | **0** | **1** |
