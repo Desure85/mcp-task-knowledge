@@ -12,6 +12,7 @@
  */
 
 import type { Workflow, WorkflowNode } from './types.js';
+import type { WorkflowStateStore, WorkflowRunState, RunStatus } from './state-store.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('workflow-executor');
@@ -94,6 +95,17 @@ export interface ExecutorOptions {
   approvalHandler?: ApprovalHandler;
 }
 
+export interface ExecuteOptions {
+  /** State store for checkpoints (WF-005). */
+  stateStore?: WorkflowStateStore;
+  /** Run ID (generated when omitted). */
+  runId?: string;
+  /** Session linkage. */
+  sessionId?: string;
+  /** Resume from the stored state, skipping completed nodes. */
+  resume?: boolean;
+}
+
 // ─── WorkflowExecutor ─────────────────────────────────────────────
 
 export class WorkflowExecutor {
@@ -114,14 +126,37 @@ export class WorkflowExecutor {
   /**
    * Execute a workflow.
    */
-  async execute(workflow: Workflow): Promise<ExecutionResult> {
+  async execute(workflow: Workflow, options?: ExecuteOptions): Promise<ExecutionResult> {
     const startTime = Date.now();
+    const runId = options?.runId ?? `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const ctx: ExecutionContext = {
       workflowId: workflow.id,
       results: new Map(),
       variables: {},
       aborted: false,
     };
+    const allResults: NodeResult[] = [];
+    const checkpoint = (status: RunStatus, error?: string): void => {
+      if (!options?.stateStore) return;
+      const completedNodes: Record<string, NodeResult> = {};
+      for (const [nodeId, result] of ctx.results) {
+        completedNodes[nodeId] = result;
+      }
+      const state: WorkflowRunState = {
+        runId,
+        workflowId: workflow.id,
+        sessionId: options?.sessionId,
+        status,
+        completedNodes,
+        variables: { ...ctx.variables },
+        executedOrder: allResults.map((r) => r.nodeId),
+        startedAt: startTimeIso,
+        updatedAt: new Date().toISOString(),
+        error,
+      };
+      options.stateStore.save(state);
+    };
+    const startTimeIso = new Date(startTime).toISOString();
 
     // Get topological order
     const order = this.getTopologicalOrder(workflow);
@@ -134,10 +169,27 @@ export class WorkflowExecutor {
       };
     }
 
-    const allResults: NodeResult[] = [];
+    // Resume support: seed context from the stored run state
+    if (options?.resume && options?.stateStore) {
+      const prior = options.stateStore.load(runId);
+      if (prior) {
+        for (const [nodeId, result] of Object.entries(prior.completedNodes)) {
+          ctx.results.set(nodeId, result);
+          if (result.success && !allResults.some((r) => r.nodeId === nodeId)) {
+            allResults.push(result);
+          }
+        }
+        ctx.variables = { ...prior.variables };
+        log.info({ runId, skipped: allResults.length }, 'resuming workflow run');
+      }
+    }
 
     for (const nodeId of order) {
       if (ctx.aborted) break;
+
+      // Resume: skip nodes that already completed successfully
+      const prior = ctx.results.get(nodeId);
+      if (prior && prior.success) continue;
 
       const node = workflow.nodes.find((n) => n.id === nodeId);
       if (!node) continue;
@@ -149,6 +201,7 @@ export class WorkflowExecutor {
           const result: NodeResult = { nodeId, success: true, durationMs: 0, retries: 0 };
           ctx.results.set(nodeId, result);
           allResults.push(result);
+          checkpoint('running');
           continue;
         }
       }
@@ -156,17 +209,21 @@ export class WorkflowExecutor {
       const result = await this.executeNode(node, ctx);
       ctx.results.set(nodeId, result);
       allResults.push(result);
+      checkpoint('running');
 
       if (!result.success && !this.continueOnError) {
+        const error = `Node ${nodeId} failed: ${result.error}`;
+        checkpoint('failed', error);
         return {
           success: false,
           results: allResults,
           durationMs: Date.now() - startTime,
-          error: `Node ${nodeId} failed: ${result.error}`,
+          error,
         };
       }
     }
 
+    checkpoint(ctx.aborted ? 'aborted' : 'completed');
     return {
       success: !ctx.aborted,
       results: allResults,
