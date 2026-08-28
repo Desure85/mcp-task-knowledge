@@ -35,6 +35,7 @@ import { createHash } from "node:crypto";
 interface MemorySyncOptions {
   project?: string;
   factsPath?: string;
+  patternsPath?: string;
   statePath?: string;
   debounceMs?: number;
   enabled?: boolean;
@@ -43,6 +44,7 @@ interface MemorySyncOptions {
 const DEFAULTS: Required<MemorySyncOptions> = {
   project: "agent-memory",
   factsPath: join(homedir(), ".omo", "memory", "facts.md"),
+  patternsPath: join(homedir(), ".omo", "memory", "patterns.json"),
   statePath: join(homedir(), ".omo", "memory", ".sync-state.json"),
   debounceMs: 30000,
   enabled: true,
@@ -132,6 +134,38 @@ function extractTags(content: string): string[] {
   return Array.from(tags);
 }
 
+/**
+ * Parse patterns.json into structured entries (OC-004).
+ * Each pattern → FactsEntry with [pattern, importance-N] tags.
+ */
+function parsePatternsFile(content: string): FactsEntry[] {
+  try {
+    const patterns = JSON.parse(content);
+    if (!Array.isArray(patterns)) return [];
+
+    return patterns.map((p: { name?: string; description?: string; matches?: unknown[]; importance?: number }) => {
+      const title = `[pattern] ${p.name ?? "unnamed"}`;
+      const matchCount = Array.isArray(p.matches) ? p.matches.length : 0;
+      const bodyText = [
+        p.description ?? "",
+        "",
+        `Matches: ${matchCount}`,
+      ].join("\n").trim();
+      const hash = createHash("sha256")
+        .update(title + bodyText)
+        .digest("hex")
+        .substring(0, 16);
+      const tags = ["pattern"];
+      if (typeof p.importance === "number") {
+        tags.push(`importance-${p.importance}`);
+      }
+      return { title, content: bodyText, hash, tags };
+    });
+  } catch {
+    return [];
+  }
+}
+
 function loadState(statePath: string): SyncState {
   try {
     if (existsSync(statePath)) {
@@ -192,10 +226,23 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
 
       const factsContent = readFileSync(opts.factsPath, "utf-8");
       const entries = parseFactsFile(factsContent);
+
+      // OC-004: Also parse patterns.json if it exists
+      let allEntries = entries;
+      if (existsSync(opts.patternsPath)) {
+        try {
+          const patternsContent = readFileSync(opts.patternsPath, "utf-8");
+          const patternEntries = parsePatternsFile(patternsContent);
+          allEntries = [...entries, ...patternEntries];
+        } catch {
+          // patterns.json parse failed — continue with facts only
+        }
+      }
+
       const state = loadState(opts.statePath);
 
       const toSync: FactsEntry[] = [];
-      for (const entry of entries) {
+      for (const entry of allEntries) {
         if (!state[entry.hash]) {
           toSync.push(entry);
         }
@@ -306,12 +353,13 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
         toolInput.tool === "/remember" ||
         (toolInput.tool === "command" && toolInput.callID?.includes("remember"));
 
-      const touchesFacts =
+      const touchesMemory =
         toolInput.args?.path &&
         typeof toolInput.args.path === "string" &&
-        toolInput.args.path.includes("facts.md");
+        (toolInput.args.path.includes("facts.md") ||
+          toolInput.args.path.includes("patterns.json"));
 
-      if (isRemember || touchesFacts) {
+      if (isRemember || touchesMemory) {
         debouncedSync();
       }
     },

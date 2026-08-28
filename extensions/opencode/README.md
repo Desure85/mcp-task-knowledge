@@ -98,20 +98,22 @@ cp extensions/opencode/memory-sync.ts ~/.config/opencode/plugins/
 |--------|---------|-------------|
 | `project` | `"agent-memory"` | MCP project name to sync to |
 | `factsPath` | `~/.omo/memory/facts.md` | Path to facts.md |
+| `patternsPath` | `~/.omo/memory/patterns.json` | Path to patterns.json (OC-004) |
 | `statePath` | `~/.omo/memory/.sync-state.json` | Sync state (hashes) |
 | `debounceMs` | `30000` | Debounce delay before sync |
 | `enabled` | `true` | Enable/disable plugin |
 
 **How it works:**
 
-1. Agent runs `/remember` → writes fact to `facts.md`
+1. Agent runs `/remember` → writes fact to `facts.md` (or `patterns.json`)
 2. Plugin hook `tool.execute.after` fires
 3. Debounce 30s (multiple /remember in 30s → one sync)
-4. Parse `facts.md` into entries (## headings)
+4. Parse `facts.md` (## headings) + `patterns.json` (JSON array, OC-004)
 5. Hash each entry (title + content)
-6. Compare with state file (`.sync-state.json`)
+6. Dedup: search by title, update if exists (OC-003)
 7. New/changed entries → `knowledge_bulk_create` via MCP
-8. Update state file with synced hashes
+8. Existing entries → `knowledge_bulk_update` via MCP
+9. Update state file with synced hashes
 
 **State file:** `~/.omo/memory/.sync-state.json` tracks which entries have been
 synced (by hash). If state is lost, re-sync creates duplicates (OC-003 will fix
