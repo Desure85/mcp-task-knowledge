@@ -2,7 +2,7 @@
  * workflows/types.ts — Workflow types (WF-001).
  */
 
-export type NodeType = 'tool' | 'skill' | 'rule' | 'condition' | 'action';
+export type NodeType = 'tool' | 'skill' | 'rule' | 'condition' | 'action' | 'subflow';
 export type WorkflowStatus = 'draft' | 'active' | 'disabled' | 'archived';
 
 export interface WorkflowNode {

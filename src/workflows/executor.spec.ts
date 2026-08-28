@@ -17,9 +17,9 @@ function makeStateStore(): WorkflowStateStore {
   return new WorkflowStateStore({ storagePath: stateDir });
 }
 
-function makeWorkflow(nodes: any[], edges: any[], entryNode = 'start'): Workflow {
+function makeWorkflow(nodes: any[], edges: any[], entryNode = 'start', id = 'test-wf'): Workflow {
   return {
-    id: 'test-wf',
+    id,
     name: 'Test',
     description: 'Test workflow',
     nodes,
@@ -632,6 +632,232 @@ describe('WF-002: WorkflowExecutor', () => {
       const state = store.load('run-err')!;
       expect(state.status).toBe('failed');
       expect(state.error).toContain('kaboom');
+    });
+  });
+
+  describe('execute() — subflows (WF-006)', () => {
+    it('executes a nested workflow via the subflow resolver', async () => {
+      const subflow: Workflow = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'inner', type: 'tool', label: 'Inner', ref: 'inner-tool' },
+        ],
+        [{ from: 'start', to: 'inner' }],
+        'start',
+      );
+      const invoker: ToolInvoker = vi.fn(async (name) => `result-${name}`);
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: (id) => (id === 'subflow-1' ? subflow : undefined),
+      });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'subflow-1' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      expect(result.results).toHaveLength(2);
+      expect(result.results[1].success).toBe(true);
+      expect(invoker).toHaveBeenCalledWith('inner-tool', {});
+    });
+
+    it('stores the subflow result in parent variables for downstream nodes', async () => {
+      const subflow: Workflow = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'gen', type: 'tool', label: 'Gen', ref: 'gen', args: {} },
+        ],
+        [{ from: 'start', to: 'gen' }],
+        'start',
+      );
+      const invoker: ToolInvoker = vi.fn(async (name, args) => (name === 'gen' ? 'subflow-output' : args));
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: (id) => (id === 'subflow-1' ? subflow : undefined),
+      });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'subflow-1' },
+          { id: 'use', type: 'tool', label: 'Use', ref: 'use', args: { input: '${sub}' } },
+        ],
+        [
+          { from: 'start', to: 'sub' },
+          { from: 'sub', to: 'use' },
+        ],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(true);
+      // 'use' receives the interpolated subflow result (JSON of the ExecutionResult)
+      expect(invoker).toHaveBeenCalledWith('use', { input: expect.stringContaining('"success":true') });
+    });
+
+    it('passes parent variables into the subflow', async () => {
+      const subflow: Workflow = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'echo', type: 'tool', label: 'Echo', ref: 'echo', args: { branch: '${branch}' } },
+        ],
+        [{ from: 'start', to: 'echo' }],
+        'start',
+      );
+      const invoker: ToolInvoker = vi.fn(async (name, args) => args);
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: (id) => (id === 'subflow-1' ? subflow : undefined),
+      });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'subflow-1' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+      );
+
+      await exec.execute(wf, { variables: { branch: 'main' } });
+      expect(invoker).toHaveBeenCalledWith('echo', { branch: 'main' });
+    });
+
+    it('fails with a clear error when the subflow is not found', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: () => undefined,
+      });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'missing' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('subflow not found');
+    });
+
+    it('fails with a clear error when no resolver is configured', async () => {
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'subflow-1' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('no subflow resolver configured');
+    });
+
+    it('detects subflow cycles', async () => {
+      const wfA = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'wf-b' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+        'start',
+        'wf-a',
+      );
+      const wfB = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'wf-a' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+        'start',
+        'wf-b',
+      );
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: (id) => (id === 'wf-a' ? wfA : id === 'wf-b' ? wfB : undefined),
+      });
+
+      const result = await exec.execute(wfA);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('subflow cycle detected');
+    });
+
+    it('enforces the max subflow depth', async () => {
+      const inner2: Workflow = makeWorkflow(
+        [{ id: 'start', type: 'action', label: 'Start' }],
+        [],
+        'start',
+        'inner2',
+      );
+      const inner: Workflow = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'inner2' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+        'start',
+        'inner',
+      );
+      const invoker: ToolInvoker = vi.fn(async () => 'ok');
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: (id) => (id === 'inner' ? inner : id === 'inner2' ? inner2 : undefined),
+        maxSubflowDepth: 1,
+      });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'inner' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('max depth');
+    });
+
+    it('propagates subflow failure to the parent', async () => {
+      const subflow: Workflow = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'fail', type: 'tool', label: 'Fail', ref: 'fail' },
+        ],
+        [{ from: 'start', to: 'fail' }],
+        'start',
+      );
+      const invoker: ToolInvoker = vi.fn(async (name) => {
+        if (name === 'fail') throw new Error('subflow boom');
+        return 'ok';
+      });
+      const exec = new WorkflowExecutor({
+        toolInvoker: invoker,
+        subflowResolver: (id) => (id === 'subflow-1' ? subflow : undefined),
+      });
+
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'sub', type: 'subflow', label: 'Sub', ref: 'subflow-1' },
+        ],
+        [{ from: 'start', to: 'sub' }],
+      );
+
+      const result = await exec.execute(wf);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('subflow boom');
     });
   });
 });

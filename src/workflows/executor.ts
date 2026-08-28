@@ -54,6 +54,8 @@ export interface ExecutionContext {
   variables: Record<string, unknown>;
   /** Whether the execution has been aborted. */
   aborted: boolean;
+  /** Subflow chain (workflow IDs) — depth/cycle protection (WF-006). */
+  subflowStack: string[];
 }
 
 export interface NodeResult {
@@ -93,6 +95,10 @@ export interface ExecutorOptions {
   continueOnError?: boolean;
   /** Human-in-the-loop handler for nodes with requiresApproval. */
   approvalHandler?: ApprovalHandler;
+  /** Resolver for subflow workflows (WF-006). */
+  subflowResolver?: (workflowId: string) => Workflow | undefined;
+  /** Max subflow nesting depth. Default: 5. */
+  maxSubflowDepth?: number;
 }
 
 export interface ExecuteOptions {
@@ -104,6 +110,10 @@ export interface ExecuteOptions {
   sessionId?: string;
   /** Resume from the stored state, skipping completed nodes. */
   resume?: boolean;
+  /** Initial variables for the run (subflows receive parent context). */
+  variables?: Record<string, unknown>;
+  /** Internal: subflow chain for depth/cycle protection (WF-006). */
+  subflowStack?: string[];
 }
 
 // ─── WorkflowExecutor ─────────────────────────────────────────────
@@ -114,6 +124,8 @@ export class WorkflowExecutor {
   private readonly retryDelayMs: number;
   private readonly continueOnError: boolean;
   private readonly approvalHandler?: ApprovalHandler;
+  private readonly subflowResolver?: (workflowId: string) => Workflow | undefined;
+  private readonly maxSubflowDepth: number;
 
   constructor(options: ExecutorOptions) {
     this.toolInvoker = options.toolInvoker;
@@ -121,6 +133,8 @@ export class WorkflowExecutor {
     this.retryDelayMs = options.retryDelayMs ?? 100;
     this.continueOnError = options.continueOnError ?? false;
     this.approvalHandler = options.approvalHandler;
+    this.subflowResolver = options.subflowResolver;
+    this.maxSubflowDepth = options.maxSubflowDepth ?? 5;
   }
 
   /**
@@ -132,8 +146,9 @@ export class WorkflowExecutor {
     const ctx: ExecutionContext = {
       workflowId: workflow.id,
       results: new Map(),
-      variables: {},
+      variables: { ...(options?.variables ?? {}) },
       aborted: false,
+      subflowStack: options?.subflowStack ?? [],
     };
     const allResults: NodeResult[] = [];
     const checkpoint = (status: RunStatus, error?: string): void => {
@@ -248,6 +263,11 @@ export class WorkflowExecutor {
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
+        // Subflow node: run a nested workflow (WF-006)
+        if (node.type === 'subflow') {
+          return await this.executeSubflow(node, ctx, attempt, startTime);
+        }
+
         // Human-in-the-loop: pause for approval before executing
         if (node.requiresApproval) {
           const args = this.resolveArgs(node.args ?? {}, ctx);
@@ -336,6 +356,60 @@ export class WorkflowExecutor {
     return this.approvalHandler(request);
   }
 
+  /**
+   * Execute a subflow node: resolve and run a nested workflow (WF-006).
+   * Parent variables + resolved node args become the subflow's initial variables;
+   * the subflow's ExecutionResult is stored in the parent's variables.
+   */
+  private async executeSubflow(
+    node: WorkflowNode,
+    ctx: ExecutionContext,
+    attempt: number,
+    startTime: number,
+  ): Promise<NodeResult> {
+    const subflowId = node.ref;
+    if (!subflowId) {
+      throw new Error(`[workflow-executor] subflow node ${node.id} is missing ref (target workflow id)`);
+    }
+    if (!this.subflowResolver) {
+      throw new Error(
+        `[workflow-executor] subflow node ${node.id} references ${subflowId} but no subflow resolver configured`,
+      );
+    }
+    if (ctx.subflowStack.length >= this.maxSubflowDepth) {
+      throw new Error(
+        `[workflow-executor] subflow nesting exceeds max depth ${this.maxSubflowDepth} at ${subflowId}`,
+      );
+    }
+    if (ctx.subflowStack.includes(subflowId) || ctx.subflowStack.includes(ctx.workflowId)) {
+      throw new Error(
+        `[workflow-executor] subflow cycle detected: ${[...ctx.subflowStack, subflowId].join(' -> ')}`,
+      );
+    }
+
+    const subflow = this.subflowResolver(subflowId);
+    if (!subflow) {
+      throw new Error(`[workflow-executor] subflow not found: ${subflowId}`);
+    }
+
+    const args = this.resolveArgs(node.args ?? {}, ctx);
+    const child = await this.execute(subflow, {
+      variables: { ...ctx.variables, ...args },
+      subflowStack: [...ctx.subflowStack, ctx.workflowId],
+    });
+
+    // Store the subflow result for downstream nodes
+    ctx.variables[node.id] = child;
+    return {
+      nodeId: node.id,
+      success: child.success,
+      value: child.results,
+      error: child.error,
+      durationMs: Date.now() - startTime,
+      retries: attempt,
+    };
+  }
+
   private resolveArgs(args: Record<string, unknown>, ctx: ExecutionContext): Record<string, unknown> {
     const resolved: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(args)) {
@@ -351,7 +425,8 @@ export class WorkflowExecutor {
   private interpolate(str: string, ctx: ExecutionContext): string {
     return str.replace(/\$\{(\w+)\}/g, (_, name) => {
       const val = ctx.variables[name];
-      return val !== undefined ? String(val) : '';
+      if (val === undefined) return '';
+      return typeof val === 'object' ? JSON.stringify(val) : String(val);
     });
   }
 
