@@ -423,29 +423,25 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-08-28
 **Текущая feature-ветка:** master (все PR смержены)
-**Текущий этап:** Этап 9 — Skills, Rules, Workflows, Memory
-**Статус:** 83 задачи done из 161, 1625 тестов
+**Текущий этап:** Этапы A-D (Skills/Rules/Workflows/Memory) + Behavioral — done
+**Статус:** 94 задачи done из 161, 1749 тестов
 
 ### Последние действия
 
-- 2026-08-28: PR #94 — WF-002 Workflow executor (sequential/parallel/conditional/retry, 12 тестов; починен баг retries-счётчика)
-- 2026-08-28: PR #95 — WF-003 Workflow templates (5 pre-built flows, 12 тестов)
-- 2026-08-28: PR #96 — WF-004 Human-in-the-loop (approve/reject/modify, 8 тестов)
-- 2026-08-28: PR #97 — SK-002 Skill invocation pipeline (trigger/context/execution, shell opt-in, fork, 11 тестов)
-- 2026-08-28: PR #98 — RL-002 Rules evaluation (guard checks, schema validation, 12 тестов)
-- 2026-08-28: PR #99 — BM-007 Auto-heal worker (trigger/status, repair patches, 13 тестов); закрыт stale PR #90 (superseded)
-- 2026-08-28: PR #100 — SK-003 Skill discovery (catalog/categories/search + import .cursorrules/SKILL.md/.clinerules, 13 тестов)
-- 2026-08-28: PR #101 — SK-004 Skill templates (6 pre-built skills, 11 тестов)
-- 2026-08-28: PR #102 — RL-003 Policy-as-code (JSON/DSL условия, glob/regex, 17 тестов)
-- 2026-08-28: PR #103 — BM-008 Proactive guardrails (predict_issue, learned patterns, risk, 12 тестов)
-- 2026-08-28: PR #104 — RL-005 Rule enforcement hooks (MW-001 middleware, enforce/warn/log, auto-fix, 8 тестов)
+- 2026-08-28: PR #94-#99 — WF-002..BM-007 (workflows + skills/rules/behavioral база)
+- 2026-08-28: PR #100-#104 — SK-003..RL-005 (discovery, templates, policy, guardrails, enforcement)
+- 2026-08-28: PR #105 — WF-005 state persistence; PR #106 — fix flaky knowledge test (monotonic updatedAt)
+- 2026-08-28: PR #107 — WF-006 subflows (этап Workflows done 6/6)
+- 2026-08-28: PR #108-#109 — SK-005 converters, SK-006 permissions (этап Skills done 6/6)
+- 2026-08-28: PR #110-#111 — RL-004 rule packs, RL-006 rule import (этап Rules done 6/6)
+- 2026-08-28: PR #112-#114 — MEM-002 entity graph, MEM-003 distillation, MEM-004 memory IO (этап Memory done 4/4)
+- 2026-08-28: PR #115-#116 — BM-009 cross-project search, BM-010 guard rules auto-learning
 
 ### Что дальше
 
-- WF-005 (Workflow state persistence) / WF-006 (Workflow chaining)
-- SK-005 (Skill sharing + конвертеры), SK-006 (Skill permissions)
-- RL-004 (Built-in rule packs), RL-006 (Rule import)
-- BM-009 (Cross-project search), BM-010 (Guard rules auto-learning)
+- BM-011 (Behavioral dashboard, low), BM-012 (LAN relay, low), BM-013 (Migration framework, high), BM-014 (FTS5 search, medium)
+- Sync (5 pending), Tech Debt (10 pending), Quality (8), Docs (5), Integration Hub (6), Web UI (7), OpenCode Integration (4+2)
+- WF-005..MEM-004 закрыли критический путь "SK-001 → WF-001 → WF-002"
 
 ---
 
