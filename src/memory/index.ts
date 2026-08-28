@@ -10,3 +10,6 @@ export type { EntityType, EdgeType, EntityNode, EntityEdge, GraphPath, SearchHit
 
 export { ContextDistiller } from './context-distiller.js';
 export type { DistilledKnowledge, DistillerOptions, CompressOptions, CompressResult } from './context-distiller.js';
+
+export { MemoryIO } from './memory-io.js';
+export type { ImportSummary, ImportOptions } from './memory-io.js';
