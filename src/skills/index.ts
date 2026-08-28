@@ -13,3 +13,6 @@ export type { CategoryCount, SearchFilter, ImportOptions, ImportResult } from '.
 
 export { skillTemplates, listSkillTemplates, getSkillTemplate, buildSkillFromTemplate, installSkillFromTemplate } from './skill-templates.js';
 export type { SkillTemplate } from './skill-templates.js';
+
+export { toCursorRules, toSkillMd, toClinerules, toMarkdown, convertSkill, fileNameFor, exportSkills } from './skill-converters.js';
+export type { SkillExportFormat, ExportResult } from './skill-converters.js';
