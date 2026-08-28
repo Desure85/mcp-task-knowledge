@@ -58,6 +58,7 @@ import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
 import { RateLimiter } from './rate-limiter.js';
 import { HealthChecker } from '../health/index.js';
+import { ServiceAvailabilityRegistry } from './graceful-degradation.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -153,6 +154,7 @@ export class AppContainer {
   private sessionMgr?: SessionManager;
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
+  private readonly services = new ServiceAvailabilityRegistry();
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private startedAt?: number;
@@ -232,6 +234,11 @@ export class AppContainer {
     return this.healthChecker;
   }
 
+  /** Optional-service availability trackers (TD-011). */
+  getServices(): ServiceAvailabilityRegistry {
+    return this.services;
+  }
+
   // ─── Lifecycle ───────────────────────────────────────────────────
 
   /**
@@ -302,6 +309,22 @@ export class AppContainer {
         message: `state: ${this._state}`,
         details: { state: this._state, tools: ctx.toolNames.size },
       }));
+
+      // Optional-service availability trackers (TD-011): embeddings + catalog
+      // report degraded/unhealthy with details, the server keeps serving.
+      this.services.get('embeddings', {
+        label: 'embeddings',
+        circuit: { failureThreshold: 2, resetTimeoutMs: 30_000, halfOpenSuccessThreshold: 1 },
+      });
+      this.healthChecker.register('embeddings', () => {
+        // Available by default; marked degraded/unhealthy once calls fail.
+        const svc = this.services.get('embeddings');
+        return svc.toComponentHealth();
+      });
+      this.healthChecker.register('catalog', () => {
+        const svc = this.services.get('catalog');
+        return svc.toComponentHealth();
+      });
     } catch (err) {
       this._state = 'error';
       this.log.error({ err }, 'initialization failed');
