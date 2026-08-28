@@ -10,3 +10,6 @@ export type { GuardPhase, GuardSchema, GuardViolation, GuardResult } from './rul
 
 export { PolicyEngine } from './policy-engine.js';
 export type { PolicyOp, PolicyCondition, PolicyRule, PolicyEvaluation, PolicyEngineOptions } from './policy-engine.js';
+
+export { RuleEnforcementMiddleware, createRuleEnforcement } from './rule-enforcement.js';
+export type { EnforcementMode, RuleEnforcementOptions, ViolationLogEntry } from './rule-enforcement.js';

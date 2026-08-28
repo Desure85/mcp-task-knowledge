@@ -103,6 +103,16 @@ export class RuleEvaluator {
     return this.evaluate(scope, toolName, 'output', output);
   }
 
+  /**
+   * Effective rules that apply to a tool (targets matched), for any phase.
+   * Used by enforcement middleware (RL-005) for auto-fix discovery.
+   */
+  listApplicableRules(scope: RuleScope, toolName: string): Rule[] {
+    return this.manager
+      .getEffectiveRules(scope)
+      .filter((r) => this.matchesTargets(r, toolName));
+  }
+
   // ─── Internal ───────────────────────────────────────────────────
 
   private buildResult(violations: GuardViolation[]): GuardResult {
