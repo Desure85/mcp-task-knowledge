@@ -267,7 +267,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | SEC-001 | Audit logging: запись всех MCP-операций в structured audit trail — кто, что, когда, результат. Формат: JSON lines, ротация по размеру/времени. Хранение: файл + optional remote (Syslog/Loki). MCP tools: `audit.query`, `audit.export` | high | done | PR #76 | A-002 |
 | SEC-002 | TLS/mTLS поддержка: TLS для TCP/HTTP транспорта. mTLS для server-to-server (proxy ↔ server). Certificate rotation без downtime. Конфигурация через `CFG-001` | medium | pending | 8.3 | T-002, CFG-001 |
 | SEC-003 | Token refresh flow: short-lived access tokens (15-30 min) + refresh tokens. Refresh endpoint, token revocation, token blacklist. Связь с `A-002` и `A-003` | high | done | PR #77 | A-002 |
-| SEC-004 | Secret management: хранение секретов (API keys, tokens) — env vars, Docker secrets, HashiCorp Vault integration (optional). Шифрование at-rest для конфиденциальных данных. API: `secrets.get`, `secrets.set` | medium | pending | 8.4 | CFG-001 |
+| SEC-004 | Secret management: хранение секретов (API keys, tokens) — env vars, Docker secrets, HashiCorp Vault integration (optional). Шифрование at-rest для конфиденциальных данных. API: `secrets.get`, `secrets.set` | medium | done | PR #80 | CFG-001 |
 | SEC-005 | Authentication protection: rate-limit на `mcp.authenticate` (5 attempts/min), lockout после N failures, exponential backoff. CAPTCHA integration (optional). IP-based blocking | medium | done | PR #78 | A-001 |
 | SEC-006 | Input sanitization: валидация и очистка всех tool input — XSS prevention, SQL injection, path traversal, command injection. Стандартный sanitizer перед вызовом handler. Часть MW-001 pipeline | medium | done | PR #79 | MW-001 |
 
@@ -619,7 +619,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
 | ACL (4) | 3 | 0 | 0 | 3 | 0 | 0 |
 | Proxy (5) | 4 | 0 | 0 | 4 | 0 | 0 |
-| Security (8) | 6 | 2 | 0 | 4 | 0 | 0 |
+| Security (8) | 6 | 1 | 0 | 5 | 0 | 0 |
 | Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
 | DX (9) | 8 | 8 | 0 | 0 | 0 | 0 |
 | Scalability (10) | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **111** | **2** | **58** | **0** | **1** |
+| **Итого** | **161** | **110** | **2** | **59** | **0** | **1** |
