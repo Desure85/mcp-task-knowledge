@@ -254,7 +254,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | P-001 | Proxy bootstrap и конфигурация | medium | done | PR #72 | A-002 |
 | P-002 | Зеркалирование инструментов/ресурсов через прокси | medium | done | PR #73 | P-001 |
 | P-003 | Проброс запросов/уведомлений, flow control | medium | done | PR #74 | P-002 |
-| P-004 | Устойчивость и observability прокси | low | pending | 5.4 | P-003 |
+| P-004 | Устойчивость и observability прокси | low | done | PR #75 | P-003 |
 
 ---
 
@@ -618,7 +618,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Sessions (2) | 5 | 0 | 0 | 5 | 0 | 0 |
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
 | ACL (4) | 3 | 0 | 0 | 3 | 0 | 0 |
-| Proxy (5) | 4 | 1 | 0 | 3 | 0 | 0 |
+| Proxy (5) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Security (8) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
 | DX (9) | 8 | 8 | 0 | 0 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **116** | **2** | **53** | **0** | **1** |
+| **Итого** | **161** | **115** | **2** | **54** | **0** | **1** |
