@@ -10,3 +10,6 @@ export type { SkillInvokeOptions, SkillInvokeResult, SkillMatch, SkillPipelineOp
 
 export { SkillDiscovery } from './skill-discovery.js';
 export type { CategoryCount, SearchFilter, ImportOptions, ImportResult } from './skill-discovery.js';
+
+export { skillTemplates, listSkillTemplates, getSkillTemplate, buildSkillFromTemplate, installSkillFromTemplate } from './skill-templates.js';
+export type { SkillTemplate } from './skill-templates.js';
