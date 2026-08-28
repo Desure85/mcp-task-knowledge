@@ -20,6 +20,30 @@ const log = childLogger('workflow-executor');
 
 export type ToolInvoker = (name: string, args: Record<string, unknown>) => Promise<unknown>;
 
+// ─── Human-in-the-loop (HITL) ─────────────────────────────────────
+
+export interface ApprovalRequest {
+  /** Workflow being executed. */
+  workflowId: string;
+  /** Node awaiting approval. */
+  nodeId: string;
+  /** Human-readable node label. */
+  nodeLabel: string;
+  /** Tool/skill/rule to invoke (if any). */
+  ref?: string;
+  /** Resolved input arguments for the node. */
+  args: Record<string, unknown>;
+  /** Retry attempt (0-based). */
+  attempt: number;
+}
+
+export type ApprovalDecision =
+  | { action: 'approve' }
+  | { action: 'reject' }
+  | { action: 'modify'; args: Record<string, unknown> };
+
+export type ApprovalHandler = (request: ApprovalRequest) => Promise<ApprovalDecision> | ApprovalDecision;
+
 export interface ExecutionContext {
   /** Workflow being executed. */
   workflowId: string;
@@ -66,6 +90,8 @@ export interface ExecutorOptions {
   retryDelayMs?: number;
   /** Whether to continue on error. Default: false. */
   continueOnError?: boolean;
+  /** Human-in-the-loop handler for nodes with requiresApproval. */
+  approvalHandler?: ApprovalHandler;
 }
 
 // ─── WorkflowExecutor ─────────────────────────────────────────────
@@ -75,12 +101,14 @@ export class WorkflowExecutor {
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
   private readonly continueOnError: boolean;
+  private readonly approvalHandler?: ApprovalHandler;
 
   constructor(options: ExecutorOptions) {
     this.toolInvoker = options.toolInvoker;
     this.maxRetries = options.maxRetries ?? 0;
     this.retryDelayMs = options.retryDelayMs ?? 100;
     this.continueOnError = options.continueOnError ?? false;
+    this.approvalHandler = options.approvalHandler;
   }
 
   /**
@@ -163,6 +191,37 @@ export class WorkflowExecutor {
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
+        // Human-in-the-loop: pause for approval before executing
+        if (node.requiresApproval) {
+          const args = this.resolveArgs(node.args ?? {}, ctx);
+          const decision = await this.requestApproval(node, ctx, args, attempt);
+          if (decision.action === 'reject') {
+            return {
+              nodeId: node.id,
+              success: false,
+              error: 'rejected by user',
+              durationMs: Date.now() - startTime,
+              retries: attempt,
+            };
+          }
+          const approvedArgs = decision.action === 'modify' ? decision.args : args;
+
+          // Action nodes pass through after approval (checkpoint)
+          if (node.type === 'action') {
+            return { nodeId: node.id, success: true, durationMs: Date.now() - startTime, retries: attempt };
+          }
+
+          // Invoke tool/skill/rule with approved args
+          if (node.ref) {
+            const value = await this.toolInvoker(node.ref, approvedArgs);
+            // Store result in variables for downstream nodes
+            ctx.variables[node.id] = value;
+            return { nodeId: node.id, success: true, value, durationMs: Date.now() - startTime, retries: attempt };
+          }
+
+          return { nodeId: node.id, success: true, durationMs: Date.now() - startTime, retries: attempt };
+        }
+
         // Action nodes just pass through
         if (node.type === 'action') {
           return { nodeId: node.id, success: true, durationMs: Date.now() - startTime, retries };
@@ -195,6 +254,29 @@ export class WorkflowExecutor {
       durationMs: Date.now() - startTime,
       retries,
     };
+  }
+
+  private async requestApproval(
+    node: WorkflowNode,
+    ctx: ExecutionContext,
+    args: Record<string, unknown>,
+    attempt: number,
+  ): Promise<ApprovalDecision> {
+    if (!this.approvalHandler) {
+      throw new Error(
+        `[workflow-executor] node ${node.id} requires approval but no approval handler configured`,
+      );
+    }
+    const request: ApprovalRequest = {
+      workflowId: ctx.workflowId,
+      nodeId: node.id,
+      nodeLabel: node.label,
+      ref: node.ref,
+      args,
+      attempt,
+    };
+    log.info({ nodeId: node.id, workflowId: ctx.workflowId }, 'awaiting human approval');
+    return this.approvalHandler(request);
   }
 
   private resolveArgs(args: Record<string, unknown>, ctx: ExecutionContext): Record<string, unknown> {
