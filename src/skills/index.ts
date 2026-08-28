@@ -7,3 +7,6 @@ export type { Skill, CreateSkillInput, UpdateSkillInput, SkillVersion, SkillStat
 
 export { SkillPipeline } from './skill-pipeline.js';
 export type { SkillInvokeOptions, SkillInvokeResult, SkillMatch, SkillPipelineOptions } from './skill-pipeline.js';
+
+export { SkillDiscovery } from './skill-discovery.js';
+export type { CategoryCount, SearchFilter, ImportOptions, ImportResult } from './skill-discovery.js';
