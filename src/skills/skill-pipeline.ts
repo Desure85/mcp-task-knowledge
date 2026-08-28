@@ -25,6 +25,7 @@ import { promisify } from 'node:util';
 import { childLogger } from '../core/logger.js';
 import type { SkillManager } from './skill-manager.js';
 import type { Skill } from './types.js';
+import type { SkillPermissions, InvocationContext } from './skill-permissions.js';
 
 const log = childLogger('skill-pipeline');
 const execAsync = promisify(execCallback);
@@ -46,6 +47,8 @@ export interface SkillInvokeOptions {
   allowShell?: boolean;
   /** Shell runner override (for tests / sandboxes). */
   shellRunner?: (command: string) => Promise<string>;
+  /** Invocation context for permission checks (SK-006). */
+  caller?: InvocationContext;
 }
 
 export interface SkillInvokeResult {
@@ -85,6 +88,8 @@ export interface SkillPipelineOptions {
   allowShell?: boolean;
   /** Default shell runner override. */
   shellRunner?: (command: string) => Promise<string>;
+  /** Permission checker enforced before each invocation (SK-006). */
+  permissions?: SkillPermissions;
 }
 
 // ─── SkillPipeline ────────────────────────────────────────────────
@@ -93,11 +98,13 @@ export class SkillPipeline {
   private readonly manager: SkillManager;
   private readonly defaultAllowShell: boolean;
   private readonly defaultShellRunner?: (command: string) => Promise<string>;
+  private readonly permissions?: SkillPermissions;
 
   constructor(manager: SkillManager, options?: SkillPipelineOptions) {
     this.manager = manager;
     this.defaultAllowShell = options?.allowShell ?? false;
     this.defaultShellRunner = options?.shellRunner;
+    this.permissions = options?.permissions;
   }
 
   /**
@@ -133,6 +140,15 @@ export class SkillPipeline {
     }
     if (skill.status === 'archived' || skill.status === 'deprecated') {
       throw new Error(`[skill-pipeline] skill is not invocable (status: ${skill.status}): ${id}`);
+    }
+
+    // Permission gate (SK-006)
+    if (this.permissions) {
+      const decision = this.permissions.checkInvocation(id, options?.arguments ?? {}, options?.caller);
+      if (!decision.allowed) {
+        const reason = decision.violations[0]?.reason ?? 'permission denied';
+        throw new Error(`[skill-pipeline] permission denied for ${id}: ${reason}`);
+      }
     }
 
     const warnings: string[] = [];
