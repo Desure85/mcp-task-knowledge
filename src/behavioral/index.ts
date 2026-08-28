@@ -19,3 +19,6 @@ export type { RepairBriefResult, SimilarFix } from './repair-brief.js';
 
 export { CodeLineage } from './code-lineage.js';
 export type { LineageNode, LineageResult } from './code-lineage.js';
+
+export { AutoHealWorker } from './auto-heal.js';
+export type { RepairPatch, SourceResolution, PatchStatus, AutoHealOptions, TriggerFilter, AutoHealStatus } from './auto-heal.js';
