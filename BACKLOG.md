@@ -198,7 +198,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | T-001 | AppContainer: композиция приложения с lifecycle | medium | done | 1.1 | F-002 ✅ |
 | T-002 | TCP/Unix multi-client сервер | medium | **done** ✅ | 1.2 | T-001 ✅ |
 | T-003 | Stdio single-client сервер (вынести из main) | low | **done** ✅ | 1.3 | T-001 ✅ |
-| T-004 | Transport health check: метод `health()` на TransportAdapter — проверка что транспорт жив (socket listening, connection alive). Для SCALE-001 `/healthz`. Stdio всегда healthy | low | pending | — | T-001 |
+| T-004 | Transport health check: метод `health()` на TransportAdapter — проверка что транспорт жив (socket listening, connection alive). Для SCALE-001 `/healthz`. Stdio всегда healthy | low | done | PR #72 | T-001 |
 
 ---
 
@@ -613,7 +613,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
 | Foundation (0) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Transport (1) | 4 | 1 | 0 | 3 | 0 | 0 |
+| Transport (1) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Middleware & Infra | 4 | 0 | 0 | 4 | 0 | 0 |
 | Sessions (2) | 5 | 0 | 0 | 5 | 0 | 0 |
 | Auth (3) | 3 | 0 | 0 | 3 | 0 | 0 |
@@ -636,4 +636,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 14 | 0 | 0 | 0 | 0 |
-| **Итого** | **161** | **120** | **2** | **49** | **0** | **1** |
+| **Итого** | **161** | **119** | **2** | **50** | **0** | **1** |

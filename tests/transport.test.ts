@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { TransportRegistry } from '../src/transport/registry.js';
 import { StdioTransportFactory, StdioTransportAdapter } from '../src/transport/stdio-transport.js';
 import { HttpTransportFactory, HttpTransportAdapter } from '../src/transport/http-transport.js';
-import type { TransportConfig, TransportAdapter, TransportFactory } from '../src/transport/types.js';
+import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from '../src/transport/types.js';
 import type { ServerContext } from '../src/register/context.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -81,6 +81,9 @@ describe('TransportRegistry', () => {
       readonly type = 'fake';
       async connect() {}
       async close() {}
+      health(): TransportHealth {
+        return { type: 'fake', healthy: true, connected: false };
+      }
     }
 
     class FakeFactory implements TransportFactory {
@@ -135,6 +138,24 @@ describe('StdioTransportAdapter', () => {
     await adapter.connect(ctx);
     await adapter.close();
     await expect(adapter.close()).resolves.not.toThrow();
+  });
+
+  it('health() is always healthy (T-004)', () => {
+    const adapter = new StdioTransportAdapter();
+    const h = adapter.health();
+    expect(h.type).toBe('stdio');
+    expect(h.healthy).toBe(true);
+    expect(h.connected).toBe(false);
+  });
+
+  it('health() reflects connected state after connect', async () => {
+    const adapter = new StdioTransportAdapter();
+    const ctx = mockCtx();
+    await adapter.connect(ctx);
+    const h = adapter.health();
+    expect(h.healthy).toBe(true);
+    expect(h.connected).toBe(true);
+    await adapter.close();
   });
 });
 
@@ -195,6 +216,31 @@ describe('HttpTransportAdapter', () => {
 
     // Give the server a moment to start listening
     await new Promise((resolve) => setTimeout(resolve, 50));
+    await adapter.close();
+  }, 5000);
+
+  it('health() is unhealthy before connect (T-004)', () => {
+    const adapter = new HttpTransportAdapter(0, '127.0.0.1');
+    const h = adapter.health();
+    expect(h.type).toBe('http');
+    expect(h.healthy).toBe(false);
+    expect(h.connected).toBe(false);
+    expect(h.details?.listening).toBe(false);
+  });
+
+  it('health() is healthy after connect (T-004)', async () => {
+    const adapter = new HttpTransportAdapter(0, '127.0.0.1');
+    const ctx = mockCtx();
+    await adapter.connect(ctx);
+    // Give the server a moment to start listening
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const h = adapter.health();
+    expect(h.healthy).toBe(true);
+    expect(h.connected).toBe(true);
+    expect(h.details?.listening).toBe(true);
+    expect(h.details?.port).toBe(0);
+
     await adapter.close();
   }, 5000);
 });

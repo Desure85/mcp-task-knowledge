@@ -24,6 +24,21 @@ export interface TransportConfig {
 // ─── Adapter ──────────────────────────────────────────────────────────
 
 /**
+ * Health status returned by `TransportAdapter.health()`.
+ * Used by SCALE-001 `/healthz` endpoint and Kubernetes probes.
+ */
+export interface TransportHealth {
+  /** Transport type identifier. */
+  type: string;
+  /** Whether the transport is healthy and ready to serve requests. */
+  healthy: boolean;
+  /** Whether the adapter has been connected (lifecycle state). */
+  connected: boolean;
+  /** Transport-specific details (port, active connections, etc.). */
+  details?: Record<string, unknown>;
+}
+
+/**
  * Wraps an MCP SDK Transport with full lifecycle management.
  *
  * The adapter owns the connection to the MCP server AND any auxiliary
@@ -47,6 +62,13 @@ export interface TransportAdapter {
    * Idempotent — safe to call multiple times.
    */
   close(): Promise<void>;
+
+  /**
+   * Check transport health (T-004).
+   * Returns whether the transport is alive and ready to serve requests.
+   * Stdio is always healthy; TCP/HTTP check socket/listener state.
+   */
+  health(): TransportHealth;
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────

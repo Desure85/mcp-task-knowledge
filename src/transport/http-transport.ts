@@ -12,7 +12,7 @@
 import { StreamableHTTPServerTransport as SdkHttpTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import type { TransportConfig, TransportAdapter, TransportFactory } from './types.js';
+import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
 import { createOpenAPIHandler } from '../register/openapi.js';
 import { childLogger } from '../core/logger.js';
@@ -118,6 +118,20 @@ export class HttpTransportAdapter implements TransportAdapter {
       this.transport = undefined;
       this.httpServer = undefined;
     }
+  }
+
+  health(): TransportHealth {
+    const listening = this.httpServer?.listening ?? false;
+    return {
+      type: this.type,
+      healthy: this._connected && listening,
+      connected: this._connected,
+      details: {
+        port: this.port,
+        host: this.host,
+        listening,
+      },
+    };
   }
 }
 

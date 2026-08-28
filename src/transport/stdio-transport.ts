@@ -6,7 +6,7 @@
  */
 
 import { StdioServerTransport as SdkStdioTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { TransportConfig, TransportAdapter, TransportFactory } from './types.js';
+import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
 
 // ─── Adapter ──────────────────────────────────────────────────────────
@@ -41,6 +41,16 @@ export class StdioTransportAdapter implements TransportAdapter {
       this._connected = false;
       this.transport = undefined;
     }
+  }
+
+  health(): TransportHealth {
+    // Stdio is always healthy — stdin/stdout are process-level pipes
+    // that don't have a "listening" state to check.
+    return {
+      type: this.type,
+      healthy: true,
+      connected: this._connected,
+    };
   }
 }
 

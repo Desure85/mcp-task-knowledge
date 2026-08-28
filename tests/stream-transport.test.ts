@@ -198,6 +198,34 @@ describe('TcpTransportAdapter', () => {
     await new Promise((r) => setTimeout(r, 500));
     await adapter.close();
   });
+
+  it('health() is unhealthy before connect (T-004)', () => {
+    const adapter = new TcpTransportAdapter(PORT + 3, '127.0.0.1');
+    const h = adapter.health();
+    expect(h.type).toBe('tcp');
+    expect(h.healthy).toBe(false);
+    expect(h.connected).toBe(false);
+    expect(h.details?.listening).toBe(false);
+    expect(h.details?.activeConnections).toBe(0);
+  });
+
+  it('health() is healthy after connect with active connections (T-004)', async () => {
+    const adapter = new TcpTransportAdapter(PORT + 4, '127.0.0.1');
+    await adapter.connect(ctx);
+
+    const client = await connectTcpClient(PORT + 4);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const h = adapter.health();
+    expect(h.healthy).toBe(true);
+    expect(h.connected).toBe(true);
+    expect(h.details?.listening).toBe(true);
+    expect(h.details?.activeConnections).toBe(1);
+
+    client.destroy();
+    await new Promise((r) => setTimeout(r, 500));
+    await adapter.close();
+  });
 });
 
 // ─── Unix Socket Transport ─────────────────────────────────────────────
@@ -254,6 +282,28 @@ describe('UnixTransportAdapter', () => {
     const adapter = new UnixTransportAdapter(sockPath);
     await adapter.connect(ctx);
     expect(adapter.connected).toBe(true);
+    await adapter.close();
+  });
+
+  it('health() is unhealthy before connect (T-004)', () => {
+    const adapter = new UnixTransportAdapter('/tmp/mcp-test-health.sock');
+    const h = adapter.health();
+    expect(h.type).toBe('unix');
+    expect(h.healthy).toBe(false);
+    expect(h.connected).toBe(false);
+  });
+
+  it('health() is healthy after connect (T-004)', async () => {
+    const sockPath = `/tmp/mcp-test-${Date.now()}-health.sock`;
+    const adapter = new UnixTransportAdapter(sockPath);
+    await adapter.connect(ctx);
+
+    const h = adapter.health();
+    expect(h.healthy).toBe(true);
+    expect(h.connected).toBe(true);
+    expect(h.details?.listening).toBe(true);
+    expect(h.details?.activeConnections).toBe(0);
+
     await adapter.close();
   });
 });

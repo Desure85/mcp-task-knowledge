@@ -30,7 +30,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/stdio.js';
 import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types.js';
 import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { TransportConfig, TransportAdapter, TransportFactory } from './types.js';
+import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
 import { childLogger } from '../core/logger.js';
 
@@ -276,6 +276,19 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       remote: s.remote,
       durationMs: Date.now() - s.connectedAt,
     }));
+  }
+
+  health(): TransportHealth {
+    const listening = this.server?.listening ?? false;
+    return {
+      type: this.type,
+      healthy: this._connected && listening,
+      connected: this._connected,
+      details: {
+        listening,
+        activeConnections: this.sessions.size,
+      },
+    };
   }
 }
 
