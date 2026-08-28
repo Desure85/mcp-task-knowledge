@@ -49,6 +49,7 @@ jobs:
         env:
           EMBEDDINGS_MODE: none
         run: |
+          npm run test:types --silent
           npm test --silent
 
       - name: Run Obsidian roundtrip smoke

@@ -20,6 +20,7 @@ function createMockAdapter(): TransportAdapter & {
     closeCalls: 0,
     async connect() { this.connectCalls++; this.connected = true; },
     async close() { this.closeCalls++; this.connected = false; },
+    health() { return { type: 'stdio', healthy: this.connected, connected: this.connected }; },
   };
   return adapter;
 }
@@ -413,8 +414,10 @@ describe('AppContainer — edge cases', () => {
     // Manually set adapter with a failing close
     const badAdapter: TransportAdapter = {
       type: 'stdio',
+      connected: false,
       async connect() {},
       async close() { throw new Error('transport close failed'); },
+      health() { return { type: 'stdio', healthy: false, connected: false }; },
     };
     // We can't directly set adapter, but we can test via the state machine
     // The actual transport close error handling is tested via integration tests
