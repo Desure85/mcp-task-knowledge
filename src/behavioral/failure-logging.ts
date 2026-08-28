@@ -113,6 +113,14 @@ export class FailureLogger {
   }
 
   /**
+   * List all failures, newest first.
+   */
+  list(limit?: number): FailureRecord[] {
+    const failures = [...this.storage.failures].reverse();
+    return limit ? failures.slice(0, limit) : failures;
+  }
+
+  /**
    * Get failures by memory ID (intent link).
    */
   getByMemoryId(memoryId: string): FailureRecord[] {

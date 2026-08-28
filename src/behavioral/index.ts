@@ -13,3 +13,6 @@ export type { FailureRecord, FailureLoggerOptions } from './failure-logging.js';
 
 export { ResolutionLogger } from './resolution-logging.js';
 export type { ResolutionRecord, ResolutionLoggerOptions } from './resolution-logging.js';
+
+export { RepairBrief } from './repair-brief.js';
+export type { RepairBriefResult, SimilarFix } from './repair-brief.js';
