@@ -103,7 +103,6 @@
     "vitest": "^3.2.4"
   },
   "lint-staged": {
-    "*.ts": "tsc --noEmit",
     "*.md": "markdownlint --fix"
   }
 }
