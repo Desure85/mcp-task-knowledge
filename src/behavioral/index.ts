@@ -16,3 +16,6 @@ export type { ResolutionRecord, ResolutionLoggerOptions } from './resolution-log
 
 export { RepairBrief } from './repair-brief.js';
 export type { RepairBriefResult, SimilarFix } from './repair-brief.js';
+
+export { CodeLineage } from './code-lineage.js';
+export type { LineageNode, LineageResult } from './code-lineage.js';
