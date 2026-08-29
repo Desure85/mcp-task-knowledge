@@ -124,9 +124,7 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
     if (embeddedLibHandle || embeddedTriedImport) return embeddedLibHandle;
     embeddedTriedImport = true;
     try {
-      // Dynamic import to avoid hard dependency
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
+      // Dynamic import to avoid hard dependency (TD-008: typed via src/types/service-catalog.d.ts)
       const lib = await import("service-catalog/lib");
       if (lib?.initEmbeddedCatalog) {
         const initArgs: Record<string, unknown> = {
@@ -139,7 +137,7 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
         if (cfg.embedded.store === "sqlite" && cfg.embedded.sqliteDriver) {
           initArgs.driver = cfg.embedded.sqliteDriver;
         }
-        embeddedLibHandle = await lib.initEmbeddedCatalog(initArgs);
+        embeddedLibHandle = (await lib.initEmbeddedCatalog(initArgs)) as unknown as typeof embeddedLibHandle;
         return embeddedLibHandle;
       }
     } catch {
