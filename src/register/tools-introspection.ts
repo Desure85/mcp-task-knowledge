@@ -183,4 +183,63 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
       return ok({ count: results.length, results });
     }
   );
+
+  // ─── Hot registration (DX-001) ─────────────────────────────────────
+
+  ctx.server.registerTool(
+    "tools_register",
+    {
+      title: "Register Tool",
+      description:
+        "Hot-register a new tool at runtime without restarting the server. " +
+        "The handler is defined as a JSON expression: for a simple echo tool use " +
+        "`handler: \"echo\"` (returns { input }). Experimental (DX-001).",
+      inputSchema: {
+        name: z.string().min(1).max(64),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        inputSchema: z.record(z.string(), z.any()).optional(),
+        handlerKind: z.enum(['echo', 'return-input']).default('echo'),
+      },
+    },
+    async ({ name, title, description, inputSchema, handlerKind }: {
+      name: string;
+      title?: string;
+      description?: string;
+      inputSchema?: Record<string, unknown>;
+      handlerKind?: 'echo' | 'return-input';
+    }) => {
+      try {
+        const handler = async (input: Record<string, unknown>) => ok(input);
+        ctx.server.registerTool(name, {
+          title: title ?? name,
+          description: description ?? `Hot-registered tool (DX-001), handler: ${handlerKind}`,
+          inputSchema: Object.fromEntries(Object.entries(inputSchema ?? {}).map(([k, v]) => [k, z.any().describe(String(v))])),
+        }, handler as never);
+        return ok({ name, registered: true });
+      } catch (e) {
+        return err(`register failed: ${(e as Error).message}`);
+      }
+    }
+  );
+
+  ctx.server.registerTool(
+    "tools_unregister",
+    {
+      title: "Unregister Tool",
+      description: "Hot-remove a tool at runtime (DX-001). Experimental.",
+      inputSchema: {
+        name: z.string().min(1).max(64),
+      },
+    },
+    async ({ name }: { name: string }) => {
+      try {
+        const removed = ctx.toolRegistry.delete(name);
+        if (!removed) return err(`tool not found: ${name}`);
+        return ok({ name, removed: true });
+      } catch (e) {
+        return err(`unregister failed: ${(e as Error).message}`);
+      }
+    }
+  );
 }
