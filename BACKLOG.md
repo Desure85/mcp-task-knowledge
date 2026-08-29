@@ -413,7 +413,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AI-011 | Claude Code plugin export: exportClaudeCodePlugin — генерация .claude-plugin/plugin.json + skills/*/SKILL.md + README. ADR-006 | medium | completed | #157 | SK-005 |
 | AI-012 | Claude Code plugin import: prompts_import_plugin — чтение .claude-plugin/plugin.json + skills/*/SKILL.md, конвертация в наш формат | medium | completed | #158 | AI-011 |
 | AI-013 | MCP streaming responses: поддержка partial/streaming tool results (SSE chunked) для long-running operations (embeddings init, bulk import) | high | completed | #159 | — |
-| AI-014 | OAuth 2.1 provider: авторизация для HTTP transport (PKCE flow, token endpoint, scope-based ACL). Прод-уровень security | high | pending | — | A-002 |
+| AI-014 | OAuth 2.1 provider: авторизация для HTTP transport (PKCE flow, token endpoint, scope-based ACL). Прод-уровень security | high | completed | #162 | A-002 |
 | AI-015 | Tool batching API: `tools_batch` — группировка нескольких tool calls в один request с параллельным выполнением и агрегированным ответом | medium | completed | #160 | — |
 | AI-016 | Rate-limit dashboard: UI для визуализации rate-limit состояния (per-session buckets, refill rate, denied requests) | low | completed | #161 | TD-004 |
 
@@ -638,7 +638,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Tech Debt | 14 | 10 | 0 | 0 | 0 | 1 |
 | Quality | 13 | 8 | 0 | 1 | 0 | 0 |
 | Docs | 5 | 1 | 0 | 4 | 0 | 0 |
-| Agent Infra | 16 | 2 | 0 | 7 | 0 | 0 |
+| Agent Infra | 16 | 2 | 0 | 6 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
@@ -647,4 +647,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **160** | **129** | **2** | **28** | **0** | **1** |
+| **Итого** | **160** | **130** | **2** | **27** | **0** | **1** |
