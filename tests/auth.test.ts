@@ -16,34 +16,10 @@ import {
 import type { TokenValidator, AuthResult } from '../src/core/auth.js';
 import { ToolExecutor, ToolDeniedError, createToolContext } from '../src/core/tool-executor.js';
 import type { RawToolHandler, ToolContext } from '../src/core/tool-executor.js';
-import type { ServerContext } from '../src/register/context.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createMockServerContext } from './helpers.js';
 import { SessionManager } from '../src/core/session-manager.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-function createMockServerContext(): ServerContext {
-  const server = new McpServer({ name: 'test', version: '0.0.0' });
-  return {
-    server,
-    cfg: { embeddings: { mode: 'none' }, obsidian: { vaultRoot: '/tmp' } },
-    catalogCfg: {
-      mode: 'embedded', prefer: 'embedded',
-      embedded: { enabled: false, prefix: '/catalog', store: 'memory' },
-      remote: { enabled: false, timeoutMs: 2000 },
-      sync: { enabled: false, intervalSec: 60, direction: 'none' },
-    },
-    catalogProvider: {} as any,
-    vectorAdapter: undefined, vectorInitAttempted: false,
-    ensureVectorAdapter: async () => undefined,
-    toolRegistry: { get: () => undefined, has: () => false, set: () => {}, all: () => [], size: 0 } as any,
-    resourceRegistry: [], toolNames: new Set(),
-    STRICT_TOOL_DEDUP: false, TOOLS_ENABLED: true, TOOL_RES_ENABLED: false, TOOL_RES_EXEC: false,
-    REPO_ROOT: '/tmp',
-    SERVER_CAPS: { resources: { list: true, read: true }, tools: { call: true } },
-    normalizeBase64: (s) => s, makeResourceTemplate: () => ({}) as any, registerToolAsResource: () => {},
-  };
-}
 
 function createContext(sessionId: string = 'sess-1', overrides?: Partial<ToolContext>): ToolContext {
   return createToolContext({
