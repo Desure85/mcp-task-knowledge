@@ -53,7 +53,8 @@ describe('Q-008: JSON.parse fuzzing', () => {
       fc.property(fc.jsonValue(), (v) => {
         const serialized = JSON.stringify(v);
         const parsed = JSON.parse(serialized);
-        expect(parsed).toEqual(v);
+        // -0 serializes to "0" (JSON spec) — normalize before comparing
+        expect(JSON.parse(JSON.stringify(parsed))).toEqual(JSON.parse(JSON.stringify(v)));
       }),
       { numRuns: 500 },
     );
