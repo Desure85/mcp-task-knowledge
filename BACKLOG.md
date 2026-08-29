@@ -372,7 +372,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Q-002 | Unit-тесты для `src/storage/tasks.ts` | high | done | 7.1 | — |
 | Q-003 | Unit-тесты для `src/storage/knowledge.ts` | high | done | 7.1 | — |
 | Q-004 | Интеграционные E2E тесты для основных MCP-инструментов | medium | completed | #123 | 7.1 | — |
-| Q-005 | Coverage threshold enforcement (минимум 80%) | medium | pending | 7.4 | Q-001..Q-004 |
+| Q-005 | Coverage threshold enforcement (минимум 80%) | medium | completed | #124 | 7.4 | Q-001..Q-004 |
 | Q-006 | Нагрузочные тесты для BM25 и vector search | low | pending | 7.2 | — |
 | Q-007 | Schema validation tests (ajv для schemas/*.json) | low | pending | 7.1 | — |
 | Q-008 | Фаззинг JSON-RPC: random payloads для framing, parser, validator. Инструменты: fast-check / property-based testing. Цель — найти краш-баги и undefined behavior | medium | pending | 7.3 | — |
