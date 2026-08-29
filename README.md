@@ -313,6 +313,8 @@ data/
 
 Mermaid-диаграммы компонентов, жизненного цикла запроса и слоёв зависимостей: [docs/architecture.md](docs/architecture.md)
 
+Полный справочник всех MCP-инструментов (76): [docs/api-reference.md](docs/api-reference.md) (регенерация: `npm run api:reference`)
+
 ## License
 
 MIT
