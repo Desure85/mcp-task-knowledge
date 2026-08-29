@@ -392,7 +392,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | D-002 | Architecture Decision Records (ADR) | low | pending | — | — |
 | D-003 | CONTRIBUTING.md для контрибьюторов | low | pending | — | — |
 | D-004 | CHANGELOG.md (автоматический из conventional commits) | low | pending | — | — |
-| D-005 | Architecture diagram: Mermaid/PlantUML диаграмма — компоненты (AppContainer, SessionManager, ToolExecutor, Transport), связи, data flow. В README или /docs. Обновлять при изменении архитектуры | medium | pending | — | — |
+| D-005 | Architecture diagram: Mermaid/PlantUML диаграмма — компоненты (AppContainer, SessionManager, ToolExecutor, Transport), связи, data flow. В README или /docs. Обновлять при изменении архитектуры | medium | completed | #143 | — |
 
 ---
 
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **167** | **75** | **2** | **112** | **0** | **1** |
+| **Итого** | **167** | **75** | **2** | **113** | **0** | **1** |
