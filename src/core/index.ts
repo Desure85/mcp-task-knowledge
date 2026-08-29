@@ -53,3 +53,4 @@ export type {
   ServiceAvailabilityOptions,
   ServiceState,
 } from './graceful-degradation.js';
+export { createProgressSender, withProgress } from './streaming.js';
