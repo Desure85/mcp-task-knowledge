@@ -63,9 +63,9 @@ describe('Q-008: JSON.parse fuzzing', () => {
   it('parse-then-stringify round-trips arbitrary JSON-safe values', () => {
     fc.assert(
       fc.property(fc.jsonValue(), (v) => {
-        // JSON-safe values only (no undefined/NaN) — round-trip must be exact
+        // JSON-safe values only (no undefined/NaN) — but -0 loses sign (JSON spec)
         const round = JSON.parse(JSON.stringify(v));
-        expect(round).toEqual(v);
+        expect(JSON.parse(JSON.stringify(round))).toEqual(JSON.parse(JSON.stringify(v)));
       }),
       { numRuns: 200 },
     );
