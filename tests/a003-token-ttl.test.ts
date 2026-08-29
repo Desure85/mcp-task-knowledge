@@ -239,15 +239,17 @@ describe('SessionManager — prune with per-session expiry', () => {
   });
 
   it('should use global TTL for sessions without per-session expiry', async () => {
+    vi.useFakeTimers();
     // Very short global TTL
     const sm = createSm({ sessionTtlMs: 10 });
     const session = sm.create({ remote: '127.0.0.1' });
 
-    // Wait for global TTL to pass
-    await new Promise((r) => setTimeout(r, 20));
+    // Advance past global TTL
+    vi.advanceTimersByTime(20);
 
     const closed = await sm.prune();
     expect(closed).toContain(session.id);
+    vi.useRealTimers();
   });
 });
 
@@ -420,6 +422,7 @@ describe('AuthManager — tokenTtlGraceMs configuration', () => {
 
 describe('A-003 — full integration', () => {
   it('should create session, authenticate with JWT, and expire by token TTL', async () => {
+    vi.useFakeTimers();
     const sm = createSm({ sessionTtlMs: 86_400_000 }); // 24h global
     const auth = createJwtAuth(sm, 500); // 500ms grace
 
@@ -435,8 +438,8 @@ describe('A-003 — full integration', () => {
     // Session should be valid initially (2s exp - 500ms grace = 1500ms)
     expect(sm.isSessionExpired(session.id)).toBe(false);
 
-    // Wait for token to expire + grace period
-    await new Promise((r) => setTimeout(r, 2000));
+    // Advance past token expiry + grace period
+    vi.advanceTimersByTime(2000);
 
     // Session should now be expired
     expect(sm.isSessionExpired(session.id)).toBe(true);
@@ -445,6 +448,7 @@ describe('A-003 — full integration', () => {
     const closed = await sm.prune();
     expect(closed).toContain(session.id);
     expect(sm.has(session.id)).toBe(false);
+    vi.useRealTimers();
   });
 
   it('should not expire session when token is still valid', async () => {
@@ -468,6 +472,7 @@ describe('A-003 — full integration', () => {
   });
 
   it('should revoke auth when session is closed by token expiry', async () => {
+    vi.useFakeTimers();
     const sm = createSm({ sessionTtlMs: 86_400_000 });
     const auth = createJwtAuth(sm, 100);
 
@@ -478,8 +483,8 @@ describe('A-003 — full integration', () => {
     await auth.authenticate(session.id, token);
     expect(auth.isAuthenticated(session.id)).toBe(true);
 
-    // Wait for expiry + grace
-    await new Promise((r) => setTimeout(r, 1500));
+    // Advance past expiry + grace
+    vi.advanceTimersByTime(1500);
 
     // Close via prune
     await sm.prune();
@@ -487,9 +492,11 @@ describe('A-003 — full integration', () => {
     // Auth state should still say authenticated (AuthManager doesn't auto-revoke)
     // But session is gone, so any operation will fail
     expect(sm.has(session.id)).toBe(false);
+    vi.useRealTimers();
   });
 
   it('should handle multiple sessions with different token expiry times', async () => {
+    vi.useFakeTimers();
     const sm = createSm({ sessionTtlMs: 86_400_000 });
     const auth = createJwtAuth(sm, 0);
 
@@ -507,8 +514,8 @@ describe('A-003 — full integration', () => {
     expect(sm.isSessionExpired(s1.id)).toBe(false);
     expect(sm.isSessionExpired(s2.id)).toBe(false);
 
-    // Wait for short token to expire
-    await new Promise((r) => setTimeout(r, 1500));
+    // Advance past short token expiry
+    vi.advanceTimersByTime(1500);
 
     // Only s1 should be expired
     expect(sm.isSessionExpired(s1.id)).toBe(true);
