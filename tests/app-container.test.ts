@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { AppContainer, defaultRegistration } from '../src/core/app-container.js';
 import type { AppContainerOptions, AppState, RegisterCallback } from '../src/core/app-container.js';
 import type { TransportAdapter, TransportFactory } from '../src/transport/types.js';
@@ -292,16 +293,16 @@ describe('AppContainer — cleanup callbacks', () => {
 // ─── Signal handling ──────────────────────────────────────────────────
 
 describe('AppContainer — signal handling', () => {
-  let exitSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: MockInstance<(code?: string | number | null) => never> | undefined;
 
   beforeEach(() => {
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: number | null) => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: string | number | null) => {
       throw new Error(`process.exit(${code})`);
-    });
+    }) as never);
   });
 
   afterEach(() => {
-    exitSpy.mockRestore();
+    exitSpy?.mockRestore();
     process.removeAllListeners('SIGTERM');
     process.removeAllListeners('SIGINT');
   });

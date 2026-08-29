@@ -176,9 +176,9 @@ describe('JwtValidator — HMAC validation', () => {
     const result = await validator.validate(token);
 
     expect(result).not.toBeNull();
-    expect(result!.metadata._jwt_claims).toBeDefined();
-    expect(result!.metadata._jwt_claims.sub).toBe('user-1');
-    expect(result!.metadata._jwt_claims.jti).toBe('unique-id-123');
+    expect(result!.metadata!._jwt_claims).toBeDefined();
+    expect((result!.metadata!._jwt_claims as { sub?: unknown }).sub).toBe('user-1');
+    expect((result!.metadata!._jwt_claims as { jti?: unknown }).jti).toBe('unique-id-123');
   });
 });
 
@@ -502,8 +502,8 @@ describe('JwtValidator — metadata claims', () => {
     const result = await validator.validate(token);
 
     expect(result).not.toBeNull();
-    expect(result!.metadata.tenant).toBe('acme');
-    expect(result!.metadata.plan).toBe('pro');
+    expect(result!.metadata!.tenant).toBe('acme');
+    expect(result!.metadata!.plan).toBe('pro');
   });
 
   it('should not include metadata for missing claims', async () => {
@@ -514,7 +514,7 @@ describe('JwtValidator — metadata claims', () => {
     const result = await validator.validate(token);
 
     expect(result).not.toBeNull();
-    expect(result!.metadata.nonexistent).toBeUndefined();
+    expect(result!.metadata!.nonexistent).toBeUndefined();
   });
 });
 

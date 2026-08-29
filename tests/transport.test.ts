@@ -3,6 +3,7 @@ import { TransportRegistry } from '../src/transport/registry.js';
 import { StdioTransportFactory, StdioTransportAdapter } from '../src/transport/stdio-transport.js';
 import { HttpTransportFactory, HttpTransportAdapter } from '../src/transport/http-transport.js';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from '../src/transport/types.js';
+import type { ServerConfig, CatalogConfig } from '../src/config.js';
 import type { ServerContext } from '../src/register/context.js';
 import { ToolRegistry } from '../src/registry/tool-registry.js';
 
@@ -15,8 +16,8 @@ function mockCtx(): ServerContext {
       connect: async () => {},
       close: async () => {},
     } as any,
-    cfg: {},
-    catalogCfg: {},
+    cfg: {} as ServerConfig,
+    catalogCfg: {} as CatalogConfig,
     catalogProvider: {} as any,
     vectorAdapter: undefined,
     vectorInitAttempted: false,
@@ -80,16 +81,17 @@ describe('TransportRegistry', () => {
 
     class FakeAdapter implements TransportAdapter {
       readonly type = 'fake';
-      async connect() {}
-      async close() {}
+      connected = false;
+      async connect() { this.connected = true; }
+      async close() { this.connected = false; }
       health(): TransportHealth {
-        return { type: 'fake', healthy: true, connected: false };
+        return { type: 'fake', healthy: this.connected, connected: this.connected };
       }
     }
 
     class FakeFactory implements TransportFactory {
       readonly type = 'fake';
-      create() { return new FakeAdapter(); }
+      create(_config: TransportConfig) { return new FakeAdapter(); }
     }
 
     r.registerTransport(new FakeFactory());

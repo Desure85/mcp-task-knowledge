@@ -379,7 +379,7 @@ describe('UnixTransportFactory', () => {
     process.env.MCP_UNIX_PATH = '/tmp/test-env.sock';
 
     const factory = new UnixTransportFactory();
-    const adapter = factory.create({ type: 'unix', options: {} });
+    const adapter = factory.create({ type: 'unix', options: {} }) as UnixTransportAdapter;
 
     process.env.MCP_UNIX_PATH = origPath;
 

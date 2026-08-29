@@ -246,7 +246,7 @@ describe('ToolExecutor — pre-hooks', () => {
       throw new Error('hook error');
     });
 
-    const handler: RawToolHandler<string, string> = async (input) => `result: ${input.x}`;
+    const handler: RawToolHandler<Record<string, unknown>, string> = async (input) => `result: ${String(input.x)}`;
     const result = await executor.execute('test', { x: 'hello' }, ctx, handler);
     expect(result).toBe('result: hello');
   });

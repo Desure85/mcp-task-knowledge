@@ -526,7 +526,7 @@ describe('MiddlewarePipeline — execution', () => {
         after: (_ctx, r) => { order.push('2-after'); return r; },
       });
 
-      await pipeline.run(createMwCtx(), () => { order.push('handler'); return 'ok'; });
+      await pipeline.run(createMwCtx(), async () => { order.push('handler'); return 'ok'; });
       expect(order).toEqual(['1-before', '2-before', 'handler', '2-after', '1-after']);
     });
 
@@ -616,9 +616,9 @@ describe('ToolExecutor + Middleware integration', () => {
       after: (_ctx, r) => { order.push('mw-after'); return r; },
     });
 
-    const handler: RawToolHandler<string, string> = async (input) => {
+    const handler: RawToolHandler<Record<string, unknown>, string> = async (input) => {
       order.push('handler');
-      return `result: ${input.val}`;
+      return `result: ${String(input.val)}`;
     };
 
     const result = await executor.execute('test', { val: '42' }, ctx, handler);

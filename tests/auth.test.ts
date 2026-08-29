@@ -319,26 +319,26 @@ describe('AuthManager — pre-hook integration', () => {
     const hook = auth.createPreHook();
     const ctx = createContext();
 
-    const result = hook('any_tool', {}, ctx);
+    const result = await hook('any_tool', {}, ctx);
     expect(result.deny).toBe(false);
   });
 
-  it('should allow pre-auth methods without authentication', () => {
+  it('should allow pre-auth methods without authentication', async () => {
     const auth = createAuthManager();
     const hook = auth.createPreHook();
     const ctx = createContext();
 
-    expect(hook('mcp.authenticate', {}, ctx).deny).toBe(false);
-    expect(hook('tools/list', {}, ctx).deny).toBe(false);
-    expect(hook('ping', {}, ctx).deny).toBe(false);
+    expect((await hook('mcp.authenticate', {}, ctx)).deny).toBe(false);
+    expect((await hook('tools/list', {}, ctx)).deny).toBe(false);
+    expect((await hook('ping', {}, ctx)).deny).toBe(false);
   });
 
-  it('should deny non-pre-auth methods when not authenticated', () => {
+  it('should deny non-pre-auth methods when not authenticated', async () => {
     const auth = createAuthManager();
     const hook = auth.createPreHook();
     const ctx = createContext('unauth-session');
 
-    const result = hook('tasks_list', {}, ctx);
+    const result = await hook('tasks_list', {}, ctx);
     expect(result.deny).toBe(true);
     expect(result.reason).toContain('authentication required');
   });
@@ -350,7 +350,7 @@ describe('AuthManager — pre-hook integration', () => {
 
     await auth.authenticate('auth-session', 'valid-token');
 
-    const result = hook('tasks_list', {}, ctx);
+    const result = await hook('tasks_list', {}, ctx);
     expect(result.deny).toBe(false);
   });
 

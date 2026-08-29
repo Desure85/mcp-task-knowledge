@@ -52,9 +52,9 @@ describe('knowledge_bulk_delete helpers: confirm/dryRun', () => {
 
     const res = await helpers.handleKnowledgeBulkDelete({ project, ids: [a.id, missing], dryRun: true });
     expect(res.ok).toBe(true);
-    expect(res.data.count).toBe(2);
-    const rA = res.data.results.find(r => r.id === a.id)!;
-    const rG = res.data.results.find(r => r.id === missing)!;
+    expect(res.data!.count).toBe(2);
+    const rA = res.data!.results.find(r => r.id === a.id)!;
+    const rG = res.data!.results.find(r => r.id === missing)!;
     expect(rA.ok).toBe(true);
     expect(rA.data?.id).toBe(a.id);
     expect(rG.ok).toBe(false);

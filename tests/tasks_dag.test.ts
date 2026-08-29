@@ -6,7 +6,6 @@ import type { Task } from '../src/types.js';
 
 function makeTask(overrides: Partial<Task> & { id: string }): Task {
   return {
-    id: overrides.id,
     project: overrides.project || 'test',
     title: overrides.title || `Task ${overrides.id}`,
     status: overrides.status || 'pending',
