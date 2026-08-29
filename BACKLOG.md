@@ -352,7 +352,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TD-005 | Версионирование документов знаний | low | pending | — | — |
 | TD-006 | Добавить JSDoc для публичных функций | medium | pending | — | — |
 | TD-007 | Migration от `uuid` v9 к `crypto.randomUUID()` | low | pending | — | — |
-| TD-008 | ESM-совместимый импорт service-catalog | medium | pending | — | — |
+| TD-008 | ESM-совместимый импорт service-catalog | medium | completed | #138 | — |
 | TD-009 | Data migration framework: версия схемы данных, миграции up/down, rollback. CLI: `mcp-tk migrate [up\|down\|status]`. Применяется при запуске. Защита от одновременных миграций | medium | closed | #117 (BM-013) | CFG-001 |
 | TD-010 | Centralized error handling: единый error handler для tool calls — классификация ошибок (validation, not found, internal, permission), consistent error responses, error context для logging | medium | completed | #119 | MW-001 |
 | TD-011 | Graceful degradation: при недоступности optional сервисов (embeddings, AI models) — fallback к базовому функционалу. Circuit breaker pattern. Health status indicators | medium | completed | #120 | MW-001, SCALE-001 |
@@ -629,7 +629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX (9) | 8 | 7 | 0 | 1 | 0 | 0 |
 | Scalability (10) | 5 | 4 | 0 | 1 | 0 | 0 |
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
-| Tech Debt | 14 | 10 | 0 | 3 | 0 | 1 |
+| Tech Debt | 14 | 10 | 0 | 2 | 0 | 1 |
 | Quality | 13 | 8 | 0 | 2 | 0 | 0 |
 | Docs | 5 | 5 | 0 | 0 | 0 | 0 |
 | Agent Infra | 11 | 2 | 0 | 6 | 0 | 0 |
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 9 | 0 | 0 |
-| **Итого** | **167** | **75** | **2** | **107** | **0** | **1** |
+| **Итого** | **167** | **75** | **2** | **108** | **0** | **1** |
