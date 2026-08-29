@@ -374,7 +374,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Q-004 | Интеграционные E2E тесты для основных MCP-инструментов | medium | completed | #123 | 7.1 | — |
 | Q-005 | Coverage threshold enforcement (минимум 80%) | medium | completed | #124 | 7.4 | Q-001..Q-004 |
 | Q-006 | Нагрузочные тесты для BM25 и vector search | low | completed | #127 | 7.2 | — |
-| Q-007 | Schema validation tests (ajv для schemas/*.json) | low | pending | 7.1 | — |
+| Q-007 | Schema validation tests (ajv для schemas/*.json) | low | completed | #128 | 7.1 | — |
 | Q-008 | Фаззинг JSON-RPC: random payloads для framing, parser, validator. Инструменты: fast-check / property-based testing. Цель — найти краш-баги и undefined behavior | medium | completed | #125 | 7.3 | — |
 | Q-009 | Chaos/shutdown тесты: SIGTERM/SIGKILL во время обработки,OOM simulation, disk full. Проверка graceful shutdown (T-001), data integrity, session recovery | medium | completed | #126 | 7.5 | T-001, Q-004 |
 | Q-010 | Property-based testing для core-модулей: fast-check для SessionManager (TTL/idle edge cases), RateLimiter (burst/refill boundaries), ToolExecutor (hook ordering). Цель — найти неочевидные баги | medium | pending | — | S-001, S-003 |
