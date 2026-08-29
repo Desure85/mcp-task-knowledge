@@ -13,7 +13,12 @@ export async function searchBM25Only<T>(query: string, items: Array<{ id: string
 export async function hybridSearch<T>(
   query: string,
   items: Array<{ id: string; text: string; item: T }>,
-  options?: { limit?: number; vectorAdapter?: VectorSearchAdapter<T> }
+  options?: {
+    limit?: number;
+    vectorAdapter?: VectorSearchAdapter<T>;
+    /** Called when the vector adapter throws — lets callers record degradation (TD-011). */
+    onVectorError?: (err: unknown) => void;
+  }
 ): Promise<SearchResult<T>[]> {
   const limit = options?.limit ?? 20;
   const bm25 = bm25Search(items, query, { limit });
@@ -27,7 +32,8 @@ export async function hybridSearch<T>(
       if (!existing || r.score > existing.score) map.set(r.id, r);
     }
     return Array.from(map.values()).sort((a, b) => b.score - a.score).slice(0, limit);
-  } catch {
+  } catch (err) {
+    options.onVectorError?.(err);
     return bm25;
   }
 }

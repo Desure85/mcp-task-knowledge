@@ -138,3 +138,29 @@ describe('TD-011: circuit breaker integration', () => {
     vi.useRealTimers();
   });
 });
+
+describe('TD-011: process-wide registry singleton (AI-009)', () => {
+  it('getServiceAvailabilityRegistry returns the same instance', async () => {
+    const { getServiceAvailabilityRegistry, _resetServiceAvailabilityRegistry } = await import('./graceful-degradation.js');
+    _resetServiceAvailabilityRegistry();
+    const a = getServiceAvailabilityRegistry();
+    const b = getServiceAvailabilityRegistry();
+    expect(a).toBe(b);
+    expect(a.get('embeddings').availability).toBe('available');
+    _resetServiceAvailabilityRegistry();
+  });
+
+  it('recordFailure through singleton degrades the shared tracker', async () => {
+    const { getServiceAvailabilityRegistry, _resetServiceAvailabilityRegistry } = await import('./graceful-degradation.js');
+    _resetServiceAvailabilityRegistry();
+    const reg = getServiceAvailabilityRegistry();
+    const svc = reg.get('embeddings', {
+      circuit: { failureThreshold: 1, resetTimeoutMs: 60_000, halfOpenSuccessThreshold: 1 },
+    });
+    svc.recordFailure();
+    expect(svc.availability).toBe('unavailable');
+    // Same instance seen from another call site
+    expect(getServiceAvailabilityRegistry().get('embeddings').availability).toBe('unavailable');
+    _resetServiceAvailabilityRegistry();
+  });
+});

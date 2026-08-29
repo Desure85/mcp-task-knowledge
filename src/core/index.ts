@@ -47,7 +47,7 @@ export type {
 export { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG } from './circuit-breaker.js';
 export type { CircuitState, CircuitBreakerConfig } from './circuit-breaker.js';
 
-export { ServiceAvailability, ServiceAvailabilityRegistry, withFallback } from './graceful-degradation.js';
+export { ServiceAvailability, ServiceAvailabilityRegistry, withFallback, getServiceAvailabilityRegistry, _resetServiceAvailabilityRegistry } from './graceful-degradation.js';
 export type {
   Availability,
   ServiceAvailabilityOptions,
