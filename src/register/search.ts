@@ -5,6 +5,12 @@ import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
 import { ok, err } from '../utils/respond.js';
+import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
+
+/** Record vector adapter failures on the process-wide availability tracker. */
+function trackVectorError(): (err: unknown) => void {
+  return () => getServiceAvailabilityRegistry().get('embeddings').recordFailure();
+}
 
 export function registerSearchTools(ctx: ServerContext): void {
   ctx.server.registerTool(
@@ -22,7 +28,7 @@ export function registerSearchTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const tasks = await listTasks({ project: prj });
       const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
-      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: ctx.vectorAdapter });
+      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: ctx.vectorAdapter, onVectorError: trackVectorError() });
       return ok(results);
     }
   );
@@ -44,7 +50,7 @@ export function registerSearchTools(ctx: ServerContext): void {
       const docs = await Promise.all(metas.map((m) => readDoc(m.project || prj, m.id)));
       const valid = docs.filter(Boolean) as NonNullable<typeof docs[number]>[];
       const items = valid.map((d) => ({ id: d.id, text: buildTextForDoc(d), item: d }));
-      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: ctx.vectorAdapter });
+      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: ctx.vectorAdapter, onVectorError: trackVectorError() });
       return ok(results);
     }
   );

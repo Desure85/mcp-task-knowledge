@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { KnowledgeDoc, Task } from '../src/types.js';
 import {
   searchBM25Only,
@@ -91,6 +91,29 @@ describe('search module', () => {
       const items = [{ id: '1', text: 'test content', item: { id: '1' } }];
       const results = await hybridSearch('test', items, { vectorAdapter: mockAdapter });
       expect(results.length).toBe(1); // Should fall back to BM25
+    });
+
+    it('invokes onVectorError callback when adapter throws (AI-009)', async () => {
+      const mockAdapter: VectorSearchAdapter<any> = {
+        search: async () => { throw new Error('boom'); }
+      };
+      const onVectorError = vi.fn();
+      const items = [{ id: '1', text: 'test content', item: { id: '1' } }];
+
+      await hybridSearch('test', items, { vectorAdapter: mockAdapter, onVectorError });
+      expect(onVectorError).toHaveBeenCalledOnce();
+      expect(onVectorError).toHaveBeenCalledWith(expect.any(Error));
+    });
+
+    it('does not invoke onVectorError on success (AI-009)', async () => {
+      const mockAdapter: VectorSearchAdapter<any> = {
+        search: async () => [{ id: '1', score: 0.9, item: { id: '1' } }]
+      };
+      const onVectorError = vi.fn();
+      const items = [{ id: '1', text: 'test content', item: { id: '1' } }];
+
+      await hybridSearch('test', items, { vectorAdapter: mockAdapter, onVectorError });
+      expect(onVectorError).not.toHaveBeenCalled();
     });
   });
 

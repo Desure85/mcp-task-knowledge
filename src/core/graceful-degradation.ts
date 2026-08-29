@@ -160,6 +160,24 @@ export class ServiceAvailability {
 
 // ─── Registry ──────────────────────────────────────────────────────
 
+// Process-wide registry singleton (like metrics.ts) so tool handlers can
+// record availability without plumbing the registry through ServerContext.
+let _registry: ServiceAvailabilityRegistry | undefined;
+
+/**
+ * Get (or create) the process-wide service availability registry.
+ * Safe to call from any module; AppContainer registers its trackers here.
+ */
+export function getServiceAvailabilityRegistry(): ServiceAvailabilityRegistry {
+  if (!_registry) _registry = new ServiceAvailabilityRegistry();
+  return _registry;
+}
+
+/** Reset the singleton (testing only). */
+export function _resetServiceAvailabilityRegistry(): void {
+  _registry = undefined;
+}
+
 /**
  * Registry of optional-service availability trackers.
  * Convenience for wiring many services into health checks at once.
