@@ -1,0 +1,42 @@
+{
+  "skills": {
+    "code-review": {
+      "id": "code-review",
+      "name": "Code Review",
+      "description": "Reviews code",
+      "body": "Check for issues.",
+      "tags": [],
+      "status": "draft",
+      "version": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "createdAt": "2026-08-29T21:45:34.553Z",
+          "changelog": "Initial version"
+        }
+      ],
+      "frontmatter": {},
+      "createdAt": "2026-08-29T21:45:34.553Z",
+      "updatedAt": "2026-08-29T21:45:34.553Z"
+    },
+    "deploy-check": {
+      "id": "deploy-check",
+      "name": "Deploy Check",
+      "description": "Pre-deploy validation",
+      "body": "Verify config.",
+      "tags": [],
+      "status": "draft",
+      "version": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "createdAt": "2026-08-29T21:45:34.554Z",
+          "changelog": "Initial version"
+        }
+      ],
+      "frontmatter": {},
+      "createdAt": "2026-08-29T21:45:34.554Z",
+      "updatedAt": "2026-08-29T21:45:34.554Z"
+    }
+  }
+}
