@@ -52,6 +52,12 @@ jobs:
           npm run test:types --silent
           npm test --silent
 
+      - name: Enforce coverage threshold (Q-005)
+        env:
+          EMBEDDINGS_MODE: none
+        run: |
+          npm run test:coverage --silent
+
       - name: Run Obsidian roundtrip smoke
         env:
           EMBEDDINGS_MODE: none
