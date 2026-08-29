@@ -379,7 +379,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Q-009 | Chaos/shutdown тесты: SIGTERM/SIGKILL во время обработки,OOM simulation, disk full. Проверка graceful shutdown (T-001), data integrity, session recovery | medium | completed | #126 | 7.5 | T-001, Q-004 |
 | Q-010 | Property-based testing для core-модулей: fast-check для SessionManager (TTL/idle edge cases), RateLimiter (burst/refill boundaries), ToolExecutor (hook ordering). Цель — найти неочевидные баги | medium | pending | — | S-001, S-003 |
 | Q-011 | Snapshot testing для transport adapters: vitest snapshots для Content-Length framing, JSON-RPC messages, handshake. Обнаружение regression в wire format | low | pending | — | T-002, T-003 |
-| Q-012 | Полный type-check тестов: включить tests/**/*.ts в tsc-прогон (tsconfig.test.json) и починить оставшиеся ~60 strict-ошибок в legacy тестах (сейчас type-check только для tests/type-check.test.ts) | medium | pending | — | TD-012 |
+| Q-012 | Полный type-check тестов: включить tests/**/*.ts в tsc-прогон (tsconfig.test.json) и починить оставшиеся ~60 strict-ошибок в legacy тестах (сейчас type-check только для tests/type-check.test.ts) | medium | completed | #134 | TD-012 |
 | Q-013 | chaos-тесты для OOM и disk-full симуляции (расширение Q-009: ENOSPC при записи задач не должен портить данные) | low | pending | — | Q-009 |
 
 ---
@@ -630,7 +630,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Scalability (10) | 5 | 4 | 0 | 1 | 0 | 0 |
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
 | Tech Debt | 14 | 10 | 0 | 3 | 0 | 1 |
-| Quality | 13 | 8 | 0 | 5 | 0 | 0 |
+| Quality | 13 | 8 | 0 | 4 | 0 | 0 |
 | Docs | 5 | 5 | 0 | 0 | 0 | 0 |
 | Agent Infra | 11 | 2 | 0 | 7 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 10 | 0 | 0 |
-| **Итого** | **167** | **75** | **2** | **102** | **0** | **1** |
+| **Итого** | **167** | **75** | **2** | **103** | **0** | **1** |
