@@ -184,6 +184,55 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
     }
   );
 
+  // ─── Batch execution (AI-015) ──────────────────────────────────────
+
+  ctx.server.registerTool(
+    "tools_batch",
+    {
+      title: "Tools Batch (Parallel)",
+      description:
+        "Execute multiple tools in parallel (Promise.all). Returns aggregated results. " +
+        "Unlike tools_run (sequential), all calls fire simultaneously. " +
+        "Use for independent read operations (e.g., tasks_list + knowledge_list + search).",
+      inputSchema: {
+        items: z.array(z.object({ name: z.string(), params: z.any().optional() })).min(1).max(50),
+      },
+    },
+    async ({ items }: { items: Array<{ name: string; params?: any }> }) => {
+      const promises = items.map(async (r) => {
+        const meta = ctx.toolRegistry.get(r.name);
+        if (!meta || typeof meta.handler !== 'function') {
+          return { name: r.name, ok: false, error: `Tool not found: ${r.name}` };
+        }
+        try {
+          const res = await meta.handler(r.params ?? {});
+          let payload: any = res;
+          try {
+            const maybe = (res as any)?.content?.[0]?.text;
+            if (typeof maybe === 'string' && maybe.trim().length > 0) payload = JSON.parse(maybe);
+          } catch {}
+          let okFlag = true;
+          let dataOut: any = payload;
+          let errOut: any = undefined;
+          if (payload && typeof payload === 'object') {
+            if (typeof (payload as any).ok === 'boolean') okFlag = (payload as any).ok === true;
+            if (Object.prototype.hasOwnProperty.call(payload, 'data')) dataOut = (payload as any).data;
+            if ((payload as any).isError === true) okFlag = false;
+            if (!okFlag && Object.prototype.hasOwnProperty.call(payload as any, 'error')) {
+              const e = (payload as any).error;
+              errOut = (e && typeof e === 'object' && 'message' in e) ? (e as any).message : e;
+            }
+          }
+          return { name: r.name, ok: okFlag, data: okFlag ? dataOut : undefined, error: okFlag ? undefined : (errOut ?? 'error') };
+        } catch (e: any) {
+          return { name: r.name, ok: false, error: e?.message || String(e) };
+        }
+      });
+      const results = await Promise.all(promises);
+      return ok({ count: results.length, results, parallel: true });
+    }
+  );
+
   // ─── Hot registration (DX-001) ─────────────────────────────────────
 
   ctx.server.registerTool(
