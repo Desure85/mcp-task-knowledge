@@ -1,0 +1,21 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - run: npm install --no-audit --no-fund
+      - name: ESLint (DX-008)
+        run: npx eslint src tests scripts --max-warnings=1000
+      - name: Prettier check
+        run: npx prettier --check "src/**/*.ts" "tests/**/*.ts" "scripts/**/*.mjs" || echo "PRETTIER_WARNINGS_ONLY"
