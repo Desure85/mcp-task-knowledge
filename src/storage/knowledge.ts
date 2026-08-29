@@ -128,6 +128,18 @@ export async function updateDoc(project: string, id: string, patch: Partial<Omit
   if (updatedAt <= existing.updatedAt) {
     updatedAt = new Date(new Date(existing.updatedAt).getTime() + 1).toISOString();
   }
+
+  // Versioning (TD-005): snapshot the current version before overwriting
+  const currentVersion = existing.version ?? 1;
+  const historyEntry = { version: currentVersion, updatedAt: existing.updatedAt, title: existing.title };
+  const history = [historyEntry, ...(existing.history ?? [])].slice(0, 50);
+  const snapshotDir = path.join(KNOWLEDGE_DIR, project, '.versions', id);
+  await ensureDir(snapshotDir);
+  await writeText(
+    path.join(snapshotDir, `${currentVersion}-${Date.now()}.md`),
+    matter.stringify(existing.content, cleanMeta(existing) as any),
+  );
+
   const updatedMeta: KnowledgeDocMeta = {
     ...existing,
     ...patch,
@@ -135,6 +147,8 @@ export async function updateDoc(project: string, id: string, patch: Partial<Omit
     project: existing.project,
     createdAt: existing.createdAt,
     updatedAt,
+    version: currentVersion + 1,
+    history,
   };
   const content = patch.content !== undefined ? patch.content : existing.content;
   const body = matter.stringify(content, cleanMeta(updatedMeta) as any);
@@ -172,6 +186,47 @@ async function listAllProjects(): Promise<string[]> {
       projects.push(e.name);
     }
     return projects;
+  } catch {
+    return [];
+  }
+}
+
+// ─── Versioning (TD-005) ───────────────────────────────────────────
+
+/** List saved versions of a doc (metadata only, newest first). */
+export async function listDocVersions(project: string, id: string): Promise<Array<{ version: number; updatedAt: string; title?: string }>> {
+  const doc = await readDoc(project, id);
+  if (!doc) return [];
+  return doc.history ?? [];
+}
+
+/** Restore a doc to a previous version. Returns the restored doc or null. */
+export async function restoreDocVersion(project: string, id: string, version: number): Promise<KnowledgeDoc | null> {
+  const doc = await readDoc(project, id);
+  if (!doc || !doc.history) return null;
+  const target = doc.history.find((h) => h.version === version);
+  if (!target) return null;
+
+  // Read the snapshot file for that version (stored as <version>-<ts>.md)
+  const snapshotDir = path.join(KNOWLEDGE_DIR, project, '.versions', id);
+  const snapshots = await listSnapshotFiles(snapshotDir);
+  const matching = snapshots.filter((f) => f.startsWith(`${version}-`)).sort().pop();
+  if (!matching) return null;
+
+  const raw = await readText(path.join(snapshotDir, matching));
+  const parsed = matter(raw);
+  const content = typeof parsed.content === 'string' ? parsed.content : '';
+  // Update current doc content + title from the snapshot, bump version
+  const restored = await updateDoc(project, id, {
+    content,
+    title: (parsed.data.title as string | undefined) ?? doc.title,
+  } as never);
+  return restored;
+}
+
+async function listSnapshotFiles(dir: string): Promise<string[]> {
+  try {
+    return (await fsp.readdir(dir)).filter((f) => f.endsWith('.md'));
   } catch {
     return [];
   }

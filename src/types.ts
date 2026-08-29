@@ -39,6 +39,9 @@ export interface KnowledgeDocMeta {
   trashed?: boolean;
   archivedAt?: string; // ISO
   trashedAt?: string; // ISO
+  // Versioning (TD-005)
+  version?: number; // current version number (1-based)
+  history?: Array<{ version: number; updatedAt: string; title?: string }>; // prior versions
 }
 
 export interface KnowledgeDoc extends KnowledgeDocMeta {
