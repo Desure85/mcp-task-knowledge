@@ -1,0 +1,22 @@
+name: backlog-check
+
+on:
+  pull_request:
+    paths:
+      - 'BACKLOG.md'
+      - 'AGENTS.md'
+  push:
+    branches: [master]
+    paths:
+      - 'BACKLOG.md'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate BACKLOG summary consistency (AI-004)
+        run: node scripts/check-backlog.mjs

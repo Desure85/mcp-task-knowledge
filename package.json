@@ -49,7 +49,8 @@
     "lint:md:fix": "markdownlint '**/*.md' --fix --ignore-path .markdownlintignore",
     "prepublishOnly": "npm run build:publish",
     "prepare": "husky",
-    "api:reference": "node scripts/api-reference.mjs"
+    "api:reference": "node scripts/api-reference.mjs",
+    "backlog:check": "node scripts/check-backlog.mjs"
   },
   "keywords": [
     "mcp",
