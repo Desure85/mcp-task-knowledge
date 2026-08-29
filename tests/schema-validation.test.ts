@@ -12,7 +12,6 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
 import Ajv from 'ajv';
-import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const SCHEMAS_DIR = path.join(process.cwd(), 'schemas');
@@ -32,23 +31,13 @@ function makeAjv(): Ajv {
   return ajv;
 }
 
-function makeAjv2020(): Ajv2020 {
-  // ajv-formats' addFormats works with Ajv2020 instances too (formats are draft-agnostic)
-  const ajv = new Ajv2020({ strict: false, allErrors: true });
-  addFormats(ajv);
-  return ajv;
-}
-
 describe('Q-007: schema validity (meta-schema)', () => {
   const schemas = loadSchemas();
 
   it('every schema file is valid JSON and compiles with Ajv', () => {
     const ajv = makeAjv();
-    const ajv2020 = makeAjv2020();
     for (const s of schemas) {
-      const draft = (s.schema as { $schema?: string }).$schema ?? '';
-      const compiler = draft.includes('2020-12') ? ajv2020 : ajv;
-      expect(() => compiler.compile(s.schema), `schema ${s.file} must compile`).not.toThrow();
+      expect(() => ajv.compile(s.schema), `schema ${s.file} must compile`).not.toThrow();
     }
   });
 
