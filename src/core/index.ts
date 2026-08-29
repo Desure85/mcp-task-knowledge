@@ -54,3 +54,4 @@ export type {
   ServiceState,
 } from './graceful-degradation.js';
 export { createProgressSender, withProgress } from './streaming.js';
+export { OAuthProvider } from './oauth.js';
