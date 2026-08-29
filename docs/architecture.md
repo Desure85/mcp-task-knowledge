@@ -97,3 +97,13 @@ flowchart TD
 | ServiceAvailability singleton | `src/core/graceful-degradation.ts` | health-чеки embeddings/catalog видят реальные сбои (AI-009) |
 | LAN Relay zero-dep discovery | `src/relay/discovery.ts` | UDP multicast вместо mDNS-библиотеки (BM-012) |
 | Type-check тестов | `tsconfig.test.json` | tests/** включены в tsc, моки проверяются satisfies (TD-012, Q-012) |
+
+## ADR (Architecture Decision Records)
+
+Ключевые решения документированы в [docs/adr/](adr/):
+
+- 0001 — Middleware onError contract (swallow via return, not throw)
+- 0002 — Atomic JSON writes (tmp + rename)
+- 0003 — ServiceAvailability singleton registry
+- 0004 — LAN Relay UDP multicast discovery
+- 0005 — Coverage threshold scope
