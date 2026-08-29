@@ -92,6 +92,30 @@ if (cliConfigPath) {
   }
 }
 
+/**
+ * Hot-reload the file config (DX-004): re-reads --config file (or re-parses
+ * MCP_CONFIG_JSON) into the mutable `fileConfig`. Runtime-read settings
+ * (embeddings, catalog, prompts, currentProject) pick up the new values on
+ * the next loadConfig() call. Paths resolved at startup (DATA_DIR etc.)
+ * cannot change without a restart.
+ */
+export function reloadFileConfig(): { ok: boolean; error?: string; source: string } {
+  try {
+    if (cliConfigPath) {
+      fileConfig = readJsonConfig(cliConfigPath);
+      return { ok: true, source: cliConfigPath };
+    }
+    if (process.env.MCP_CONFIG_JSON) {
+      fileConfig = JSON.parse(process.env.MCP_CONFIG_JSON) as FileConfig;
+      return { ok: true, source: 'MCP_CONFIG_JSON' };
+    }
+    return { ok: false, error: 'no config source (--config file or MCP_CONFIG_JSON)', source: 'none' };
+  } catch (e) {
+    log.warn({ err: e }, 'config reload failed');
+    return { ok: false, error: (e as Error).message, source: cliConfigPath ?? 'MCP_CONFIG_JSON' };
+  }
+}
+
 const DATA_DIR_CFG = fileConfig.dataDir as string | undefined;
 const DATA_DIR_ENV = process.env.DATA_DIR;
 const DATA_DIR_RESOLVED = DATA_DIR_CFG || DATA_DIR_ENV;
