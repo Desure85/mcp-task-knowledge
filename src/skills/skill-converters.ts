@@ -138,3 +138,79 @@ export function exportSkills(
   log.info({ format, count: files.length }, 'skills exported');
   return { files };
 }
+
+// ─── Claude Code Plugin packaging (ADR-006) ──────────────────────
+
+export interface ClaudeCodePluginManifest {
+  name: string;
+  description: string;
+  version: string;
+  author?: { name: string };
+  homepage?: string;
+  repository?: string;
+  license?: string;
+}
+
+/**
+ * Export all skills as a Claude Code plugin directory structure:
+ *   <dir>/
+ *     .claude-plugin/plugin.json
+ *     skills/<id>/SKILL.md
+ *     README.md (optional)
+ */
+export function exportClaudeCodePlugin(
+  manager: SkillManager,
+  dir: string,
+  manifest: Partial<ClaudeCodePluginManifest> = {},
+): ExportResult {
+  const skills = manager.list();
+  if (skills.length === 0) {
+    return { files: [] };
+  }
+
+  // .claude-plugin/plugin.json
+  const pluginDir = join(dir, '.claude-plugin');
+  if (!existsSync(pluginDir)) mkdirSync(pluginDir, { recursive: true });
+  const pluginManifest: ClaudeCodePluginManifest = {
+    name: manifest.name ?? 'mcp-task-knowledge-skills',
+    description: manifest.description ?? `Plugin with ${skills.length} skills from mcp-task-knowledge`,
+    version: manifest.version ?? '1.0.0',
+    author: manifest.author ?? { name: 'mcp-task-knowledge' },
+  };
+  const manifestPath = join(pluginDir, 'plugin.json');
+  writeFileSync(manifestPath, JSON.stringify(pluginManifest, null, 2), 'utf8');
+
+  // skills/<id>/SKILL.md
+  const files: string[] = ['.claude-plugin/plugin.json'];
+  for (const skill of skills) {
+    const skillDir = join(dir, 'skills', skill.id);
+    if (!existsSync(skillDir)) mkdirSync(skillDir, { recursive: true });
+    const skillPath = join(skillDir, 'SKILL.md');
+    writeFileSync(skillPath, toSkillMd(skill), 'utf8');
+    files.push(`skills/${skill.id}/SKILL.md`);
+  }
+
+  // README.md
+  const readme = [
+    `# ${pluginManifest.name}`,
+    '',
+    pluginManifest.description,
+    '',
+    `## Skills (${skills.length})`,
+    '',
+    ...skills.map((s) => `- **${s.id}**: ${s.description ?? s.name}`),
+    '',
+    '## Installation',
+    '',
+    '```bash',
+    `claude --plugin-dir ./${pluginManifest.name}`,
+    '```',
+    '',
+    'Or install from marketplace (see Claude Code docs).',
+  ].join('\n');
+  writeFileSync(join(dir, 'README.md'), readme, 'utf8');
+  files.push('README.md');
+
+  log.info({ plugin: pluginManifest.name, skills: skills.length }, 'Claude Code plugin exported');
+  return { files };
+}
