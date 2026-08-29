@@ -27,3 +27,6 @@ export type {
 } from './resilience.js';
 export { DEFAULT_PROXY_CONFIG } from './types.js';
 export type { ProxyConfig, ProxyHealth, UpstreamTransport, ProxyAuthMode } from './types.js';
+
+export { ResponseCache } from './response-cache.js';
+export type { CacheEntry, ResponseCacheOptions, CacheStats } from './response-cache.js';
