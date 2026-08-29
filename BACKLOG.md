@@ -388,7 +388,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| D-001 | API reference для всех MCP-инструментов | medium | pending | — | — |
+| D-001 | API reference для всех MCP-инструментов | medium | completed | #144 | — |
 | D-002 | Architecture Decision Records (ADR) | low | pending | — | — |
 | D-003 | CONTRIBUTING.md для контрибьюторов | low | pending | — | — |
 | D-004 | CHANGELOG.md (автоматический из conventional commits) | low | pending | — | — |
@@ -631,7 +631,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
 | Tech Debt | 14 | 10 | 0 | 0 | 0 | 1 |
 | Quality | 13 | 8 | 0 | 1 | 0 | 0 |
-| Docs | 5 | 0 | 0 | 5 | 0 | 0 |
+| Docs | 5 | 1 | 0 | 4 | 0 | 0 |
 | Agent Infra | 11 | 2 | 0 | 6 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 0 | 0 | 6 | 0 | 0 |
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **167** | **75** | **2** | **113** | **0** | **1** |
+| **Итого** | **167** | **75** | **2** | **114** | **0** | **1** |
