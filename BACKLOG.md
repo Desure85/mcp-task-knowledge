@@ -556,7 +556,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | BM-009 | Cross-project search: MCP tool `cross_project_search` — поиск failures + proven fixes across ALL projects. Bug fixed once в repo A → не нужно rediscover в repo B. Guard rules из Project A применяются к Project B | medium | done | PR #115 | BM-004, MR-008 |
 | BM-010 | Guard rules auto-learning: при resolution failure → distill approach+context в reusable rule. Rule fires на future code matching same pattern. Хранится в rules engine (RL-001). Broadcast через relay (BM-012) | medium | done | PR #116 | BM-004, RL-001 |
 | BM-011 | Behavioral dashboard: zero-dep HTML single-file UI — error rate trends (90-day), fix effectiveness (which approaches succeed), event timeline (intents/failures/resolutions/runtime). Dark-themed, auto-refresh. Расширение MR-007 | low | completed | #129 | BM-001..BM-004, MR-007 |
-| BM-012 | LAN Relay: mDNS auto-discovery peers + AES-256-GCM encrypted WebSocket. `relay_status`, `share_brief`, `broadcast_rule`. Zero-config, no cloud. Collective guardrails — rule созданная одним dev → instant broadcast всем teammates | low | pending | — | BM-010, OC-006 |
+| BM-012 | LAN Relay: mDNS auto-discovery peers + AES-256-GCM encrypted WebSocket. `relay_status`, `share_brief`, `broadcast_rule`. Zero-config, no cloud. Collective guardrails — rule созданная одним dev → instant broadcast всем teammates | low | completed | #139 | BM-010, OC-006 |
 | BM-013 | Migration framework: SQLite _migrations table + up/down migrations + transactional batch apply. Statement cache с LRU eviction. WAL mode, busy_timeout, wal_autocheckpoint. Закрывает TD-009 | high | completed | #117 | TD-009 |
 | BM-014 | FTS5 search: SQLite built-in full-text search как fallback/дополнение к BM25+vector. Проще, без external deps, для small datasets. `query_memory` с FTS5 natural-language search + filtered query (file_path, status, since) + pagination | medium | completed | #118 | BM-001 |
 
@@ -640,5 +640,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
-| Behavioral Memory (G) | 14 | 4 | 0 | 9 | 0 | 0 |
-| **Итого** | **167** | **75** | **2** | **108** | **0** | **1** |
+| Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
+| **Итого** | **167** | **75** | **2** | **109** | **0** | **1** |
