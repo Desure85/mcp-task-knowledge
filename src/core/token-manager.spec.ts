@@ -67,7 +67,8 @@ describe('SEC-003: TokenManager', () => {
       expect(() => tm.verify(tampered, 'access')).toThrow(InvalidTokenError);
     });
 
-    it('rejects expired token', async () => {
+    it('rejects expired token', () => {
+      vi.useFakeTimers();
       const shortTm = new TokenManager({
         accessTokenTtlMs: 10,
         refreshTokenTtlMs: 20,
@@ -75,9 +76,10 @@ describe('SEC-003: TokenManager', () => {
         cleanupIntervalMs: 0,
       });
       const pair = shortTm.issue('user-1');
-      await new Promise((r) => setTimeout(r, 15));
+      vi.advanceTimersByTime(15);
       expect(() => shortTm.verify(pair.accessToken, 'access')).toThrow(TokenExpiredError);
       shortTm.close();
+      vi.useRealTimers();
     });
 
     it('rejects wrong token type', () => {
@@ -119,7 +121,8 @@ describe('SEC-003: TokenManager', () => {
       expect(() => tm.verify(pair.refreshToken, 'refresh')).toThrow(TokenRevokedError);
     });
 
-    it('rejects refresh with expired refresh token', async () => {
+    it('rejects refresh with expired refresh token', () => {
+      vi.useFakeTimers();
       const shortTm = new TokenManager({
         accessTokenTtlMs: 10,
         refreshTokenTtlMs: 20,
@@ -127,9 +130,10 @@ describe('SEC-003: TokenManager', () => {
         cleanupIntervalMs: 0,
       });
       const pair = shortTm.issue('user-1');
-      await new Promise((r) => setTimeout(r, 25));
+      vi.advanceTimersByTime(25);
       expect(() => shortTm.refresh(pair.refreshToken)).toThrow(TokenExpiredError);
       shortTm.close();
+      vi.useRealTimers();
     });
 
     it('rejects refresh with access token instead of refresh', () => {
@@ -214,6 +218,7 @@ describe('SEC-003: TokenManager', () => {
     });
 
     it('returns null for expired token', async () => {
+      vi.useFakeTimers();
       const shortTm = new TokenManager({
         accessTokenTtlMs: 10,
         refreshTokenTtlMs: 20,
@@ -221,12 +226,13 @@ describe('SEC-003: TokenManager', () => {
         cleanupIntervalMs: 0,
       });
       const pair = shortTm.issue('user-1');
-      await new Promise((r) => setTimeout(r, 15));
+      vi.advanceTimersByTime(15);
 
       const validator = shortTm.createValidator();
       const result = await validator(pair.accessToken);
       expect(result).toBeNull();
       shortTm.close();
+      vi.useRealTimers();
     });
 
     it('returns null for revoked token', async () => {
@@ -252,7 +258,8 @@ describe('SEC-003: TokenManager', () => {
   });
 
   describe('cleanup()', () => {
-    it('removes expired tokens from blacklist', async () => {
+    it('removes expired tokens from blacklist', () => {
+      vi.useFakeTimers();
       const shortTm = new TokenManager({
         accessTokenTtlMs: 10,
         refreshTokenTtlMs: 20,
@@ -263,13 +270,15 @@ describe('SEC-003: TokenManager', () => {
       shortTm.revoke(pair.accessToken);
       expect(shortTm.blacklistedTokenCount).toBe(1);
 
-      await new Promise((r) => setTimeout(r, 30));
+      vi.advanceTimersByTime(30);
       shortTm.cleanup();
       expect(shortTm.blacklistedTokenCount).toBe(0);
       shortTm.close();
+      vi.useRealTimers();
     });
 
-    it('removes expired refresh tokens', async () => {
+    it('removes expired refresh tokens', () => {
+      vi.useFakeTimers();
       const shortTm = new TokenManager({
         accessTokenTtlMs: 10,
         refreshTokenTtlMs: 20,
@@ -279,7 +288,7 @@ describe('SEC-003: TokenManager', () => {
       shortTm.issue('user-1');
       expect(shortTm.activeRefreshTokenCount).toBe(1);
 
-      await new Promise((r) => setTimeout(r, 30));
+      vi.advanceTimersByTime(30);
       shortTm.cleanup();
       expect(shortTm.activeRefreshTokenCount).toBe(0);
       shortTm.close();
