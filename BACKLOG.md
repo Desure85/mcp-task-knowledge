@@ -410,6 +410,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AI-008 | Behavioral dashboard CLI: `mcp-tk dashboard` — рендер src/behavioral/dashboard.ts в HTML-файл из .behavioral/ | low | completed | #133 | BM-011 |
 | AI-009 | Wire-in ServiceAvailability (TD-011) в реальные вызовы embeddings/catalog: сейчас трекеры зарегистрированы в app-container, но recordFailure/recordSuccess не вызываются из инструментов — health-чеки всегда healthy | medium | completed | #132 | TD-011 |
 | AI-010 | Унифицировать draft-схемы: prompt.schema.json на draft-2020-12, остальные на draft-07 — привести к одному draft или документировать различие | low | completed | #136 | Q-007 |
+| AI-011 | Claude Code plugin export: exportClaudeCodePlugin — генерация .claude-plugin/plugin.json + skills/*/SKILL.md + README. ADR-006 | medium | completed | #157 | SK-005 |
+| AI-012 | Claude Code plugin import: prompts_import_plugin — чтение .claude-plugin/plugin.json + skills/*/SKILL.md, конвертация в наш формат | medium | pending | — | AI-011 |
+| AI-013 | MCP streaming responses: поддержка partial/streaming tool results (SSE chunked) для long-running operations (embeddings init, bulk import) | high | pending | — | — |
+| AI-014 | OAuth 2.1 provider: авторизация для HTTP transport (PKCE flow, token endpoint, scope-based ACL). Прод-уровень security | high | pending | — | A-002 |
+| AI-015 | Tool batching API: `tools_batch` — группировка нескольких tool calls в один request с параллельным выполнением и агрегированным ответом | medium | pending | — | — |
+| AI-016 | Rate-limit dashboard: UI для визуализации rate-limit состояния (per-session buckets, refill rate, denied requests) | low | pending | — | TD-004 |
 
 ---
 
@@ -632,7 +638,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Tech Debt | 14 | 10 | 0 | 0 | 0 | 1 |
 | Quality | 13 | 8 | 0 | 1 | 0 | 0 |
 | Docs | 5 | 1 | 0 | 4 | 0 | 0 |
-| Agent Infra | 11 | 2 | 0 | 6 | 0 | 0 |
+| Agent Infra | 16 | 2 | 0 | 11 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
@@ -641,4 +647,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **154** | **124** | **2** | **27** | **0** | **1** |
+| **Итого** | **159** | **125** | **2** | **32** | **0** | **1** |
