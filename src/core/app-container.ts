@@ -58,7 +58,7 @@ import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
 import { RateLimiter } from './rate-limiter.js';
 import { HealthChecker } from '../health/index.js';
-import { ServiceAvailabilityRegistry } from './graceful-degradation.js';
+import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ export class AppContainer {
   private sessionMgr?: SessionManager;
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
-  private readonly services = new ServiceAvailabilityRegistry();
+  private readonly services = getServiceAvailabilityRegistry();
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private startedAt?: number;
