@@ -403,7 +403,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AI-001 | Создать AGENTS.md | critical | done | — | — |
 | AI-002 | Создать BACKLOG.md | critical | done | — | — |
 | AI-003 | Актуализировать ROADMAP.md | critical | done | — | — |
-| AI-004 | Автоматическое обновление трекинг-троек в CI | low | pending | — | AI-001..AI-003 |
+| AI-004 | Автоматическое обновление трекинг-троек в CI | low | completed | #145 | AI-001..AI-003 |
 | AI-005 | Market research отчёт (PDF) | high | done | — | — |
 | AI-006 | ~~Web UI: Kanban, Knowledge, Search (Next.js)~~ → заменена на UI-001..UI-007 | high | done | — | — |
 | AI-007 | Agent performance tracking: логирование времени на задачу, потреблённых токенов, количества PR. Автообновление в BACKLOG. Цель — анализировать velocity и оптимизировать процесс | low | pending | — | AI-001..AI-003 |
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **154** | **111** | **2** | **40** | **0** | **1** |
+| **Итого** | **154** | **112** | **2** | **39** | **0** | **1** |
