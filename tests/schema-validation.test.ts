@@ -26,13 +26,13 @@ function loadSchemas(): Array<{ file: string; name: string; schema: Record<strin
   }));
 }
 
-function makeAjv(): Ajv.default {
+function makeAjv(): Ajv {
   const ajv = new Ajv({ strict: false, allErrors: true });
   addFormats(ajv);
   return ajv;
 }
 
-function makeAjv2020(): Ajv2020.default {
+function makeAjv2020(): Ajv2020 {
   // ajv-formats' addFormats works with Ajv2020 instances too (formats are draft-agnostic)
   const ajv = new Ajv2020({ strict: false, allErrors: true });
   addFormats(ajv);

@@ -257,7 +257,7 @@ describe('LoggingMiddleware — ToolExecutor integration', () => {
     executor.use(mw);
 
     const ctx = createContext();
-    const handler: RawToolHandler<string, string> = async (input) => `hi ${input.name}`;
+    const handler: RawToolHandler<Record<string, unknown>, string> = async (input) => `hi ${String(input.name)}`;
     const result = await executor.execute('greet', { name: 'world' }, ctx, handler);
 
     expect(result).toBe('hi world');

@@ -25,7 +25,7 @@ describe('getVectorAdapter guards', () => {
   it('returns undefined when EMBEDDINGS_MODE=none', async () => {
     process.env.EMBEDDINGS_MODE = 'none';
     const { getVectorAdapter } = await importFresh<any>(VECTOR_PATH);
-    const adapter = await getVectorAdapter<any>();
+    const adapter = await getVectorAdapter();
     expect(adapter).toBeUndefined();
   });
 
@@ -34,7 +34,7 @@ describe('getVectorAdapter guards', () => {
     delete process.env.EMBEDDINGS_MODEL_PATH;
     delete process.env.EMBEDDINGS_DIM;
     const { getVectorAdapter } = await importFresh<any>(VECTOR_PATH);
-    const adapter = await getVectorAdapter<any>();
+    const adapter = await getVectorAdapter();
     expect(adapter).toBeUndefined();
   });
 });

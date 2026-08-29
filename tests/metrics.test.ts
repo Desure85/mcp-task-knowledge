@@ -70,7 +70,7 @@ describe('core/metrics', () => {
       recordToolCall('task_create', 200);
       recordToolCall('task_create', 50, new Error('fail'));
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_tool_calls_total{tool="task_create",status="success"} 2');
       expect(metrics).toContain('mcp_tool_calls_total{tool="task_create",status="error"} 1');
     });
@@ -82,7 +82,7 @@ describe('core/metrics', () => {
       recordToolCall('search_tasks', 500);
       recordToolCall('search_tasks', 1000);
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_tool_call_duration_seconds_bucket{le="0.5",tool="search_tasks"}');
       expect(metrics).toContain('mcp_tool_call_duration_seconds_count{tool="search_tasks"} 2');
     });
@@ -102,7 +102,7 @@ describe('core/metrics', () => {
       recordResourceRead('tasks://current');
       recordResourceRead('knowledge://project', new Error('not found'));
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_resource_reads_total{uri_prefix="tasks://current",status="success"} 1');
       expect(metrics).toContain('mcp_resource_reads_total{uri_prefix="knowledge://project",status="error"} 1');
     });
@@ -122,7 +122,7 @@ describe('core/metrics', () => {
 
       updateServerInfo({ version: '2.0.0', toolCount: 30 });
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_server_info{version="2.0.0",transport="http",tools_registered="30"} 1');
     });
   });
@@ -177,7 +177,7 @@ describe('core/metrics', () => {
       const result = await wrapped({ x: 5 });
       expect(result).toEqual({ result: 10 });
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_tool_calls_total{tool="double",status="success"} 1');
     });
 
@@ -190,7 +190,7 @@ describe('core/metrics', () => {
 
       await expect(wrapped({})).rejects.toThrow('boom');
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_tool_calls_total{tool="failing",status="error"} 1');
     });
 
@@ -223,7 +223,7 @@ describe('core/metrics', () => {
       recordSessionCreated();
       recordSessionCreated();
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_sessions_total{status="opened"} 3');
       expect(metrics).toContain('mcp_sessions_active 3');
     });
@@ -248,7 +248,7 @@ describe('core/metrics', () => {
       recordSessionCreated();
       recordSessionClosed(60_000, 5_000, 'manual');
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       // Counter: 3 opened + 1 closed
       expect(metrics).toContain('mcp_sessions_total{status="opened"} 3');
       expect(metrics).toContain('mcp_sessions_total{status="closed"} 1');
@@ -267,7 +267,7 @@ describe('core/metrics', () => {
       recordSessionCreated();
       recordSessionClosed(120_000, 30_000, 'expired');
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_sessions_total{status="expired"} 1');
       expect(metrics).toContain('mcp_sessions_active 0');
       expect(metrics).toContain('mcp_session_idle_seconds_count{reason="expired"} 1');
@@ -280,7 +280,7 @@ describe('core/metrics', () => {
       recordSessionCreated();
       recordSessionClosed(60_000, 60_000, 'idle_timeout');
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_sessions_total{status="idle_timeout"} 1');
       expect(metrics).toContain('mcp_sessions_active 0');
       expect(metrics).toContain('mcp_session_idle_seconds_count{reason="idle_timeout"} 1');
@@ -294,7 +294,7 @@ describe('core/metrics', () => {
       recordSessionCreated();
       recordSessionClosed(5000, 1000, 'manual');
 
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       // 5s falls in bucket le=10
       expect(metrics).toContain('mcp_session_duration_seconds_bucket{le="10"} 1');
     });
@@ -312,12 +312,12 @@ describe('core/metrics', () => {
       const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       setSessionsActive(10);
-      const metrics = await reg.metrics();
+      const metrics = await reg!.metrics();
       expect(metrics).toContain('mcp_sessions_active 10');
 
       // Overwrite
       setSessionsActive(25);
-      const metrics2 = await reg.metrics();
+      const metrics2 = await reg!.metrics();
       expect(metrics2).toContain('mcp_sessions_active 25');
     });
   });
@@ -329,25 +329,25 @@ describe('core/metrics', () => {
 
       // Session A created
       recordSessionCreated();
-      const m1 = await reg.metrics();
+      const m1 = await reg!.metrics();
       expect(m1).toContain('mcp_sessions_active 1');
       expect(m1).toContain('mcp_sessions_total{status="opened"} 1');
 
       // Session B created
       recordSessionCreated();
-      const m2 = await reg.metrics();
+      const m2 = await reg!.metrics();
       expect(m2).toContain('mcp_sessions_active 2');
       expect(m2).toContain('mcp_sessions_total{status="opened"} 2');
 
       // Session A closed manually
       recordSessionClosed(30_000, 5_000, 'manual');
-      const m3 = await reg.metrics();
+      const m3 = await reg!.metrics();
       expect(m3).toContain('mcp_sessions_active 1');
       expect(m3).toContain('mcp_sessions_total{status="closed"} 1');
 
       // Session B closed by idle timeout
       recordSessionClosed(60_000, 30_000, 'idle_timeout');
-      const m4 = await reg.metrics();
+      const m4 = await reg!.metrics();
       expect(m4).toContain('mcp_sessions_active 0');
       expect(m4).toContain('mcp_sessions_total{status="idle_timeout"} 1');
 

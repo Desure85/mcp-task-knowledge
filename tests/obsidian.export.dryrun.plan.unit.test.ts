@@ -40,7 +40,7 @@ describe('obsidian export: dryRun plan counts and willDeleteDirs', () => {
     await tasks.updateTask(PROJECT, tp.id, { status: 'pending' });
     const tChildX = await tasks.listTasks({ project: PROJECT });
     // Ensure child has target status/priority for selection later
-    const c = tChildX.find(t => t.title === 'T-Child-X');
+    const c = tChildX.find((t: { title: string; id: string }) => t.title === 'T-Child-X');
     if (c) await tasks.updateTask(PROJECT, c.id, { status: 'in_progress', priority: 'high', tags: ['x'] });
     const ty = await tasks.createTask({ project: PROJECT, title: 'T-Other-Y', parentId: tp.id, priority: 'high', tags: ['y'] });
     await tasks.updateTask(PROJECT, ty.id, { status: 'in_progress', priority: 'high', tags: ['y'] });

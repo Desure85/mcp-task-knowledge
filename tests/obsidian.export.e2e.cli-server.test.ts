@@ -74,7 +74,7 @@ describe('obsidian_export_project — full e2e via MCP server (stdio client)', (
         dryRun: true,
       },
     });
-    const text = res?.content?.[0]?.text ?? '';
+    const text = (res as { content?: Array<{ text?: string }> } | undefined)?.content?.[0]?.text ?? '';
     const env = JSON.parse(text);
     expect(env.ok).toBe(true);
     expect(env.data?.project).toBe(PROJECT);
@@ -95,7 +95,7 @@ describe('obsidian_export_project — full e2e via MCP server (stdio client)', (
         // confirm omitted intentionally
       },
     });
-    const text = res?.content?.[0]?.text ?? '';
+    const text = (res as { content?: Array<{ text?: string }> } | undefined)?.content?.[0]?.text ?? '';
     const env = JSON.parse(text);
     expect(env.ok).toBe(false);
     expect(String(env.error?.message || '')).toContain('not confirmed');
@@ -112,7 +112,7 @@ describe('obsidian_export_project — full e2e via MCP server (stdio client)', (
         confirm: true,
       },
     });
-    const text = res?.content?.[0]?.text ?? '';
+    const text = (res as { content?: Array<{ text?: string }> } | undefined)?.content?.[0]?.text ?? '';
     const env = JSON.parse(text);
     expect(env.ok).toBe(true);
     const projRoot = path.join(VAULT, PROJECT);

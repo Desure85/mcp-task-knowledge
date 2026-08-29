@@ -70,7 +70,7 @@ async function waitForReady(child: ChildProcess, port: number, timeoutMs = 8000)
 async function waitForExit(child: ChildProcess, timeoutMs = 8000): Promise<number | null> {
   const [code] = await Promise.race([
     once(child, 'exit'),
-    new Promise((resolve) => setTimeout(() => resolve([null]), timeoutMs)),
+    new Promise<[number | null]>((resolve) => setTimeout(() => resolve([null]), timeoutMs)),
   ]);
   return code as number | null;
 }

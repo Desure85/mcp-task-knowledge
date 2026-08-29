@@ -3,10 +3,8 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 
-// TMP envs must be set before dynamic imports
-const TMP_DIR = await fsp.mkdtemp(path.join(os.tmpdir(), 'mcp-hierarchy-'));
-process.env.DATA_DIR = TMP_DIR;
-process.env.CURRENT_PROJECT = 'test-hierarchy';
+// TMP envs must be set before dynamic imports (set in beforeAll below)
+let TMP_DIR = '';
 
 // Dynamic imports after env
 import type * as TasksNS from '../src/storage/tasks.js';
@@ -17,6 +15,9 @@ async function rmrf(p: string) {
 }
 
 beforeAll(async () => {
+  TMP_DIR = await fsp.mkdtemp(path.join(os.tmpdir(), 'mcp-hierarchy-'));
+  process.env.DATA_DIR = TMP_DIR;
+  process.env.CURRENT_PROJECT = 'test-hierarchy';
   await rmrf(TMP_DIR);
   await fsp.mkdir(TMP_DIR, { recursive: true });
   tasks = await import('../src/storage/tasks.js');
