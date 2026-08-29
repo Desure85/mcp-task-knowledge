@@ -50,7 +50,8 @@
     "prepublishOnly": "npm run build:publish",
     "prepare": "husky",
     "api:reference": "node scripts/api-reference.mjs",
-    "backlog:check": "node scripts/check-backlog.mjs"
+    "backlog:check": "node scripts/check-backlog.mjs",
+    "agent:stats": "node scripts/agent-stats.mjs --days 1"
   },
   "keywords": [
     "mcp",
