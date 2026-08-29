@@ -406,7 +406,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AI-004 | Автоматическое обновление трекинг-троек в CI | low | completed | #145 | AI-001..AI-003 |
 | AI-005 | Market research отчёт (PDF) | high | done | — | — |
 | AI-006 | ~~Web UI: Kanban, Knowledge, Search (Next.js)~~ → заменена на UI-001..UI-007 | high | done | — | — |
-| AI-007 | Agent performance tracking: логирование времени на задачу, потреблённых токенов, количества PR. Автообновление в BACKLOG. Цель — анализировать velocity и оптимизировать процесс | low | pending | — | AI-001..AI-003 |
+| AI-007 | Agent performance tracking: логирование времени на задачу, потреблённых токенов, количества PR. Автообновление в BACKLOG. Цель — анализировать velocity и оптимизировать процесс | low | completed | #146 | AI-001..AI-003 |
 | AI-008 | Behavioral dashboard CLI: `mcp-tk dashboard` — рендер src/behavioral/dashboard.ts в HTML-файл из .behavioral/ | low | completed | #133 | BM-011 |
 | AI-009 | Wire-in ServiceAvailability (TD-011) в реальные вызовы embeddings/catalog: сейчас трекеры зарегистрированы в app-container, но recordFailure/recordSuccess не вызываются из инструментов — health-чеки всегда healthy | medium | completed | #132 | TD-011 |
 | AI-010 | Унифицировать draft-схемы: prompt.schema.json на draft-2020-12, остальные на draft-07 — привести к одному draft или документировать различие | low | completed | #136 | Q-007 |
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **154** | **112** | **2** | **39** | **0** | **1** |
+| **Итого** | **154** | **113** | **2** | **38** | **0** | **1** |
