@@ -432,7 +432,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 **Дата последнего обновления:** 2026-08-29
 **Текущая feature-ветка:** master (все PR смержены)
 **Текущий этап:** Этапы A-G + TD + Q (качество) — done
-**Статус:** 116 задач done из 154, 1889 тестов, coverage 92.7%
+**Статус:** 129 задач done из 160, 1927 тестов, coverage 92.7%
 
 ### Последние действия (ночная сессия 2026-08-28/29, PR #119-#136)
 
@@ -468,6 +468,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 - 2026-08-29: PR #147 — DX-007 Shared test factories
 - 2026-08-29: PR #148 — DX-003 Dev CLI (diagnose/tools/sessions/export)
 - 2026-08-29: PR #149 — DX-008 ESLint + Prettier
+- 2026-08-29: PR #150 — DX-001 Hot tool registration
+- 2026-08-29: PR #151 — DX-002 Wildcard filters
+- 2026-08-29: PR #152 — DX-004 Hot config reload
+- 2026-08-29: PR #153 — DX-005 ETag response cache
+- 2026-08-29: PR #154 — TD-005 Knowledge versioning
+- 2026-08-29: PR #155 — D-002 ADR (5 records)
+- 2026-08-29: PR #156 — D-003 CONTRIBUTING + D-004 CHANGELOG
+- 2026-08-29: PR #157 — AI-011 Claude Code plugin export (ADR-006)
+- 2026-08-29: PR #158 — AI-012 Claude Code plugin import
+- 2026-08-30: PR #159 — AI-013 Streaming progress notifications
+- 2026-08-30: PR #160 — AI-015 Parallel tool batching
+- 2026-08-30: PR #161 — AI-016 Rate-limit dashboard
 
 ### Что дальше
 
