@@ -1,7 +1,7 @@
 {
   "name": "mcp-task-knowledge",
   "version": "1.0.20",
-  "description": "MCP server for task management and knowledge base — file-backed, stdio & HTTP transport",
+  "description": "MCP server for task management and knowledge base \u2014 file-backed, stdio & HTTP transport",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -86,7 +86,6 @@
     "onnxruntime-web": "^1.22.0",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
-    "uuid": "^9.0.1",
     "ws": "^8.21.3",
     "zod": "^3.23.8"
   },

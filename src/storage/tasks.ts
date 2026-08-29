@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { TASKS_DIR } from '../config.js';
 import { ensureDir, pathExists, readJson, writeJson } from '../fs.js';
 import type { Task, Priority, Status, TaskTreeNode } from '../types.js';
@@ -51,7 +51,7 @@ export async function createTask(input: {
     await validateParentDepth(input.project, '__new__', input.parentId);
   }
 
-  const id = uuidv4();
+  const id = randomUUID();
   const now = new Date().toISOString();
   const task: Task = {
     id,
