@@ -631,7 +631,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
 | Tech Debt | 14 | 10 | 0 | 0 | 0 | 1 |
 | Quality | 13 | 8 | 0 | 1 | 0 | 0 |
-| Docs | 5 | 5 | 0 | 0 | 0 | 0 |
+| Docs | 5 | 0 | 0 | 5 | 0 | 0 |
 | Agent Infra | 11 | 2 | 0 | 6 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 0 | 0 | 6 | 0 | 0 |
