@@ -56,6 +56,7 @@ import { registerDependencyTools } from '../register/dependencies.js';
 import { registerDashboardTools } from '../register/dashboard.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
+import { registerRelayTools } from '../register/relay.js';
 import { RateLimiter } from './rate-limiter.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
@@ -122,6 +123,7 @@ export function defaultRegistration(ctx: ServerContext): void {
   registerDashboardTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);
+  registerRelayTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerDebugResources(ctx);
@@ -155,6 +157,7 @@ export class AppContainer {
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
   private readonly services = getServiceAvailabilityRegistry();
+  private relay?: import('../relay/relay-manager.js').RelayManager;
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private startedAt?: number;
@@ -265,6 +268,14 @@ export class AppContainer {
 
       // 3. Server context (McpServer, config, registries)
       this.ctx = await createServerContext();
+
+      // 3.1 LAN Relay (BM-012) — enabled via RELAY_ENABLED=1
+      if (process.env.RELAY_ENABLED === '1') {
+        const { RelayManager } = await import('../relay/relay-manager.js');
+        this.relay = new RelayManager();
+        this.relay.start();
+        this.ctx.relayManager = this.relay;
+      }
 
       // 4. Register tools and resources
       const registerFn = this.opts.registerTools ?? defaultRegistration;
@@ -432,6 +443,16 @@ export class AppContainer {
           this.log.warn({ err }, 'transport close error (non-fatal)');
         }
         this.adapter = undefined;
+      }
+
+      // 2.1 Stop LAN Relay (BM-012)
+      if (this.relay) {
+        try {
+          this.relay.stop();
+        } catch (err) {
+          this.log.warn({ err }, 'relay stop error (non-fatal)');
+        }
+        this.relay = undefined;
       }
 
       // 3. Run cleanup callbacks in reverse order (LIFO)

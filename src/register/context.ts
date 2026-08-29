@@ -11,12 +11,19 @@ import type { VectorSearchAdapter } from '../search/index.js';
 import type { ACLEngine } from '../core/acl.js';
 import type { SessionManager } from '../core/session-manager.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
+import type { RelayManager } from '../relay/relay-manager.js';
+import type { RuleManager } from '../rules/rule-manager.js';
 
 export interface ServerContext {
   server: McpServer;
   cfg: ServerConfig;
   catalogCfg: CatalogConfig;
   catalogProvider: ServiceCatalogProvider;
+
+  /** LAN Relay manager (BM-012) — present when relay is enabled. */
+  relayManager?: RelayManager;
+  /** Rules engine manager — for broadcast_rule (BM-012). */
+  ruleManager?: RuleManager;
 
   vectorAdapter: VectorSearchAdapter<unknown> | undefined;
   vectorInitAttempted: boolean;
