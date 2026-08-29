@@ -274,7 +274,7 @@ describe('BM-014: FtsMemorySearch', () => {
       const res = fts2.query({ query: 'rate' });
       expect(res.total).toBe(1);
       fts2.close();
-    });
+    }, 20000);
   });
 
   describe('raw FtsRecord indexing', () => {

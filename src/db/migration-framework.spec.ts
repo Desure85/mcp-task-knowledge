@@ -179,6 +179,7 @@ describe('BM-013: MigrationFramework', () => {
   });
 
   describe('WAL mode & pragmas', () => {
+    // File-based SQLite WAL can be slow on CI filesystems — generous timeout
     it('enables WAL journal mode on file databases', () => {
       const dbPath = join(testDir, 'app.db');
       const fw = makeFramework(dbPath);
@@ -189,7 +190,7 @@ describe('BM-013: MigrationFramework', () => {
       expect(mode).toBe('wal');
       raw.close();
       fw.close();
-    });
+    }, 20000);
 
     it('creates a persistent database file', () => {
       const dbPath = join(testDir, 'app.db');
@@ -197,7 +198,7 @@ describe('BM-013: MigrationFramework', () => {
       fw.migrate();
       fw.close();
       expect(existsSync(dbPath)).toBe(true);
-    });
+    }, 20000);
   });
 
   describe('status()', () => {

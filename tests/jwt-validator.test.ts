@@ -224,31 +224,54 @@ describe('JwtValidator — expiry', () => {
 // ─── Not-before ───────────────────────────────────────────────────────
 
 describe('JwtValidator — not-before', () => {
+  const FIXED_NOW = new Date('2026-08-29T00:00:00.000Z');
+
   it('should reject a token not yet valid', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
     const validator = createValidator({ clockSkew: 0 });
     // Token not valid for another 60 seconds
     const token = await makeNotBeforeToken(60);
     const result = await validator.validate(token);
 
     expect(result).toBeNull();
+    vi.useRealTimers();
   });
 
   it('should accept a token with past nbf', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
     const validator = createValidator({ clockSkew: 0 });
     // nbf was 60 seconds ago
     const token = await makeNotBeforeToken(-60);
     const result = await validator.validate(token);
 
     expect(result).not.toBeNull();
+    vi.useRealTimers();
   });
 
   it('should accept a token within clock skew tolerance', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
     // Token not valid for another 3 seconds, clock skew is 5 seconds
     const validator = createValidator({ clockSkew: 5 });
     const token = await makeNotBeforeToken(3);
     const result = await validator.validate(token);
 
     expect(result).not.toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('should reject a token past skew even with future nbf', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    // nbf 10s in future, skew only 5 → must reject deterministically
+    const validator = createValidator({ clockSkew: 5 });
+    const token = await makeNotBeforeToken(10);
+    const result = await validator.validate(token);
+
+    expect(result).toBeNull();
+    vi.useRealTimers();
   });
 });
 
