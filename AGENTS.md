@@ -429,14 +429,38 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-08-28
+**Дата последнего обновления:** 2026-08-29
 **Текущая feature-ветка:** master (все PR смержены)
-**Текущий этап:** Этапы A-D (Skills/Rules/Workflows/Memory) + Behavioral — done
-**Статус:** 94 задачи done из 161, 1749 тестов
+**Текущий этап:** Этапы A-G + TD + Q (качество) — done
+**Статус:** 106 задач done из 167, 1867 тестов, coverage 92.7%
 
-### Последние действия
+### Последние действия (ночная сессия 2026-08-28/29, PR #119-#136)
 
-- 2026-08-28: PR #94-#99 — WF-002..BM-007 (workflows + skills/rules/behavioral база)
+- 2026-08-28: PR #119 — TD-010 Centralized error handling (ErrorCategory/ToolError/ErrorHandler/middleware)
+- 2026-08-28: PR #120 — TD-011 Graceful degradation (CircuitBreaker→core, ServiceAvailability, withFallback, health-checks embeddings/catalog)
+- 2026-08-28: PR #121 — TD-013 Test timing safety (session-manager 11 + rate-limiter 3 → vi.useFakeTimers)
+- 2026-08-28: TD-014 WIP commit strategy (git wip alias + AGENTS.md 3.4)
+- 2026-08-29: PR #122 — TD-012 Mock interface sync (tsconfig.test.json + tests/type-check.test.ts satisfies, fixed drift)
+- 2026-08-29: PR #123 — Q-004 Core MCP E2E (tests/mcp-core-e2e.test.ts, stdio client)
+- 2026-08-29: PR #124 — Q-005 Coverage threshold 80% (92.7% фактически)
+- 2026-08-29: PR #125 — Q-008 JSON-RPC fuzzing (fast-check, нашёл -0 edge case в CI)
+- 2026-08-29: PR #126 — Q-009 Chaos/shutdown (SIGTERM/SIGINT/SIGKILL, data integrity)
+- 2026-08-29: PR #127 — Q-006 BM25 load tests (10k/50k, no-blowup)
+- 2026-08-29: PR #128 — Q-007 Schema validation (ajv, draft-07+2020-12)
+- 2026-08-29: PR #129 — BM-011 Behavioral dashboard (zero-dep HTML)
+- 2026-08-29: PR #130 — P2 token-manager+a003 fake timers
+- 2026-08-29: PR #131 — P1 flaky fixes (jwt nbf deterministic, SQLite таймауты 20s)
+- 2026-08-29: PR #132 — AI-009 Wire ServiceAvailability (onVectorError + singleton registry)
+- 2026-08-29: PR #133 — AI-008 Dashboard CLI (npm run dashboard)
+- 2026-08-29: PR #134 — Q-012 Full test type-check (tsconfig.test.json → tests/**, 61 errors fixed)
+- 2026-08-29: PR #135 — Q-013 Atomic writeJson (tmp+rename, ENOSPC-safe)
+- 2026-08-29: PR #136 — AI-010 Schema drafts unified (draft-07)
+
+### Что дальше
+
+- BM-012 (LAN Relay, low, большая — mDNS+AES WebSocket, отдельный заход)
+- Sync (5 pending), Tech Debt (3 pending: TD-005, TD-007, TD-008), Quality (3: Q-010, Q-011 + Q-012/013 done), Docs (5), Integration Hub (6), Web UI (7), OpenCode Integration (4+2)
+- LoopX-цель: mcp-task-knowledge-goal (16 todo, 15 done)
 - 2026-08-28: PR #100-#104 — SK-003..RL-005 (discovery, templates, policy, guardrails, enforcement)
 - 2026-08-28: PR #105 — WF-005 state persistence; PR #106 — fix flaky knowledge test (monotonic updatedAt)
 - 2026-08-28: PR #107 — WF-006 subflows (этап Workflows done 6/6)
