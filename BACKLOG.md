@@ -349,7 +349,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TD-002 | Типизация: заменить `any` на конкретные типы | medium | done | F-006 ✅ | — |
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred | — | — |
 | TD-004 | Rate limiting на уровне инструментов | medium | done | S-003 | — | покрыто S-003 (PR #53) |
-| TD-005 | Версионирование документов знаний | low | pending | — | — |
+| TD-005 | Версионирование документов знаний | low | completed | (branch pushed, PR pending) | — |
 | TD-006 | Добавить JSDoc для публичных функций | medium | completed | #142 | — |
 | TD-007 | Migration от `uuid` v9 к `crypto.randomUUID()` | low | completed | #140 | — |
 | TD-008 | ESM-совместимый импорт service-catalog | medium | completed | #138 | — |
@@ -389,9 +389,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | D-001 | API reference для всех MCP-инструментов | medium | completed | #144 | — |
-| D-002 | Architecture Decision Records (ADR) | low | pending | — | — |
-| D-003 | CONTRIBUTING.md для контрибьюторов | low | pending | — | — |
-| D-004 | CHANGELOG.md (автоматический из conventional commits) | low | pending | — | — |
+| D-002 | Architecture Decision Records (ADR) | low | completed | (branch pushed, PR pending) | — |
+| D-003 | CONTRIBUTING.md для контрибьюторов | low | completed | (branch pushed, PR pending) | — |
+| D-004 | CHANGELOG.md (автоматический из conventional commits) | low | completed | (branch pushed, PR pending) | — |
 | D-005 | Architecture diagram: Mermaid/PlantUML диаграмма — компоненты (AppContainer, SessionManager, ToolExecutor, Transport), связи, data flow. В README или /docs. Обновлять при изменении архитектуры | medium | completed | #143 | — |
 
 ---
@@ -641,4 +641,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **154** | **120** | **2** | **31** | **0** | **1** |
+| **Итого** | **154** | **124** | **2** | **27** | **0** | **1** |
