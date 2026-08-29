@@ -51,7 +51,8 @@
     "prepare": "husky",
     "api:reference": "node scripts/api-reference.mjs",
     "backlog:check": "node scripts/check-backlog.mjs",
-    "agent:stats": "node scripts/agent-stats.mjs --days 1"
+    "agent:stats": "node scripts/agent-stats.mjs --days 1",
+    "dev:cli": "node scripts/dev-cli.mjs"
   },
   "keywords": [
     "mcp",
