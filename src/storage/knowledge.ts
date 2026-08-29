@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fg from 'fast-glob';
 import matter from 'gray-matter';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { KNOWLEDGE_DIR } from '../config.js';
 import { ensureDir, pathExists, readText, writeText } from '../fs.js';
 import type { KnowledgeDoc, KnowledgeDocMeta } from '../types.js';
@@ -37,7 +37,7 @@ export async function createDoc(input: {
   parentId?: string;
   type?: string;
 }): Promise<KnowledgeDoc> {
-  const id = uuidv4();
+  const id = randomUUID();
   const now = new Date().toISOString();
   const data: KnowledgeDocMeta = {
     id,
