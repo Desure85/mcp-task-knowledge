@@ -432,7 +432,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 **Дата последнего обновления:** 2026-08-29
 **Текущая feature-ветка:** master (все PR смержены)
 **Текущий этап:** Этапы A-G + TD + Q (качество) — done
-**Статус:** 106 задач done из 167, 1867 тестов, coverage 92.7%
+**Статус:** 116 задач done из 154, 1889 тестов, coverage 92.7%
 
 ### Последние действия (ночная сессия 2026-08-28/29, PR #119-#136)
 
@@ -455,6 +455,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 - 2026-08-29: PR #134 — Q-012 Full test type-check (tsconfig.test.json → tests/**, 61 errors fixed)
 - 2026-08-29: PR #135 — Q-013 Atomic writeJson (tmp+rename, ENOSPC-safe)
 - 2026-08-29: PR #136 — AI-010 Schema drafts unified (draft-07)
+- 2026-08-29: PR #137 — Q-010 Property-based core testing (fast-check)
+- 2026-08-29: PR #138 — TD-008 ESM service-catalog import (ambient types)
+- 2026-08-29: PR #139 — BM-012 LAN Relay (WS + AES-256-GCM + UDP multicast)
+- 2026-08-29: PR #140 — TD-007 crypto.randomUUID (uuid dep dropped)
+- 2026-08-29: PR #141 — Q-011 Wire format snapshots
+- 2026-08-29: PR #142 — TD-006 JSDoc public functions
+- 2026-08-29: PR #143 — D-005 Architecture diagram (Mermaid)
+- 2026-08-29: PR #144 — D-001 API reference (76 tools, auto-gen)
+- 2026-08-29: PR #145 — AI-004 BACKLOG CI validation
+- 2026-08-29: PR #146 — AI-007 Agent performance tracking
+- 2026-08-29: PR #147 — DX-007 Shared test factories
+- 2026-08-29: PR #148 — DX-003 Dev CLI (diagnose/tools/sessions/export)
+- 2026-08-29: PR #149 — DX-008 ESLint + Prettier
 
 ### Что дальше
 
