@@ -16,11 +16,12 @@
  */
 
 import matter from 'gray-matter';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync as readSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { childLogger } from '../core/logger.js';
 import type { Skill } from './types.js';
 import type { SkillManager } from './skill-manager.js';
+import type { SkillDiscovery } from './skill-discovery.js';
 
 const log = childLogger('skill-converters');
 
@@ -213,4 +214,63 @@ export function exportClaudeCodePlugin(
 
   log.info({ plugin: pluginManifest.name, skills: skills.length }, 'Claude Code plugin exported');
   return { files };
+}
+
+// ─── Claude Code Plugin import (AI-012) ──────────────────────────
+
+export interface PluginImportResult {
+  pluginName: string;
+  imported: number;
+  skills: string[];
+  errors: string[];
+}
+
+/**
+ * Import a Claude Code plugin directory into our skill storage.
+ * Reads .claude-plugin/plugin.json + skills/<name>/SKILL.md.
+ */
+export function importClaudeCodePlugin(
+  discovery: SkillDiscovery,
+  pluginDir: string,
+): PluginImportResult {
+  const result: PluginImportResult = { pluginName: '', imported: 0, skills: [], errors: [] };
+
+  // Read manifest
+  const manifestPath = join(pluginDir, '.claude-plugin', 'plugin.json');
+  if (!existsSync(manifestPath)) {
+    result.errors.push('no .claude-plugin/plugin.json found');
+    return result;
+  }
+  try {
+    const manifest = JSON.parse(readSync(manifestPath, 'utf8'));
+    result.pluginName = manifest.name ?? 'unknown-plugin';
+  } catch {
+    result.errors.push('invalid plugin.json');
+    return result;
+  }
+
+  // Scan skills/ directory
+  const skillsDir = join(pluginDir, 'skills');
+  if (!existsSync(skillsDir)) {
+    result.errors.push('no skills/ directory');
+    return result;
+  }
+
+  const entries = readdirSync(skillsDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const skillMdPath = join(skillsDir, entry.name, 'SKILL.md');
+    if (!existsSync(skillMdPath)) continue;
+    try {
+      const content = readSync(skillMdPath, 'utf8');
+      const skill = discovery.importSkillMd(content, { name: entry.name });
+      result.skills.push(skill.id);
+      result.imported++;
+    } catch (e) {
+      result.errors.push(`failed to import ${entry.name}: ${(e as Error).message}`);
+    }
+  }
+
+  log.info({ plugin: result.pluginName, imported: result.imported }, 'Claude Code plugin imported');
+  return result;
 }
