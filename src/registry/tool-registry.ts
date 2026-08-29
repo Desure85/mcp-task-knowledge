@@ -199,7 +199,15 @@ export class ToolRegistry {
     let names = this.names();
 
     if (search) {
-      names = names.filter((n) => n.toLowerCase().includes(search));
+      // Support wildcard patterns: "search.*" or "*.create" (DX-002)
+      if (search.includes('*')) {
+        const pattern = new RegExp(
+          `^${search.split('*').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`,
+        );
+        names = names.filter((n) => pattern.test(n.toLowerCase()));
+      } else {
+        names = names.filter((n) => n.toLowerCase().includes(search));
+      }
     }
 
     const total = names.length;

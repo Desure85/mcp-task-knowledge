@@ -306,12 +306,38 @@ describe('ToolRegistry', () => {
       expect(result.pagination.total).toBe(0);
     });
 
+    it('wildcard prefix pattern matches namespace (DX-002)', () => {
+      reg.set('search_tasks', {});
+      reg.set('search_knowledge', {});
+      reg.set('tasks_create', {});
+      const result = reg.list({ search: 'search_*' });
+      const names = result.data.map((e) => e.name);
+      expect(names).toContain('search_tasks');
+      expect(names).toContain('search_knowledge');
+      expect(names).not.toContain('tasks_create');
+    });
+
+    it('wildcard suffix pattern matches action (DX-002)', () => {
+      reg.set('tasks_create', {});
+      reg.set('knowledge_create', {});
+      reg.set('tasks_list', {});
+      const result = reg.list({ search: '*_create' });
+      const names = result.data.map((e) => e.name);
+      expect(names).toContain('tasks_create');
+      expect(names).toContain('knowledge_create');
+      expect(names).not.toContain('tasks_list');
+    });
+
+    it('wildcard with no matches returns empty (DX-002)', () => {
+      const result = reg.list({ search: 'nosuch_*' });
+      expect(result.data).toHaveLength(0);
+    });
+
     it('search + pagination combined', () => {
       // Add tools with 'search_' prefix
       for (let i = 1; i <= 10; i++) {
         reg.set(`search_${i}`, { title: `Search ${i}` });
       }
-
       const result = reg.list({ search: 'search_', limit: 3, offset: 0 });
       expect(result.data).toHaveLength(3);
       expect(result.pagination.total).toBe(10);
