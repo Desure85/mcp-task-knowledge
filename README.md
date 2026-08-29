@@ -309,6 +309,10 @@ data/
 └── prompts/<project>/                # Prompt templates and builds
 ```
 
+## Architecture
+
+Mermaid-диаграммы компонентов, жизненного цикла запроса и слоёв зависимостей: [docs/architecture.md](docs/architecture.md)
+
 ## License
 
 MIT
