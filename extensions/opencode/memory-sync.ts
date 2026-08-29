@@ -12,10 +12,16 @@
  *   - Новые/изменённые записи → knowledge_bulk_create через MCP
  *   - Прямой MCP-вызов через ctx.client (OpenCode Plugin API client)
  *
+ * Многопроектность (dual sync):
+ *   - Проектные facts.md/patterns.json → MCP project = basename(input.directory)
+ *   - Глобальные facts.md/patterns.json → MCP project = "agent-memory"
+ *   - Каждый таргет имеет свой .sync-state.json, debounce общий.
+ *
  * Конфигурация (через opencode.json plugin options):
- *   - project: MCP project name (default: "agent-memory")
- *   - factsPath: путь к facts.md (default: "~/.omo/memory/facts.md")
- *   - statePath: путь к state-файлу (default: "~/.omo/memory/.sync-state.json")
+ *   - project: MCP project name (default: basename(input.directory))
+ *   - factsPath: путь к facts.md (default: "<project>/.omo/memory/facts.md")
+ *   - patternsPath: путь к patterns.json (default: "<project>/.omo/memory/patterns.json")
+ *   - statePath: путь к state-файлу (default: "<project>/.omo/memory/.sync-state.json")
  *   - debounceMs: debounce задержка (default: 30000)
  *   - enabled: включить/выключить (default: true)
  *
@@ -28,7 +34,7 @@
 /// <reference types="node" />
 import type { Plugin, PluginOptions } from "@opencode-ai/plugin";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 
@@ -49,6 +55,26 @@ const DEFAULTS: Required<MemorySyncOptions> = {
   debounceMs: 30000,
   enabled: true,
 };
+
+/** Глобальная memory-директория (кросс-проектные знания). */
+const GLOBAL_MEMORY_DIR = join(homedir(), ".omo", "memory");
+
+/**
+ * Пути проектной memory-директории: <project>/.omo/memory/.
+ * Используется, когда проект передан через input.directory (PluginInput).
+ */
+function buildProjectPaths(projectDir: string): {
+  factsPath: string;
+  patternsPath: string;
+  statePath: string;
+} {
+  const memoryDir = join(projectDir, ".omo", "memory");
+  return {
+    factsPath: join(memoryDir, "facts.md"),
+    patternsPath: join(memoryDir, "patterns.json"),
+    statePath: join(memoryDir, ".sync-state.json"),
+  };
+}
 
 interface SyncState {
   [hash: string]: {
@@ -131,6 +157,7 @@ function extractTags(content: string): string[] {
   if (content.includes("[decision]")) tags.add("decision");
   if (content.includes("[suspicious]")) tags.add("suspicious");
   if (content.includes("[process]")) tags.add("process");
+  if (content.includes("[global]")) tags.add("global");
   return Array.from(tags);
 }
 
@@ -207,31 +234,54 @@ function extractExistingId(searchResult: unknown, title: string): string | null 
 }
 
 export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) => {
-  const opts: Required<MemorySyncOptions> = {
-    ...DEFAULTS,
-    ...(options as MemorySyncOptions | undefined),
-  };
+  const projectDir = input.directory || process.cwd();
+  const projectPaths = buildProjectPaths(projectDir);
+  const userOpts = options as MemorySyncOptions | undefined;
+  const projectName = userOpts?.project ?? basename(projectDir);
+  const globalProjectName = "agent-memory";
+  const debounceMs = userOpts?.debounceMs ?? DEFAULTS.debounceMs;
 
-  if (!opts.enabled) {
+  if (userOpts?.enabled === false) {
     return {};
   }
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const performSync = async (): Promise<void> => {
+  interface SyncTarget {
+    factsPath: string;
+    patternsPath: string;
+    statePath: string;
+    mcpProject: string;
+  }
+
+  const targets: SyncTarget[] = [
+    {
+      factsPath: userOpts?.factsPath ?? projectPaths.factsPath,
+      patternsPath: userOpts?.patternsPath ?? projectPaths.patternsPath,
+      statePath: userOpts?.statePath ?? projectPaths.statePath,
+      mcpProject: projectName,
+    },
+    {
+      factsPath: join(GLOBAL_MEMORY_DIR, "facts.md"),
+      patternsPath: join(GLOBAL_MEMORY_DIR, "patterns.json"),
+      statePath: join(GLOBAL_MEMORY_DIR, ".sync-state.json"),
+      mcpProject: globalProjectName,
+    },
+  ];
+
+  const performSyncForTarget = async (target: SyncTarget): Promise<void> => {
     try {
-      if (!existsSync(opts.factsPath)) {
+      if (!existsSync(target.factsPath)) {
         return;
       }
 
-      const factsContent = readFileSync(opts.factsPath, "utf-8");
+      const factsContent = readFileSync(target.factsPath, "utf-8");
       const entries = parseFactsFile(factsContent);
 
-      // OC-004: Also parse patterns.json if it exists
       let allEntries = entries;
-      if (existsSync(opts.patternsPath)) {
+      if (existsSync(target.patternsPath)) {
         try {
-          const patternsContent = readFileSync(opts.patternsPath, "utf-8");
+          const patternsContent = readFileSync(target.patternsPath, "utf-8");
           const patternEntries = parsePatternsFile(patternsContent);
           allEntries = [...entries, ...patternEntries];
         } catch {
@@ -239,7 +289,7 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
         }
       }
 
-      const state = loadState(opts.statePath);
+      const state = loadState(target.statePath);
 
       const toSync: FactsEntry[] = [];
       for (const entry of allEntries) {
@@ -252,8 +302,6 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
         return;
       }
 
-      // OC-003: Dedup — search by title before create.
-      // If an entry with the same title exists, use knowledge_bulk_update instead.
       const toCreate: FactsEntry[] = [];
       const toUpdate: Array<{ entry: FactsEntry; id: string }> = [];
 
@@ -263,7 +311,7 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
             server: "mcp-task-knowledge",
             tool: "search_knowledge",
             args: {
-              project: opts.project,
+              project: target.mcpProject,
               query: entry.title,
               limit: 1,
             },
@@ -276,12 +324,10 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
             toCreate.push(entry);
           }
         } catch {
-          // search failed — default to create (safe fallback)
           toCreate.push(entry);
         }
       }
 
-      // Create new entries
       if (toCreate.length > 0) {
         const items = toCreate.map((e) => ({
           title: e.title,
@@ -294,20 +340,19 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
           server: "mcp-task-knowledge",
           tool: "knowledge_bulk_create",
           args: {
-            project: opts.project,
+            project: target.mcpProject,
             items,
           },
         });
       }
 
-      // Update existing entries (dedup — avoid duplicates)
       for (const { entry, id } of toUpdate) {
         try {
           await input.client.mcp.call({
             server: "mcp-task-knowledge",
             tool: "knowledge_bulk_update",
             args: {
-              project: opts.project,
+              project: target.mcpProject,
               items: [{
                 id,
                 title: entry.title,
@@ -321,7 +366,6 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
         }
       }
 
-      // Update state for both created and updated
       const now = new Date().toISOString();
       for (const entry of toSync) {
         state[entry.hash] = {
@@ -329,9 +373,15 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
           syncedAt: now,
         };
       }
-      saveState(opts.statePath, state);
+      saveState(target.statePath, state);
     } catch {
       // best-effort — don't block agent work on sync failures
+    }
+  };
+
+  const performSync = async (): Promise<void> => {
+    for (const target of targets) {
+      await performSyncForTarget(target);
     }
   };
 
@@ -342,7 +392,7 @@ export const MemorySyncPlugin: Plugin = async (input, options?: PluginOptions) =
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
       void performSync();
-    }, opts.debounceMs);
+    }, debounceMs);
   };
 
   return {

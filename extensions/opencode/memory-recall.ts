@@ -12,10 +12,14 @@
  *     через MCP-инструменты, доступные в сессии.
  *
  * Конфигурация (через opencode.json plugin options):
- *   - project: MCP project name (default: "agent-memory")
+ *   - project: MCP project name (default: basename(input.directory))
  *   - topK: сколько результатов искать (default: 5)
  *   - minScore: минимальный score для инъекции (default: 1.0)
  *   - enabled: включить/выключить плагин (default: true)
+ *
+ * Многопроектность: ищет в двух MCP-проектах:
+ *   - basename(input.directory) — проектное знание
+ *   - "agent-memory" — глобальное (кросс-проектное) знание
  *
  * Установка:
  *   1. Скопировать файл в ~/.config/opencode/plugins/memory-recall.ts
@@ -30,6 +34,7 @@
 
 /// <reference types="node" />
 import type { Plugin, PluginOptions } from "@opencode-ai/plugin";
+import { basename } from "node:path";
 
 interface MemoryRecallOptions {
   project?: string;
@@ -47,6 +52,7 @@ const DEFAULTS: Required<MemoryRecallOptions> = {
 
 const buildRecallInstructions = (
   project: string,
+  globalProject: string,
   topK: number,
   minScore: number,
   sessionId: string | undefined,
@@ -55,15 +61,16 @@ const buildRecallInstructions = (
 ## Автоматический recall из памяти (mcp-task-knowledge)
 
 У тебя есть доступ к MCP-серверу \`mcp-task-knowledge\` — это твой memory backend.
-В нём хранятся факты, паттерны и решения из прошлых сессий (project: \`${project}\`).
+Знание хранится в двух проектах:
+- \`{project}\` — проектное (факты/паттерны из этого репозитория)
+- \`{globalProject}\` — глобальное (кросс-проектное знание, скиллы, процесс)
 
 ### Что делать в начале сессии
 
 1. **Сразу после получения первого сообщения пользователя** — вызови MCP-инструмент
-   \`mcp1_search_knowledge\` (или \`search_knowledge\`) с параметрами:
-   - \`project\`: \`${project}\`
-   - \`query\`: извлеки ключевые слова из сообщения пользователя (или контекст задачи)
-   - \`limit\`: ${topK}
+   \`mcp1_search_knowledge\` (или \`search_knowledge\`) **дважды**:
+   - \`project\`: \`${project}\`, \`query\`: ключевые слова из задачи, \`limit\`: ${topK}
+   - \`project\`: \`${globalProject}\`, \`query\`: те же ключевые слова, \`limit\`: ${topK}
 
 2. **Проанализируй результаты**: если есть записи с \`score > ${minScore}\` —
    используй их как контекст. Это проверенные факты из прошлых сессий, они могут
@@ -91,7 +98,7 @@ MCP-инструмент вернёт массив записей. Каждая 
 - \`title\`: заголовок факта
 - \`content\`: содержимое (может быть длинным)
 - \`score\`: релевантность (выше = лучше)
-- \`tags\`: теги (fact, pattern, decision, suspicious, process)
+- \`tags\`: теги (fact, pattern, decision, suspicious, process, global)
 
 Используй только записи с \`score > ${minScore}\`. Если все ниже — игнорируй, работай
 с нуля.
@@ -110,13 +117,15 @@ MCP-инструмент вернёт массив записей. Каждая 
 </memory-recall-instructions>`;
 };
 
-export const MemoryRecallPlugin: Plugin = async (_input, options?: PluginOptions) => {
-  const opts: Required<MemoryRecallOptions> = {
-    ...DEFAULTS,
-    ...(options as MemoryRecallOptions | undefined),
-  };
+export const MemoryRecallPlugin: Plugin = async (input, options?: PluginOptions) => {
+  const userOpts = options as MemoryRecallOptions | undefined;
+  const projectDir = input.directory || process.cwd();
+  const projectName = userOpts?.project ?? basename(projectDir);
+  const globalProjectName = "agent-memory";
+  const topK = userOpts?.topK ?? DEFAULTS.topK;
+  const minScore = userOpts?.minScore ?? DEFAULTS.minScore;
 
-  if (!opts.enabled) {
+  if (userOpts?.enabled === false) {
     return {};
   }
 
@@ -134,7 +143,7 @@ export const MemoryRecallPlugin: Plugin = async (_input, options?: PluginOptions
       }
 
       output.system.push(
-        buildRecallInstructions(opts.project, opts.topK, opts.minScore, input.sessionID),
+        buildRecallInstructions(projectName, globalProjectName, topK, minScore, input.sessionID),
       );
     },
   };
