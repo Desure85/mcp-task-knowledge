@@ -82,7 +82,7 @@ describe('BM-012: RelayManager', () => {
   });
 
   it('starts with encryption aes-256-gcm and reports status', () => {
-    relay = new RelayManager({ port: 41245, sharedKey: 'test-key' });
+    relay = new RelayManager({ port: 0, sharedKey: 'test-key' });
     expect(relay.enabled).toBe(false);
     relay.start();
     const status = relay.status();
@@ -92,14 +92,14 @@ describe('BM-012: RelayManager', () => {
   });
 
   it('shareBrief with no peers returns sent:0', () => {
-    relay = new RelayManager({ port: 41246, sharedKey: 'test-key' });
+    relay = new RelayManager({ port: 0, sharedKey: 'test-key' });
     relay.start();
     const result = relay.shareBrief({ hello: 'world' });
     expect(result.sent).toBe(0);
   });
 
   it('stop is idempotent and disables', () => {
-    relay = new RelayManager({ port: 41247, sharedKey: 'test-key' });
+    relay = new RelayManager({ port: 0, sharedKey: 'test-key' });
     relay.start();
     relay.stop();
     relay.stop();
