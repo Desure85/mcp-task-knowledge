@@ -6,6 +6,7 @@ export default defineConfig({
     exclude: [
       'service-catalog/**',
       'node_modules/**',
+      '.opencode/**',
       'dist/**',
     ],
     setupFiles: ['./tests/setup.ts'],
