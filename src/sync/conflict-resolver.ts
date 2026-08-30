@@ -74,8 +74,7 @@ export function threeWayMerge<T extends Record<string, unknown>>(
           merged[key] = null; // requires human resolution
           break;
         case 'last-write-wins':
-        default:
-          // Compare timestamps if available, otherwise prefer remote
+        default: {
           const localTs = (local as { updatedAt?: string }).updatedAt;
           const remoteTs = (remote as { updatedAt?: string }).updatedAt;
           if (localTs && remoteTs) {
@@ -84,6 +83,7 @@ export function threeWayMerge<T extends Record<string, unknown>>(
             merged[key] = remoteVal;
           }
           break;
+        }
       }
     }
   }
