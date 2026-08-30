@@ -304,7 +304,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|
 | SYNC-001 | Протокол версионирования и курсоры | medium | completed | #166 | — |
 | SYNC-002 | RPC `mcp.sync.*` (delta/snapshot/ack) | medium | completed | #166 | SYNC-001 |
-| SYNC-003 | Conflict resolver (3-way merge) | high | pending | 6.3 | SYNC-002 |
+| SYNC-003 | Conflict resolver (3-way merge) | high | completed | #167 | SYNC-002 |
 | SYNC-004 | Event sourcing и snapshots (GC) | low | pending | 6.4 | SYNC-002 |
 | SYNC-005 | E2E durability тесты: проверка синхронизации при сбоях — disconnect, split-brain, concurrent writes. Восстановление после crash | medium | pending | 6.5 | SYNC-003 |
 
@@ -647,4 +647,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **160** | **136** | **2** | **21** | **0** | **1** |
+| **Итого** | **160** | **137** | **2** | **20** | **0** | **1** |
