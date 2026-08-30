@@ -536,8 +536,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | OC-004 | patterns.json sync: парсинг structured patterns в sync-скрипт/плагин. Каждая запись → knowledge item с тегами `[pattern, importance-N]` | medium | done | — | OC-002 |
 | OC-005 | Авто-инъекция контекста: hook `experimental.chat.messages.transform` → extract query из last user message → `search_knowledge` top-5 → append compact results в system prompt. Бюджет ~2000 токенов, кэш по query hash (TTL 5 мин), min score threshold | medium | done | — | OC-001 |
 | OC-006 | P2P sync Windows ↔ Linux: git sync facts.md + re-sync index после pull. Или Syncthing для `~/mcpTrackerData/`. Документация по настройке | low | completed | #172 | OC-002 |
-| OC-007 | Web UI для browse/search памяти: начать с Obsidian export (уже работает), потом минимальный web UI (FastAPI/Express читающий SQLite) если Obsidian не устроит | low | pending | — | — |
-| OC-008 | Cleanup конфига opencode.json: `--config` file вместо 20 env vars. Структурированный JSON-конфиг, git-trackable. Связано с CFG-001 | medium | pending | — | CFG-001 |
+| OC-007 | Web UI для browse/search памяти: начать с Obsidian export (уже работает), потом минимальный web UI (FastAPI/Express читающий SQLite) если Obsidian не устроит | low | completed | #173 | — |
+| OC-008 | Cleanup конфига opencode.json: `--config` file вместо 20 env vars. Структурированный JSON-конфиг, git-trackable. Связано с CFG-001 | medium | completed | #173 | CFG-001 |
 
 ---
 
@@ -647,4 +647,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **160** | **142** | **2** | **15** | **0** | **1** |
+| **Итого** | **160** | **144** | **2** | **13** | **0** | **1** |
