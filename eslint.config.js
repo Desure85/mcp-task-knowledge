@@ -41,6 +41,7 @@ export default tseslint.config(
       '@typescript-eslint/no-require-imports': 'warn',
       'prefer-const': 'off',
       'no-empty': ['warn', { allowEmptyCatch: true }],
+      'no-undef': 'off',
     },
   },
 );
