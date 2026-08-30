@@ -7,3 +7,7 @@ export type { Connector, ConnectorContext, ConnectorHealth, ConnectorRegistratio
 
 export { createGitHubConnector } from './github.js';
 export type { GitHubConfig } from './github.js';
+export { createJiraConnector } from './jira.js';
+export type { JiraConfig } from './jira.js';
+export { createSlackConnector } from './slack.js';
+export type { SlackConfig } from './slack.js';
