@@ -7,3 +7,5 @@ export { initialCursor, compareCursors, advanceCursor } from './protocol.js';
 export type { EntityVersion, SyncCursor, SyncDelta, SyncSnapshot } from './protocol.js';
 export { threeWayMerge } from './conflict-resolver.js';
 export type { MergeStrategy, MergeInput, MergeResult } from './conflict-resolver.js';
+export { EventLog } from './event-log.js';
+export type { EntityEvent, SnapshotEntry, EventLogOptions } from './event-log.js';
