@@ -432,7 +432,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 **Дата последнего обновления:** 2026-08-29
 **Текущая feature-ветка:** master (все PR смержены)
 **Текущий этап:** Этапы A-G + TD + Q (качество) — done
-**Статус:** 129 задач done из 160, 1927 тестов, coverage 92.7%
+**Статус:** 144 задачи done из 160, 2004 теста, coverage 92.7%
 
 ### Последние действия (ночная сессия 2026-08-28/29, PR #119-#136)
 
@@ -480,6 +480,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 - 2026-08-30: PR #159 — AI-013 Streaming progress notifications
 - 2026-08-30: PR #160 — AI-015 Parallel tool batching
 - 2026-08-30: PR #161 — AI-016 Rate-limit dashboard
+- 2026-08-30: PR #162 — AI-014 OAuth 2.1 PKCE provider
+- 2026-08-30: PR #163 — INT-004 Connector framework
+- 2026-08-30: PR #164 — INT-001 GitHub connector
+- 2026-08-30: PR #165 — INT-002 Jira + INT-003 Slack connectors
+- 2026-08-30: PR #166 — SYNC-001/002 Protocol + SyncManager
+- 2026-08-30: PR #167 — SYNC-003 3-way merge conflict resolver
+- 2026-08-30: PR #168 — SYNC-004 Event sourcing + GC
+- 2026-08-30: PR #169 — SYNC-005 E2E durability tests
+- 2026-08-30: PR #170 — INT-005 REST wrappers + OpenAPI
+- 2026-08-30: PR #171 — INT-006 gRPC wrappers
+- 2026-08-30: PR #172 — OC-006 P2P sync setup
+- 2026-08-30: PR #173 — OC-007 + OC-008 memory browser + config cleanup
 
 ### Что дальше
 
