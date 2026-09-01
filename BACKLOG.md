@@ -46,7 +46,7 @@
 - [x] MW-001: Middleware pipeline для tool calls (pre/post hooks, logging, error handling) (PR #55)
 - [x] MW-002: Internal event bus (pub/sub внутри сервера) (PR #57)
 - [x] MW-003: Built-in logging middleware (request/response через MW-001) (PR #59)
-- [ ] CFG-001: Unified configuration (env + config file + defaults + schema validation)
+- [x] CFG-001: Unified configuration (env + config file + defaults + schema validation)
 
 ### Этап 4 — Авторизация, ACL, безопасность
 
@@ -56,40 +56,40 @@
 - [x] ACL-001: Модель ACL и policy definitions (PR #64)
 - [x] ACL-002: Фильтрация списков инструментов/ресурсов по ACL
 - [x] ACL-003: Проверка авторизации при вызове инструментов
-- [ ] SEC-001: Audit logging (все MCP-операции → structured audit trail)
-- [ ] SEC-002: TLS/mTLS поддержка + certificate rotation
-- [ ] SEC-003: Token refresh flow + short-lived tokens
-- [ ] SEC-004: Secret management (env, vault, KMS integration)
-- [ ] SEC-005: Authentication protection (rate-limit, lockout, brute-force prevention)
-- [ ] SEC-006: Input sanitization (XSS, SQL injection, path traversal protection)
+- [x] SEC-001: Audit logging (все MCP-операции → structured audit trail)
+- [x] SEC-002: TLS/mTLS поддержка + certificate rotation
+- [x] SEC-003: Token refresh flow + short-lived tokens
+- [x] SEC-004: Secret management (env, vault, KMS integration)
+- [x] SEC-005: Authentication protection (rate-limit, lockout, brute-force prevention)
+- [x] SEC-006: Input sanitization (XSS, SQL injection, path traversal protection)
 
 ### Этап 5 — Инфраструктура качества
 
-- [ ] Q-004: E2E тесты MCP-инструментов
-- [ ] Q-005: Coverage threshold enforcement (минимум 80%)
-- [ ] Q-006: Нагрузочные тесты для BM25 и vector search
-- [ ] Q-007: Schema validation tests (ajv для schemas/*.json)
-- [ ] Q-008: Фаззинг: JSON-RPC framing/parser/validator
-- [ ] Q-009: Chaos/shutdown тесты (graceful degradation)
-- [ ] Q-010: Property-based testing для core-модулей (fast-check)
-- [ ] Q-011: Snapshot testing для transport adapters
-- [ ] SYNC-005: E2E durability тесты (синхронизация)
+- [x] Q-004: E2E тесты MCP-инструментов
+- [x] Q-005: Coverage threshold enforcement (минимум 80%)
+- [x] Q-006: Нагрузочные тесты для BM25 и vector search
+- [x] Q-007: Schema validation tests (ajv для schemas/*.json)
+- [x] Q-008: Фаззинг: JSON-RPC framing/parser/validator
+- [x] Q-009: Chaos/shutdown тесты (graceful degradation)
+- [x] Q-010: Property-based testing для core-модулей (fast-check)
+- [x] Q-011: Snapshot testing для transport adapters
+- [x] SYNC-005: E2E durability тесты (синхронизация)
 
 ### Этап 6 — Proxy, синхронизация, DX
 
-- [ ] P-001: Proxy bootstrap и конфигурация
-- [ ] P-002: Зеркалирование инструментов/ресурсов через прокси
-- [ ] P-003: Проброс запросов/уведомлений, flow control
-- [ ] P-004: Устойчивость и observability прокси
-- [ ] SYNC-001: Протокол версионирования и курсоры
-- [ ] SYNC-002: RPC `mcp.sync.*` (delta/snapshot/ack)
-- [ ] SYNC-003: Conflict resolver (3-way merge)
-- [ ] SYNC-004: Event sourcing и snapshots (GC)
-- [ ] DX-001: Hot registration of tools (runtime add/remove)
-- [ ] DX-002: Namespaces и wildcard фильтры для инструментов
-- [ ] DX-003: Dev CLI (diagnostics, config validation, health check)
-- [ ] DX-004: Hot reload конфигов/политик без перезапуска
-- [ ] DX-005: Proxy response caching (ETag-based, TTL)
+- [x] P-001: Proxy bootstrap и конфигурация
+- [x] P-002: Зеркалирование инструментов/ресурсов через прокси
+- [x] P-003: Проброс запросов/уведомлений, flow control
+- [x] P-004: Устойчивость и observability прокси
+- [x] SYNC-001: Протокол версионирования и курсоры
+- [x] SYNC-002: RPC `mcp.sync.*` (delta/snapshot/ack)
+- [x] SYNC-003: Conflict resolver (3-way merge)
+- [x] SYNC-004: Event sourcing и snapshots (GC)
+- [x] DX-001: Hot registration of tools (runtime add/remove)
+- [x] DX-002: Namespaces и wildcard фильтры для инструментов
+- [x] DX-003: Dev CLI (diagnostics, config validation, health check)
+- [x] DX-004: Hot reload конфигов/политик без перезапуска
+- [x] DX-005: Proxy response caching (ETag-based, TTL)
 
 ### Этап 7 — Масштабируемость
 
@@ -101,13 +101,13 @@
 
 ### Этап 8 — Интеграции
 
-- [ ] INT-004: Connector framework (plug-in SDK + registry)
-- [ ] INT-001: GitHub connector
-- [ ] INT-002: Jira/YouTrack connector
-- [ ] INT-003: Slack/Discord connector
+- [x] INT-004: Connector framework (plug-in SDK + registry)
+- [x] INT-001: GitHub connector
+- [x] INT-002: Jira/YouTrack connector
+- [x] INT-003: Slack/Discord connector
 - [ ] MR-012: Real-time collaboration (WebSocket)
-- [ ] INT-005: REST wrappers для MCP tools
-- [ ] INT-006: gRPC wrappers для MCP tools
+- [x] INT-005: REST wrappers для MCP tools
+- [x] INT-006: gRPC wrappers для MCP tools
 
 ### Этап 9 — Skills, Rules, Workflows, Memory
 
@@ -136,13 +136,13 @@
 
 ### Этап 10 — Web UI
 
-- [ ] UI-001: Web UI foundation (Next.js + auth + API client)
+- [x] UI-001: Web UI foundation (Next.js + auth + API client)
 - [ ] UI-002: Tasks board (Kanban/List view)
 - [ ] UI-003: Knowledge editor (Markdown/MDX)
 - [ ] UI-004: Prompt management (versions, variants, A/B)
 - [ ] UI-005: Realtime updates (WebSocket)
 - [ ] UI-006: Feedback loop & usage analytics
-- [ ] UI-007: Docker/CI pipeline для Web UI
+- [x] UI-007: Docker/CI pipeline для Web UI
 
 ### Критический путь
 
@@ -568,6 +568,76 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап H — Competitive Edge (Gap Analysis vs Competitors)
+
+> Источник: Competitor research 2026-09-01 (Mem0, Letta, Zep/Graphiti, Cognee, A-MEM, Supermemory, LangGraph, CrewAI, AutoGen).
+> Цель: закрыть ключевые gap'ы и сделать mcp-task-knowledge лучшей системой памяти для AI-агентов.
+> Уникальные преимущества (уже есть): MCP-native 76+ tools, Skills/Rules/Workflows, Behavioral memory, A/B testing, LAN relay, Obsidian compat, Claude Code plugin, 2000+ tests.
+> Задачи приоритезированы по impact/effort. HIGH = закрывает критический gap, MEDIUM = parity, LOW = nice-to-have.
+>
+> **Важно:** Часть функционала реализована как OpenCode плагины (extensions/opencode/):
+>
+> - session-draft.ts — саморефлексия агента (draft → facts.md)
+> - memory-recall.ts — инструкция поиска по вики
+> - memory-sync.ts — auto-sync facts.md → MCP (debounce, dedup, dual-scope)
+> - memory-context.ts — авто-контекст из памяти (гибрид)
+> - collect-subagent-drafts.sh — сбор драфтов сабагентов
+> Эти плагины — часть продукта mcp-task-knowledge. Новые задачи расширяют их.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Конкурент |
+|----|--------|-----------|--------|---------|-------------|-----------|
+| NEXT-001 | Temporal Knowledge Graph: bi-temporal fact tracking (valid_time + transaction_time), edge invalidation вместо удаления, point-in-time queries ("что было правдой на дату X"). Расширение entity-graph (MEM-002) | high | pending | H.1 | MEM-002 | Zep/Graphiti |
+| NEXT-002 | Memory Extraction Pipeline: automatic conversation→fact extraction через LLM. Инструмент `memory_extract` — принимает dialogue/session transcript, извлекает структурированные факты, сохраняет в knowledge base. ADD-only модель (как Mem0 v3). **Частично покрыто:** session-draft.ts + /end-session → facts.md → memory-sync.ts (ручная саморефлексия, не auto-extraction) | high | pending | H.2 | MEM-001 | Mem0 |
+| NEXT-003 | Memory Evolution: при добавлении нового факта — LLM проверяет existing memories на semantic overlap, обновляет context/attributes существующих (как A-MEM). Инструмент `memory_evolve` | medium | pending | H.3 | NEXT-002 | A-MEM |
+| NEXT-004 | User Profiles: auto-maintained always-on context (static + dynamic facts). ~50ms retrieval. Инструмент `profile_get` / `profile_update`. Хранится в knowledge base с type=profile | high | pending | H.4 | NEXT-002 | Supermemory |
+| NEXT-005 | Automatic Forgetting: temporal facts expire (TTL per fact type), contradictions resolved, noise pruned. Background GC task. Конфигурируемые retention policies | medium | pending | H.5 | NEXT-001, NEXT-004 | Supermemory |
+| NEXT-006 | Sleep-time/Dreaming Agent: async memory refinement during idle periods. Background worker: dedup, merge, summarise, extract patterns. Non-blocking, использует existing context-distiller (MEM-003). **Частично покрыто:** /end-session консолидация (синхронная, не background). Новый плагин `memory-dream.ts` | medium | pending | H.6 | MEM-003, NEXT-002 | Letta/Supermemory |
+| NEXT-007 | Smart Context Assembly: token-budget-aware selection of facts/summaries/observations. Инструмент `context_assemble` — принимает query + token_budget, возвращает optimised context block. RRF fusion of BM25+vector+entity. **Частично покрыто:** memory-context.ts (инструкция, не результат). Нужно: плагин вызывает MCP сам и инжектирует результат | high | pending | H.7 | NEXT-001 | Zep |
+| NEXT-008 | Entity-linking Retrieval: entity matching as third retrieval signal (BM25 + vector + entity). Entities extracted from query, matched against entity-graph (MEM-002). Boost scores for entity matches | medium | pending | H.8 | MEM-002, MR-003 | Mem0 |
+| NEXT-009 | Memory Conflict Resolution: LLM-based contradiction detection between new and existing facts. Marks old facts invalid (not deleted). Инструмент `memory_resolve_conflict`. **Частично покрыто:** memory-sync.ts dedup (по title), но нет semantic contradiction detection | medium | pending | H.9 | NEXT-001, NEXT-002 | Mem0/Zep |
+| NEXT-010 | Memory Scoping (multi-tenancy): user_id / agent_id / app_id / run_id dimensions. Каждый факт тегируется scope. Filter при search. Изоляция данных между tenants. **Частично покрыто:** dual-scope (project + global) в memory-sync.ts. Нужно: 4 измерения вместо 2 | medium | pending | H.10 | ACL-001 | Mem0 |
+| NEXT-011 | More Connectors: Google Drive, Gmail, Notion, OneDrive, Linear, web crawler. Auto-sync with webhooks. Расширение connector framework (INT-004) | low | pending | H.11 | INT-004 | Supermemory/Cognee |
+| NEXT-012 | Multimodal Ingestion: PDFs (text extract), images (OCR), video (transcription), code (AST-aware chunking). Расширение knowledge_create для multipart | low | pending | H.12 | — | Supermemory |
+| NEXT-013 | Benchmark Participation: запустить LOCOMO, LongMemEval, BEAM, DMR benchmarks. Опубликовать результаты. Цель — доказать превосходство | medium | pending | H.13 | NEXT-001..007 | Mem0/Zep/Cognee |
+| NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | pending | H.14 | UI-001, MEM-002 | Supermemory/Letta |
+| NEXT-015 | Cross-Framework Portability: SDK adapters для LangGraph, AutoGen, CrewAI, LangChain. mcp-task-knowledge как memory provider для любого framework | low | pending | H.15 | — | Mem0 |
+| NEXT-016 | Async Memory Operations: non-blocking `memory_extract_async` — returns immediately, webhook on completion. Для long-running extraction (large transcripts) | low | pending | H.16 | NEXT-002 | Mem0 |
+| NEXT-017 | Memory Layers: conversation (in-flight), session (run-scoped), user (persistent). Three-tier memory scoping. **Частично покрыто:** draft = conversation, facts.md = user. Не хватает session-scoped (run_id) слоя | medium | pending | H.17 | NEXT-010 | Mem0/Letta |
+| NEXT-018 | Observations/Pattern Detection: graph-based pattern surfacing — recurrences, co-occurrences, temporal patterns из entity-graph. Инструмент `memory_observations` | low | pending | H.18 | NEXT-001 | Zep |
+| NEXT-019 | Plugin: memory-dream.ts — background memory refinement (sleep-time compute). Плагин OpenCode: idle detection → dedup/merge/summarise facts.md → MCP sync. Расширение memory-sync.ts | medium | pending | H.19 | NEXT-002, MEM-003 | Letta |
+| NEXT-020 | Plugin: memory-extract.ts — automatic conversation→fact extraction. Плагин OpenCode: hook на end of session → LLM extract facts from transcript → facts.md → MCP sync. Заменяет ручной draft на auto-extraction | high | pending | H.20 | NEXT-002 | Mem0 |
+| NEXT-021 | Plugin: memory-context-v2.ts — full auto-context injection. Плагин вызывает MCP search_knowledge сам (через input.client.mcp.call) и инжектирует РЕЗУЛЬТАТ в system prompt, не инструкцию. Требует fix OpenCode Plugin API | high | pending | H.21 | NEXT-007 | Zep |
+| NEXT-022 | Plugin: memory-profile.ts — auto-maintained user profile. Плагин: при каждом /remember → extract user-specific facts → profile_get/update → always-on context injection. Расширение memory-sync.ts | medium | pending | H.22 | NEXT-004 | Supermemory |
+
+---
+
+### Этап H — Competitive Edge (Gap Analysis)
+
+- [ ] NEXT-001: Temporal Knowledge Graph (bi-temporal, edge invalidation, point-in-time queries)
+- [ ] NEXT-002: Memory Extraction Pipeline (conversation→fact extraction, LLM-powered)
+- [ ] NEXT-003: Memory Evolution (new memories update existing, A-MEM style)
+- [ ] NEXT-004: User Profiles (auto-maintained, always-on context, ~50ms)
+- [ ] NEXT-005: Automatic Forgetting (TTL, contradiction resolution, noise pruning)
+- [ ] NEXT-006: Sleep-time/Dreaming Agent (async memory refinement)
+- [ ] NEXT-007: Smart Context Assembly (token-budget-aware context selection)
+- [ ] NEXT-008: Entity-linking Retrieval (third retrieval signal)
+- [ ] NEXT-009: Memory Conflict Resolution (LLM-based contradiction detection)
+- [ ] NEXT-010: Memory Scoping Multi-tenancy (user/agent/app/run dimensions)
+- [ ] NEXT-011: More Connectors (Google Drive, Gmail, Notion, OneDrive, Linear)
+- [ ] NEXT-012: Multimodal Ingestion (PDF, image OCR, video, code AST)
+- [ ] NEXT-013: Benchmark Participation (LOCOMO, LongMemEval, BEAM, DMR)
+- [ ] NEXT-014: Graph Visualization UI (interactive knowledge graph)
+- [ ] NEXT-015: Cross-Framework Portability (LangGraph/AutoGen/CrewAI adapters)
+- [ ] NEXT-016: Async Memory Operations (non-blocking + webhooks)
+- [ ] NEXT-017: Memory Layers (conversation/session/user three-tier)
+- [ ] NEXT-018: Observations/Pattern Detection (graph-based pattern surfacing)
+- [ ] NEXT-019: Plugin: memory-dream.ts (background memory refinement)
+- [ ] NEXT-020: Plugin: memory-extract.ts (auto conversation→fact extraction)
+- [ ] NEXT-021: Plugin: memory-context-v2.ts (full auto-context injection)
+- [ ] NEXT-022: Plugin: memory-profile.ts (auto-maintained user profile)
+
+---
+
 ## Блокированные
 
 | ID | Задача | Причина | Статус |
@@ -619,7 +689,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-08-28
+**Последнее обновление:** 2026-09-01
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -631,20 +701,21 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ACL (4) | 3 | 0 | 0 | 3 | 0 | 0 |
 | Proxy (5) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Security (8) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Sync (6) | 5 | 5 | 0 | 0 | 0 | 0 |
-| DX (9) | 8 | 7 | 0 | 1 | 0 | 0 |
+| Sync (6) | 5 | 0 | 0 | 5 | 0 | 0 |
+| DX (9) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Scalability (10) | 5 | 4 | 0 | 1 | 0 | 0 |
 | Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
-| Tech Debt | 14 | 10 | 0 | 0 | 0 | 1 |
-| Quality | 13 | 8 | 0 | 1 | 0 | 0 |
-| Docs | 5 | 1 | 0 | 4 | 0 | 0 |
-| Agent Infra | 16 | 2 | 0 | 6 | 0 | 0 |
+| Tech Debt | 14 | 0 | 0 | 13 | 0 | 1 |
+| Quality | 13 | 0 | 0 | 13 | 0 | 0 |
+| Docs | 5 | 0 | 0 | 5 | 0 | 0 |
+| Agent Infra | 16 | 0 | 0 | 16 | 0 | 0 |
 | Skills (A) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Rules (B) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Memory (D) | 4 | 0 | 0 | 4 | 0 | 0 |
-| Integration Hub (E) | 6 | 6 | 0 | 0 | 0 | 0 |
-| Web UI (13) | 7 | 7 | 0 | 0 | 0 | 0 |
-| OpenCode Integration (F) | 8 | 4 | 2 | 2 | 0 | 0 |
-| Behavioral Memory (G) | 14 | 4 | 0 | 8 | 0 | 0 |
-| **Итого** | **160** | **146** | **2** | **11** | **0** | **1** |
+| Integration Hub (E) | 6 | 0 | 0 | 6 | 0 | 0 |
+| Web UI (13) | 7 | 5 | 0 | 2 | 0 | 0 |
+| OpenCode Integration (F) | 8 | 0 | 2 | 6 | 0 | 0 |
+| Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
+| Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
+| **Итого** | **182** | **32** | **2** | **148** | **0** | **1** |
