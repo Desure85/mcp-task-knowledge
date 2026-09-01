@@ -32,3 +32,6 @@ export type {
   AddFactInput,
   TemporalQuery,
 } from './temporal-graph.js';
+
+export { ProfileManager } from './user-profile.js';
+export type { UserProfile, StaticFact, DynamicFact, ProfileUpdateInput } from './user-profile.js';

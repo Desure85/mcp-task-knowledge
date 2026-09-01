@@ -1,5 +1,5 @@
 /**
- * register/memory.ts — MCP tool registration for memory system (NEXT-002 + NEXT-001).
+ * register/memory.ts — MCP tool registration for memory system.
  *
  * Tools:
  *   - memory_extract: extract facts from conversation transcript (NEXT-002)
@@ -10,6 +10,9 @@
  *   - memory_temporal_invalidate: invalidate a fact (NEXT-001)
  *   - memory_temporal_history: get fact history chain (NEXT-001)
  *   - memory_temporal_stats: graph statistics (NEXT-001)
+ *   - memory_profile_get: get user profile (NEXT-004)
+ *   - memory_profile_update: update user profile (NEXT-004)
+ *   - memory_profile_context: build always-on context block (NEXT-004)
  */
 
 import { z } from "zod";
@@ -18,6 +21,7 @@ import { DEFAULT_PROJECT, resolveProject } from '../config.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
+import { ProfileManager } from '../memory/user-profile.js';
 import { ok, err } from '../utils/respond.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -37,6 +41,16 @@ function getTemporalGraph(): TemporalGraph {
     temporalGraph = new TemporalGraph({ storagePath });
   }
   return temporalGraph;
+}
+
+/** Singleton profile manager instance. */
+let profileMgr: ProfileManager | null = null;
+function getProfileManager(): ProfileManager {
+  if (!profileMgr) {
+    const storagePath = join(homedir(), '.local', 'share', 'mcp-task-knowledge', 'profiles');
+    profileMgr = new ProfileManager({ storagePath });
+  }
+  return profileMgr;
 }
 
 export function registerMemoryTools(ctx: ServerContext): void {
@@ -274,6 +288,80 @@ export function registerMemoryTools(ctx: ServerContext): void {
     async () => {
       const graph = getTemporalGraph();
       return ok(graph.stats());
+    }
+  );
+
+  // ─── memory_profile_get (NEXT-004) ───────────────────────────────
+  ctx.server.registerTool(
+    "memory_profile_get",
+    {
+      title: "Get User Profile",
+      description:
+        "Get a user's profile — static facts (role, name, preferences) + dynamic facts (current task, recent decisions). " +
+        "Always-on context for agent personalization.",
+      inputSchema: {
+        userId: z.string().min(1).describe("User ID"),
+      },
+    },
+    async ({ userId }) => {
+      const mgr = getProfileManager();
+      const profile = mgr.getProfile(userId);
+      if (!profile) {
+        return err(`Profile not found: ${userId}`);
+      }
+      return ok(profile);
+    }
+  );
+
+  // ─── memory_profile_update (NEXT-004) ────────────────────────────
+  ctx.server.registerTool(
+    "memory_profile_update",
+    {
+      title: "Update User Profile",
+      description:
+        "Create or update a user profile. Set static facts (role, name, timezone) " +
+        "and/or add dynamic facts (current task, recent decision). " +
+        "Dynamic facts auto-invalidate previous facts of same category.",
+      inputSchema: {
+        userId: z.string().min(1).describe("User ID"),
+        static: z.record(z.string()).optional().describe("Static facts to set (key→value, e.g. {role: 'developer'})"),
+        dynamicStatement: z.string().optional().describe("Dynamic fact statement to add"),
+        dynamicCategory: z.string().optional().describe("Category for dynamic fact (e.g. 'current_task', 'recent_decision')"),
+      },
+    },
+    async (args) => {
+      const mgr = getProfileManager();
+      const profile = mgr.updateProfile(args.userId, {
+        static: args.static,
+        dynamicFact: args.dynamicStatement
+          ? { statement: args.dynamicStatement, category: args.dynamicCategory }
+          : undefined,
+      });
+      return ok(profile);
+    }
+  );
+
+  // ─── memory_profile_context (NEXT-004) ───────────────────────────
+  ctx.server.registerTool(
+    "memory_profile_context",
+    {
+      title: "Build Profile Context Block",
+      description:
+        "Build a compact context block from a user's profile for system prompt injection. " +
+        "Token-budget-aware: limits output to approximately maxTokens. " +
+        "Returns static + current dynamic facts in a <user-profile> XML block.",
+      inputSchema: {
+        userId: z.string().min(1).describe("User ID"),
+        maxTokens: z.number().int().min(50).max(2000).default(500).optional().describe("Token budget (default: 500)"),
+      },
+    },
+    async ({ userId, maxTokens }) => {
+      const mgr = getProfileManager();
+      const context = mgr.buildContextBlock(userId, maxTokens);
+      if (!context) {
+        return err(`Profile not found: ${userId}`);
+      }
+      return ok({ userId, context, tokens: Math.ceil(context.length / 3) });
     }
   );
 }
