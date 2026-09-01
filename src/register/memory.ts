@@ -22,6 +22,15 @@ import { listDocs, readDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
 import { ProfileManager } from '../memory/user-profile.js';
+import { ContextAssembler, type SearchFn } from '../memory/context-assembly.js';
+import { EntityRetriever } from '../memory/entity-retrieval.js';
+import { MemoryEvolver } from '../memory/evolution.js';
+import { ConflictResolver } from '../memory/conflict-resolver.js';
+import { ForgettingManager } from '../memory/forgetting.js';
+import { ScopeMatcher, buildScopeTags } from '../memory/scoping.js';
+import { LayeredMemory } from '../memory/layers.js';
+import { DreamingAgent } from '../memory/dreaming.js';
+import { ObservationEngine } from '../memory/observations.js';
 import { ok, err } from '../utils/respond.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -51,6 +60,101 @@ function getProfileManager(): ProfileManager {
     profileMgr = new ProfileManager({ storagePath });
   }
   return profileMgr;
+}
+
+let contextAssembler: ContextAssembler | null = null;
+function getContextAssembler(): ContextAssembler {
+  if (!contextAssembler) {
+    const searchFn: SearchFn = async (query, project, limit) => {
+      const metas = await listDocs({ project });
+      const queryLower = query.toLowerCase();
+      const matches = metas
+        .filter((m) => m.title.toLowerCase().includes(queryLower))
+        .slice(0, limit);
+      const results = [];
+      for (const meta of matches) {
+        const doc = await readDoc(project, meta.id);
+        if (doc) {
+          results.push({
+            id: doc.id,
+            title: doc.title,
+            content: doc.content.substring(0, 500),
+            score: 1.0,
+            tags: doc.tags,
+          });
+        }
+      }
+      return results;
+    };
+    contextAssembler = new ContextAssembler({
+      searchFn,
+      temporalGraph: getTemporalGraph(),
+      profileMgr: getProfileManager(),
+    });
+  }
+  return contextAssembler;
+}
+
+let entityRetriever: EntityRetriever | null = null;
+function getEntityRetriever(): EntityRetriever {
+  if (!entityRetriever) {
+    entityRetriever = new EntityRetriever({
+      temporalGraph: getTemporalGraph(),
+    });
+  }
+  return entityRetriever;
+}
+
+let memoryEvolver: MemoryEvolver | null = null;
+function getMemoryEvolver(): MemoryEvolver {
+  if (!memoryEvolver) {
+    memoryEvolver = new MemoryEvolver({ temporalGraph: getTemporalGraph() });
+  }
+  return memoryEvolver;
+}
+
+let conflictResolver: ConflictResolver | null = null;
+function getConflictResolver(): ConflictResolver {
+  if (!conflictResolver) {
+    conflictResolver = new ConflictResolver({ temporalGraph: getTemporalGraph() });
+  }
+  return conflictResolver;
+}
+
+let forgettingMgr: ForgettingManager | null = null;
+function getForgettingManager(): ForgettingManager {
+  if (!forgettingMgr) {
+    forgettingMgr = new ForgettingManager({ temporalGraph: getTemporalGraph() });
+  }
+  return forgettingMgr;
+}
+
+let layeredMemory: LayeredMemory | null = null;
+function getLayeredMemory(): LayeredMemory {
+  if (!layeredMemory) {
+    const storagePath = join(homedir(), '.local', 'share', 'mcp-task-knowledge', 'layers.json');
+    layeredMemory = new LayeredMemory({ storagePath });
+  }
+  return layeredMemory;
+}
+
+let dreamingAgent: DreamingAgent | null = null;
+function getDreamingAgent(): DreamingAgent {
+  if (!dreamingAgent) {
+    dreamingAgent = new DreamingAgent({
+      layeredMemory: getLayeredMemory(),
+      temporalGraph: getTemporalGraph(),
+    });
+  }
+  return dreamingAgent;
+}
+
+let observationEngine: ObservationEngine | null = null;
+function getObservationEngine(): ObservationEngine {
+  if (!observationEngine) {
+    observationEngine = new ObservationEngine({ temporalGraph: getTemporalGraph() });
+  }
+  return observationEngine;
 }
 
 export function registerMemoryTools(ctx: ServerContext): void {
@@ -362,6 +466,331 @@ export function registerMemoryTools(ctx: ServerContext): void {
         return err(`Profile not found: ${userId}`);
       }
       return ok({ userId, context, tokens: Math.ceil(context.length / 3) });
+    }
+  );
+
+  // ─── memory_context_assemble (NEXT-007) ──────────────────────────
+  ctx.server.registerTool(
+    "memory_context_assemble",
+    {
+      title: "Assemble Context",
+      description:
+        "Smart context assembly with RRF fusion. Combines knowledge base (BM25+vector), " +
+        "temporal graph facts, and user profile into a single token-budget-aware context block. " +
+        "Returns <context> XML block optimized for system prompt injection.",
+      inputSchema: {
+        query: z.string().min(1).describe("Query to assemble context for"),
+        project: z.string().optional().describe("Project name"),
+        userId: z.string().optional().describe("User ID for profile injection"),
+        tokenBudget: z.number().int().min(100).max(8000).default(2000).optional().describe("Token budget (default: 2000)"),
+        maxItems: z.number().int().min(1).max(50).default(20).optional().describe("Max items to include"),
+        includeTemporal: z.boolean().default(true).optional().describe("Include temporal graph facts"),
+        includeProfile: z.boolean().default(true).optional().describe("Include user profile"),
+      },
+    },
+    async (args) => {
+      const assembler = getContextAssembler();
+      const result = await assembler.assemble({
+        query: args.query,
+        project: args.project ? resolveProject(args.project) : undefined,
+        userId: args.userId,
+        tokenBudget: args.tokenBudget,
+        maxItems: args.maxItems,
+        includeTemporal: args.includeTemporal,
+        includeProfile: args.includeProfile,
+      });
+      return ok(result);
+    }
+  );
+
+  // ─── memory_entity_search (NEXT-008) ─────────────────────────────
+  ctx.server.registerTool(
+    "memory_entity_search",
+    {
+      title: "Entity-linking Search",
+      description:
+        "Search memory facts by entity matching. Extracts entities from query " +
+        "(capitalized words, CamelCase, snake_case, kebab-case, quoted strings) " +
+        "and matches against entities in temporal graph facts. " +
+        "Third retrieval signal alongside BM25 and vector search.",
+      inputSchema: {
+        query: z.string().min(1).describe("Query containing entity names"),
+        limit: z.number().int().min(1).max(50).default(10).optional(),
+      },
+    },
+    async ({ query, limit }) => {
+      const retriever = getEntityRetriever();
+      const results = retriever.retrieve(query, limit);
+      return ok({
+        count: results.length,
+        results,
+        extractedEntities: query.match(/\b[A-Z][a-zA-Z]{2,}\b|\b[a-z]+[A-Z][a-zA-Z]+\b|\b[a-z]+_[a-z_]+\b/g) ?? [],
+      });
+    }
+  );
+
+  // ─── memory_evolve (NEXT-003) ────────────────────────────────────
+  ctx.server.registerTool(
+    "memory_evolve",
+    {
+      title: "Evolve Memory",
+      description:
+        "Check a newly added fact against existing memories for semantic overlap. " +
+        "Links related facts, merges similar ones, and supersedes contradictions. " +
+        "Inspired by A-MEM (Zettelkasten) — new memories trigger updates to existing ones.",
+      inputSchema: {
+        factId: z.string().min(1).describe("ID of the newly added fact to evolve against existing memories"),
+      },
+    },
+    async ({ factId }) => {
+      const evolver = getMemoryEvolver();
+      const result = evolver.evolve(factId);
+      return ok(result);
+    }
+  );
+
+  // ─── memory_check_conflicts (NEXT-009) ───────────────────────────
+  ctx.server.registerTool(
+    "memory_check_conflicts",
+    {
+      title: "Check Memory Conflicts",
+      description:
+        "Detect contradictions between a new fact and existing facts. " +
+        "Uses negation patterns, entity overlap, and semantic similarity. " +
+        "High-confidence conflicts auto-supersede old facts; low-confidence flagged for review.",
+      inputSchema: {
+        factId: z.string().min(1).describe("ID of the fact to check against existing memories"),
+        checkAll: z.boolean().default(false).optional().describe("Check all facts for conflicts (not just the given one)"),
+      },
+    },
+    async ({ factId, checkAll }) => {
+      const resolver = getConflictResolver();
+      if (checkAll) {
+        const results = resolver.checkAllConflicts();
+        return ok({ count: results.length, results });
+      }
+      const result = resolver.checkConflict(factId);
+      return ok(result);
+    }
+  );
+
+  // ─── memory_gc (NEXT-005) ────────────────────────────────────────
+  ctx.server.registerTool(
+    "memory_gc",
+    {
+      title: "Memory Garbage Collection",
+      description:
+        "Run forgetting GC on the temporal knowledge graph. " +
+        "Expires facts past their TTL (per category), prunes noise (low confidence, no entities), " +
+        "and identifies invalidated facts past retention for deletion. " +
+        "Preferences/decisions/conventions/skills are permanent (TTL=null).",
+      inputSchema: {},
+    },
+    async () => {
+      const mgr = getForgettingManager();
+      const result = mgr.runGC();
+      return ok(result);
+    }
+  );
+
+  // ─── memory_scope_filter (NEXT-010) ──────────────────────────────
+  ctx.server.registerTool(
+    "memory_scope_filter",
+    {
+      title: "Filter by Memory Scope",
+      description:
+        "Filter temporal graph facts by multi-tenancy scope dimensions " +
+        "(userId, agentId, appId, runId). Returns only facts matching all specified dimensions. " +
+        "Enables tenant isolation — different users/agents/apps see only their own memories.",
+      inputSchema: {
+        userId: z.string().optional().describe("Filter by user ID"),
+        agentId: z.string().optional().describe("Filter by agent ID"),
+        appId: z.string().optional().describe("Filter by app ID"),
+        runId: z.string().optional().describe("Filter by run ID"),
+        limit: z.number().int().min(1).max(200).default(50).optional(),
+      },
+    },
+    async (args) => {
+      const graph = getTemporalGraph();
+      const allFacts = graph.query({ includeInvalidated: false, limit: 10000 });
+      const matcher = new ScopeMatcher({
+        userId: args.userId,
+        agentId: args.agentId,
+        appId: args.appId,
+        runId: args.runId,
+      });
+      const filtered = matcher.filterItems(
+        allFacts.map((f) => ({ ...f, scope: { userId: undefined, agentId: undefined, appId: undefined, runId: undefined } }))
+      );
+      return ok({
+        count: filtered.length,
+        scope: matcher.description,
+        facts: filtered.slice(0, args.limit),
+      });
+    }
+  );
+
+  // ─── memory_scope_tags (NEXT-010) ────────────────────────────────
+  ctx.server.registerTool(
+    "memory_scope_tags",
+    {
+      title: "Build Scope Tags",
+      description:
+        "Generate scope tags for a given memory scope. " +
+        "Tags can be attached to knowledge base documents for scope-based filtering. " +
+        "Format: scope:user:<id>, scope:agent:<id>, scope:app:<id>, scope:run:<id>.",
+      inputSchema: {
+        userId: z.string().optional(),
+        agentId: z.string().optional(),
+        appId: z.string().optional(),
+        runId: z.string().optional(),
+      },
+    },
+    async (args) => {
+      const tags = buildScopeTags({
+        userId: args.userId,
+        agentId: args.agentId,
+        appId: args.appId,
+        runId: args.runId,
+      });
+      return ok({ tags, count: tags.length });
+    }
+  );
+
+  // ─── memory_layer_add (NEXT-017) ─────────────────────────────────
+  ctx.server.registerTool(
+    "memory_layer_add",
+    {
+      title: "Add to Memory Layer",
+      description:
+        "Add a fact to a specific memory layer. " +
+        "conversation=volatile (in-flight), session=run-scoped, user=persistent. " +
+        "Facts can be promoted between layers via memory_layer_promote.",
+      inputSchema: {
+        layer: z.enum(["conversation", "session", "user"]).describe("Memory layer"),
+        statement: z.string().min(5).describe("Fact statement"),
+        category: z.string().optional(),
+        confidence: z.number().min(0).max(1).default(0.5).optional(),
+        tags: z.array(z.string()).optional(),
+      },
+    },
+    async (args) => {
+      const mem = getLayeredMemory();
+      const fact = mem.add(args.layer, {
+        statement: args.statement,
+        category: args.category,
+        confidence: args.confidence,
+        tags: args.tags,
+      });
+      return ok(fact);
+    }
+  );
+
+  // ─── memory_layer_list (NEXT-017) ────────────────────────────────
+  ctx.server.registerTool(
+    "memory_layer_list",
+    {
+      title: "List Memory Layer Facts",
+      description: "List valid facts in a specific memory layer.",
+      inputSchema: {
+        layer: z.enum(["conversation", "session", "user"]),
+      },
+    },
+    async ({ layer }) => {
+      const mem = getLayeredMemory();
+      const facts = mem.getLayer(layer);
+      return ok({ count: facts.length, facts });
+    }
+  );
+
+  // ─── memory_layer_promote (NEXT-017) ─────────────────────────────
+  ctx.server.registerTool(
+    "memory_layer_promote",
+    {
+      title: "Promote Memory Layer Facts",
+      description:
+        "Promote facts from one layer to another (e.g. conversation→session at end of turn, session→user at end of run). " +
+        "Supports single fact or batch (promoteAll).",
+      inputSchema: {
+        from: z.enum(["conversation", "session", "user"]),
+        to: z.enum(["conversation", "session", "user"]),
+        factId: z.string().optional().describe("Specific fact ID to promote (if omitted, promotes all)"),
+      },
+    },
+    async (args) => {
+      const mem = getLayeredMemory();
+      if (args.factId) {
+        const success = mem.promote(args.from, args.to, args.factId);
+        if (!success) return err(`Fact not found: ${args.factId}`);
+        return ok({ factId: args.factId, from: args.from, to: args.to });
+      }
+      const count = mem.promoteAll(args.from, args.to);
+      return ok({ count, from: args.from, to: args.to });
+    }
+  );
+
+  // ─── memory_layer_stats (NEXT-017) ───────────────────────────────
+  ctx.server.registerTool(
+    "memory_layer_stats",
+    {
+      title: "Memory Layer Stats",
+      description: "Get statistics for all memory layers — total/valid counts per layer.",
+      inputSchema: {},
+    },
+    async () => {
+      const mem = getLayeredMemory();
+      return ok(mem.stats());
+    }
+  );
+
+  // ─── memory_dream (NEXT-006) ─────────────────────────────────────
+  ctx.server.registerTool(
+    "memory_dream",
+    {
+      title: "Run Dreaming Agent",
+      description:
+        "Run sleep-time memory refinement: dedup similar facts, merge related ones, " +
+        "promote conversation→session. Non-blocking background operation. " +
+        "Inspired by Letta sleep-time compute.",
+      inputSchema: {
+        action: z.enum(["run", "start", "stop", "status"]).default("run").optional().describe("run=one cycle, start=continuous, stop=halt, status=check"),
+        intervalMs: z.number().int().min(1000).default(60000).optional().describe("Interval for continuous mode (ms)"),
+      },
+    },
+    async (args) => {
+      const agent = getDreamingAgent();
+      if (args.action === 'start') {
+        agent.start(args.intervalMs);
+        return ok({ running: true, intervalMs: args.intervalMs });
+      }
+      if (args.action === 'stop') {
+        agent.stop();
+        return ok({ running: false });
+      }
+      if (args.action === 'status') {
+        return ok({ running: agent.isRunning() });
+      }
+      const result = agent.runOnce();
+      return ok(result);
+    }
+  );
+
+  // ─── memory_observations (NEXT-018) ─────────────────────────────
+  ctx.server.registerTool(
+    "memory_observations",
+    {
+      title: "Detect Memory Observations",
+      description:
+        "Detect patterns from the temporal knowledge graph: recurrences " +
+        "(entities appearing repeatedly), co-occurrences (entities appearing together), " +
+        "temporal clusters (facts grouped in time), category trends. " +
+        "Inspired by Zep graph-based pattern surfacing.",
+      inputSchema: {},
+    },
+    async () => {
+      const engine = getObservationEngine();
+      const observations = engine.detect();
+      return ok({ count: observations.length, observations });
     }
   );
 }
