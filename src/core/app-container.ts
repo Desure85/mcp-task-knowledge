@@ -58,6 +58,7 @@ import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
 import { registerRelayTools } from '../register/relay.js';
 import { registerConfigTools } from '../register/config-tools.js';
+import { registerMemoryTools } from '../register/memory.js';
 import { RateLimiter } from './rate-limiter.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
@@ -126,6 +127,7 @@ export function defaultRegistration(ctx: ServerContext): void {
   registerSessionTools(ctx);
   registerRelayTools(ctx);
   registerConfigTools(ctx);
+  registerMemoryTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerDebugResources(ctx);
