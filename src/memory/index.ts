@@ -23,3 +23,12 @@ export type {
   FactSource,
   MemoryScope,
 } from './types.js';
+
+export { TemporalGraph } from './temporal-graph.js';
+export type {
+  TemporalFact,
+  FactRelationship,
+  FactRelationType,
+  AddFactInput,
+  TemporalQuery,
+} from './temporal-graph.js';

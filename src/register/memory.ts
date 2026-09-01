@@ -1,10 +1,15 @@
 /**
- * register/memory.ts — MCP tool registration for memory system (NEXT-002).
+ * register/memory.ts — MCP tool registration for memory system (NEXT-002 + NEXT-001).
  *
  * Tools:
- *   - memory_extract: extract facts from conversation transcript
+ *   - memory_extract: extract facts from conversation transcript (NEXT-002)
  *   - memory_facts_list: list extracted memory facts from knowledge base
  *   - memory_facts_search: search memory facts by keyword
+ *   - memory_temporal_add: add a fact to temporal graph (NEXT-001)
+ *   - memory_temporal_query: query facts at a point in time (NEXT-001)
+ *   - memory_temporal_invalidate: invalidate a fact (NEXT-001)
+ *   - memory_temporal_history: get fact history chain (NEXT-001)
+ *   - memory_temporal_stats: graph statistics (NEXT-001)
  */
 
 import { z } from "zod";
@@ -12,7 +17,10 @@ import type { ServerContext } from './context.js';
 import { DEFAULT_PROJECT, resolveProject } from '../config.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
+import { TemporalGraph } from '../memory/temporal-graph.js';
 import { ok, err } from '../utils/respond.js';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 /** Singleton extractor instance. */
 let extractor: MemoryExtractor | null = null;
@@ -21,8 +29,18 @@ function getExtractor(): MemoryExtractor {
   return extractor;
 }
 
+/** Singleton temporal graph instance. */
+let temporalGraph: TemporalGraph | null = null;
+function getTemporalGraph(): TemporalGraph {
+  if (!temporalGraph) {
+    const storagePath = join(homedir(), '.local', 'share', 'mcp-task-knowledge', 'temporal-graph.json');
+    temporalGraph = new TemporalGraph({ storagePath });
+  }
+  return temporalGraph;
+}
+
 export function registerMemoryTools(ctx: ServerContext): void {
-  // ─── memory_extract ──────────────────────────────────────────────
+  // ─── memory_extract (NEXT-002) ───────────────────────────────────
   ctx.server.registerTool(
     "memory_extract",
     {
@@ -46,24 +64,14 @@ export function registerMemoryTools(ctx: ServerContext): void {
       },
     },
     async (args) => {
-      const {
-        transcript,
-        project,
-        userId,
-        agentId,
-        appId,
-        runId,
-        maxFacts,
-        minConfidence,
-        persist,
-      } = args;
+      const { transcript, project, userId, agentId, appId, runId, maxFacts, minConfidence, persist } = args;
 
       if (persist && !project) {
         return err("project is required when persist=true");
       }
 
-      const extractor = getExtractor();
-      const result = await extractor.extract({
+      const ext = getExtractor();
+      const result = await ext.extract({
         transcript,
         scope: { userId, agentId, appId, runId },
         project: project ? resolveProject(project) : undefined,
@@ -92,27 +100,20 @@ export function registerMemoryTools(ctx: ServerContext): void {
         "Filters by type=memory_fact. Supports tag filtering and pagination.",
       inputSchema: {
         project: z.string().default(DEFAULT_PROJECT),
-        tag: z.string().optional().describe("Filter by tag (e.g. 'preference', 'decision', 'entity:TypeScript')"),
-        category: z.string().optional().describe("Filter by fact category (preference, decision, convention, error, fix, fact, skill, context)"),
+        tag: z.string().optional().describe("Filter by tag"),
+        category: z.string().optional().describe("Filter by fact category"),
         limit: z.number().int().min(1).max(200).default(50).optional(),
       },
     },
     async ({ project, tag, category, limit }) => {
       const prj = resolveProject(project);
       let metas = await listDocs({ project: prj, tag });
-
-      // Filter by type=memory_fact
       metas = metas.filter((m) => m.type === 'memory_fact');
-
-      // Filter by category tag
       if (category) {
         const catTag = `category:${category}`;
         metas = metas.filter((m) => (m.tags || []).includes(catTag));
       }
-
-      // Apply limit
       metas = metas.slice(0, limit);
-
       return ok({ count: metas.length, facts: metas });
     }
   );
@@ -133,34 +134,146 @@ export function registerMemoryTools(ctx: ServerContext): void {
     },
     async ({ project, query, limit }) => {
       const prj = resolveProject(project);
-
-      // Use listDocs + simple text matching for now
-      // Future: use search_knowledge with type filter
       const metas = await listDocs({ project: prj });
       const factMetas = metas.filter((m) => m.type === 'memory_fact');
-
-      // Simple text search on title
       const queryLower = query.toLowerCase();
       const matches = factMetas
         .filter((m) => m.title.toLowerCase().includes(queryLower))
         .slice(0, limit);
 
-      // Read full content for matched docs
       const results = [];
       for (const meta of matches) {
         const doc = await readDoc(prj, meta.id);
         if (doc) {
-          results.push({
-            id: doc.id,
-            title: doc.title,
-            content: doc.content,
-            tags: doc.tags,
-            score: 1.0, // simple match, no scoring
-          });
+          results.push({ id: doc.id, title: doc.title, content: doc.content, tags: doc.tags, score: 1.0 });
         }
       }
-
       return ok({ count: results.length, results });
+    }
+  );
+
+  // ─── memory_temporal_add (NEXT-001) ──────────────────────────────
+  ctx.server.registerTool(
+    "memory_temporal_add",
+    {
+      title: "Add Temporal Fact",
+      description:
+        "Add a fact to the temporal knowledge graph with bi-temporal tracking. " +
+        "Optionally supersedes an existing fact (marks old as invalid, links new→old). " +
+        "Point-in-time queries available via memory_temporal_query.",
+      inputSchema: {
+        statement: z.string().min(5).describe("Fact statement"),
+        category: z.string().optional().describe("Fact category (preference, decision, convention, etc.)"),
+        confidence: z.number().min(0).max(1).default(0.5).optional(),
+        tags: z.array(z.string()).optional(),
+        entities: z.array(z.string()).optional().describe("Entities mentioned in the fact"),
+        validFrom: z.string().optional().describe("When the fact became true (ISO 8601, default: now)"),
+        supersedesFactId: z.string().optional().describe("ID of fact this one supersedes"),
+        invalidationReason: z.string().optional().describe("Why the old fact is being superseded"),
+      },
+    },
+    async (args) => {
+      const graph = getTemporalGraph();
+      const fact = graph.addFact({
+        statement: args.statement,
+        category: args.category,
+        confidence: args.confidence,
+        tags: args.tags,
+        entities: args.entities,
+        validFrom: args.validFrom,
+        supersedesFactId: args.supersedesFactId,
+        invalidationReason: args.invalidationReason,
+      });
+      return ok(fact);
+    }
+  );
+
+  // ─── memory_temporal_query (NEXT-001) ────────────────────────────
+  ctx.server.registerTool(
+    "memory_temporal_query",
+    {
+      title: "Query Temporal Facts",
+      description:
+        "Query the temporal knowledge graph. Supports point-in-time queries " +
+        "('what was true on 2026-06-01?'), entity/category/tag filters, " +
+        "and including/excluding invalidated facts.",
+      inputSchema: {
+        atTime: z.string().optional().describe("Point in time (ISO 8601) — returns facts valid at this moment"),
+        entity: z.string().optional().describe("Filter by entity"),
+        category: z.string().optional().describe("Filter by category"),
+        tag: z.string().optional().describe("Filter by tag"),
+        includeInvalidated: z.boolean().default(false).optional().describe("Include invalidated facts"),
+        limit: z.number().int().min(1).max(200).default(50).optional(),
+      },
+    },
+    async (args) => {
+      const graph = getTemporalGraph();
+      const facts = graph.query({
+        atTime: args.atTime,
+        entity: args.entity,
+        category: args.category,
+        tag: args.tag,
+        includeInvalidated: args.includeInvalidated,
+        limit: args.limit,
+      });
+      return ok({ count: facts.length, facts });
+    }
+  );
+
+  // ─── memory_temporal_invalidate (NEXT-001) ───────────────────────
+  ctx.server.registerTool(
+    "memory_temporal_invalidate",
+    {
+      title: "Invalidate Temporal Fact",
+      description:
+        "Mark a fact as no longer valid (without deleting it). " +
+        "Sets validTo to now and records the invalidation reason. " +
+        "History is preserved — the fact can still be queried via point-in-time queries.",
+      inputSchema: {
+        factId: z.string().min(1).describe("ID of the fact to invalidate"),
+        reason: z.string().min(1).describe("Why the fact is being invalidated"),
+      },
+    },
+    async ({ factId, reason }) => {
+      const graph = getTemporalGraph();
+      const success = graph.invalidateFact(factId, reason);
+      if (!success) {
+        return err(`Fact not found: ${factId}`);
+      }
+      return ok({ factId, invalidated: true, reason });
+    }
+  );
+
+  // ─── memory_temporal_history (NEXT-001) ──────────────────────────
+  ctx.server.registerTool(
+    "memory_temporal_history",
+    {
+      title: "Fact History Chain",
+      description:
+        "Get the full history chain of a fact — all facts that superseded it " +
+        "and all facts it superseded. Useful for understanding how knowledge evolved.",
+      inputSchema: {
+        factId: z.string().min(1).describe("ID of the fact"),
+      },
+    },
+    async ({ factId }) => {
+      const graph = getTemporalGraph();
+      const history = graph.getFactHistory(factId);
+      return ok({ count: history.length, history });
+    }
+  );
+
+  // ─── memory_temporal_stats (NEXT-001) ────────────────────────────
+  ctx.server.registerTool(
+    "memory_temporal_stats",
+    {
+      title: "Temporal Graph Stats",
+      description: "Get statistics about the temporal knowledge graph — total facts, valid/invalidated counts, categories.",
+      inputSchema: {},
+    },
+    async () => {
+      const graph = getTemporalGraph();
+      return ok(graph.stats());
     }
   );
 }
