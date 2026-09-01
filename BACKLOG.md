@@ -604,10 +604,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT-016 | Async Memory Operations: non-blocking `memory_extract_async` — returns immediately, webhook on completion. Для long-running extraction (large transcripts) | low | pending | H.16 | NEXT-002 | Mem0 |
 | NEXT-017 | Memory Layers: conversation (in-flight), session (run-scoped), user (persistent). Three-tier memory scoping. **Частично покрыто:** draft = conversation, facts.md = user. Не хватает session-scoped (run_id) слоя | medium | pending | H.17 | NEXT-010 | Mem0/Letta |
 | NEXT-018 | Observations/Pattern Detection: graph-based pattern surfacing — recurrences, co-occurrences, temporal patterns из entity-graph. Инструмент `memory_observations` | low | pending | H.18 | NEXT-001 | Zep |
-| NEXT-019 | Plugin: memory-dream.ts — background memory refinement (sleep-time compute). Плагин OpenCode: idle detection → dedup/merge/summarise facts.md → MCP sync. Расширение memory-sync.ts | medium | pending | H.19 | NEXT-002, MEM-003 | Letta |
-| NEXT-020 | Plugin: memory-extract.ts — automatic conversation→fact extraction. Плагин OpenCode: hook на end of session → LLM extract facts from transcript → facts.md → MCP sync. Заменяет ручной draft на auto-extraction | high | pending | H.20 | NEXT-002 | Mem0 |
-| NEXT-021 | Plugin: memory-context-v2.ts — full auto-context injection. Плагин вызывает MCP search_knowledge сам (через input.client.mcp.call) и инжектирует РЕЗУЛЬТАТ в system prompt, не инструкцию. Требует fix OpenCode Plugin API | high | pending | H.21 | NEXT-007 | Zep |
-| NEXT-022 | Plugin: memory-profile.ts — auto-maintained user profile. Плагин: при каждом /remember → extract user-specific facts → profile_get/update → always-on context injection. Расширение memory-sync.ts | medium | pending | H.22 | NEXT-004 | Supermemory |
+| NEXT-019 | Plugin: memory-dream.ts — background memory refinement (sleep-time compute). Плагин OpenCode: idle detection → dedup/merge/summarise facts.md → MCP sync. Расширение memory-sync.ts | medium | done | H.19 | NEXT-002, MEM-003 | Letta |
+| NEXT-020 | Plugin: memory-extract.ts — automatic conversation→fact extraction. Плагин OpenCode: hook на end of session → LLM extract facts from transcript → facts.md → MCP sync. Заменяет ручной draft на auto-extraction | high | done | H.20 | NEXT-002 | Mem0 |
+| NEXT-021 | Plugin: memory-context-v2.ts — full auto-context injection. Плагин вызывает MCP search_knowledge сам (через input.client.mcp.call) и инжектирует РЕЗУЛЬТАТ в system prompt, не инструкцию. Требует fix OpenCode Plugin API | high | done | H.21 | NEXT-007 | Zep |
+| NEXT-022 | Plugin: memory-profile.ts — auto-maintained user profile. Плагин: при каждом /remember → extract user-specific facts → profile_get/update → always-on context injection. Расширение memory-sync.ts | medium | done | H.22 | NEXT-004 | Supermemory |
 
 ---
 
