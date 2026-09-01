@@ -13,3 +13,22 @@ export type { DistilledKnowledge, DistillerOptions, CompressOptions, CompressRes
 
 export { MemoryIO } from './memory-io.js';
 export type { ImportSummary, ImportOptions } from './memory-io.js';
+
+export { MemoryExtractor } from './extraction.js';
+export type {
+  ExtractedFact,
+  ExtractionInput,
+  ExtractionResult,
+  FactCategory,
+  FactSource,
+  MemoryScope,
+} from './types.js';
+
+export { TemporalGraph } from './temporal-graph.js';
+export type {
+  TemporalFact,
+  FactRelationship,
+  FactRelationType,
+  AddFactInput,
+  TemporalQuery,
+} from './temporal-graph.js';
