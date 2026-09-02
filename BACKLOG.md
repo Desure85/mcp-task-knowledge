@@ -137,9 +137,9 @@
 ### Этап 10 — Web UI
 
 - [x] UI-001: Web UI foundation (Next.js + auth + API client)
-- [ ] UI-002: Tasks board (Kanban/List view)
-- [ ] UI-003: Knowledge editor (Markdown/MDX)
-- [ ] UI-004: Prompt management (versions, variants, A/B)
+- [x] UI-002: Tasks board (Kanban/List view)
+- [x] UI-003: Knowledge editor (Markdown/MDX)
+- [x] UI-004: Prompt management (versions, variants, A/B)
 - [ ] UI-005: Realtime updates (WebSocket)
 - [ ] UI-006: Feedback loop & usage analytics
 - [x] UI-007: Docker/CI pipeline для Web UI
@@ -510,9 +510,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | UI-001 | Web UI foundation: Next.js app, auth (OIDC/JWT), API client (typed SDK для MCP HTTP transport), layout/shell, responsive design | critical | completed | #174 | 13.1 | MR-001, A-002 |
-| UI-002 | Tasks board: Kanban view (drag&drop), list view, filters, search. CRUD для задач. Зависимости визуализация (граф). Интеграция с MR-005 (DAG) | high | pending | 13.2 | UI-001 |
-| UI-003 | Knowledge editor: Markdown/MDX редактор с preview. Синтаксис highlight, drag&drop для файлов. Связь с search (MR-003) | high | pending | 13.3 | UI-001 |
-| UI-004 | Prompt management: версионирование промптов, A/B тестирование (связь с `ab-testing/`), variant comparison, template editor | medium | pending | 13.4 | UI-001 |
+| UI-002 | Tasks board: Kanban view (drag&drop), list view, filters, search. CRUD для задач. Зависимости визуализация (граф). Интеграция с MR-005 (DAG) | high | done | #177 | UI-001 |
+| UI-003 | Knowledge editor: Markdown/MDX редактор с preview. Синтаксис highlight, drag&drop для файлов. Связь с search (MR-003) | high | done | #178 | UI-001 |
+| UI-004 | Prompt management: версионирование промптов, A/B тестирование (связь с `ab-testing/`), variant comparison, template editor | medium | done | #179 | UI-001 |
 | UI-005 | Realtime updates: WebSocket подключение для live-updates задач, знаний, сессий. Presence indicators. Оптимистичные обновления UI | medium | pending | 13.5 | UI-002, MR-012 |
 | UI-006 | Feedback loop & analytics: usage tracking (anon), feedback forms, analytics dashboard. Связь с MR-007 (dashboard) | low | pending | 13.6 | UI-002 |
 | UI-007 | Docker/CI для Web UI: multi-stage Dockerfile, CI pipeline (build → test → deploy), preview environments (Vercel/Docker) | medium | completed | #175 | UI-001 |
@@ -599,7 +599,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT-011 | More Connectors: Google Drive, Gmail, Notion, OneDrive, Linear, web crawler. Auto-sync with webhooks. Расширение connector framework (INT-004) | low | pending | H.11 | INT-004 | Supermemory/Cognee |
 | NEXT-012 | Multimodal Ingestion: PDFs (text extract), images (OCR), video (transcription), code (AST-aware chunking). Расширение knowledge_create для multipart | low | pending | H.12 | — | Supermemory |
 | NEXT-013 | Benchmark Participation: запустить LOCOMO, LongMemEval, BEAM, DMR benchmarks. Опубликовать результаты. Цель — доказать превосходство | medium | pending | H.13 | NEXT-001..007 | Mem0/Zep/Cognee |
-| NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | pending | H.14 | UI-001, MEM-002 | Supermemory/Letta |
+| NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | done | H.14 | UI-001, MEM-002 | Supermemory/Letta |
 | NEXT-015 | Cross-Framework Portability: SDK adapters для LangGraph, AutoGen, CrewAI, LangChain. mcp-task-knowledge как memory provider для любого framework | low | pending | H.15 | — | Mem0 |
 | NEXT-016 | Async Memory Operations: non-blocking `memory_extract_async` — returns immediately, webhook on completion. Для long-running extraction (large transcripts) | low | pending | H.16 | NEXT-002 | Mem0 |
 | NEXT-017 | Memory Layers: conversation (in-flight), session (run-scoped), user (persistent). Three-tier memory scoping. **Частично покрыто:** draft = conversation, facts.md = user. Не хватает session-scoped (run_id) слоя | medium | pending | H.17 | NEXT-010 | Mem0/Letta |
@@ -714,8 +714,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Memory (D) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Integration Hub (E) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Web UI (13) | 7 | 5 | 0 | 2 | 0 | 0 |
+| Web UI (13) | 7 | 2 | 0 | 5 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 0 | 2 | 6 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **182** | **32** | **2** | **148** | **0** | **1** |
+| **Итого** | **182** | **7** | **2** | **173** | **0** | **1** |
