@@ -320,49 +320,29 @@ PR description: что сделано, почему, что не сделано 
 **Версия:** 1.0.20
 **Репозиторий:** <https://github.com/Desure85/mcp-task-knowledge>
 **Основная ветка:** `master`
-**Стек:** TypeScript, Node.js 20, MCP SDK (`@modelcontextprotocol/sdk`), Vitest, Zod, ONNX Runtime
+**Стек:** TypeScript, Node.js 20, MCP SDK, Vitest, Zod, ONNX Runtime
 
-Файловый MCP-сервер для таск-менеджмента, базы знаний и библиотеки промптов по проектам. Работает через stdio-транспорт, данные хранятся в Markdown/JSON-файлах (совместимо с Obsidian).
+> **Полная документация:** `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md), [Configuration](docs/getting-started/configuration.md), [Docker](docs/deployment/docker.md), [API Reference](docs/api/reference.md)
+
+Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 109+ MCP-инструментов, 2000+ тестов, 92.7% coverage.
 
 ### Ключевые модули
 
 | Модуль | Путь | Назначение |
 |--------|------|------------|
-| Точка входа | `src/index.ts` | MCP-сервер, регистрация инструментов и ресурсов |
-| Конфигурация | `src/config.ts` | ENV/JSON конфигурация, флаги, каталог |
-| Хранилище задач | `src/storage/tasks.ts` | CRUD JSON-задач по проектам |
-| Хранилище знаний | `src/storage/knowledge.ts` | Markdown-документы с frontmatter |
-| BM25 поиск | `src/search/bm25.ts` | Лексический поиск |
-| Векторный поиск | `src/search/vector.ts` | ONNX-эмбеддинги (LaBSE/E5) |
-| Поиск (обёртка) | `src/search/index.ts` | Гибридный поиск |
-| Инструменты | `src/tools/*.ts` | MCP-инструменты (tasks, knowledge, search, prompts, catalog, other) |
-| Obsidian экспорт | `src/obsidian/export.ts` | Экспорт в Obsidian Vault |
-| Obsidian импорт | `src/obsidian/import.ts` | Импорт из Obsidian Vault |
-| A/B тестирование | `src/ab-testing/*.ts` | Бандиты, хранилище метрик |
-| Service Catalog | `src/catalog/provider.ts` | Провайдер каталога (embedded/remote/hybrid) |
-| Prompts | `src/prompts/build.ts` | Сборка workflow-промптов |
-
-### MCP-инструменты (основные)
-
-- `tasks_*` — управление задачами (create, list, update, close, archive, trash, restore, delete, tree, bulk)
-- `knowledge_*` — управление документами (create, get, list, update, tree, bulk, delete)
-- `search_tasks`, `search_knowledge`, `mcp1_search_knowledge_two_stage` — поиск
-- `prompts_*` — библиотека промптов (bulk_create/update/delete, list, search, build, A/B, feedback)
-- `obsidian_export_project`, `obsidian_import_project` — интеграция с Obsidian
-- `service_catalog_query/upsert/delete/health` — каталог сервисов
-- `project_*` — управление проектами
-- `tools_list`, `tool_schema`, `tool_help`, `tools_run` — интроспекция и пакетный запуск
-
-### Структура данных
-
-```
-data/
-  tasks/<project>/<uuid>.json       — задачи
-  knowledge/<project>/<uuid>.md     — документы знаний
-  prompts/<project>/                — промпты
-    sources/                        — JSON-источники (rules, workflows, templates, policies)
-    exports/                        — артефакты (catalog, builds, markdown)
-```
+| Точка входа | `src/index.ts` | MCP-сервер |
+| Конфигурация | `src/config.ts` | ENV/JSON конфигурация |
+| Хранилище | `src/storage/*.ts` | Tasks (JSON) + Knowledge (Markdown) |
+| Поиск | `src/search/*.ts` | BM25 + ONNX vector + hybrid + FTS5 |
+| Память агента | `src/memory/*.ts` | Extraction, temporal graph, profiles, context assembly, dreaming |
+| Инструменты | `src/tools/*.ts`, `src/register/*.ts` | MCP tool registration |
+| Skills/Rules/Workflows | `src/skills/`, `src/rules/`, `src/workflows/` | Agent harness |
+| Behavioral | `src/behavioral/*.ts` | Intent, failure, auto-heal, guardrails |
+| Connectors | `src/connectors/*.ts` | GitHub, Jira, Slack, GDrive, Notion, Linear, Web Crawler |
+| Transport | `src/transport/*.ts` | stdio, HTTP, TCP, WebSocket realtime |
+| Cluster | `src/core/cluster.ts` | Load balancer, sharding, auto-scaling |
+| Web UI | `web-ui/` | Next.js 16 (Kanban, Knowledge, Prompts, Analytics) |
+| OpenCode plugins | `extensions/opencode/` | memory-recall, memory-sync, memory-extract, etc |
 
 ---
 
