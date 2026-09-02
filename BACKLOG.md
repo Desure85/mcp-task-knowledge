@@ -638,6 +638,39 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап I — Wire-in & Integration (контроль качества)
+
+> Код написан и протестирован, но НЕ подключён к серверу. Нужно wired в app-container / connector registry / HTTP transport.
+> Источник: аудит 2026-09-02 — модули есть, тесты проходят, но MCP-клиент их не увидит без регистрации.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Что делать |
+|----|--------|-----------|--------|---------|-------------|------------|
+| WIRE-001 | Wire новые connectors (GDrive, Gmail, Notion, OneDrive, Linear, Web Crawler) в connector registry — зарегистрировать в `src/connectors/index.ts` + `src/connectors/registry.ts` | high | pending | I.1 | INT-004 | Добавить createGDriveConnector/createGmailConnector/... в registry, добавить env config |
+| WIRE-002 | Wire RealtimeServer в HTTP transport — `getRealtimeServer().attach(httpServer, '/ws')` в `src/transport/http-transport.ts` | high | pending | I.2 | MR-012 | Добавить attach в HttpTransportAdapter.start(), close в stop() |
+| WIRE-003 | Wire ClusterManager в app-container — register self node, start heartbeat, expose cluster tools | medium | pending | I.3 | SCALE-002 | Добавить getClusterManager() в defaultRegistration, register cluster_* MCP tools |
+| WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | pending | I.4 | NEXT-012 | Регистрация tool, вызов extract() из multimodal.ts |
+| WIRE-005 | Wire graph visualization — MCP tool `graph_visualize` в `src/register/` | low | pending | I.5 | NEXT-014 | Регистрация tool, вызов generateGraphHTML() из graph-viz.ts |
+| WIRE-006 | Wire framework adapters — MCP tool `memory_framework_adapter` или экспорт через REST wrapper | low | pending | I.6 | NEXT-015 | Регистрация tool или REST endpoint |
+| WIRE-007 | Wire benchmark harness — MCP tool `memory_benchmark_run` | low | pending | I.7 | NEXT-013 | Регистрация tool, вызов runAllBenchmarks() из benchmarks.ts |
+| WIRE-008 | Wire async ops — MCP tools `memory_async_submit` / `memory_async_status` / `memory_async_cancel` | medium | pending | I.8 | NEXT-016 | Регистрация tools в src/register/memory.ts, обёртка над AsyncJobManager |
+| WIRE-009 | Заполнить stub connectors реальными API-вызовами (GDrive, Gmail, Notion, OneDrive, Linear) | low | pending | I.9 | WIRE-001 | Заменить заглушки на реальные HTTP-запросы к API |
+
+---
+
+### Этап I — Wire-in & Integration
+
+- [ ] WIRE-001: Wire новые connectors в registry
+- [ ] WIRE-002: Wire RealtimeServer в HTTP transport
+- [ ] WIRE-003: Wire ClusterManager в app-container
+- [ ] WIRE-004: Wire multimodal ingestion MCP tool
+- [ ] WIRE-005: Wire graph visualization MCP tool
+- [ ] WIRE-006: Wire framework adapters
+- [ ] WIRE-007: Wire benchmark harness MCP tool
+- [ ] WIRE-008: Wire async ops MCP tools
+- [ ] WIRE-009: Заполнить stub connectors реальными API
+
+---
+
 ## Блокированные
 
 | ID | Задача | Причина | Статус |
@@ -718,4 +751,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | OpenCode Integration (F) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **182** | **0** | **0** | **181** | **0** | **1** |
+| **Итого** | **191** | **9** | **0** | **181** | **0** | **1** |
