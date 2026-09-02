@@ -13,6 +13,7 @@ import type { SessionManager } from '../core/session-manager.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
 import type { RelayManager } from '../relay/relay-manager.js';
 import type { RuleManager } from '../rules/rule-manager.js';
+import type { ConnectorRegistry } from '../connectors/registry.js';
 
 export interface ServerContext {
   server: McpServer;
@@ -63,4 +64,7 @@ export interface ServerContext {
 
   /** Optional RateLimiter for per-session rate limiting (S-003, S-004). Set by AppContainer after init. */
   rateLimiter?: RateLimiter;
+
+  /** Connector registry (INT-004, WIRE-001). Set by AppContainer after init. */
+  connectorRegistry?: ConnectorRegistry;
 }

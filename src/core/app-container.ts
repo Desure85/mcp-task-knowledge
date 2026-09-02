@@ -62,6 +62,7 @@ import { registerMemoryTools } from '../register/memory.js';
 import { RateLimiter } from './rate-limiter.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
+import { ConnectorRegistry, defaultConnectorRegistrations } from '../connectors/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -284,6 +285,28 @@ export class AppContainer {
       // 4. Register tools and resources
       const registerFn = this.opts.registerTools ?? defaultRegistration;
       registerFn(this.ctx);
+
+      // 4.1 Connectors: register all built-in connectors and init enabled ones
+      const connectorRegistry = new ConnectorRegistry();
+      for (const reg of defaultConnectorRegistrations) {
+        connectorRegistry.register(reg);
+      }
+      const connectorConfigs: Record<string, Record<string, unknown>> = {};
+      const connectorResult = await connectorRegistry.initAll(
+        connectorConfigs,
+        (name, schema, handler) => {
+          this.ctx!.server.tool(name, schema as Record<string, unknown>, handler as never);
+          this.ctx!.toolNames.add(name);
+        },
+      );
+      this.ctx.connectorRegistry = connectorRegistry;
+      if (connectorResult.initialized.length > 0) {
+        this.log.info({ connectors: connectorResult.initialized }, 'connectors initialized');
+      }
+      if (connectorResult.errors.length > 0) {
+        this.log.warn({ errors: connectorResult.errors }, 'connector init errors');
+      }
+      this.addCleanup(() => connectorRegistry.destroyAll());
 
       // 5. Update metrics with tool count
       updateServerInfo({ toolCount: this.ctx.toolNames.size });
