@@ -671,6 +671,45 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап J — Усиление памяти и продукта (NEXT-2.0)
+
+> Кандидаты по результатам конкурентного анализа (Mem0/Zep/Letta) и аудита качества 2026-09-02.
+> Все пункты подтверждены как реальные пробелы в коде.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Конкурент |
+|----|--------|-----------|--------|---------|-------------|-----------|
+| NEXT2-001 | LLM-экстрактор для memory_extract: pluggable LLM provider (OpenAI/Anthropic/Ollama) + fallback на regex. Сейчас extraction.ts — только детерминированные паттерны, качество ниже LLM-аналогов | high | pending | J.1 | NEXT-002 | Mem0/Zep |
+| NEXT2-002 | Memory MCP Server mode: standalone режим — только memory tools (extraction, temporal, profiles, context) без tasks/knowledge. Для использования как выделенный memory backend любыми агентами | high | pending | J.2 | NEXT-002 | Zep Memory MCP |
+| NEXT2-003 | Graph visualization page в web-ui: route `/graph` — рендер knowledge graph (graph-viz.ts HTML) с данными из entity-graph/temporal-graph | medium | pending | J.3 | NEXT-014, UI-001 | Supermemory/Letta |
+| NEXT2-004 | Memory browser page в web-ui: route `/memory` — просмотр extracted facts, temporal history, profiles, layers. Фильтры по scope/category | medium | pending | J.4 | NEXT-002, UI-001 | Mem0 |
+| NEXT2-005 | Realtime в web-ui: подключить страницы к WebSocket (task/knowledge live-updates). Сейчас RealtimeServer есть, UI не слушает WS | medium | pending | J.5 | WIRE-002, UI-005 | — |
+| NEXT2-006 | TypeScript SDK для клиентов: пакет `mcp-task-knowledge-client` — typed API поверх MCP HTTP/stdio. Для интеграции в сторонние приложения | medium | pending | J.6 | MR-001 | Mem0 SDK |
+| NEXT2-007 | Benchmark runner CLI: `npm run benchmark` — запуск LOCOMO/LongMemEval/BEAM/DMR против реального инстанса, markdown-отчёт | medium | pending | J.7 | NEXT-013 | Mem0/Zep |
+| NEXT2-008 | npm publish pipeline: GitHub Actions auto-publish при push в master (tag + npm publish + GHCR image) | medium | pending | J.8 | MR-010 | — |
+| NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction (входные вариации), temporal-graph (инварианты времени), scoping (комбинаторика) | low | pending | J.9 | Q-008, NEXT-001 | — |
+| NEXT2-010 | Perf-бюджет для memory tools: latency benchmark (<50ms retrieval, <200ms extraction) + CI gate | low | pending | J.10 | NEXT2-007 | Supermemory |
+| NEXT2-011 | Экспорт памяти в форматы конкурентов: Mem0 JSON / Zep format экспорт для миграции и сравнения | low | pending | J.11 | NEXT-002 | Mem0/Zep |
+| NEXT2-012 | Quickstart-to-production guide: полный пример "от установки до продакшена" (Docker + auth + cluster + web-ui) в docs/ | low | pending | J.12 | D-001 | — |
+
+---
+
+### Этап J — Усиление памяти и продукта
+
+- [ ] NEXT2-001: LLM-экстрактор для memory_extract (pluggable provider + regex fallback)
+- [ ] NEXT2-002: Memory MCP Server mode (standalone memory backend)
+- [ ] NEXT2-003: Graph visualization page в web-ui (/graph)
+- [ ] NEXT2-004: Memory browser page в web-ui (/memory)
+- [ ] NEXT2-005: Realtime в web-ui (подключить страницы к WebSocket)
+- [ ] NEXT2-006: TypeScript SDK для клиентов (mcp-task-knowledge-client)
+- [ ] NEXT2-007: Benchmark runner CLI (npm run benchmark)
+- [ ] NEXT2-008: npm publish pipeline (GitHub Actions)
+- [ ] NEXT2-009: Fuzzing для memory modules (fast-check property tests)
+- [ ] NEXT2-010: Perf-бюджет для memory tools (latency CI gate)
+- [ ] NEXT2-011: Экспорт памяти в форматы конкурентов (Mem0/Zep JSON)
+- [ ] NEXT2-012: Quickstart-to-production guide в docs/
+
+---
+
 ## Блокированные
 
 | ID | Задача | Причина | Статус |
@@ -751,4 +790,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | OpenCode Integration (F) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **191** | **9** | **0** | **181** | **0** | **1** |
+| **Итого** | **203** | **21** | **0** | **181** | **0** | **1** |
