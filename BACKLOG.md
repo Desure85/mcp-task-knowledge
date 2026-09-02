@@ -94,10 +94,10 @@
 ### Этап 7 — Масштабируемость
 
 - [x] SCALE-001: Health/readiness/drain endpoints
-- [ ] SCALE-002: Load balancer integration + sticky sessions
-- [ ] SCALE-003: Cluster state synchronization (sessions/registry)
-- [ ] SCALE-004: Tool sharding across nodes
-- [ ] SCALE-005: Auto-scaling и resource limits
+- [x] SCALE-002: Load balancer integration + sticky sessions
+- [x] SCALE-003: Cluster state synchronization (sessions/registry)
+- [x] SCALE-004: Tool sharding across nodes
+- [x] SCALE-005: Auto-scaling и resource limits
 
 ### Этап 8 — Интеграции
 
@@ -334,10 +334,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
 | SCALE-001 | Health/readiness/drain endpoints: `/healthz` (liveness), `/readyz` (readiness — deps check: DB, embeddings), `/drainz` (graceful shutdown — stop accepting new sessions). Standard Kubernetes probes | high | done | PR #83 | T-001 |
-| SCALE-002 | Load balancer integration + sticky sessions: session affinity по session ID. Support для AWS ALB, Nginx, HAProxy. Docs по настройке. Health check integration | medium | pending | 10.1 | S-001, SCALE-001 |
-| SCALE-003 | Cluster state synchronization: репликация session state и registry между нодами. Consensus protocol (Raft/etcd) или eventual consistency. Split-brain detection | low | pending | 10.3 | SYNC-002, S-001 |
-| SCALE-004 | Tool sharding across nodes: распределение инструментов по нодам (по namespace/prefix). Routing layer в прокси. Tool discovery across cluster | low | pending | 10.2 | P-002, DX-002 |
-| SCALE-005 | Auto-scaling и resource limits: HPA на основе метрик (active sessions, CPU, memory). Resource quotas per-session. Graceful degradation при нагрузке | low | pending | 10.5 | SCALE-001, S-003 |
+| SCALE-002 | Load balancer integration + sticky sessions: session affinity по session ID. Support для AWS ALB, Nginx, HAProxy. Docs по настройке. Health check integration | medium | done | #182 | S-001, SCALE-001 |
+| SCALE-003 | Cluster state synchronization: репликация session state и registry между нодами. Consensus protocol (Raft/etcd) или eventual consistency. Split-brain detection | low | done | #182 | SYNC-002, S-001 |
+| SCALE-004 | Tool sharding across nodes: распределение инструментов по нодам (по namespace/prefix). Routing layer в прокси. Tool discovery across cluster | low | done | #182 | P-002, DX-002 |
+| SCALE-005 | Auto-scaling и resource limits: HPA на основе метрик (active sessions, CPU, memory). Resource quotas per-session. Graceful degradation при нагрузке | low | done | #182 | SCALE-001, S-003 |
 
 ---
 
@@ -703,7 +703,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Security (8) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Sync (6) | 5 | 0 | 0 | 5 | 0 | 0 |
 | DX (9) | 8 | 0 | 0 | 8 | 0 | 0 |
-| Scalability (10) | 5 | 4 | 0 | 1 | 0 | 0 |
+| Scalability (10) | 5 | 0 | 0 | 5 | 0 | 0 |
 | Market Research | 14 | 0 | 0 | 14 | 0 | 0 |
 | Tech Debt | 14 | 0 | 0 | 13 | 0 | 1 |
 | Quality | 13 | 0 | 0 | 13 | 0 | 0 |
@@ -718,4 +718,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | OpenCode Integration (F) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **182** | **2** | **0** | **179** | **0** | **1** |
+| **Итого** | **182** | **0** | **0** | **181** | **0** | **1** |
