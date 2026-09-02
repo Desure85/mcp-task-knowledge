@@ -19,6 +19,7 @@ import { childLogger } from '../core/logger.js';
 import { createMetricsHandler } from '../core/metrics.js';
 import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
 import type { HealthChecker } from '../health/index.js';
+import { getRealtimeServer } from './realtime.js';
 
 const log = childLogger('transport:http');
 
@@ -108,6 +109,11 @@ export class HttpTransportAdapter implements TransportAdapter {
     await ctx.server.connect(this.transport);
     this._connected = true;
 
+    if (process.env.MCP_REALTIME !== '0') {
+      getRealtimeServer().attach(this.httpServer, '/ws');
+      log.info('Realtime WS: /ws');
+    }
+
     this.httpServer.listen(this.port, this.host, () => {
       log.info('MCP Streamable HTTP listening on http://%s:%s', this.host, this.port);
       log.info('API docs: http://%s:%s/api/docs', this.host, this.port);
@@ -125,6 +131,10 @@ export class HttpTransportAdapter implements TransportAdapter {
     try {
       if (this.transport) {
         await this.transport.close();
+      }
+      if (process.env.MCP_REALTIME !== '0') {
+        const { resetRealtimeServer } = await import('./realtime.js');
+        resetRealtimeServer();
       }
       if (this.httpServer) {
         await new Promise<void>((resolve) => {
