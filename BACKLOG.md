@@ -673,39 +673,40 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ## Этап J — Усиление памяти и продукта (NEXT-2.0)
 
-> Кандидаты по результатам конкурентного анализа (Mem0/Zep/Letta) и аудита качества 2026-09-02.
-> Все пункты подтверждены как реальные пробелы в коде.
+> Аудит 2026-09-02: из 12 набросанных пунктов 6 подтверждены кодом, 4 закрыты как лишние (дублируют существующее), 2 переформулированы.
+> **Закрытые как лишние:** NEXT2-001 (LLM в сервере — задача агента), NEXT2-002 (memory-only = ACL-политика, есть DX-002), NEXT2-006 (MCP сам SDK, есть api-client + framework-adapters), NEXT2-011 (экспорт в форматы конкурентов — никому не нужно).
+> **Вердикт:** остаётся 7 реальных задач.
 
-| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Конкурент |
-|----|--------|-----------|--------|---------|-------------|-----------|
-| NEXT2-001 | ~~LLM-экстрактор в сервере~~ → **закрыто (architecture decision 2026-09-02):** извлечение фактов — задача подключённого LLM-агента (плагины memory-extract/memory-dream), а не сервера. Сервер хранит/ищет/граф — детерминированно. Regex-экстрактор остаётся как детерминированный fallback | high | closed | J.1 | NEXT-002 | — |
-| NEXT2-002 | Memory MCP Server mode: standalone режим — только memory tools (extraction, temporal, profiles, context) без tasks/knowledge. Для использования как выделенный memory backend любыми агентами | high | pending | J.2 | NEXT-002 | Zep Memory MCP |
-| NEXT2-003 | Graph visualization page в web-ui: route `/graph` — рендер knowledge graph (graph-viz.ts HTML) с данными из entity-graph/temporal-graph | medium | pending | J.3 | NEXT-014, UI-001 | Supermemory/Letta |
-| NEXT2-004 | Memory browser page в web-ui: route `/memory` — просмотр extracted facts, temporal history, profiles, layers. Фильтры по scope/category | medium | pending | J.4 | NEXT-002, UI-001 | Mem0 |
-| NEXT2-005 | Realtime в web-ui: подключить страницы к WebSocket (task/knowledge live-updates). Сейчас RealtimeServer есть, UI не слушает WS | medium | pending | J.5 | WIRE-002, UI-005 | — |
-| NEXT2-006 | TypeScript SDK для клиентов: пакет `mcp-task-knowledge-client` — typed API поверх MCP HTTP/stdio. Для интеграции в сторонние приложения | medium | pending | J.6 | MR-001 | Mem0 SDK |
-| NEXT2-007 | Benchmark runner CLI: `npm run benchmark` — запуск LOCOMO/LongMemEval/BEAM/DMR против реального инстанса, markdown-отчёт | medium | pending | J.7 | NEXT-013 | Mem0/Zep |
-| NEXT2-008 | npm publish pipeline: GitHub Actions auto-publish при push в master (tag + npm publish + GHCR image) | medium | pending | J.8 | MR-010 | — |
-| NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction (входные вариации), temporal-graph (инварианты времени), scoping (комбинаторика) | low | pending | J.9 | Q-008, NEXT-001 | — |
-| NEXT2-010 | Perf-бюджет для memory tools: latency benchmark (<50ms retrieval, <200ms extraction) + CI gate | low | pending | J.10 | NEXT2-007 | Supermemory |
-| NEXT2-011 | Экспорт памяти в форматы конкурентов: Mem0 JSON / Zep format экспорт для миграции и сравнения | low | pending | J.11 | NEXT-002 | Mem0/Zep |
-| NEXT2-012 | Quickstart-to-production guide: полный пример "от установки до продакшена" (Docker + auth + cluster + web-ui) в docs/ | low | pending | J.12 | D-001 | — |
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Обоснование |
+|----|--------|-----------|--------|---------|-------------|-------------|
+| NEXT2-003 | Graph visualization page в web-ui: route `/graph` — рендер knowledge graph (graph-viz.ts) с данными из entity-graph/temporal-graph | medium | pending | J.3 | NEXT-014, UI-001 | graph-viz.ts есть, страницы нет |
+| NEXT2-004 | Memory browser page в web-ui: route `/memory` — просмотр extracted facts, temporal history, profiles, layers | medium | pending | J.4 | NEXT-002, UI-001 | 33 memory tools есть, UI просмотра нет |
+| NEXT2-005 | Realtime в web-ui: страницы слушают WebSocket (live-updates задач/знаний) | medium | pending | J.5 | WIRE-002, UI-005 | RealtimeServer есть, UI не слушает |
+| NEXT2-007 | Benchmark runner CLI: `npm run benchmark` — запуск LOCOMO/LongMemEval/BEAM/DMR против реального инстанса, markdown-отчёт | medium | pending | J.7 | NEXT-013 | benchmarks.ts есть, CLI нет |
+| NEXT2-008 | npm publish pipeline: пакет НЕ опубликован на npm (проверено 2026-09-02), MR-010 значится done но publish не настроен. GitHub Actions workflow: tag → npm publish + GHCR | high | pending | J.8 | MR-010 | npm view пустой |
+| NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction, temporal-graph (временные инварианты), scoping (комбинаторика) | low | pending | J.9 | Q-008, NEXT-001 | fuzz есть только для JSON-RPC/core |
+| NEXT2-010 | Perf-тесты для memory tools: latency (<50ms retrieval, <200ms extraction). НЕ CI gate — просто benchmark | low | pending | J.10 | NEXT2-007 | perf есть только для search |
+| NEXT2-012 | Quickstart-to-production guide: полный пример «от установки до продакшена» (Docker + auth + web-ui) в docs/ | low | pending | J.12 | D-001 | getting-started есть, e2e-гайда нет |
+
+---
+
+## Блокированные
 
 ---
 
 ### Этап J — Усиление памяти и продукта
 
 - [x] NEXT2-001: LLM-экстрактор — закрыто (AD: извлечение = задача агента, не сервера)
-- [ ] NEXT2-002: Memory MCP Server mode (standalone memory backend)
+- [x] NEXT2-002: Memory-only mode — закрыто (дублирует ACL + DX-002 namespaces)
 - [ ] NEXT2-003: Graph visualization page в web-ui (/graph)
 - [ ] NEXT2-004: Memory browser page в web-ui (/memory)
-- [ ] NEXT2-005: Realtime в web-ui (подключить страницы к WebSocket)
-- [ ] NEXT2-006: TypeScript SDK для клиентов (mcp-task-knowledge-client)
+- [ ] NEXT2-005: Realtime в web-ui (страницы слушают WebSocket)
+- [x] NEXT2-006: TS SDK — закрыто (MCP сам SDK, есть api-client + framework-adapters)
 - [ ] NEXT2-007: Benchmark runner CLI (npm run benchmark)
-- [ ] NEXT2-008: npm publish pipeline (GitHub Actions)
+- [ ] NEXT2-008: npm publish pipeline (пакет НЕ опубликован, MR-010 фиктивно done)
 - [ ] NEXT2-009: Fuzzing для memory modules (fast-check property tests)
-- [ ] NEXT2-010: Perf-бюджет для memory tools (latency CI gate)
-- [ ] NEXT2-011: Экспорт памяти в форматы конкурентов (Mem0/Zep JSON)
+- [ ] NEXT2-010: Perf-тесты для memory tools (latency benchmark, не CI gate)
+- [x] NEXT2-011: Экспорт в форматы конкурентов — закрыто (никому не нужно)
 - [ ] NEXT2-012: Quickstart-to-production guide в docs/
 
 ---
