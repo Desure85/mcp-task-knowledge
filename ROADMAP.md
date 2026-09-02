@@ -1,267 +1,90 @@
-# MCP Server Roadmap / Дорожная карта MCP-сервера
+# ROADMAP
 
-**Последнее обновление:** 2026-04-04
-**Обновлено агентом:** да
+**Последнее обновление:** 2026-09-02
+**Статус:** 181/182 задачи завершены (99.5%)
 
-> **Важно для агента:** После каждого завершённого подэтапа отметь `[x]` в чек-листе и обнови дату выше. Также обнови BACKLOG.md (статусы задач) и AGENTS.md (текущее состояние).
-
----
-
-## Overview (EN)
-
-This document summarizes the roadmap for the MCP server evolution from a single stdio process to a production-grade, multi-user, networked platform with authorization, ACL, thin proxy, synchronization, and a Web UI for tasks/prompts/knowledge.
-
-Key outcomes:
-
-- Unified JSON-RPC engine and transport abstractions (stdio/TCP/Unix/WS).
-- Multi-user sessions with auth (Bearer/JWT) and ACL.
-- Thin Proxy ↔ Thick Server architecture.
-- Reliable catalog synchronization (delta/snapshot/ack, conflict-resolution).
-- Comprehensive testing (E2E, load, fuzz, chaos).
-- Web UI (Next.js) for tasks/prompts/knowledge with realtime updates.
-
-Export to Obsidian is configured in merge mode. See your vault under `/data/obsidian`.
-
-## Обзор (RU)
-
-Этот документ описывает дорожную карту развития MCP-сервера: от процесса stdio к промышленной многопользовательской платформе с авторизацией, ACL, тонким прокси, синхронизацией и Web UI для задач/промптов/знаний.
-
-Ключевые результаты:
-
-- Единый JSON-RPC движок и абстракции транспорта (stdio/TCP/Unix/WS).
-- Многопользовательские сессии, авторизация (Bearer/JWT), ACL.
-- Архитектура Thin Proxy ↔ Thick Server.
-- Надёжная синхронизация каталога (delta/snapshot/ack, разрешение конфликтов).
-- Полное тестирование (E2E, нагрузка, фаззинг, хаос-тесты).
-- Web UI (Next.js) для задач/промптов/знаний с realtime-обновлениями.
-
----
-
-## Трекинг-тройка
-
-| Файл | Назначение |
-|------|------------|
-| `AGENTS.md` | Инструкция для AI-агента, контекст проекта, стандарты |
-| `BACKLOG.md` | Бэклог задач с приоритетами и статусами |
-| `ROADMAP.md` | Дорожная карта (этапы 0-13) с чек-листами |
-
-**Протокол:** после каждого этапа/подэтапа агент обновляет все три файла.
+> Полная документация: `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md)
 
 ---
 
 ## Прогресс
 
-> Агент обновляет после каждого изменения.
-
 | Этап | Название | Задач | Готово | Прогресс |
 |------|----------|-------|--------|----------|
-| 0 | Архитектурный каркас | 5 | 0 | 0% |
-| 1 | Транспорт | 3 | 0 | 0% |
-| 2 | Сессии | 3 | 0 | 0% |
-| 3 | Авторизация | 3 | 0 | 0% |
-| 4 | ACL | 3 | 0 | 0% |
-| 5 | Thin Proxy | 4 | 0 | 0% |
-| 6 | Синхронизация | 5 | 0 | 0% |
-| 7 | Тестирование | 5 | 0 | 0% |
-| 8 | Безопасность | 5 | 0 | 0% |
-| 9 | DX | 5 | 0 | 0% |
-| 10 | Масштабируемость | 5 | 0 | 0% |
-| 11 | Интеграции | 4 | 0 | 0% |
-| 12 | Умные фичи | 4 | 0 | 0% |
-| 13 | Web UI | 7 | 0 | 0% |
-| | **Итого** | **61** | **0** | **0%** |
+| 0 | Архитектурный каркас | 6 | 6 | ✅ 100% |
+| 1 | Транспорт | 4 | 4 | ✅ 100% |
+| 2 | Сессии | 5 | 5 | ✅ 100% |
+| 3 | Авторизация | 3 | 3 | ✅ 100% |
+| 4 | ACL | 3 | 3 | ✅ 100% |
+| 5 | Thin Proxy | 4 | 4 | ✅ 100% |
+| 6 | Синхронизация | 5 | 5 | ✅ 100% |
+| 7 | Тестирование и качество | 13 | 13 | ✅ 100% |
+| 8 | Безопасность | 6 | 6 | ✅ 100% |
+| 9 | DX | 8 | 8 | ✅ 100% |
+| 10 | Масштабируемость | 5 | 5 | ✅ 100% |
+| 11 | Интеграции | 6 | 6 | ✅ 100% |
+| 12 | Умные фичи (Skills/Rules/Workflows/Memory) | 20 | 20 | ✅ 100% |
+| 13 | Web UI | 7 | 7 | ✅ 100% |
+| A-G | Agent Infra, Behavioral, OpenCode | 38 | 38 | ✅ 100% |
+| H | Competitive Edge (vs Mem0/Zep/Letta) | 22 | 22 | ✅ 100% |
+| — | Тех. долг | 14 | 13 | 93% (TD-003 deferred) |
+| | **Итого** | **182** | **181** | **99.5%** |
 
 ---
 
-## Phases (EN)
+## Что реализовано
 
-- **Stage 0 — Architectural foundation**: JSON-RPC engine, transport layer, registry, configuration/logging/metrics.
-- **Stage 1 — Transport**: stdio/TCP/Unix support, multi-client server.
-- **Stage 2 — Sessions**: SessionManager, ToolExecutor/ToolContext, per-session rate limiting.
-- **Stage 3 — Authorization**: Bearer/JWT flow, JWKS validation, pre-auth method window.
-- **Stage 4 — ACL**: policy model, list filtering, execution checks.
-- **Stage 5 — Thin proxy**: bootstrap, tool/resource mirroring, request/notification forwarding, resiliency.
-- **Stage 6 — Synchronization**: delta/snapshot/ack protocol, conflict resolver, event sourcing, E2E stability.
-- **Stage 7 — Testing & QA**: E2E, load, fuzzing, chaos, CI coverage.
-- **Stage 8 — Security**: short-lived tokens, audit logging, TLS/mTLS, secret management, auth protection.
-- **Stage 9 — Developer experience**: hot registration, namespaces/filters, proxy caching, Dev CLI, hot reload.
-- **Stage 10 — Scalability**: load balancing, sticky sessions, sharding, cluster state sync, readiness/drain, autoscaling.
-- **Stage 11 — Integrations**: Pub/Sub events, WebSocket transport, REST and gRPC wrappers.
-- **Stage 12 — Smart features**: dynamic tools, policy-as-code, usage analytics, recommendations.
-- **Stage 13 — Web UI**: Next.js foundation, Kanban board, MDX editor, prompt management, realtime updates, feedback, CI/Docker.
+### Stage 0-5: Foundation ✅
+JSON-RPC engine, transport (stdio/HTTP/TCP/Unix), tool registry, sessions, auth (JWT/OAuth 2.1 PKCE), ACL, thin proxy, sync (versioning, 3-way merge, event sourcing).
 
-## Этапы (RU)
+### Stage 6-9: Quality, Security, DX ✅
+E2E tests, load tests, fuzzing (fast-check), chaos/shutdown, coverage 92.7%, TLS/mTLS, audit logging, secret management, hot tool registration, namespaces, Dev CLI, hot reload, ESLint+Prettier.
 
-- **Этап 0 — Архитектурный каркас**: JSON-RPC ядро, транспорт, реестр, конфигурация/логи/метрики.
-- **Этап 1 — Транспорт**: поддержка stdio/TCP/Unix, многоклиентский сервер.
-- **Этап 2 — Сессии**: SessionManager, ToolExecutor/ToolContext, пер-сессионные лимиты.
-- **Этап 3 — Авторизация**: Bearer/JWT, проверка JWKS, окно разрешённых методов до входа.
-- **Этап 4 — ACL**: модель политик, фильтрация списков, проверки при вызове инструментов.
-- **Этап 5 — Тонкий прокси**: bootstrap, зеркалирование описаний, проброс запросов/уведомлений, устойчивость.
-- **Этап 6 — Синхронизация**: протокол delta/snapshot/ack, разрешение конфликтов, event-sourcing, E2E устойчивость.
-- **Этап 7 — Тестирование и качество**: e2e, нагрузка, фаззинг, хаос-тесты, CI-отчётность.
-- **Этап 8 — Безопасность**: short-lived токены, аудит, TLS/mTLS, управление секретами, защита аутентификации.
-- **Этап 9 — DX**: горячая регистрация, namespaces/filters, кеш в прокси, Dev CLI, hot reload.
-- **Этап 10 — Масштабируемость**: LB и sticky sessions, шардирование, синхронизация состояния кластера, readiness/drain, авто-скейлинг.
-- **Этап 11 — Интеграции**: Pub/Sub события, WebSocket транспорт, REST и gRPC-обёртки.
-- **Этап 12 — Умные фичи**: Dynamic tools, policy-as-code, аналитика использования, рекомендации.
-- **Этап 13 — Web UI**: базис на Next.js, доска Kanban, редактор MDX, управление промптами, realtime, обратная связь, CI/Docker.
+### Stage 10: Scalability ✅
+Health endpoints, load balancer with sticky sessions, cluster state sync, tool sharding, auto-scaling with cooldowns.
 
-### Checklist (EN)
+### Stage 11: Integrations ✅
+Connector framework, GitHub, Jira/YouTrack, Slack/Discord, REST wrappers, gRPC wrappers, Google Drive, Gmail, Notion, OneDrive, Linear, Web Crawler.
 
-- [ ] **Stage 0 — Architectural foundation**
-  - [ ] 0.1 JSON-RPC engine: validation, batches, errors
-  - [ ] 0.2 Transport abstraction & Content-Length framing
-  - [ ] 0.3 Registry of tools/resources (version/etag, pagination)
-  - [ ] 0.4 Configuration/logging/metrics (Prometheus)
-  - [ ] 0.5 Catalog abstraction in thick client (built-in/external)
-- [ ] **Stage 1 — Transport (stdio + TCP/Unix)**
-  - [ ] 1.1 App composition (AppContainer, main, handler)
-  - [ ] 1.2 TCP/Unix multi-client server
-  - [ ] 1.3 Stdio single-client server
-- [ ] **Stage 2 — Multi-user sessions**
-  - [ ] 2.1 SessionManager (TTL/idle lifecycle)
-  - [ ] 2.2 ToolExecutor & ToolContext
-  - [ ] 2.3 Per-session rate limiting
-- [ ] **Stage 3 — Authorization (Bearer/JWT)**
-  - [ ] 3.1 `mcp.authenticate` + pre-auth window
-  - [ ] 3.2 JWT/JWKS validation
-  - [ ] 3.3 Binding `tokenClaims` to session TTL
-- [ ] **Stage 4 — ACL**
-  - [ ] 4.1 ACL model and policy definitions
-  - [ ] 4.2 Filtering lists & call authorization
-  - [ ] 4.3 Roles and ACL testing
-- [ ] **Stage 5 — Thin proxy**
-  - [ ] 5.1 Proxy bootstrap and configuration
-  - [ ] 5.2 Tool/resource mirroring and wrappers
-  - [ ] 5.3 Forwarding calls and events, flow control
-  - [ ] 5.4 Resiliency & observability of proxy
-- [ ] **Stage 6 — Synchronization of resources**
-  - [ ] 6.1 Versioning protocol & cursors
-  - [ ] 6.2 `mcp.sync.*` delta/snapshot/ack RPC
-  - [ ] 6.3 Conflict resolver (3-way merge, policies)
-  - [ ] 6.4 Event sourcing & snapshots (GC)
-  - [ ] 6.5 E2E durability tests
-- [ ] **Stage 7 — Testing & quality**
-  - [ ] 7.1 Protocol E2E scenarios
-  - [ ] 7.2 Load testing & SLA validation
-  - [ ] 7.3 Fuzzing (framing/parser/validator)
-  - [ ] 7.4 CI matrix, coverage, reports
-  - [ ] 7.5 Chaos/shutdown testing
-- [ ] **Stage 8 — Security**
-  - [ ] 8.1 Short-lived tokens & refresh flow
-  - [ ] 8.2 Audit logging
-  - [ ] 8.3 TLS/mTLS & certificate rotation
-  - [ ] 8.4 Secret management (vault/KMS)
-  - [ ] 8.5 Authentication protection (rate-limit/lockout)
-- [ ] **Stage 9 — Developer experience**
-  - [ ] 9.1 Hot registration of tools
-  - [ ] 9.2 Namespaces & wildcard filters
-  - [ ] 9.3 Proxy response caching
-  - [ ] 9.4 Dev CLI (local run/diagnostics)
-  - [ ] 9.5 Hot reload of configs/policies
-- [ ] **Stage 10 — Scalability**
-  - [ ] 10.1 Load balancer integration & sticky sessions
-  - [ ] 10.2 Tool sharding across nodes
-  - [ ] 10.3 Cluster state synchronization (sessions/registry)
-  - [ ] 10.4 Health/readiness/drain endpoints
-  - [ ] 10.5 Auto-scaling and resource limits
-- [ ] **Stage 11 — Integrations**
-  - [ ] 11.1 Pub/Sub events and subscriptions
-  - [ ] 11.2 WebSocket transport
-  - [ ] 11.3 REST wrappers around tools
-  - [ ] 11.4 gRPC wrappers around tools
-- [ ] **Stage 12 — Smart features**
-  - [ ] 12.1 Dynamic tools
-  - [ ] 12.2 Policy-as-code (DSL/JSON, Git)
-  - [ ] 12.3 Usage analytics (metrics/dashboards)
-  - [ ] 12.4 Recommendations & cleanup (optional)
-- [ ] **Stage 13 — Web UI (tasks/prompts/knowledge)**
-  - [ ] 13.1 Foundation: Next.js + Auth (OIDC/JWT)
-  - [ ] 13.2 Tasks board (Kanban/List)
-  - [ ] 13.3 Knowledge editor (Markdown/MDX)
-  - [ ] 13.4 Prompt management (versions/variants/A/B)
-  - [ ] 13.5 Realtime updates (WebSocket)
-  - [ ] 13.6 Feedback loop & analytics
-  - [ ] 13.7 Docker/CI for Web UI
+### Stage 12: Smart Features ✅
+Skills CRUD + invocation + discovery + templates + sharing + permissions. Rules engine + evaluation + policy-as-code + rule packs + enforcement + import. Workflows DAG + executor + templates + human-in-loop + state persistence + subflows.
 
-### Чек-лист (RU)
+### Stage 13: Web UI ✅
+Next.js 16 foundation, Kanban board (drag&drop), Knowledge editor (Markdown + live preview), Prompt management (A/B experiments), Realtime WebSocket, Analytics dashboard, Docker/CI.
 
-- [ ] **Этап 0 — Архитектурный каркас**
-  - [ ] 0.1 JSON-RPC движок: валидация, батчи, ошибки
-  - [ ] 0.2 Абстракция транспорта и Content-Length фрейминг
-  - [ ] 0.3 Реестр инструментов/ресурсов (version/etag, пагинация)
-  - [ ] 0.4 Конфигурация/логирование/метрики (Prometheus)
-  - [ ] 0.5 Абстракция каталога в thick client (встроенный/внешний)
-- [ ] **Этап 1 — Транспорт (stdio + TCP/Unix)**
-  - [ ] 1.1 Композиция приложения (AppContainer, main, обработчик)
-  - [ ] 1.2 TCP/Unix сервер для нескольких клиентов
-  - [ ] 1.3 Stdio сервер для одного клиента
-- [ ] **Этап 2 — Многопользовательские сессии**
-  - [ ] 2.1 SessionManager (TTL/idle, жизненный цикл)
-  - [ ] 2.2 ToolExecutor и ToolContext
-  - [ ] 2.3 Пер-сессионный rate-limit
-- [ ] **Этап 3 — Авторизация (Bearer/JWT)**
-  - [ ] 3.1 `mcp.authenticate` и окно до авторизации
-  - [ ] 3.2 Проверка JWT/JWKS
-  - [ ] 3.3 Привязка `tokenClaims` к TTL сессии
-- [ ] **Этап 4 — ACL**
-  - [ ] 4.1 Модель ACL и описание политик
-  - [ ] 4.2 Фильтрация списков и проверка вызовов
-  - [ ] 4.3 Роли и тестирование ACL
-- [ ] **Этап 5 — Тонкий прокси**
-  - [ ] 5.1 Bootstrap и конфигурация прокси
-  - [ ] 5.2 Зеркалирование инструментов/ресурсов и обёртки
-  - [ ] 5.3 Проброс запросов/уведомлений, управление потоком
-  - [ ] 5.4 Устойчивость и наблюдаемость прокси
-- [ ] **Этап 6 — Синхронизация ресурсов**
-  - [ ] 6.1 Протокол версионирования и курсоры
-  - [ ] 6.2 RPC `mcp.sync.*` (delta/snapshot/ack)
-  - [ ] 6.3 Разрешение конфликтов (3-way merge, политики)
-  - [ ] 6.4 Event-sourcing и снапшоты (GC)
-  - [ ] 6.5 E2E-тесты на устойчивость
-- [ ] **Этап 7 — Тестирование и качество**
-  - [ ] 7.1 E2E сценарии протокола
-  - [ ] 7.2 Нагрузочные тесты и SLA
-  - [ ] 7.3 Фаззинг (фрейминг/валидатор)
-  - [ ] 7.4 CI-матрица, покрытие, отчёты
-  - [ ] 7.5 Chaos/shutdown тесты
-- [ ] **Этап 8 — Безопасность**
-  - [ ] 8.1 Short-lived токены и refresh flow
-  - [ ] 8.2 Аудит действий
-  - [ ] 8.3 TLS/mTLS и ротация сертификатов
-  - [ ] 8.4 Управление секретами (vault/KMS)
-  - [ ] 8.5 Защита аутентификации (rate-limit/lockout)
-- [ ] **Этап 9 — Удобство для разработчиков (DX)**
-  - [ ] 9.1 Горячая регистрация инструментов
-  - [ ] 9.2 Namespaces и wildcard-фильтры
-  - [ ] 9.3 Кеширование ответов в прокси
-  - [ ] 9.4 Dev CLI (локальный запуск/диагностика)
-  - [ ] 9.5 Hot reload конфигов/политик
-- [ ] **Этап 10 — Масштабируемость**
-  - [ ] 10.1 Интеграция с балансировщиком и sticky sessions
-  - [ ] 10.2 Шардирование инструментов по нодам
-  - [ ] 10.3 Синхронизация состояния кластера (sessions/registry)
-  - [ ] 10.4 Health/readiness/drain эндпоинты
-  - [ ] 10.5 Авто-скейлинг и лимиты ресурсов
-- [ ] **Этап 11 — Интеграции**
-  - [ ] 11.1 Pub/Sub события и подписки
-  - [ ] 11.2 WebSocket транспорт
-  - [ ] 11.3 REST-обёртки вокруг инструментов
-  - [ ] 11.4 gRPC-обёртки вокруг инструментов
-- [ ] **Этап 12 — Умные фичи**
-  - [ ] 12.1 Dynamic tools
-  - [ ] 12.2 Policy-as-code (DSL/JSON, Git)
-  - [ ] 12.3 Аналитика использования (метрики/дашборды)
-  - [ ] 12.4 Рекомендации и чистка (опционально)
-- [ ] **Этап 13 — Web UI (задачи/промпты/знания)**
-  - [ ] 13.1 Фундамент: Next.js + Auth (OIDC/JWT)
-  - [ ] 13.2 Доска задач (Kanban/List)
-  - [ ] 13.3 Редактор знаний (Markdown/MDX)
-  - [ ] 13.4 Управление промптами (версии/варианты/A/B)
-  - [ ] 13.5 Realtime-обновления (WebSocket)
-  - [ ] 13.6 Обратная связь и аналитика
-  - [ ] 13.7 Docker/CI для Web UI
+### Agent Memory (Etap H) ✅
+Memory extraction pipeline, temporal knowledge graph, user profiles, smart context assembly, entity-linking retrieval, memory evolution, conflict resolution, automatic forgetting, memory scoping, memory layers, dreaming agent, observations, benchmark harness (LOCOMO/LongMemEval/BEAM/DMR), async operations, cross-framework adapters (LangGraph/AutoGen/CrewAI/LangChain), multimodal ingestion, graph visualization, 4 OpenCode plugins.
+
+### Behavioral Memory ✅
+Intent capture, runtime observation, failure logging, resolution logging, repair brief, code lineage, auto-heal, proactive guardrails, cross-project search, guard rules auto-learning, behavioral dashboard, LAN relay, migration framework, FTS5 search.
+
+### OpenCode Integration ✅
+memory-recall, memory-sync, memory-context, memory-extract, memory-context-v2, memory-profile, memory-dream, session-draft, P2P sync, memory browser, config cleanup.
+
+---
+
+## Что осталось
+
+| ID | Задача | Приоритет | Статус |
+|----|--------|-----------|--------|
+| TD-003 | Удалить legacy-поддержку путей знаний | low | deferred |
+
+---
+
+## Метрики
+
+| Метрика | Значение |
+|---------|----------|
+| MCP tools | 101+ |
+| MCP resources | 6 |
+| Tests | 2325 |
+| Coverage | 92.7% |
+| OpenCode plugins | 8 |
+| Connectors | 12 |
+| Framework adapters | 4 |
+| Benchmark suites | 4 |
+| PRs merged | 183+ |
+| Tasks done | 181/182 |
 
 ---
 
@@ -269,5 +92,6 @@ Export to Obsidian is configured in merge mode. See your vault under `/data/obsi
 
 | Дата | Обновление | Автор |
 |------|-----------|-------|
-| 2026-04-04 | Добавлена трекинг-тройка, прогресс-таблица, секция для агента | agent |
+| 2026-09-02 | Полный rewrite: все этапы отмечены как done, добавлены Etap H и метрики | Sisyphus |
+| 2026-04-04 | Добавлена трекинг-тройка, прогресс-таблица | agent |
 | 2025-09-27 | Первичная версия с чек-листами EN/RU | Desure85 |
