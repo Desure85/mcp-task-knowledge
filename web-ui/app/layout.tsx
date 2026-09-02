@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/knowledge" className="hover:text-blue-600">Knowledge</a>
           <a href="/prompts" className="hover:text-blue-600">Prompts</a>
           <a href="/search" className="hover:text-blue-600">Search</a>
+          <a href="/analytics" className="hover:text-blue-600">Analytics</a>
         </nav>
         <main className="max-w-6xl mx-auto p-6">{children}</main>
       </body>
