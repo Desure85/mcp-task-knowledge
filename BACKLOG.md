@@ -530,8 +530,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости |
 |----|--------|-----------|--------|---------|-------------|
-| OC-001 | OpenCode плагин `memory-recall`: инжекция инструкции для авто-вызова `search_knowledge` в начале сессии (как session-draft.ts, но для recall). Плагин НЕ вызывает MCP сам — он инструктирует агента | high | in_progress | — | — |
-| OC-002 | OpenCode плагин `memory-sync`: hook `tool.execute.after` на `/remember` → debounce 30с → sync facts.md в knowledge base. Прямой MCP-вызов через `ctx.client` (OpenCode Plugin API) | medium | in_progress | — | OC-001 |
+| OC-001 | OpenCode плагин `memory-recall`: инжекция инструкции для авто-вызова `search_knowledge` в начале сессии (как session-draft.ts, но для recall). Плагин НЕ вызывает MCP сам — он инструктирует агента | high | done | — | — |
+| OC-002 | OpenCode плагин `memory-sync`: hook `tool.execute.after` на `/remember` → debounce 30с → sync facts.md в knowledge base. Прямой MCP-вызов через `ctx.client` (OpenCode Plugin API) | medium | done | — | OC-001 |
 | OC-003 | Дедупликация при sync: перед `knowledge_bulk_create` — `search_knowledge` по title, если найдено → `knowledge_bulk_update` вместо create. Избегает дублей при повторном sync | high | done | — | OC-002 |
 | OC-004 | patterns.json sync: парсинг structured patterns в sync-скрипт/плагин. Каждая запись → knowledge item с тегами `[pattern, importance-N]` | medium | done | — | OC-002 |
 | OC-005 | Авто-инъекция контекста: hook `experimental.chat.messages.transform` → extract query из last user message → `search_knowledge` top-5 → append compact results в system prompt. Бюджет ~2000 токенов, кэш по query hash (TTL 5 мин), min score threshold | medium | done | — | OC-001 |
@@ -715,7 +715,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Memory (D) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Integration Hub (E) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Web UI (13) | 7 | 0 | 0 | 7 | 0 | 0 |
-| OpenCode Integration (F) | 8 | 0 | 2 | 6 | 0 | 0 |
+| OpenCode Integration (F) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **182** | **4** | **2** | **176** | **0** | **1** |
+| **Итого** | **182** | **2** | **0** | **179** | **0** | **1** |
