@@ -678,7 +678,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Конкурент |
 |----|--------|-----------|--------|---------|-------------|-----------|
-| NEXT2-001 | LLM-экстрактор для memory_extract: pluggable LLM provider (OpenAI/Anthropic/Ollama) + fallback на regex. Сейчас extraction.ts — только детерминированные паттерны, качество ниже LLM-аналогов | high | pending | J.1 | NEXT-002 | Mem0/Zep |
+| NEXT2-001 | ~~LLM-экстрактор в сервере~~ → **закрыто (architecture decision 2026-09-02):** извлечение фактов — задача подключённого LLM-агента (плагины memory-extract/memory-dream), а не сервера. Сервер хранит/ищет/граф — детерминированно. Regex-экстрактор остаётся как детерминированный fallback | high | closed | J.1 | NEXT-002 | — |
 | NEXT2-002 | Memory MCP Server mode: standalone режим — только memory tools (extraction, temporal, profiles, context) без tasks/knowledge. Для использования как выделенный memory backend любыми агентами | high | pending | J.2 | NEXT-002 | Zep Memory MCP |
 | NEXT2-003 | Graph visualization page в web-ui: route `/graph` — рендер knowledge graph (graph-viz.ts HTML) с данными из entity-graph/temporal-graph | medium | pending | J.3 | NEXT-014, UI-001 | Supermemory/Letta |
 | NEXT2-004 | Memory browser page в web-ui: route `/memory` — просмотр extracted facts, temporal history, profiles, layers. Фильтры по scope/category | medium | pending | J.4 | NEXT-002, UI-001 | Mem0 |
@@ -695,7 +695,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ### Этап J — Усиление памяти и продукта
 
-- [ ] NEXT2-001: LLM-экстрактор для memory_extract (pluggable provider + regex fallback)
+- [x] NEXT2-001: LLM-экстрактор — закрыто (AD: извлечение = задача агента, не сервера)
 - [ ] NEXT2-002: Memory MCP Server mode (standalone memory backend)
 - [ ] NEXT2-003: Graph visualization page в web-ui (/graph)
 - [ ] NEXT2-004: Memory browser page в web-ui (/memory)
@@ -790,4 +790,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | OpenCode Integration (F) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **203** | **21** | **0** | **181** | **0** | **1** |
+| **Итого** | **203** | **20** | **0** | **182** | **0** | **1** |
