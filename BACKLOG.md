@@ -105,7 +105,7 @@
 - [x] INT-001: GitHub connector
 - [x] INT-002: Jira/YouTrack connector
 - [x] INT-003: Slack/Discord connector
-- [ ] MR-012: Real-time collaboration (WebSocket)
+- [x] MR-012: Real-time collaboration (WebSocket)
 - [x] INT-005: REST wrappers для MCP tools
 - [x] INT-006: gRPC wrappers для MCP tools
 
@@ -140,8 +140,8 @@
 - [x] UI-002: Tasks board (Kanban/List view)
 - [x] UI-003: Knowledge editor (Markdown/MDX)
 - [x] UI-004: Prompt management (versions, variants, A/B)
-- [ ] UI-005: Realtime updates (WebSocket)
-- [ ] UI-006: Feedback loop & usage analytics
+- [x] UI-005: Realtime updates (WebSocket)
+- [x] UI-006: Feedback loop & usage analytics
 - [x] UI-007: Docker/CI pipeline для Web UI
 
 ### Критический путь
@@ -292,7 +292,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | MR-009 | Markdown import/export для knowledge base | medium | done | — | — |
 | MR-010 | MCPMarket listing + npm publish | critical | done | — | — |
 | MR-011 | Claude Desktop / Cursor certified config | high | done | — | — |
-| MR-012 | Real-time collaboration (WebSocket) | medium | pending | — | — |
+| MR-012 | Real-time collaboration (WebSocket) | medium | done | #181 | — |
 | MR-013 | Claude Code / Windsurf integration guides | high | done | — | — |
 | MR-014 | README overhaul: install, features, demo GIF | high | done | — | — |
 
@@ -513,8 +513,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | UI-002 | Tasks board: Kanban view (drag&drop), list view, filters, search. CRUD для задач. Зависимости визуализация (граф). Интеграция с MR-005 (DAG) | high | done | #177 | UI-001 |
 | UI-003 | Knowledge editor: Markdown/MDX редактор с preview. Синтаксис highlight, drag&drop для файлов. Связь с search (MR-003) | high | done | #178 | UI-001 |
 | UI-004 | Prompt management: версионирование промптов, A/B тестирование (связь с `ab-testing/`), variant comparison, template editor | medium | done | #179 | UI-001 |
-| UI-005 | Realtime updates: WebSocket подключение для live-updates задач, знаний, сессий. Presence indicators. Оптимистичные обновления UI | medium | pending | 13.5 | UI-002, MR-012 |
-| UI-006 | Feedback loop & analytics: usage tracking (anon), feedback forms, analytics dashboard. Связь с MR-007 (dashboard) | low | pending | 13.6 | UI-002 |
+| UI-005 | Realtime updates: WebSocket подключение для live-updates задач, знаний, сессий. Presence indicators. Оптимистичные обновления UI | medium | done | #181 | UI-002, MR-012 |
+| UI-006 | Feedback loop & analytics: usage tracking (anon), feedback forms, analytics dashboard. Связь с MR-007 (dashboard) | low | done | #180 | UI-002 |
 | UI-007 | Docker/CI для Web UI: multi-stage Dockerfile, CI pipeline (build → test → deploy), preview environments (Vercel/Docker) | medium | completed | #175 | UI-001 |
 
 ---
@@ -704,7 +704,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Sync (6) | 5 | 0 | 0 | 5 | 0 | 0 |
 | DX (9) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Scalability (10) | 5 | 4 | 0 | 1 | 0 | 0 |
-| Market Research | 14 | 1 | 0 | 13 | 0 | 0 |
+| Market Research | 14 | 0 | 0 | 14 | 0 | 0 |
 | Tech Debt | 14 | 0 | 0 | 13 | 0 | 1 |
 | Quality | 13 | 0 | 0 | 13 | 0 | 0 |
 | Docs | 5 | 0 | 0 | 5 | 0 | 0 |
@@ -714,8 +714,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Workflows (C) | 6 | 0 | 0 | 6 | 0 | 0 |
 | Memory (D) | 4 | 0 | 0 | 4 | 0 | 0 |
 | Integration Hub (E) | 6 | 0 | 0 | 6 | 0 | 0 |
-| Web UI (13) | 7 | 2 | 0 | 5 | 0 | 0 |
+| Web UI (13) | 7 | 0 | 0 | 7 | 0 | 0 |
 | OpenCode Integration (F) | 8 | 0 | 2 | 6 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 22 | 0 | 0 | 0 | 0 |
-| **Итого** | **182** | **7** | **2** | **173** | **0** | **1** |
+| **Итого** | **182** | **4** | **2** | **176** | **0** | **1** |
