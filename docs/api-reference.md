@@ -30,6 +30,7 @@
 | `knowledge_export_single` | Export a single knowledge document as a markdown string with YAML frontmatter. Returns the full mark |
 | `knowledge_get` | Read a knowledge document by id |
 | `knowledge_import_markdown` | Import .md files from a directory into the knowledge base. Files can have YAML frontmatter (title, t |
+| `knowledge_import_multimodal` | Extract text chunks from a file (pdf/text/code/image/video/audio) via the multimodal ingestion pipel |
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge documents metadata |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
@@ -107,7 +108,6 @@
 | `tasks_list` | List tasks with optional filters |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId) |
-| `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 
 ## cluster_assign
 
@@ -615,6 +615,33 @@ Import .md files from a directory into the knowledge base. Files can have YAML f
     "tag": "example",
     "type": "note",
     "dryRun": false
+  }
+}
+```
+
+## knowledge_import_multimodal
+
+**Import Multimodal File**
+
+Extract text chunks from a file (pdf/text/code/image/video/audio) via the multimodal ingestion pipeline. Extract-only: returns chunks, the calling agent decides what to persist. File must live inside DATA_DIR.
+
+**Параметры:**
+
+- `filePath`
+- `type`
+- `language`
+- `maxChunks`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_import_multimodal",
+  "arguments": {
+    "filePath": "example",
+    "type": "note",
+    "language": "example",
+    "maxChunks": "example"
   }
 }
 ```
@@ -2656,47 +2683,6 @@ List tasks as a hierarchical tree (by parentId)
     "status": "pending",
     "tag": "example",
     "includeArchived": false
-  }
-}
-```
-
-## tasks_update
-
-**Update Task**
-
-Update a single task by id. Can change any field except id, project, createdAt. Setting parentId moves the task in the hierarchy (cycle and depth protected). Set parentId to null to detach from parent (make root).
-
-**Параметры:**
-
-- `project`
-- `id`
-- `title`
-- `description`
-- `priority`
-- `status`
-- `tags`
-- `links`
-- `parentId`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tasks_update",
-  "arguments": {
-    "project": "mcp",
-    "id": "00000000-0000-0000-0000-000000000000",
-    "title": "Example Title",
-    "description": "Example Description",
-    "priority": "medium",
-    "status": "pending",
-    "tags": [
-      "example"
-    ],
-    "links": [
-      "https://example.com"
-    ],
-    "parentId": null
   }
 }
 ```
