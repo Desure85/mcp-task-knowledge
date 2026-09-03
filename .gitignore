@@ -131,3 +131,6 @@ __pycache__/
 .tmp-emb-cache-*/
 .omo/
 .opencode
+
+# Local benchmark reports (published versions live in docs/benchmarks/)
+benchmarks/
