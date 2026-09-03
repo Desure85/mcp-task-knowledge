@@ -6,7 +6,7 @@
 docker run -d \
   -e DATA_DIR=/data \
   -e MCP_TRANSPORT=http \
-  -e PORT=3001 \
+  -e MCP_PORT=3001 \
   -p 3001:3001 \
   -v "$PWD/.data":/data \
   ghcr.io/desure85/mcp-task-knowledge:latest
@@ -44,7 +44,7 @@ services:
     environment:
       DATA_DIR: /data
       MCP_TRANSPORT: http
-      PORT: 3001
+      MCP_PORT: 3001
       EMBEDDINGS_MODE: onnx-cpu
       CURRENT_PROJECT: mcp
     volumes:
@@ -52,7 +52,9 @@ services:
     restart: unless-stopped
 
   web-ui:
-    build: ./web-ui
+    build:
+      context: .
+      dockerfile: web-ui/Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -80,6 +82,7 @@ readinessProbe:
 ### Cluster Scaling
 
 The cluster manager (SCALE-002..005) provides:
+
 - Load balancer with sticky sessions (session affinity by session ID)
 - Cluster state synchronization (node registry, session affinity, shard assignments)
 - Tool sharding across nodes (by namespace/prefix)
@@ -91,7 +94,12 @@ See [Cluster Configuration](../getting-started/configuration.md#cluster) for env
 
 ```bash
 docker build -t mcp-task-knowledge .
-docker build -t mcp-task-knowledge:onnx-cpu --build-arg EMBEDDINGS=onnx-cpu .
+# ONNX CPU/GPU выбираются target'ом, не build-arg:
+docker build --target runtime-onnx-cpu -t mcp-task-knowledge:onnx-cpu .
+docker build --target runtime-onnx-gpu -t mcp-task-knowledge:onnx-gpu .
+# Холодная сборка с нуля требует предсобранных GHCR-баз
+# (mcp-node:20-bullseye и др.); без кеша используйте
+# docker compose --profile prod up (pull готового образа).
 ```
 
 ### With embedded service-catalog

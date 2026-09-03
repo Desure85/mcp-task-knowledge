@@ -117,6 +117,9 @@ COPY --from=builder /app/dist ./dist
 # Default data dir inside container; mount a volume to override
 ENV DATA_DIR=/data
 VOLUME ["/data"]
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 CMD ["node", "dist/index.js"]
 
 # ---------- runtime-bm25-cat-extbase (external base with embedded catalog) ----------
@@ -162,6 +165,9 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 ENV DATA_DIR=/data
 VOLUME ["/data"]
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 CMD ["node", "dist/index.js"]
 
 # ---------- runtime-onnx-cpu-extbase (external base image with models) ----------
@@ -232,6 +238,9 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 # Ensure data dir volume
 VOLUME ["/data"]
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 # Lightweight entrypoint to configure cache dirs for arbitrary --user and avoid CUDA/ORT segfaults
 COPY bin/entrypoint.sh ./bin/entrypoint.sh
 RUN chmod +x ./bin/entrypoint.sh
