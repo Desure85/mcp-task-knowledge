@@ -645,8 +645,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Что делать |
 |----|--------|-----------|--------|---------|-------------|------------|
-| WIRE-001 | Wire новые connectors (GDrive, Gmail, Notion, OneDrive, Linear, Web Crawler) в connector registry — зарегистрировать в `src/connectors/index.ts` + `src/connectors/registry.ts` | high | pending | I.1 | INT-004 | Добавить createGDriveConnector/createGmailConnector/... в registry, добавить env config |
-| WIRE-002 | Wire RealtimeServer в HTTP transport — `getRealtimeServer().attach(httpServer, '/ws')` в `src/transport/http-transport.ts` | high | pending | I.2 | MR-012 | Добавить attach в HttpTransportAdapter.start(), close в stop() |
+| WIRE-001 | Wire новые connectors (GDrive, Gmail, Notion, OneDrive, Linear, Web Crawler) в connector registry — зарегистрировать в `src/connectors/index.ts` + `src/connectors/registry.ts` | high | done | I.1 | INT-004 | Смержено 2026-09-03 (cb13fea/9921dad) |
+| WIRE-002 | Wire RealtimeServer в HTTP transport — `getRealtimeServer().attach(httpServer, '/ws')` в `src/transport/http-transport.ts` | high | done | I.2 | MR-012 | Смержено 2026-09-03 (cb13fea) |
 | WIRE-003 | Wire ClusterManager в app-container — register self node, start heartbeat, expose cluster tools | medium | pending | I.3 | SCALE-002 | Добавить getClusterManager() в defaultRegistration, register cluster_* MCP tools |
 | WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | pending | I.4 | NEXT-012 | Регистрация tool, вызов extract() из multimodal.ts |
 | WIRE-005 | Wire graph visualization — MCP tool `graph_visualize` в `src/register/` | low | pending | I.5 | NEXT-014 | Регистрация tool, вызов generateGraphHTML() из graph-viz.ts |
@@ -660,8 +660,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ### Этап I — Wire-in & Integration
 
-- [ ] WIRE-001: Wire новые connectors в registry
-- [ ] WIRE-002: Wire RealtimeServer в HTTP transport
+- [x] WIRE-001: Wire новые connectors в registry
+- [x] WIRE-002: Wire RealtimeServer в HTTP transport
 - [ ] WIRE-003: Wire ClusterManager в app-container
 - [ ] WIRE-004: Wire multimodal ingestion MCP tool
 - [ ] WIRE-005: Wire graph visualization MCP tool
@@ -763,7 +763,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-01
+**Последнее обновление:** 2026-09-03
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -792,4 +792,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | OpenCode Integration (F) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 6 | 0 | 16 | 0 | 0 |
-| **Итого** | **203** | **11** | **0** | **191** | **0** | **1** |
+| Wire-in (I) | 10 | 8 | 0 | 2 | 0 | 0 |
+| NEXT2 (J) | 8 | 8 | 0 | 0 | 0 | 0 |
+| **Итого** | **221** | **22** | **0** | **193** | **0** | **1** |
+
+> Примечание (2026-09-03): тотал 221 = 203 (на 09-01) + 9 WIRE + 8 NEXT2 + 1 SEC-003.
+> Остаток 5 (221 − 22 − 193 − 1) — строки в нестандартных форматах (архив/исследования),
+> не попадающие в колонки статусов. Полная нормализация форматов — отдельная задача.

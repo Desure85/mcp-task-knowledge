@@ -324,7 +324,7 @@ PR description: что сделано, почему, что не сделано 
 
 > **Полная документация:** `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md), [Configuration](docs/getting-started/configuration.md), [Docker](docs/deployment/docker.md), [API Reference](docs/api/reference.md)
 
-Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 109+ MCP-инструментов, 2000+ тестов, 92.7% coverage.
+Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 76 MCP-инструментов, 2300+ тестов, 92.7% coverage.
 
 ### Ключевые модули
 
@@ -500,7 +500,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 | ID | Описание | Приоритет | Статус |
 |----|----------|-----------|--------|
-| TD-001 | `src/index.ts` — монолитный файл (~4010 строк), вся регистрация инструментов и ресурсов в одном месте | high | done | F-001 |
+| TD-001 | `src/index.ts` — был монолит (~4010 строк до F-001/PR #31), сейчас 22 строки-делегата в app-container + register/setup | high | done | F-001 |
 | TD-002 | Тип `any` в нескольких местах (vectorAdapter, toolRegistry) | medium | done | F-006 |
 | TD-003 | Legacy-поддержка путей знаний (`DATA_DIR/knowledge/<id>.md`) | low | deferred | — |
 | TD-004 | Отсутствие rate-limit на уровне инструментов | medium | done | S-003 (#53) |

@@ -1,4 +1,4 @@
-# MCP Tools (101+)
+# MCP Tools (76)
 
 All tools registered in the MCP server, grouped by category.
 

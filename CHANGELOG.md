@@ -40,3 +40,26 @@
 ### Added (tests)
 
 - Core MCP E2E (Q-004), BM25 load (Q-006), schema validation (Q-007), JSON-RPC fuzzing (Q-008), chaos/shutdown (Q-009), property-based core (Q-010), wire snapshots (Q-011), ENOSPC integrity (Q-013)
+
+## [2026-09-03] — PROD hardening (аудит prod-ready)
+
+### Fixed
+
+- Deploy-доки: `PORT` → `MCP_PORT` (docker.md), сборка через `--target` (PROD-001)
+- Dev compose volume: `/data:/data` → `./data:/data` (PROD-001, файл gitignored)
+- RCE в workflow-условиях: `new Function` → безопасный эвалуатор грамматики (PROD-002)
+
+### Added
+
+- `HEALTHCHECK /healthz` + `EXPOSE 3001` в runtime-стейджах Dockerfile (PROD-001)
+- `.env.example` для продакшн-деплоя (PROD-001)
+- 6 коннекторов завайрены в registry: GDrive, Gmail, Notion, OneDrive, Linear, Web Crawler (WIRE-001)
+- RealtimeServer `/ws` в HTTP transport (WIRE-002)
+- Fail-closed дефолт `AuthManager`: requireAuth=true для http/tcp (PROD-002)
+- BACKLOG-задача SEC-003: завайрить AuthManager в HTTP/TCP transport
+
+### Changed
+
+- `.gitignore`: `secrets.enc.json`, `*.db`, `*.sqlite*`, `*.pem`, `*.key` (PROD-002)
+- BACKLOG-статистика: 221 всего / 22 pending / 193 done (WIRE-001/002 закрыты) (PROD-003)
+- README/AGENTS: 76 tools (было 109+), 9 коннекторов, 7 плагинов; починена ссылка API Reference (PROD-003)
