@@ -17,7 +17,7 @@
 
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
+import { DEFAULT_PROJECT, DATA_DIR, resolveProject } from '../config.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
@@ -33,6 +33,8 @@ import { DreamingAgent } from '../memory/dreaming.js';
 import { ObservationEngine } from '../memory/observations.js';
 import { ok, err } from '../utils/respond.js';
 import { join } from 'node:path';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import { homedir } from 'node:os';
 
 /** Singleton extractor instance. */
@@ -791,6 +793,53 @@ export function registerMemoryTools(ctx: ServerContext): void {
       const engine = getObservationEngine();
       const observations = engine.detect();
       return ok({ count: observations.length, observations });
+    }
+  );
+
+  // ─── knowledge_import_multimodal (WIRE-004) ──────────────────────
+  ctx.server.registerTool(
+    "knowledge_import_multimodal",
+    {
+      title: "Import Multimodal File",
+      description:
+        "Extract text chunks from a file (pdf/text/code/image/video/audio) via the " +
+        "multimodal ingestion pipeline. Extract-only: returns chunks, the calling " +
+        "agent decides what to persist. File must live inside DATA_DIR.",
+      inputSchema: {
+        filePath: z.string().min(1).describe("Path to the file, absolute or relative to DATA_DIR"),
+        type: z.enum(["pdf", "image", "video", "code", "text", "audio"]).describe("Modality extractor to use"),
+        language: z.string().optional().describe("Content language hint (e.g. en, ru)"),
+        maxChunks: z.number().int().min(1).max(500).default(100).optional().describe("Maximum chunks to return"),
+      },
+    },
+    async (args) => {
+      const resolved = path.resolve(DATA_DIR, args.filePath);
+      if (!resolved.startsWith(path.resolve(DATA_DIR) + path.sep)) {
+        return err(`filePath must be inside DATA_DIR (${DATA_DIR})`);
+      }
+      let content: Buffer;
+      try {
+        content = await fs.readFile(resolved);
+      } catch {
+        return err(`cannot read file: ${args.filePath}`);
+      }
+      const { extract } = await import('../memory/multimodal.js');
+      const result = await extract({
+        type: args.type,
+        filename: path.basename(resolved),
+        content,
+        language: args.language,
+      });
+      const chunks = result.chunks.slice(0, args.maxChunks ?? 100);
+      return ok({
+        filename: result.filename,
+        modality: result.modality,
+        totalChunks: result.totalChunks,
+        returnedChunks: chunks.length,
+        truncated: result.totalChunks > chunks.length,
+        durationMs: result.durationMs,
+        chunks,
+      });
     }
   );
 }
