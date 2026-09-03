@@ -56,7 +56,7 @@ describe('FrameworkAdapter', () => {
     it('getCheckpoint retrieves state via MCP', async () => {
       client.setResponse('search_knowledge', {
         ok: true,
-        data: [{ id: '1', title: 'checkpoint:thread-1', content: '{"step":5}', score: 1.0 }],
+        data: [{ id: '1', score: 1.0, item: { id: '1', title: 'checkpoint:thread-1', content: '{"step":5}' } }],
       });
       const adapter = new LangGraphMemoryAdapter(client, 'test');
       const state = await adapter.getCheckpoint('thread-1');
@@ -73,7 +73,7 @@ describe('FrameworkAdapter', () => {
     it('search delegates to MCP search_knowledge', async () => {
       client.setResponse('search_knowledge', {
         ok: true,
-        data: [{ id: '1', title: 'fact', content: 'test content', score: 0.9, tags: ['test'] }],
+        data: [{ id: '1', score: 0.9, item: { id: '1', title: 'fact', content: 'test content', tags: ['test'] } }],
       });
       const adapter = new LangGraphMemoryAdapter(client, 'test');
       const results = await adapter.search('query', 5);
@@ -105,7 +105,7 @@ describe('FrameworkAdapter', () => {
     it('retrieveContext returns searched + buffered items', async () => {
       client.setResponse('search_knowledge', {
         ok: true,
-        data: [{ id: '1', title: 'found', content: 'found content', score: 0.9 }],
+        data: [{ id: '1', score: 0.9, item: { id: '1', title: 'found', content: 'found content' } }],
       });
       client.setResponse('knowledge_bulk_create', {
         ok: true,
@@ -151,7 +151,7 @@ describe('FrameworkAdapter', () => {
     it('addMemory returns null when dedup match found', async () => {
       client.setResponse('search_knowledge', {
         ok: true,
-        data: [{ id: '1', title: 'existing', content: 'new unique content here with more words', score: 0.9 }],
+        data: [{ id: '1', score: 0.9, item: { id: '1', title: 'existing', content: 'new unique content here with more words' } }],
       });
       const adapter = new CrewAIMemoryAdapter(client, 'test');
       const id = await adapter.addMemory('new unique content here with more words');
@@ -161,7 +161,7 @@ describe('FrameworkAdapter', () => {
     it('searchEntity delegates to MCP search', async () => {
       client.setResponse('search_knowledge', {
         ok: true,
-        data: [{ id: '1', title: 'entity', content: 'Alice works at TechCorp', score: 0.9 }],
+        data: [{ id: '1', score: 0.9, item: { id: '1', title: 'entity', content: 'Alice works at TechCorp' } }],
       });
       const adapter = new CrewAIMemoryAdapter(client, 'test');
       const results = await adapter.searchEntity('Alice', 5);
@@ -171,11 +171,12 @@ describe('FrameworkAdapter', () => {
     it('getRecent calls knowledge_list', async () => {
       client.setResponse('knowledge_list', {
         ok: true,
-        data: [{ id: '1', title: 'recent', content: 'recent fact', tags: ['crewai'] }],
+        data: [{ id: '1', title: 'recent', tags: ['crewai'] }],
       });
       const adapter = new CrewAIMemoryAdapter(client, 'test');
       const results = await adapter.getRecent(10);
       expect(results).toHaveLength(1);
+      expect(results[0].content).toBe('');
       const listCall = client.calls.find((c) => c.tool === 'knowledge_list');
       expect(listCall).toBeDefined();
     });
@@ -205,8 +206,8 @@ describe('FrameworkAdapter', () => {
       client.setResponse('search_knowledge', {
         ok: true,
         data: [
-          { id: '1', title: 'ctx', content: 'Previous fact A', score: 0.9 },
-          { id: '2', title: 'ctx', content: 'Previous fact B', score: 0.8 },
+          { id: '1', score: 0.9, item: { id: '1', title: 'ctx', content: 'Previous fact A' } },
+          { id: '2', score: 0.8, item: { id: '2', title: 'ctx', content: 'Previous fact B' } },
         ],
       });
       const adapter = new LangChainMemoryAdapter(client, 'test');
@@ -219,6 +220,41 @@ describe('FrameworkAdapter', () => {
       const adapter = new LangChainMemoryAdapter(client, 'test');
       adapter.clear();
       expect(adapter).toBeDefined();
+    });
+  });
+
+  describe('real MCP wire shapes (regression: NEXT-015 :92)', () => {
+    it('mcpSearch maps nested {id,score,item} rows to content', async () => {
+      client.setResponse('search_knowledge', {
+        ok: true,
+        data: [{ id: 'doc-1', score: 0.95, item: { id: 'doc-1', title: 'Fact', content: 'nested content', tags: ['t'] } }],
+      });
+      const adapter = new LangGraphMemoryAdapter(client, 'test');
+      const results = await adapter.search('query', 5);
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({ id: 'doc-1', content: 'nested content', title: 'Fact', score: 0.95 });
+    });
+
+    it('mcpSearch still tolerates legacy flat rows', async () => {
+      client.setResponse('search_knowledge', {
+        ok: true,
+        data: [{ id: 'doc-2', title: 'Flat', content: 'flat content', score: 0.7 }],
+      });
+      const adapter = new LangGraphMemoryAdapter(client, 'test');
+      const results = await adapter.search('query', 5);
+      expect(results).toHaveLength(1);
+      expect(results[0].content).toBe('flat content');
+    });
+
+    it('CrewAI dedup does not crash on nested rows (content always string)', async () => {
+      client.setResponse('search_knowledge', {
+        ok: true,
+        data: [{ id: 'doc-3', score: 0.5, item: { id: 'doc-3', title: 'Other', content: 'totally unrelated words here' } }],
+      });
+      client.setResponse('knowledge_bulk_create', { ok: true, data: { created: [{ id: 'mem-9' }] } });
+      const adapter = new CrewAIMemoryAdapter(client, 'test');
+      const id = await adapter.addMemory('brand new memory entry');
+      expect(id).toBe('mem-9');
     });
   });
 

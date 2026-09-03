@@ -76,6 +76,28 @@ export class HttpMCPClient implements MCPClient {
   }
 }
 
+// ─── Wire Shapes ─────────────────────────────────────────────────────────────
+// Real MCP wire shapes (must match src/register/search.ts + knowledge.ts):
+//   search_knowledge → ok: Array<{ id, score, item: KnowledgeDoc }>
+//   knowledge_list   → ok: Array<KnowledgeDocMeta> (metadata only, NO content)
+// Legacy flat rows { id, title, content, score } are still tolerated.
+
+interface SearchHitWire {
+  id: string;
+  score?: number;
+  item?: { id?: string; title?: string; content?: string; tags?: string[] };
+  title?: string;
+  content?: string;
+  tags?: string[];
+}
+
+interface DocMetaWire {
+  id: string;
+  title?: string;
+  content?: string;
+  tags?: string[];
+}
+
 // ─── Base Adapter ────────────────────────────────────────────────────────────
 
 export abstract class FrameworkAdapter {
@@ -90,9 +112,18 @@ export abstract class FrameworkAdapter {
 
   protected async mcpSearch(query: string, limit: number): Promise<MemoryItem[]> {
     const result = await this.client.call('search_knowledge', { project: this.project, query, limit });
-    const r = result as { ok?: boolean; data?: Array<{ id: string; title: string; content: string; score: number; tags?: string[] }> };
+    const r = result as { ok?: boolean; data?: unknown };
     if (!r?.ok || !Array.isArray(r.data)) return [];
-    return r.data.map((d) => ({ id: d.id, content: d.content, title: d.title, tags: d.tags, score: d.score }));
+    return (r.data as SearchHitWire[]).map((d) => {
+      const doc = d.item ?? {};
+      return {
+        id: d.id ?? doc.id ?? '',
+        content: doc.content ?? d.content ?? '',
+        title: doc.title ?? d.title,
+        tags: doc.tags ?? d.tags,
+        score: d.score,
+      };
+    });
   }
 
   protected async mcpAdd(content: string, title: string, tags: string[]): Promise<string> {
@@ -198,9 +229,9 @@ export class CrewAIMemoryAdapter extends FrameworkAdapter {
    */
   async getRecent(limit = 10): Promise<MemoryItem[]> {
     const result = await this.client.call('knowledge_list', { project: this.project, limit });
-    const r = result as { ok?: boolean; data?: Array<{ id: string; title: string; content: string; tags?: string[] }> };
+    const r = result as { ok?: boolean; data?: unknown };
     if (!r?.ok || !Array.isArray(r.data)) return [];
-    return r.data.map((d) => ({ id: d.id, content: d.content, title: d.title, tags: d.tags }));
+    return (r.data as DocMetaWire[]).map((d) => ({ id: d.id, content: d.content ?? '', title: d.title, tags: d.tags }));
   }
 }
 
