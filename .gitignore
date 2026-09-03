@@ -131,3 +131,6 @@ __pycache__/
 .tmp-emb-cache-*/
 .omo/
 .opencode
+
+# Benchmark reports (NEXT2-007, local runs)
+benchmarks/

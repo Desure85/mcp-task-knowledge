@@ -3,3 +3,4 @@ dist/
 service-catalog/
 exports/
 **/*.mdx
+benchmarks/

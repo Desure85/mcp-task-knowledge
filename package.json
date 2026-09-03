@@ -53,6 +53,7 @@
     "backlog:check": "node scripts/check-backlog.mjs",
     "agent:stats": "node scripts/agent-stats.mjs --days 1",
     "dev:cli": "node scripts/dev-cli.mjs",
+    "benchmark": "node scripts/dev-cli.mjs benchmark",
     "lint": "eslint src tests scripts --max-warnings=980",
     "lint:fix": "eslint src tests scripts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\""
