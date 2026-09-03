@@ -245,6 +245,63 @@ describe('WF-002: WorkflowExecutor', () => {
     });
   });
 
+  describe('execute() — safe conditions (PROD-002)', () => {
+    const runCondition = async (condition: string, setvarValue: unknown) => {
+      const invoker = vi.fn(async (name: string) => {
+        if (name === 'setvar') return setvarValue;
+        return 'ok';
+      });
+      const exec = new WorkflowExecutor({ toolInvoker: invoker });
+      const wf = makeWorkflow(
+        [
+          { id: 'start', type: 'action', label: 'Start' },
+          { id: 'setvar', type: 'tool', label: 'Set', ref: 'setvar' },
+          { id: 'check', type: 'condition', label: 'Check', condition, ref: 'check-tool' },
+          { id: 'after', type: 'tool', label: 'After', ref: 'after' },
+        ],
+        [
+          { from: 'start', to: 'setvar' },
+          { from: 'setvar', to: 'check' },
+          { from: 'check', to: 'after' },
+        ],
+      );
+      const result = await exec.execute(wf);
+      return { result, invoker };
+    };
+
+    it('evaluates comparisons over variables', async () => {
+      const { result, invoker } = await runCondition('setvar == "yes"', 'yes');
+      expect(result.success).toBe(true);
+      expect(invoker).toHaveBeenCalledWith('check-tool', expect.anything());
+    });
+
+    it('treats false comparisons as skip', async () => {
+      const { result, invoker } = await runCondition('setvar == "no"', 'yes');
+      expect(result.success).toBe(true);
+      expect(invoker).not.toHaveBeenCalledWith('check-tool', expect.anything());
+    });
+
+    it('supports boolean logic and negation', async () => {
+      const { invoker } = await runCondition('setvar == "yes" && !missing', 'yes');
+      expect(invoker).toHaveBeenCalledWith('check-tool', expect.anything());
+    });
+
+    it('rejects code injection without executing', async () => {
+      for (const evil of [
+        'process.exit(1)',
+        'constructor',
+        '__proto__',
+        'a; b',
+        '(() => 1)()',
+        'setvar.constructor',
+      ]) {
+        const { result, invoker } = await runCondition(evil, 'yes');
+        expect(result.success).toBe(true);
+        expect(invoker).not.toHaveBeenCalledWith('check-tool', expect.anything());
+      }
+    });
+  });
+
   describe('execute() — parallel', () => {
     it('executes parallel branches', async () => {
       const invoker: ToolInvoker = vi.fn(async (name) => `result-${name}`);
