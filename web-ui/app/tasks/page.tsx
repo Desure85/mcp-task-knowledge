@@ -13,6 +13,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, type Task } from '@/lib/api-client';
+import {
+  useRealtime,
+  applyTaskEvent,
+  connectionBadgeClass,
+  connectionBadgeLabel,
+} from '@/lib/realtime';
 
 type Status = 'pending' | 'in_progress' | 'completed' | 'closed';
 type Priority = 'low' | 'medium' | 'high';
@@ -46,6 +52,15 @@ export default function TasksPage() {
   const [dragOverCol, setDragOverCol] = useState<Status | null>(null);
   const dragCounter = useRef(0);
 
+  // NEXT2-005: live-updates — merge task.* events from other clients;
+  // publish our own mutations so other tabs update instantly.
+  const { status: liveStatus, presence, publish } = useRealtime({
+    eventTypes: ['task.created', 'task.updated', 'task.closed', 'task.deleted'],
+    onEvent: (event) => {
+      setTasks((prev) => applyTaskEvent(prev, event));
+    },
+  });
+
   const loadTasks = useCallback(async () => {
     try {
       setLoading(true);
@@ -66,7 +81,8 @@ export default function TasksPage() {
     if (!newTitle.trim()) return;
     try {
       const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
-      await api.tasks.create({ title: newTitle, priority: newPriority, tags });
+      const created = await api.tasks.create({ title: newTitle, priority: newPriority, tags });
+      publish('task.created', created as unknown as Record<string, unknown>);
       setNewTitle('');
       setNewTags('');
       setNewPriority('medium');
@@ -79,7 +95,8 @@ export default function TasksPage() {
 
   async function closeTask(id: string) {
     try {
-      await api.tasks.close('mcp', id);
+      const closed = await api.tasks.close('mcp', id);
+      publish('task.closed', closed as unknown as Record<string, unknown>);
       await loadTasks();
     } catch (e) {
       setError((e as Error).message);
@@ -88,7 +105,8 @@ export default function TasksPage() {
 
   async function updateTaskStatus(id: string, status: Status) {
     try {
-      await api.tasks.update('mcp', id, { status });
+      const updated = await api.tasks.update('mcp', id, { status });
+      publish('task.updated', updated as unknown as Record<string, unknown>);
       await loadTasks();
     } catch (e) {
       setError((e as Error).message);
@@ -98,11 +116,12 @@ export default function TasksPage() {
   async function saveEdit() {
     if (!editingTask) return;
     try {
-      await api.tasks.update('mcp', editingTask.id, {
+      const updated = await api.tasks.update('mcp', editingTask.id, {
         title: editingTask.title,
         priority: editingTask.priority,
         tags: editingTask.tags,
       });
+      publish('task.updated', updated as unknown as Record<string, unknown>);
       setEditingTask(null);
       await loadTasks();
     } catch (e) {
@@ -153,12 +172,20 @@ export default function TasksPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Tasks</h1>
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          + New Task
-        </button>
+        <div className="flex items-center gap-3">
+          <span
+            title={liveStatus === 'unavailable' ? 'Realtime server unreachable — polling fallback' : 'Realtime connection'}
+            className={`text-xs px-2 py-1 rounded border ${connectionBadgeClass(liveStatus)}`}
+          >
+            {connectionBadgeLabel(liveStatus, presence.length)}
+          </span>
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            + New Task
+          </button>
+        </div>
       </div>
 
       {error && (
