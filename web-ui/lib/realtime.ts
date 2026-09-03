@@ -422,25 +422,24 @@ export function useRealtime(opts: UseRealtimeOpts = {}): UseRealtimeResult {
 
 // ─── List-merge helpers (pure — unit-testable) ──────────────────────
 
-interface WithId {
+interface EntityShape {
   id: string;
-  [key: string]: unknown;
 }
 
-function eventPayload(event: RealtimeEvent): WithId | null {
+function eventPayload(event: RealtimeEvent): (EntityShape & Record<string, unknown>) | null {
   const d = event.data ?? {};
   // Our own `publish()` sends the full entity as `data`; a future
   // server bridge may nest it under `data.task` / `data.document`.
   const nested = (d.task ?? d.document ?? d.item) as unknown;
   const candidate = (nested && typeof nested === 'object' ? nested : d) as Record<string, unknown>;
   if (typeof candidate.id === 'string' && candidate.id.length > 0) {
-    return candidate as WithId;
+    return candidate as EntityShape & Record<string, unknown>;
   }
   return null;
 }
 
 /** Merge a task.* event into a task list. Returns the original array when no-op. */
-export function applyTaskEvent<T extends WithId>(tasks: T[], event: RealtimeEvent): T[] {
+export function applyTaskEvent<T extends EntityShape>(tasks: T[], event: RealtimeEvent): T[] {
   switch (event.type) {
     case 'task.deleted': {
       const id = String(event.data?.id ?? '');
@@ -450,7 +449,7 @@ export function applyTaskEvent<T extends WithId>(tasks: T[], event: RealtimeEven
     case 'task.created':
     case 'task.updated':
     case 'task.closed': {
-      const payload = eventPayload(event);
+      const payload = eventPayload(event) as (Partial<T> & EntityShape) | null;
       if (!payload) return tasks;
       const idx = tasks.findIndex((t) => t.id === payload.id);
       if (idx === -1) return [...tasks, payload as T];
@@ -465,7 +464,7 @@ export function applyTaskEvent<T extends WithId>(tasks: T[], event: RealtimeEven
 }
 
 /** Merge a knowledge.* event into a document list. Returns the original array when no-op. */
-export function applyKnowledgeEvent<T extends WithId>(docs: T[], event: RealtimeEvent): T[] {
+export function applyKnowledgeEvent<T extends EntityShape>(docs: T[], event: RealtimeEvent): T[] {
   switch (event.type) {
     case 'knowledge.deleted': {
       const id = String(event.data?.id ?? '');
@@ -474,7 +473,7 @@ export function applyKnowledgeEvent<T extends WithId>(docs: T[], event: Realtime
     }
     case 'knowledge.created':
     case 'knowledge.updated': {
-      const payload = eventPayload(event);
+      const payload = eventPayload(event) as (Partial<T> & EntityShape) | null;
       if (!payload) return docs;
       const idx = docs.findIndex((d) => d.id === payload.id);
       if (idx === -1) return [...docs, payload as T];
