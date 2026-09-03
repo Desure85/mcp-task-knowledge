@@ -59,14 +59,14 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 |---------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, configuration, first steps |
 | [Configuration](docs/getting-started/configuration.md) | Environment variables, JSON config, embeddings |
-| [MCP Tools](docs/features/tools.md) | 76 tools: tasks, knowledge, search, memory, prompts |
+| [MCP Tools](docs/features/tools.md) | 100 tools: tasks, knowledge, search, memory, prompts |
 | [Agent Memory](docs/features/agent-memory.md) | Extraction, temporal graph, profiles, context assembly |
 | [Skills & Rules](docs/features/skills-rules.md) | Skills CRUD, rules engine, workflows |
 | [Connectors](docs/features/connectors.md) | GitHub, Jira, Slack, Google Drive, Notion, Linear |
 | [OpenCode Plugins](docs/plugins/opencode.md) | memory-recall, memory-sync, memory-extract, memory-dream |
 | [Web UI](docs/features/web-ui.md) | Kanban, knowledge editor, prompts, analytics, realtime |
 | [Docker & Deployment](docs/deployment/docker.md) | Docker images, compose, GHCR, Kubernetes |
-| [API Reference](docs/api-reference.md) | All 76 MCP tools with schemas |
+| [API Reference](docs/api-reference.md) | All 100 MCP tools with schemas |
 | [Architecture](docs/architecture.md) | System design, ADRs, data flow |
 | [Integration Guides](docs/getting-started/integrations.md) | Claude, Cursor, Windsurf, VS Code, OpenCode |
 
@@ -74,7 +74,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 
 ### Core
 
-- 76 MCP tools across 12 categories
+- 100 MCP tools across 12 categories
 - BM25 + ONNX vector search + hybrid + two-stage rerank
 - FTS5 full-text search (SQLite built-in)
 - File-based storage (Markdown/JSON, no external DB)
@@ -107,7 +107,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 
 | Metric | Value |
 |--------|-------|
-| MCP tools | 76 |
+| MCP tools | 100 |
 | Tests | 2000+ |
 | Coverage | 92.7% |
 | Tasks done (BACKLOG) | 181/182 |

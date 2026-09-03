@@ -10,6 +10,7 @@ import type { ServiceCatalogProvider } from '../catalog/provider.js';
 import type { VectorSearchAdapter } from '../search/index.js';
 import type { ACLEngine } from '../core/acl.js';
 import type { SessionManager } from '../core/session-manager.js';
+import type { ClusterManager } from '../core/cluster.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
 import type { RelayManager } from '../relay/relay-manager.js';
 import type { RuleManager } from '../rules/rule-manager.js';
@@ -61,6 +62,9 @@ export interface ServerContext {
 
   /** Optional SessionManager for multi-client transports (S-001, S-004). Set by AppContainer after init. */
   sessionManager?: SessionManager;
+
+  /** Optional ClusterManager for multi-node deployments (SCALE-002..005, WIRE-003). Set by AppContainer after init. */
+  clusterManager?: ClusterManager;
 
   /** Optional RateLimiter for per-session rate limiting (S-003, S-004). Set by AppContainer after init. */
   rateLimiter?: RateLimiter;

@@ -324,7 +324,7 @@ PR description: что сделано, почему, что не сделано 
 
 > **Полная документация:** `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md), [Configuration](docs/getting-started/configuration.md), [Docker](docs/deployment/docker.md), [API Reference](docs/api/reference.md)
 
-Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 76 MCP-инструментов, 2300+ тестов, 92.7% coverage.
+Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 100 MCP-инструментов, 2300+ тестов, 92.7% coverage.
 
 ### Ключевые модули
 

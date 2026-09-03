@@ -56,10 +56,12 @@ import { registerDependencyTools } from '../register/dependencies.js';
 import { registerDashboardTools } from '../register/dashboard.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
+import { registerClusterTools } from '../register/cluster.js';
 import { registerRelayTools } from '../register/relay.js';
 import { registerConfigTools } from '../register/config-tools.js';
 import { registerMemoryTools } from '../register/memory.js';
 import { RateLimiter } from './rate-limiter.js';
+import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
 import { ConnectorRegistry, defaultConnectorRegistrations } from '../connectors/index.js';
@@ -100,6 +102,13 @@ export interface AppContainerOptions {
    * Ignored for stdio transport (single client).
    */
   sessionManager?: SessionManagerOptions | false;
+  /**
+   * ClusterManager options for multi-node deployments (WIRE-003).
+   * Auto-enabled for non-stdio transports unless false. The shared ClusterManager
+   * registers the self node, starts heartbeat, and is exposed via getClusterManager().
+   * Ignored for stdio transport (single node).
+   */
+  cluster?: { selfId?: string; host?: string; port?: number; heartbeatMs?: number } | false;
 }
 
 // ─── Default registration ─────────────────────────────────────────────
@@ -126,6 +135,7 @@ export function defaultRegistration(ctx: ServerContext): void {
   registerDashboardTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);
+  registerClusterTools(ctx);
   registerRelayTools(ctx);
   registerConfigTools(ctx);
   registerMemoryTools(ctx);
@@ -159,6 +169,7 @@ export class AppContainer {
   private ctx?: ServerContext;
   private adapter?: TransportAdapter;
   private sessionMgr?: SessionManager;
+  private clusterMgr?: ClusterManager;
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
   private readonly services = getServiceAvailabilityRegistry();
@@ -174,6 +185,7 @@ export class AppContainer {
     handleSignals: boolean;
     registerTools: RegisterCallback | undefined;
     sessionManager: SessionManagerOptions | false | undefined;
+    cluster: { selfId?: string; host?: string; port?: number; heartbeatMs?: number } | false | undefined;
   };
 
   constructor(options?: AppContainerOptions) {
@@ -198,6 +210,7 @@ export class AppContainer {
       handleSignals,
       registerTools: options?.registerTools,
       sessionManager: options?.sessionManager,
+      cluster: options?.cluster,
     };
   }
 
@@ -230,6 +243,14 @@ export class AppContainer {
       throw new Error('[app-container] session manager not available — call init() first or check sessionManager option');
     }
     return this.sessionMgr;
+  }
+
+  /** ClusterManager (available after init() for non-stdio transports). Throws if not initialized or disabled. */
+  getClusterManager(): ClusterManager {
+    if (!this.clusterMgr) {
+      throw new Error('[app-container] cluster manager not available — call init() first or check cluster option');
+    }
+    return this.clusterMgr;
   }
 
   /** EventBus for pub/sub event dispatch (MW-002). Available immediately after construction. */
@@ -330,6 +351,27 @@ export class AppContainer {
         const rateLimiter = new RateLimiter();
         this.ctx.rateLimiter = rateLimiter;
         this.log.info('rate limiter initialized');
+      }
+
+      // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)
+      if (this.opts.cluster !== false && this.opts.transportType !== 'stdio') {
+        const clusterOpts = this.opts.cluster === undefined ? {} : this.opts.cluster;
+        const cm: ClusterManager = getClusterManager();
+        const selfId = clusterOpts.selfId ?? cm.getSelfId();
+        cm.registerNode({
+          id: selfId,
+          host: clusterOpts.host ?? this.opts.host,
+          port: clusterOpts.port ?? this.opts.port,
+          status: 'active',
+        });
+        cm.startHeartbeat(() => {});
+        this.clusterMgr = cm;
+        this.ctx.clusterManager = cm;
+        this.addCleanup(() => {
+          cm.stopHeartbeat();
+          cm.unregisterNode(selfId);
+        });
+        this.log.info({ selfId }, 'cluster manager initialized');
       }
 
       this._state = 'ready';

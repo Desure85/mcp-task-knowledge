@@ -2,12 +2,16 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **76**
+Всего инструментов: **100**
 
 ## Инструменты
 
 | Инструмент | Описание |
 |------------|-----------|
+| `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
+| `cluster_nodes` | List all known cluster nodes with status and heartbeat info. |
+| `cluster_status` | Cluster membership overview: self node ID, total/active node counts, session affinity and shard coun |
+| `config_reload` | Hot-reload the file config (--config or MCP_CONFIG_JSON) without restarting. Runtime-read settings ( |
 | `dashboard_activity` | Get a chronological activity feed of recent task and knowledge changes. Useful for dashboards and st |
 | `dashboard_project_summary` | Get a summary across all projects: task counts, knowledge counts, and top metrics per project. |
 | `dashboard_stats` | Get project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
@@ -30,6 +34,30 @@
 | `knowledge_list` | List knowledge documents metadata |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
+| `memory_check_conflicts` | Detect contradictions between a new fact and existing facts. Uses negation patterns, entity overlap, |
+| `memory_context_assemble` | Smart context assembly with RRF fusion. Combines knowledge base (BM25+vector), temporal graph facts, |
+| `memory_dream` | Run sleep-time memory refinement: dedup similar facts, merge related ones, promote conversation→sess |
+| `memory_entity_search` | Search memory facts by entity matching. Extracts entities from query (capitalized words, CamelCase,  |
+| `memory_evolve` | Check a newly added fact against existing memories for semantic overlap. Links related facts, merges |
+| `memory_extract` | Extract structured facts from a conversation/session transcript. Facts are categorized (preference,  |
+| `memory_facts_list` | List extracted memory facts from the knowledge base. Filters by type=memory_fact. Supports tag filte |
+| `memory_facts_search` | Full-text search across extracted memory facts. Uses existing search_knowledge under the hood, filte |
+| `memory_gc` | Run forgetting GC on the temporal knowledge graph. Expires facts past their TTL (per category), prun |
+| `memory_layer_add` | Add a fact to a specific memory layer. conversation=volatile (in-flight), session=run-scoped, user=p |
+| `memory_layer_list` | List valid facts in a specific memory layer. |
+| `memory_layer_promote` | Promote facts from one layer to another (e.g. conversation→session at end of turn, session→user at e |
+| `memory_layer_stats` | Get statistics for all memory layers — total/valid counts per layer. |
+| `memory_observations` | Detect patterns from the temporal knowledge graph: recurrences (entities appearing repeatedly), co-o |
+| `memory_profile_context` | Build a compact context block from a user's profile for system prompt injection. Token-budget-aware: |
+| `memory_profile_get` | Get a user's profile — static facts (role, name, preferences) + dynamic facts (current task, recent  |
+| `memory_profile_update` | Create or update a user profile. Set static facts (role, name, timezone) and/or add dynamic facts (c |
+| `memory_scope_filter` | Filter temporal graph facts by multi-tenancy scope dimensions (userId, agentId, appId, runId). Retur |
+| `memory_scope_tags` | Generate scope tags for a given memory scope. Tags can be attached to knowledge base documents for s |
+| `memory_temporal_add` | Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally supersedes an exist |
+| `memory_temporal_history` | Get the full history chain of a fact — all facts that superseded it and all facts it superseded. Use |
+| `memory_temporal_invalidate` | Mark a fact as no longer valid (without deleting it). Sets validTo to now and records the invalidati |
+| `memory_temporal_query` | Query the temporal knowledge graph. Supports point-in-time queries ('what was true on 2026-06-01?'), |
+| `memory_temporal_stats` | Get statistics about the temporal knowledge graph — total facts, valid/invalidated counts, categorie |
 | `obsidian_export_project` | Export knowledge, tasks, and prompts to Obsidian vault (merge or replace). Use with caution in repla |
 | `obsidian_import_project` | Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy deletes existing content  |
 | `project_create` | Create a new project with optional description. Creates task and knowledge directories automatically |
@@ -80,10 +108,72 @@
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId) |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
-| `tool_help` | Short help for a tool with an example call |
-| `tool_schema` | Return metadata and example payload for a tool name |
-| `tools_list` | Return list of canonical tool names with metadata. Supports pagination, search filtering, ETag-based |
-| `tools_run` | Execute one or many tools by name with params via RPC. |
+
+## cluster_assign
+
+**Cluster Assign Session**
+
+Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing headers.
+
+**Параметры:**
+
+- `sessionId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "cluster_assign",
+  "arguments": {
+    "sessionId": "example"
+  }
+}
+```
+
+## cluster_nodes
+
+**Cluster Nodes**
+
+List all known cluster nodes with status and heartbeat info.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "cluster_nodes",
+  "arguments": {}
+}
+```
+
+## cluster_status
+
+**Cluster Status**
+
+Cluster membership overview: self node ID, total/active node counts, session affinity and shard counts. If ClusterManager is not available (e.g. stdio single-node mode), returns availability status only.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "cluster_status",
+  "arguments": {}
+}
+```
+
+## config_reload
+
+**Reload Config**
+
+Hot-reload the file config (--config or MCP_CONFIG_JSON) without restarting. Runtime-read settings (embeddings, catalog, prompts, currentProject) pick up new values; DATA_DIR-resolved paths require a restart.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "config_reload",
+  "arguments": {}
+}
+```
 
 ## dashboard_activity
 
@@ -638,6 +728,594 @@ Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid withi
     "chunkOverlap": 200,
     "limit": 10
   }
+}
+```
+
+## memory_check_conflicts
+
+**Check Memory Conflicts**
+
+Detect contradictions between a new fact and existing facts. Uses negation patterns, entity overlap, and semantic similarity. High-confidence conflicts auto-supersede old facts; low-confidence flagged for review.
+
+**Параметры:**
+
+- `factId`
+- `checkAll`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_check_conflicts",
+  "arguments": {
+    "factId": "example",
+    "checkAll": "example"
+  }
+}
+```
+
+## memory_context_assemble
+
+**Assemble Context**
+
+Smart context assembly with RRF fusion. Combines knowledge base (BM25+vector), temporal graph facts, and user profile into a single token-budget-aware context block. Returns <context> XML block optimized for system prompt injection.
+
+**Параметры:**
+
+- `query`
+- `project`
+- `userId`
+- `tokenBudget`
+- `maxItems`
+- `includeTemporal`
+- `includeProfile`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_context_assemble",
+  "arguments": {
+    "query": "example",
+    "project": "mcp",
+    "userId": "example",
+    "tokenBudget": "example",
+    "maxItems": "example",
+    "includeTemporal": "example",
+    "includeProfile": "example"
+  }
+}
+```
+
+## memory_dream
+
+**Run Dreaming Agent**
+
+Run sleep-time memory refinement: dedup similar facts, merge related ones, promote conversation→session. Non-blocking background operation. Inspired by Letta sleep-time compute.
+
+**Параметры:**
+
+- `action`
+- `intervalMs`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_dream",
+  "arguments": {
+    "action": "example",
+    "intervalMs": "example"
+  }
+}
+```
+
+## memory_entity_search
+
+**Entity-linking Search**
+
+Search memory facts by entity matching. Extracts entities from query (capitalized words, CamelCase, snake_case, kebab-case, quoted strings) and matches against entities in temporal graph facts. Third retrieval signal alongside BM25 and vector search.
+
+**Параметры:**
+
+- `query`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_entity_search",
+  "arguments": {
+    "query": "example",
+    "limit": 10
+  }
+}
+```
+
+## memory_evolve
+
+**Evolve Memory**
+
+Check a newly added fact against existing memories for semantic overlap. Links related facts, merges similar ones, and supersedes contradictions. Inspired by A-MEM (Zettelkasten) — new memories trigger updates to existing ones.
+
+**Параметры:**
+
+- `factId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_evolve",
+  "arguments": {
+    "factId": "example"
+  }
+}
+```
+
+## memory_extract
+
+**Extract Memory Facts**
+
+Extract structured facts from a conversation/session transcript. Facts are categorized (preference, decision, convention, error, fix, etc.) with confidence scores and entity extraction. Optionally persists to knowledge base as memory_fact documents. ADD-only model — facts accumulate, never overwritten.
+
+**Параметры:**
+
+- `transcript`
+- `project`
+- `userId`
+- `agentId`
+- `appId`
+- `runId`
+- `maxFacts`
+- `minConfidence`
+- `persist`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_extract",
+  "arguments": {
+    "transcript": "example",
+    "project": "mcp",
+    "userId": "example",
+    "agentId": "example",
+    "appId": "example",
+    "runId": "example",
+    "maxFacts": "example",
+    "minConfidence": "example",
+    "persist": "example"
+  }
+}
+```
+
+## memory_facts_list
+
+**List Memory Facts**
+
+List extracted memory facts from the knowledge base. Filters by type=memory_fact. Supports tag filtering and pagination.
+
+**Параметры:**
+
+- `project`
+- `tag`
+- `category`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_facts_list",
+  "arguments": {
+    "project": "mcp",
+    "tag": "example",
+    "category": "example",
+    "limit": 10
+  }
+}
+```
+
+## memory_facts_search
+
+**Search Memory Facts**
+
+Full-text search across extracted memory facts. Uses existing search_knowledge under the hood, filtered to type=memory_fact.
+
+**Параметры:**
+
+- `project`
+- `query`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_facts_search",
+  "arguments": {
+    "project": "mcp",
+    "query": "example",
+    "limit": 10
+  }
+}
+```
+
+## memory_gc
+
+**Memory Garbage Collection**
+
+Run forgetting GC on the temporal knowledge graph. Expires facts past their TTL (per category), prunes noise (low confidence, no entities), and identifies invalidated facts past retention for deletion. Preferences/decisions/conventions/skills are permanent (TTL=null).
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_gc",
+  "arguments": {}
+}
+```
+
+## memory_layer_add
+
+**Add to Memory Layer**
+
+Add a fact to a specific memory layer. conversation=volatile (in-flight), session=run-scoped, user=persistent. Facts can be promoted between layers via memory_layer_promote.
+
+**Параметры:**
+
+- `layer`
+- `statement`
+- `category`
+- `confidence`
+- `tags`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_layer_add",
+  "arguments": {
+    "layer": "example",
+    "statement": "example",
+    "category": "example",
+    "confidence": "example",
+    "tags": [
+      "example"
+    ]
+  }
+}
+```
+
+## memory_layer_list
+
+**List Memory Layer Facts**
+
+List valid facts in a specific memory layer.
+
+**Параметры:**
+
+- `layer`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_layer_list",
+  "arguments": {
+    "layer": "example"
+  }
+}
+```
+
+## memory_layer_promote
+
+**Promote Memory Layer Facts**
+
+Promote facts from one layer to another (e.g. conversation→session at end of turn, session→user at end of run). Supports single fact or batch (promoteAll).
+
+**Параметры:**
+
+- `from`
+- `to`
+- `factId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_layer_promote",
+  "arguments": {
+    "from": "example",
+    "to": "example",
+    "factId": "example"
+  }
+}
+```
+
+## memory_layer_stats
+
+**Memory Layer Stats**
+
+Get statistics for all memory layers — total/valid counts per layer.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_layer_stats",
+  "arguments": {}
+}
+```
+
+## memory_observations
+
+**Detect Memory Observations**
+
+Detect patterns from the temporal knowledge graph: recurrences (entities appearing repeatedly), co-occurrences (entities appearing together), temporal clusters (facts grouped in time), category trends. Inspired by Zep graph-based pattern surfacing.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_observations",
+  "arguments": {}
+}
+```
+
+## memory_profile_context
+
+**Build Profile Context Block**
+
+Build a compact context block from a user's profile for system prompt injection. Token-budget-aware: limits output to approximately maxTokens. Returns static + current dynamic facts in a <user-profile> XML block.
+
+**Параметры:**
+
+- `userId`
+- `maxTokens`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_profile_context",
+  "arguments": {
+    "userId": "example",
+    "maxTokens": "example"
+  }
+}
+```
+
+## memory_profile_get
+
+**Get User Profile**
+
+Get a user's profile — static facts (role, name, preferences) + dynamic facts (current task, recent decisions). Always-on context for agent personalization.
+
+**Параметры:**
+
+- `userId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_profile_get",
+  "arguments": {
+    "userId": "example"
+  }
+}
+```
+
+## memory_profile_update
+
+**Update User Profile**
+
+Create or update a user profile. Set static facts (role, name, timezone) and/or add dynamic facts (current task, recent decision). Dynamic facts auto-invalidate previous facts of same category.
+
+**Параметры:**
+
+- `userId`
+- `static`
+- `dynamicStatement`
+- `dynamicCategory`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_profile_update",
+  "arguments": {
+    "userId": "example",
+    "static": "example",
+    "dynamicStatement": "example",
+    "dynamicCategory": "example"
+  }
+}
+```
+
+## memory_scope_filter
+
+**Filter by Memory Scope**
+
+Filter temporal graph facts by multi-tenancy scope dimensions (userId, agentId, appId, runId). Returns only facts matching all specified dimensions. Enables tenant isolation — different users/agents/apps see only their own memories.
+
+**Параметры:**
+
+- `userId`
+- `agentId`
+- `appId`
+- `runId`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_scope_filter",
+  "arguments": {
+    "userId": "example",
+    "agentId": "example",
+    "appId": "example",
+    "runId": "example",
+    "limit": 10
+  }
+}
+```
+
+## memory_scope_tags
+
+**Build Scope Tags**
+
+Generate scope tags for a given memory scope. Tags can be attached to knowledge base documents for scope-based filtering. Format: scope:user:<id>, scope:agent:<id>, scope:app:<id>, scope:run:<id>.
+
+**Параметры:**
+
+- `userId`
+- `agentId`
+- `appId`
+- `runId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_scope_tags",
+  "arguments": {
+    "userId": "example",
+    "agentId": "example",
+    "appId": "example",
+    "runId": "example"
+  }
+}
+```
+
+## memory_temporal_add
+
+**Add Temporal Fact**
+
+Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally supersedes an existing fact (marks old as invalid, links new→old). Point-in-time queries available via memory_temporal_query.
+
+**Параметры:**
+
+- `statement`
+- `category`
+- `confidence`
+- `tags`
+- `entities`
+- `validFrom`
+- `supersedesFactId`
+- `invalidationReason`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_temporal_add",
+  "arguments": {
+    "statement": "example",
+    "category": "example",
+    "confidence": "example",
+    "tags": [
+      "example"
+    ],
+    "entities": "example",
+    "validFrom": "example",
+    "supersedesFactId": "example",
+    "invalidationReason": "example"
+  }
+}
+```
+
+## memory_temporal_history
+
+**Fact History Chain**
+
+Get the full history chain of a fact — all facts that superseded it and all facts it superseded. Useful for understanding how knowledge evolved.
+
+**Параметры:**
+
+- `factId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_temporal_history",
+  "arguments": {
+    "factId": "example"
+  }
+}
+```
+
+## memory_temporal_invalidate
+
+**Invalidate Temporal Fact**
+
+Mark a fact as no longer valid (without deleting it). Sets validTo to now and records the invalidation reason. History is preserved — the fact can still be queried via point-in-time queries.
+
+**Параметры:**
+
+- `factId`
+- `reason`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_temporal_invalidate",
+  "arguments": {
+    "factId": "example",
+    "reason": "example"
+  }
+}
+```
+
+## memory_temporal_query
+
+**Query Temporal Facts**
+
+Query the temporal knowledge graph. Supports point-in-time queries ('what was true on 2026-06-01?'), entity/category/tag filters, and including/excluding invalidated facts.
+
+**Параметры:**
+
+- `atTime`
+- `entity`
+- `category`
+- `tag`
+- `includeInvalidated`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_temporal_query",
+  "arguments": {
+    "atTime": "example",
+    "entity": "example",
+    "category": "example",
+    "tag": "example",
+    "includeInvalidated": "example",
+    "limit": 10
+  }
+}
+```
+
+## memory_temporal_stats
+
+**Temporal Graph Stats**
+
+Get statistics about the temporal knowledge graph — total facts, valid/invalidated counts, categories.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_temporal_stats",
+  "arguments": {}
 }
 ```
 
@@ -2019,102 +2697,6 @@ Update a single task by id. Can change any field except id, project, createdAt. 
       "https://example.com"
     ],
     "parentId": null
-  }
-}
-```
-
-## tool_help
-
-**Tool Help**
-
-Short help for a tool with an example call
-
-**Параметры:**
-
-- `name`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tool_help",
-  "arguments": {
-    "name": "example"
-  }
-}
-```
-
-## tool_schema
-
-**Tool Schema**
-
-Return metadata and example payload for a tool name
-
-**Параметры:**
-
-- `name`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tool_schema",
-  "arguments": {
-    "name": "example"
-  }
-}
-```
-
-## tools_list
-
-**List Registered Tools**
-
-Return list of canonical tool names with metadata. Supports pagination, search filtering, ETag-based cache validation.
-
-**Параметры:**
-
-- `offset`
-- `limit`
-- `search`
-- `ifNoneMatch`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tools_list",
-  "arguments": {
-    "offset": "example",
-    "limit": 10,
-    "search": "example",
-    "ifNoneMatch": "example"
-  }
-}
-```
-
-## tools_run
-
-**Tools Run (Bulk)**
-
-Execute one or many tools by name with params via RPC.
-
-**Параметры:**
-
-- `name`
-- `params`
-- `items`
-- `stopOnError`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tools_run",
-  "arguments": {
-    "name": "example",
-    "params": "example",
-    "items": "example",
-    "stopOnError": "example"
   }
 }
 ```
