@@ -596,7 +596,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT-008 | Entity-linking Retrieval: entity matching as third retrieval signal (BM25 + vector + entity). Entities extracted from query, matched against entity-graph (MEM-002). Boost scores for entity matches | medium | done | H.8 | MEM-002, MR-003 | Mem0 |
 | NEXT-009 | Memory Conflict Resolution: LLM-based contradiction detection between new and existing facts. Marks old facts invalid (not deleted). Инструмент `memory_resolve_conflict` | medium | done | H.9 | NEXT-001, NEXT-002 | Mem0/Zep |
 | NEXT-010 | Memory Scoping (multi-tenancy): user_id / agent_id / app_id / run_id dimensions. Каждый факт тегируется scope. Filter при search. Изоляция данных между tenants | medium | done | H.10 | ACL-001 | Mem0 |
-| NEXT-011 | More Connectors: Google Drive, Gmail, Notion, OneDrive, Linear, web crawler. Auto-sync with webhooks. Расширение connector framework (INT-004) | low | pending | H.11 | INT-004 | Supermemory/Cognee |
+| NEXT-011 | More Connectors: Google Drive, Gmail, Notion, OneDrive, Linear, web crawler. Auto-sync with webhooks. Расширение connector framework (INT-004) | low | done | H.11 | INT-004 | Закрыто 2026-09-03 на feat/next011-more-connectors: 5 connectors + web-crawler зарегистрированы (WIRE-001), реальные API (Drive v3/Gmail v1/Notion v1/Graph v1.0/Linear GraphQL, fail-closed err, hermetic-тесты real-apis.spec.ts 20 шт + new-connectors.spec.ts), sync via sync_* tools (webhook-инфры в INT-004 нет — out of scope) |
 | NEXT-012 | Multimodal Ingestion: PDFs (text extract), images (OCR), video (transcription), code (AST-aware chunking). Расширение knowledge_create для multipart | low | pending | H.12 | — | Supermemory |
 | NEXT-013 | Benchmark Participation: запустить LOCOMO, LongMemEval, BEAM, DMR benchmarks. Опубликовать результаты. Цель — доказать превосходство | medium | pending | H.13 | NEXT-001..007 | Mem0/Zep/Cognee |
 | NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | done | H.14 | UI-001, MEM-002 | Supermemory/Letta |
@@ -623,7 +623,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [x] NEXT-008: Entity-linking Retrieval (third retrieval signal)
 - [x] NEXT-009: Memory Conflict Resolution (LLM-based contradiction detection)
 - [x] NEXT-010: Memory Scoping Multi-tenancy (user/agent/app/run dimensions)
-- [ ] NEXT-011: More Connectors (Google Drive, Gmail, Notion, OneDrive, Linear)
+- [x] NEXT-011: More Connectors (Google Drive, Gmail, Notion, OneDrive, Linear)
 - [ ] NEXT-012: Multimodal Ingestion (PDF, image OCR, video, code AST)
 - [ ] NEXT-013: Benchmark Participation (LOCOMO, LongMemEval, BEAM, DMR)
 - [x] NEXT-014: Graph Visualization UI (interactive knowledge graph)
@@ -653,7 +653,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | WIRE-006 | Wire framework adapters — MCP tool `memory_framework_adapter` или экспорт через REST wrapper | low | pending | I.6 | NEXT-015 | Регистрация tool или REST endpoint |
 | WIRE-007 | Wire benchmark harness — MCP tool `memory_benchmark_run` | low | pending | I.7 | NEXT-013 | Регистрация tool, вызов runAllBenchmarks() из benchmarks.ts |
 | WIRE-008 | Wire async ops — MCP tools `memory_async_submit` / `memory_async_status` / `memory_async_cancel` | medium | pending | I.8 | NEXT-016 | Регистрация tools в src/register/memory.ts, обёртка над AsyncJobManager |
-| WIRE-009 | Заполнить stub connectors реальными API-вызовами (GDrive, Gmail, Notion, OneDrive, Linear) | low | pending | I.9 | WIRE-001 | Заменить заглушки на реальные HTTP-запросы к API |
+| WIRE-009 | Заполнить stub connectors реальными API-вызовами (GDrive, Gmail, Notion, OneDrive, Linear) | low | done | I.9 | WIRE-001 | Приземлено 2026-09-03 в feat/next011-more-connectors (cherry-pick ea19442/e94eb22/cb47cd7 с feat/wire009-real-connector-apis: реальные HTTP к Drive v3 / Gmail v1 / Notion v1 / Graph v1.0 / Linear GraphQL, fail-closed err, 20 hermetic-тестов) |
 | SEC-003 | Wire AuthManager в HTTP/TCP transport — auth-гейт на tools/call + fail-closed по дефолту (PROD-002 нашел: AuthManager не завайрен, http-transport без проверок) | high | pending | I.10 | A-002 | Создать AuthManager с transport из MCP_TRANSPORT в app-container/setup, pre-hook на tool calls |
 
 ---
