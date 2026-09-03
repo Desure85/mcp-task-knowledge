@@ -6,8 +6,10 @@
  * AuthManager is missing/misconfigured, stdio stays open.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { AuthManager, createStaticValidator } from '../src/core/auth.js';
 import {
   decideToolCall,
@@ -19,6 +21,8 @@ import { registerAuthTools, resolveGateSessionId } from '../src/register/auth.js
 import { HttpTransportAdapter } from '../src/transport/http-transport.js';
 import { TcpTransportAdapter } from '../src/transport/stream-transport.js';
 import { AppContainer } from '../src/core/app-container.js';
+import { TokenManager } from '../src/core/token-manager.js';
+import { createServerContext } from '../src/register/setup.js';
 import { createMockServerContext } from './helpers.js';
 import type { ServerContext } from '../src/register/context.js';
 
@@ -234,16 +238,16 @@ describe('mcp.authenticate tool', () => {
     (ctx as { server: McpServer }).server = server;
     registerAuthTools(ctx);
 
-    const tools = (server as unknown as { _registeredTools: Record<string, { handler: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
+    const tools = (server as unknown as { _registeredTools: Record<string, { callback: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
     expect(tools['mcp.authenticate']).toBeDefined();
 
-    const okRes = (await tools['mcp.authenticate'].handler({ token: 'valid-token' }, { sessionId: 's-1' })) as {
+    const okRes = (await tools['mcp.authenticate'].callback({ token: 'valid-token' }, { sessionId: 's-1' })) as {
       content: Array<{ text: string }>;
     };
     expect(JSON.parse(okRes.content[0].text)).toMatchObject({ ok: true, data: { authenticated: true, userId: 'user-1' } });
     expect(auth.isAuthenticated('s-1')).toBe(true);
 
-    const badRes = (await tools['mcp.authenticate'].handler({ token: 'wrong' }, { sessionId: 's-2' })) as {
+    const badRes = (await tools['mcp.authenticate'].callback({ token: 'wrong' }, { sessionId: 's-2' })) as {
       isError?: boolean;
       content: Array<{ text: string }>;
     };
@@ -254,8 +258,8 @@ describe('mcp.authenticate tool', () => {
   it('fails closed when no AuthManager is installed', async () => {
     const server = new McpServer({ name: 'test', version: '0.0.0' });
     registerAuthTools(createMockServerContext({ server } as Partial<ServerContext>));
-    const tools = (server as unknown as { _registeredTools: Record<string, { handler: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
-    const res = (await tools['mcp.authenticate'].handler({ token: 'x' }, {})) as {
+    const tools = (server as unknown as { _registeredTools: Record<string, { callback: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
+    const res = (await tools['mcp.authenticate'].callback({ token: 'x' }, {})) as {
       isError?: boolean;
     };
     expect(res.isError).toBe(true);
@@ -304,4 +308,56 @@ describe('AppContainer — SEC-003 wiring', () => {
     await app.init();
     expect(app.getAuthManager().isAuthRequired()).toBe(false);
   });
+});
+
+// ─── Live HTTP end-to-end ─────────────────────────────────────────────
+
+describe('live HTTP — deny, authenticate, allow', () => {
+  it('full cycle over real Streamable HTTP', async () => {
+    const ctx = await createServerContext();
+    ctx.transportType = 'http';
+    const tm = new TokenManager({ cleanupIntervalMs: 0 });
+    const auth = new AuthManager({ transport: 'http', tokenValidator: tm.createValidator() });
+    ctx.authManager = auth;
+    registerAuthTools(ctx);
+    ctx.server.registerTool(
+      'sec003_probe',
+      { title: 'Probe', description: 'SEC-003 probe tool', inputSchema: {} },
+      async () => ({ content: [{ type: 'text' as const, text: 'probe-ok' }] }),
+    );
+
+    const adapter = new HttpTransportAdapter(0, '127.0.0.1');
+    await adapter.connect(ctx);
+    const srv = (adapter as unknown as { httpServer: { address: () => { port: number } | null; listening: boolean } }).httpServer;
+    await vi.waitFor(() => {
+      if (!srv.listening) throw new Error('http not listening yet');
+    });
+    const port = srv.address()?.port ?? 0;
+    expect(port).toBeGreaterThan(0);
+
+    const client = new Client({ name: 'sec003-e2e', version: '0.0.0' });
+    const ct = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`));
+    await client.connect(ct);
+    try {
+      let denied = false;
+      try {
+        const res = await client.callTool({ name: 'sec003_probe', arguments: {} });
+        denied = res.isError === true;
+      } catch {
+        denied = true;
+      }
+      expect(denied).toBe(true);
+
+      const pair = tm.issue('user-1', ['admin']);
+      const authRes = await client.callTool({ name: 'mcp.authenticate', arguments: { token: pair.accessToken } });
+      expect(authRes.isError).toBeFalsy();
+
+      const probe = await client.callTool({ name: 'sec003_probe', arguments: {} });
+      expect(probe.isError).toBeFalsy();
+    } finally {
+      await client.close().catch(() => {});
+      await adapter.close().catch(() => {});
+      tm.close();
+    }
+  }, 30000);
 });

@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type { ServerContext } from './context.js';
 import { ok, err } from '../utils/respond.js';
+import { resolveExtraSessionId } from '../core/auth-gate.js';
 import type { GateExtra } from '../core/auth-gate.js';
 
 export const AUTHENTICATE_TOOL = 'mcp.authenticate';
@@ -37,7 +38,7 @@ export function registerAuthTools(ctx: ServerContext): void {
       if (!auth) {
         return err('authentication not configured on this transport');
       }
-      const sessionId = resolveGateSessionId(extra?.sessionId);
+      const sessionId = resolveGateSessionId(resolveExtraSessionId(extra));
       try {
         const result = await auth.authenticate(sessionId, token);
         return ok({

@@ -117,6 +117,28 @@ export function decideToolCall(
 /** Minimal shape of the SDK request extra (we only need sessionId). */
 export interface GateExtra {
   sessionId?: string;
+  requestInfo?: { headers?: unknown };
+}
+
+/**
+ * Resolve the session id from SDK extra: direct sessionId first, then the
+ * Mcp-Session-Id request header (Streamable HTTP populates one or both
+ * depending on SDK version). Undefined = unknown session (fail-closed).
+ */
+export function resolveExtraSessionId(extra?: GateExtra): string | undefined {
+  if (extra?.sessionId) return extra.sessionId;
+  const headers = extra?.requestInfo?.headers as
+    | { get?: unknown; [key: string]: unknown }
+    | undefined;
+  if (!headers || typeof headers !== 'object') return undefined;
+  if (typeof headers.get === 'function') {
+    const v = (headers.get as (k: string) => string | string[] | null).call(headers, 'mcp-session-id');
+    if (Array.isArray(v)) return v[0];
+    return v ?? undefined;
+  }
+  const v = headers['mcp-session-id'] ?? headers['Mcp-Session-Id'];
+  if (Array.isArray(v)) return typeof v[0] === 'string' ? v[0] : undefined;
+  return typeof v === 'string' ? v : undefined;
 }
 
 /**
@@ -136,7 +158,7 @@ export function wrapToolHandler<TArgs = unknown>(
     const { auth, transport } = resolve();
     const decision = decideToolCall(auth, transport, {
       toolName,
-      sessionId: extra?.sessionId,
+      sessionId: resolveExtraSessionId(extra),
     });
     if (!decision.allowed) {
       const envelope = { ok: false as const, error: { message: decision.reason } };
