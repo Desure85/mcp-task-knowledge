@@ -19,6 +19,7 @@
 | `embeddings_status` | Show current embeddings configuration and mode |
 | `embeddings_try_init` | Force lazy initialization of vector adapter and return diagnostics |
 | `graph_export_mermaid` | Build a Mermaid graph from tasks and knowledge (nodes + parent edges) |
+| `graph_visualize` | Render the entity-graph as a self-contained interactive HTML page (SVG + JS, zero dependencies). See |
 | `knowledge_bulk_archive` | Archive many knowledge docs |
 | `knowledge_bulk_create` | Create many knowledge docs at once (optionally hierarchical via parentId) |
 | `knowledge_bulk_delete_permanent` | Permanently delete many knowledge docs (use with caution) |
@@ -107,7 +108,6 @@
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
 | `tasks_list` | List tasks with optional filters |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
-| `tasks_tree` | List tasks as a hierarchical tree (by parentId) |
 
 ## cluster_assign
 
@@ -314,6 +314,35 @@ Build a Mermaid graph from tasks and knowledge (nodes + parent edges)
   "arguments": {
     "project": "mcp",
     "includeArchived": false
+  }
+}
+```
+
+## graph_visualize
+
+**Visualize Knowledge Graph**
+
+Render the entity-graph as a self-contained interactive HTML page (SVG + JS, zero dependencies). Seed by node ID (subgraph) or lexical query; returns HTML plus node/edge counts.
+
+**Параметры:**
+
+- `nodeId`
+- `query`
+- `depth`
+- `limit`
+- `title`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "graph_visualize",
+  "arguments": {
+    "nodeId": "example",
+    "query": "example",
+    "depth": "example",
+    "limit": 10,
+    "title": "Example Title"
   }
 }
 ```
@@ -2656,33 +2685,6 @@ Set or replace dependency list for a task. Validates no cycles. Tasks with unmet
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
     "dependsOn": "example"
-  }
-}
-```
-
-## tasks_tree
-
-**List Tasks Tree**
-
-List tasks as a hierarchical tree (by parentId)
-
-**Параметры:**
-
-- `project`
-- `status`
-- `tag`
-- `includeArchived`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tasks_tree",
-  "arguments": {
-    "project": "mcp",
-    "status": "pending",
-    "tag": "example",
-    "includeArchived": false
   }
 }
 ```

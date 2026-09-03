@@ -1,6 +1,4 @@
-import { describe, it, expect, vi, afterAll } from 'vitest';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { describe, it, expect, vi } from 'vitest';
 import { registerMemoryTools } from '../src/register/memory.js';
 import type { ServerContext } from '../src/register/context.js';
 import type { ToolMetaHandler } from '../src/register/setup.js';
@@ -56,42 +54,37 @@ function parseResponse(result: any): any {
   }
 }
 
-describe('knowledge_import_multimodal tool', () => {
-  afterAll(async () => {
-    try {
-      await fs.unlink(path.join(process.env.DATA_DIR!, 'sample.txt'));
-    } catch {
-      // already cleaned
-    }
-  });  it('extracts text chunks from a file inside DATA_DIR', async () => {
-    const dir = process.env.DATA_DIR!;
-    await fs.writeFile(path.join(dir, 'sample.txt'), 'First paragraph.\n\nSecond paragraph.');
+describe('graph_visualize tool', () => {
+  it('requires nodeId or query', async () => {
     const { ctx, getHandler } = createMockContext();
     registerMemoryTools(ctx);
 
-    const handler = getHandler('knowledge_import_multimodal');
+    const handler = getHandler('graph_visualize');
     expect(handler).toBeDefined();
 
-    const result = parseResponse(await handler!({ filePath: 'sample.txt', type: 'text' }));
+    const result = parseResponse(await handler!({}));
+    expect(result.ok).toBe(false);
+  });
+
+  it('errors on unknown nodeId', async () => {
+    const { ctx, getHandler } = createMockContext();
+    registerMemoryTools(ctx);
+
+    const result = parseResponse(await getHandler('graph_visualize')!({ nodeId: 'nope' }));
+    expect(result.ok).toBe(false);
+  });
+
+  it('returns empty graph html for unmatched query (read-only, no storage writes)', async () => {
+    const { ctx, getHandler } = createMockContext();
+    registerMemoryTools(ctx);
+
+    const result = parseResponse(
+      await getHandler('graph_visualize')!({ query: 'zzz-no-such-node-xyz' }),
+    );
     expect(result.ok).toBe(true);
-    expect(result.data.modality).toBe('text');
-    expect(result.data.returnedChunks).toBeGreaterThan(0);
-    expect(result.data.chunks[0].text).toContain('First paragraph');
-  });
-
-  it('rejects paths outside DATA_DIR', async () => {
-    const { ctx, getHandler } = createMockContext();
-    registerMemoryTools(ctx);
-
-    const result = parseResponse(await getHandler('knowledge_import_multimodal')!({ filePath: '../evil.txt', type: 'text' }));
-    expect(result.ok).toBe(false);
-  });
-
-  it('errors on missing file', async () => {
-    const { ctx, getHandler } = createMockContext();
-    registerMemoryTools(ctx);
-
-    const result = parseResponse(await getHandler('knowledge_import_multimodal')!({ filePath: 'nope.txt', type: 'text' }));
-    expect(result.ok).toBe(false);
+    expect(result.data.nodeCount).toBe(0);
+    expect(result.data.edgeCount).toBe(0);
+    expect(result.data.htmlLength).toBeGreaterThan(0);
+    expect(result.data.html).toContain('<!DOCTYPE html>');
   });
 });

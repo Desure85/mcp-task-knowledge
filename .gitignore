@@ -121,6 +121,7 @@ __pycache__/
 *.log
 .trash/
 .test-tmp/
+.tmp-vitest/
 
 # LoopX state (private goal state)
 .loopx/
