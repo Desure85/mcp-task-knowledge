@@ -44,6 +44,7 @@
 | `memory_extract` | Extract structured facts from a conversation/session transcript. Facts are categorized (preference,  |
 | `memory_facts_list` | List extracted memory facts from the knowledge base. Filters by type=memory_fact. Supports tag filte |
 | `memory_facts_search` | Full-text search across extracted memory facts. Uses existing search_knowledge under the hood, filte |
+| `memory_framework_adapter` | Describe how to use this server as a memory provider from an external framework (LangGraph, AutoGen, |
 | `memory_gc` | Run forgetting GC on the temporal knowledge graph. Expires facts past their TTL (per category), prun |
 | `memory_layer_add` | Add a fact to a specific memory layer. conversation=volatile (in-flight), session=run-scoped, user=p |
 | `memory_layer_list` | List valid facts in a specific memory layer. |
@@ -107,7 +108,6 @@
 | `tasks_get_deps` | Get the dependency graph for a specific task: what it depends on and what depends on it. |
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
 | `tasks_list` | List tasks with optional filters |
-| `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
 
 ## cluster_assign
 
@@ -995,6 +995,31 @@ Full-text search across extracted memory facts. Uses existing search_knowledge u
     "project": "mcp",
     "query": "example",
     "limit": 10
+  }
+}
+```
+
+## memory_framework_adapter
+
+**Framework Adapter Descriptor**
+
+Describe how to use this server as a memory provider from an external framework (LangGraph, AutoGen, CrewAI, LangChain). Returns the MCP endpoint, the adapter operations available for the framework, and a minimal TypeScript client snippet. The adapter itself runs client-side.
+
+**Параметры:**
+
+- `framework`
+- `serverUrl`
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_framework_adapter",
+  "arguments": {
+    "framework": "example",
+    "serverUrl": "example",
+    "project": "mcp"
   }
 }
 ```
@@ -2660,31 +2685,6 @@ List tasks with optional filters
     "status": "pending",
     "tag": "example",
     "includeArchived": false
-  }
-}
-```
-
-## tasks_set_deps
-
-**Set Task Dependencies**
-
-Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are automatically marked as "blocked".
-
-**Параметры:**
-
-- `project`
-- `id`
-- `dependsOn`
-
-**Пример вызова:**
-
-```json
-{
-  "name": "tasks_set_deps",
-  "arguments": {
-    "project": "mcp",
-    "id": "00000000-0000-0000-0000-000000000000",
-    "dependsOn": "example"
   }
 }
 ```
