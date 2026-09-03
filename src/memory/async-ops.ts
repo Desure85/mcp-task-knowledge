@@ -78,6 +78,13 @@ export class AsyncJobManager extends EventEmitter {
   }
 
   /**
+   * Check whether a processor is registered for a job type.
+   */
+  hasProcessor(type: JobType): boolean {
+    return this.processors.has(type);
+  }
+
+  /**
    * Submit a new async job. Returns immediately with the job ID.
    */
   submit(opts: AsyncSubmitOptions): AsyncJob {

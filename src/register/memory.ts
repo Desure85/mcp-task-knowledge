@@ -13,12 +13,15 @@
  *   - memory_profile_get: get user profile (NEXT-004)
  *   - memory_profile_update: update user profile (NEXT-004)
  *   - memory_profile_context: build always-on context block (NEXT-004)
+ *   - memory_async_submit: submit a long-running memory op, returns jobId immediately (WIRE-008)
+ *   - memory_async_status: poll job state/progress/result (WIRE-008)
+ *   - memory_async_cancel: cancel a pending/processing job (WIRE-008)
  */
 
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { DEFAULT_PROJECT, DATA_DIR, resolveProject } from '../config.js';
-import { listDocs, readDoc } from '../storage/knowledge.js';
+import { listDocs, readDoc, createDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
 import { ProfileManager } from '../memory/user-profile.js';
@@ -31,6 +34,11 @@ import { ScopeMatcher, buildScopeTags } from '../memory/scoping.js';
 import { LayeredMemory } from '../memory/layers.js';
 import { DreamingAgent } from '../memory/dreaming.js';
 import { ObservationEngine } from '../memory/observations.js';
+import {
+  getAsyncJobManager,
+  type AsyncJobManager,
+  type JobType,
+} from '../memory/async-ops.js';
 import { ok, err } from '../utils/respond.js';
 import { join } from 'node:path';
 import path from 'node:path';
@@ -157,6 +165,166 @@ function getObservationEngine(): ObservationEngine {
     observationEngine = new ObservationEngine({ temporalGraph: getTemporalGraph() });
   }
   return observationEngine;
+}
+
+// ─── Async ops wiring (WIRE-008 over NEXT-016 AsyncJobManager) ──────
+// Default processors backed by the REAL memory pipeline (no stubs).
+// Re-wires automatically when the singleton is reset (e.g. in tests).
+
+const ASYNC_JOB_TYPES: readonly JobType[] = ['extract', 'search', 'bulk_import', 'evolve', 'dream'];
+
+function asRecord(input: unknown, what: string): Record<string, unknown> {
+  if (typeof input !== 'object' || input === null) {
+    throw new Error(`${what}: job input must be an object`);
+  }
+  return input as Record<string, unknown>;
+}
+
+function asString(value: unknown, field: string, minLen = 1): string {
+  if (typeof value !== 'string' || value.length < minLen) {
+    throw new Error(`${field} must be a string of at least ${minLen} characters`);
+  }
+  return value;
+}
+
+function asOptionalNumber(value: unknown, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    throw new Error(`${field} must be a number`);
+  }
+  return value;
+}
+
+let wiredAsyncManager: AsyncJobManager | null = null;
+
+function ensureAsyncProcessors(): AsyncJobManager {
+  const mgr = getAsyncJobManager();
+  if (wiredAsyncManager === mgr) return mgr;
+
+  // extract — long-running transcript extraction via the NEXT-002 pipeline.
+  if (!mgr.hasProcessor('extract')) {
+    mgr.registerProcessor({
+      type: 'extract',
+      process: async (input, _job, onProgress) => {
+        const args = asRecord(input, 'extract');
+        const transcript = asString(args['transcript'], 'transcript', 10);
+        onProgress?.(0.1);
+        const ext = getExtractor();
+        const scope = asRecord(args['scope'] ?? {}, 'scope');
+        const result = await ext.extract({
+          transcript,
+          scope: {
+            userId: typeof scope['userId'] === 'string' ? (scope['userId'] as string) : undefined,
+            agentId: typeof scope['agentId'] === 'string' ? (scope['agentId'] as string) : undefined,
+            appId: typeof scope['appId'] === 'string' ? (scope['appId'] as string) : undefined,
+            runId: typeof scope['runId'] === 'string' ? (scope['runId'] as string) : undefined,
+          },
+          project:
+            typeof args['project'] === 'string' ? resolveProject(args['project'] as string) : undefined,
+          maxFacts: asOptionalNumber(args['maxFacts'], 'maxFacts'),
+          minConfidence: asOptionalNumber(args['minConfidence'], 'minConfidence'),
+          persist: args['persist'] === true,
+        });
+        onProgress?.(1);
+        return {
+          factsExtracted: result.facts.length,
+          persistedCount: result.persistedCount,
+          docIds: result.docIds,
+          durationMs: result.durationMs,
+          facts: result.facts,
+        };
+      },
+    });
+  }
+
+  // search — lexical search over extracted memory facts.
+  if (!mgr.hasProcessor('search')) {
+    mgr.registerProcessor({
+      type: 'search',
+      process: async (input, _job, onProgress) => {
+        const args = asRecord(input, 'search');
+        const query = asString(args['query'], 'query');
+        const project =
+          typeof args['project'] === 'string' ? resolveProject(args['project'] as string) : DEFAULT_PROJECT;
+        const limit = asOptionalNumber(args['limit'], 'limit') ?? 10;
+        onProgress?.(0.2);
+        const metas = (await listDocs({ project })).filter((m) => m.type === 'memory_fact');
+        const queryLower = query.toLowerCase();
+        const matches = metas.filter((m) => m.title.toLowerCase().includes(queryLower)).slice(0, limit);
+        const results = [];
+        for (const meta of matches) {
+          const doc = await readDoc(project, meta.id);
+          if (doc) {
+            results.push({ id: doc.id, title: doc.title, content: doc.content, tags: doc.tags, score: 1.0 });
+          }
+        }
+        onProgress?.(1);
+        return { count: results.length, results };
+      },
+    });
+  }
+
+  // bulk_import — persist a batch of documents to the knowledge base.
+  if (!mgr.hasProcessor('bulk_import')) {
+    mgr.registerProcessor({
+      type: 'bulk_import',
+      process: async (input, _job, onProgress) => {
+        const args = asRecord(input, 'bulk_import');
+        const project =
+          typeof args['project'] === 'string' ? resolveProject(args['project'] as string) : DEFAULT_PROJECT;
+        const documents = args['documents'];
+        if (!Array.isArray(documents) || documents.length === 0) {
+          throw new Error('documents must be a non-empty array of {title, content, tags?}');
+        }
+        const docIds: string[] = [];
+        for (let i = 0; i < documents.length; i++) {
+          const doc = asRecord(documents[i], `documents[${i}]`);
+          const docRec = await createDoc({
+            project,
+            title: asString(doc['title'], `documents[${i}].title`),
+            content: asString(doc['content'], `documents[${i}].content`),
+            tags: [...(Array.isArray(doc['tags']) ? (doc['tags'] as string[]) : []), 'async-import'],
+            source: 'async-import',
+            type: 'memory_fact',
+          });
+          docIds.push(docRec.id);
+          onProgress?.((i + 1) / documents.length);
+        }
+        return { count: docIds.length, docIds };
+      },
+    });
+  }
+
+  // evolve — run A-MEM style evolution for a newly added fact (NEXT-003).
+  if (!mgr.hasProcessor('evolve')) {
+    mgr.registerProcessor({
+      type: 'evolve',
+      process: async (input, _job, onProgress) => {
+        const args = asRecord(input, 'evolve');
+        const factId = asString(args['factId'], 'factId');
+        onProgress?.(0.3);
+        const result = getMemoryEvolver().evolve(factId);
+        onProgress?.(1);
+        return result;
+      },
+    });
+  }
+
+  // dream — one sleep-time refinement cycle (NEXT-006).
+  if (!mgr.hasProcessor('dream')) {
+    mgr.registerProcessor({
+      type: 'dream',
+      process: async (_input, _job, onProgress) => {
+        onProgress?.(0.3);
+        const result = getDreamingAgent().runOnce();
+        onProgress?.(1);
+        return result;
+      },
+    });
+  }
+
+  wiredAsyncManager = mgr;
+  return mgr;
 }
 
 export function registerMemoryTools(ctx: ServerContext): void {
@@ -944,6 +1112,117 @@ export function registerMemoryTools(ctx: ServerContext): void {
         snippet,
         note: 'Adapter runs in your framework process and delegates to this server over HTTP. Use MCP_TRANSPORT=http on the server.',
       });
+    }
+  );
+
+  // ─── memory_async_submit (WIRE-008 over NEXT-016) ────────────────
+  ctx.server.registerTool(
+    "memory_async_submit",
+    {
+      title: "Submit Async Memory Job",
+      description:
+        "Submit a long-running memory operation for background execution. " +
+        "Returns immediately with a jobId — poll memory_async_status for the result " +
+        "or receive it via webhookUrl on completion. " +
+        "Operations: extract (NEXT-002 transcript→facts; input {transcript, maxFacts?, minConfidence?, scope?, project?, persist?}), " +
+        "search (input {query, project?, limit?}), " +
+        "bulk_import (input {project?, documents: [{title, content, tags?}]}), " +
+        "evolve (NEXT-003; input {factId}), dream (NEXT-006; input {}). " +
+        "Status lifecycle: pending (queued) → processing (running) → completed | failed | cancelled.",
+      inputSchema: {
+        type: z.enum(["extract", "search", "bulk_import", "evolve", "dream"]).describe("Async operation to run"),
+        input: z.unknown().describe("Operation args (see description for per-type shape)"),
+        webhookUrl: z.string().url().optional().describe("Webhook POSTed with the job result on completion"),
+        metadata: z.record(z.string(), z.unknown()).optional().describe("Opaque metadata attached to the job"),
+      },
+    },
+    async (args) => {
+      if (!ASYNC_JOB_TYPES.includes(args.type as JobType)) {
+        return err(`unsupported async operation: ${String(args.type)}`);
+      }
+      const mgr = ensureAsyncProcessors();
+      const job = mgr.submit({
+        type: args.type,
+        input: args.input,
+        webhookUrl: args.webhookUrl,
+        metadata: args.metadata as Record<string, unknown> | undefined,
+      });
+      return ok({
+        jobId: job.id,
+        type: job.type,
+        status: job.status,
+        webhookUrl: job.webhookUrl ?? null,
+        webhookStatus: job.webhookStatus ?? 'skipped',
+        createdAt: job.createdAt,
+      });
+    }
+  );
+
+  // ─── memory_async_status (WIRE-008 over NEXT-016) ────────────────
+  ctx.server.registerTool(
+    "memory_async_status",
+    {
+      title: "Async Job Status",
+      description:
+        "Poll an async memory job by ID. Returns state (pending/processing/completed/failed/cancelled), " +
+        "progress 0..1, result output on completion, or error on failure.",
+      inputSchema: {
+        jobId: z.string().min(1).describe("Job ID returned by memory_async_submit"),
+      },
+    },
+    async ({ jobId }) => {
+      if (typeof jobId !== 'string' || jobId.trim().length === 0) {
+        return err("jobId is required");
+      }
+      const job = getAsyncJobManager().getStatus(jobId);
+      if (!job) {
+        return err(`job not found: ${jobId}`);
+      }
+      return ok({
+        jobId: job.id,
+        type: job.type,
+        status: job.status,
+        progress: job.progress ?? 0,
+        output: job.output ?? null,
+        error: job.error ?? null,
+        createdAt: job.createdAt,
+        startedAt: job.startedAt ?? null,
+        completedAt: job.completedAt ?? null,
+        webhookUrl: job.webhookUrl ?? null,
+        webhookStatus: job.webhookStatus ?? 'skipped',
+      });
+    }
+  );
+
+  // ─── memory_async_cancel (WIRE-008 over NEXT-016) ────────────────
+  ctx.server.registerTool(
+    "memory_async_cancel",
+    {
+      title: "Cancel Async Job",
+      description:
+        "Cancel a pending or processing async memory job. " +
+        "Completed/failed jobs cannot be cancelled.",
+      inputSchema: {
+        jobId: z.string().min(1).describe("Job ID returned by memory_async_submit"),
+      },
+    },
+    async ({ jobId }) => {
+      if (typeof jobId !== 'string' || jobId.trim().length === 0) {
+        return err("jobId is required");
+      }
+      const mgr = getAsyncJobManager();
+      const job = mgr.getStatus(jobId);
+      if (!job) {
+        return err(`job not found: ${jobId}`);
+      }
+      if (job.status === 'completed' || job.status === 'failed') {
+        return err(`job already ${job.status}, cannot cancel: ${jobId}`);
+      }
+      if (job.status === 'cancelled') {
+        return err(`job already cancelled: ${jobId}`);
+      }
+      mgr.cancel(jobId);
+      return ok({ jobId, cancelled: true, status: 'cancelled' as const });
     }
   );
 }
