@@ -648,7 +648,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | WIRE-001 | Wire новые connectors (GDrive, Gmail, Notion, OneDrive, Linear, Web Crawler) в connector registry — зарегистрировать в `src/connectors/index.ts` + `src/connectors/registry.ts` | high | done | I.1 | INT-004 | Смержено 2026-09-03 (cb13fea/9921dad) |
 | WIRE-002 | Wire RealtimeServer в HTTP transport — `getRealtimeServer().attach(httpServer, '/ws')` в `src/transport/http-transport.ts` | high | done | I.2 | MR-012 | Смержено 2026-09-03 (cb13fea) |
 | WIRE-003 | Wire ClusterManager в app-container — register self node, start heartbeat, expose cluster tools | medium | pending | I.3 | SCALE-002 | Добавить getClusterManager() в defaultRegistration, register cluster_* MCP tools |
-| WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | pending | I.4 | NEXT-012 | Регистрация tool, вызов extract() из multimodal.ts |
+| WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | done | I.4 | NEXT-012 | Ветка feat/wire004-multimodal-ingestion-tool: extract()+persist via createDoc, DATA_DIR guard, 5 tests |
 | WIRE-005 | Wire graph visualization — MCP tool `graph_visualize` в `src/register/` | low | pending | I.5 | NEXT-014 | Регистрация tool, вызов generateGraphHTML() из graph-viz.ts |
 | WIRE-006 | Wire framework adapters — MCP tool `memory_framework_adapter` или экспорт через REST wrapper | low | pending | I.6 | NEXT-015 | Регистрация tool или REST endpoint |
 | WIRE-007 | Wire benchmark harness — MCP tool `memory_benchmark_run` | low | pending | I.7 | NEXT-013 | Регистрация tool, вызов runAllBenchmarks() из benchmarks.ts |
@@ -663,7 +663,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [x] WIRE-001: Wire новые connectors в registry
 - [x] WIRE-002: Wire RealtimeServer в HTTP transport
 - [ ] WIRE-003: Wire ClusterManager в app-container
-- [ ] WIRE-004: Wire multimodal ingestion MCP tool
+- [x] WIRE-004: Wire multimodal ingestion MCP tool
 - [ ] WIRE-005: Wire graph visualization MCP tool
 - [ ] WIRE-006: Wire framework adapters
 - [ ] WIRE-007: Wire benchmark harness MCP tool
