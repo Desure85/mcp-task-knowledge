@@ -9,6 +9,7 @@ import type { ServerConfig, CatalogConfig } from '../config.js';
 import type { ServiceCatalogProvider } from '../catalog/provider.js';
 import type { VectorSearchAdapter } from '../search/index.js';
 import type { ACLEngine } from '../core/acl.js';
+import type { AuthManager } from '../core/auth.js';
 import type { SessionManager } from '../core/session-manager.js';
 import type { ClusterManager } from '../core/cluster.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
@@ -59,6 +60,20 @@ export interface ServerContext {
 
   /** Optional ACL engine for access control (ACL-002/ACL-003). */
   acl?: ACLEngine;
+
+  /**
+   * Optional AuthManager gate (SEC-003, A-001). Set by AppContainer after
+   * init from the active transport type. Tool handlers wrapped in setup.ts
+   * read it lazily per call — fail-closed on http/tcp when absent.
+   */
+  authManager?: AuthManager;
+
+  /**
+   * Active transport type ('stdio' | 'http' | 'tcp' | ...). Set by
+   * AppContainer before tool registration so the auth gate in setup.ts
+   * can apply transport-aware fail-closed defaults.
+   */
+  transportType?: string;
 
   /** Optional SessionManager for multi-client transports (S-001, S-004). Set by AppContainer after init. */
   sessionManager?: SessionManager;

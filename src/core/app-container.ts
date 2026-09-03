@@ -60,6 +60,11 @@ import { registerClusterTools } from '../register/cluster.js';
 import { registerRelayTools } from '../register/relay.js';
 import { registerConfigTools } from '../register/config-tools.js';
 import { registerMemoryTools } from '../register/memory.js';
+import { registerAuthTools } from '../register/auth.js';
+import { AuthManager } from './auth.js';
+import type { TokenValidator } from './auth.js';
+import { TokenManager } from './token-manager.js';
+import { JwtValidator } from './jwt-validator.js';
 import { RateLimiter } from './rate-limiter.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
@@ -103,6 +108,17 @@ export interface AppContainerOptions {
    */
   sessionManager?: SessionManagerOptions | false;
   /**
+   * AuthManager options for network-transport gating (SEC-003, A-001).
+   * Created for every transport; requireAuth defaults fail-closed on
+   * http/tcp and open on stdio/unix. Set false to disable entirely
+   * (tool handlers stay ungated even on network transports — not recommended).
+   */
+  auth?: {
+    requireAuth?: boolean;
+    tokenValidator?: TokenValidator;
+    authMethods?: string[];
+  } | false;
+  /**
    * ClusterManager options for multi-node deployments (WIRE-003).
    * Auto-enabled for non-stdio transports unless false. The shared ClusterManager
    * registers the self node, starts heartbeat, and is exposed via getClusterManager().
@@ -139,6 +155,7 @@ export function defaultRegistration(ctx: ServerContext): void {
   registerRelayTools(ctx);
   registerConfigTools(ctx);
   registerMemoryTools(ctx);
+  registerAuthTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerDebugResources(ctx);
@@ -169,6 +186,8 @@ export class AppContainer {
   private ctx?: ServerContext;
   private adapter?: TransportAdapter;
   private sessionMgr?: SessionManager;
+  private authManager?: AuthManager;
+  private tokenManagerCleanup?: () => void;
   private clusterMgr?: ClusterManager;
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
@@ -185,6 +204,7 @@ export class AppContainer {
     handleSignals: boolean;
     registerTools: RegisterCallback | undefined;
     sessionManager: SessionManagerOptions | false | undefined;
+    auth: { requireAuth?: boolean; tokenValidator?: TokenValidator; authMethods?: string[] } | false | undefined;
     cluster: { selfId?: string; host?: string; port?: number; heartbeatMs?: number } | false | undefined;
   };
 
@@ -210,6 +230,7 @@ export class AppContainer {
       handleSignals,
       registerTools: options?.registerTools,
       sessionManager: options?.sessionManager,
+      auth: options?.auth,
       cluster: options?.cluster,
     };
   }
@@ -243,6 +264,14 @@ export class AppContainer {
       throw new Error('[app-container] session manager not available — call init() first or check sessionManager option');
     }
     return this.sessionMgr;
+  }
+
+  /** AuthManager gate (available after init() unless auth:false). Throws if not initialized or disabled. */
+  getAuthManager(): AuthManager {
+    if (!this.authManager) {
+      throw new Error('[app-container] auth manager not available — call init() first or check auth option');
+    }
+    return this.authManager;
   }
 
   /** ClusterManager (available after init() for non-stdio transports). Throws if not initialized or disabled. */
@@ -294,6 +323,10 @@ export class AppContainer {
 
       // 3. Server context (McpServer, config, registries)
       this.ctx = await createServerContext();
+
+      // SEC-003: transport type drives the fail-closed auth gate in setup.ts.
+      // Set before tool registration so wrapped handlers resolve it per call.
+      this.ctx.transportType = this.opts.transportType;
 
       // 3.1 LAN Relay (BM-012) — enabled via RELAY_ENABLED=1
       if (process.env.RELAY_ENABLED === '1') {
@@ -351,6 +384,29 @@ export class AppContainer {
         const rateLimiter = new RateLimiter();
         this.ctx.rateLimiter = rateLimiter;
         this.log.info('rate limiter initialized');
+      }
+
+      // 6.1 AuthManager gate for network transports (SEC-003, A-001/A-002).
+      // Created for every transport; requireAuth defaults fail-closed on
+      // http/tcp and open on stdio/unix. Tool handlers wrapped in setup.ts
+      // read ctx.authManager lazily, so order vs registration is safe.
+      if (this.opts.auth !== false) {
+        const authOpts = this.opts.auth ?? {};
+        const t = this.opts.transportType.toLowerCase();
+        const gateTransport = t === 'http' || t === 'tcp' || t === 'unix' ? t : 'stdio';
+        const validator = authOpts.tokenValidator ?? this.buildDefaultValidator();
+        this.authManager = new AuthManager({
+          requireAuth: authOpts.requireAuth,
+          transport: gateTransport,
+          tokenValidator: validator,
+          sessionManager: this.sessionMgr,
+          authMethods: authOpts.authMethods,
+        });
+        this.ctx.authManager = this.authManager;
+        this.log.info(
+          { requireAuth: this.authManager.isAuthRequired(), transport: gateTransport },
+          'auth manager initialized',
+        );
       }
 
       // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)
@@ -574,6 +630,24 @@ export class AppContainer {
   }
 
   // ─── Cleanup registration ────────────────────────────────────────
+
+  private buildDefaultValidator(): TokenValidator {
+    const secret = process.env.JWT_SECRET;
+    const jwksUrl = process.env.JWKS_URL;
+    if (secret ?? jwksUrl) {
+      const validator = new JwtValidator({
+        secret,
+        jwksUri: jwksUrl,
+        issuer: process.env.JWT_ISSUER,
+        audience: process.env.JWT_AUDIENCE,
+      });
+      return validator.asTokenValidator();
+    }
+    const manager = new TokenManager();
+    this.tokenManagerCleanup = () => manager.close();
+    this.addCleanup(() => manager.close());
+    return manager.createValidator();
+  }
 
   /**
    * Register a cleanup callback to run on stop().

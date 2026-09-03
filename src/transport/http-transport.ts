@@ -20,6 +20,7 @@ import { createMetricsHandler } from '../core/metrics.js';
 import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
 import type { HealthChecker } from '../health/index.js';
 import { getRealtimeServer } from './realtime.js';
+import { decideToolCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
 
 const log = childLogger('transport:http');
 
@@ -31,6 +32,7 @@ export class HttpTransportAdapter implements TransportAdapter {
   private httpServer?: HttpServer;
   private _connected = false;
   private healthHandlers?: ReturnType<typeof createHealthHandlers>;
+  private serverCtx?: ServerContext;
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
@@ -42,11 +44,39 @@ export class HttpTransportAdapter implements TransportAdapter {
     return this._connected;
   }
 
+  /**
+   * SEC-003 transport-level gate: deny unauthenticated tools/call before it
+   * reaches the SDK. Reads ctx.authManager per request (lazy — AppContainer
+   * attaches it during init). Non-tools/call traffic passes through.
+   * Returns an HTTP status + JSON-RPC error body when denied, else undefined.
+   */
+  authorizeHttpCall(req: IncomingMessage, body: unknown): { status: number; body: string } | undefined {
+    const bodies = Array.isArray(body) ? body : [body];
+    for (const item of bodies) {
+      const info = extractHttpCall(item);
+      if (!info || info.method !== 'tools/call') continue;
+      if (!info.toolName) {
+        return { status: 401, body: deniedJsonRpcBody(info.id, 'missing tool name — fail-closed (SEC-003)') };
+      }
+      const headerSid = req.headers['mcp-session-id'];
+      const sessionId = Array.isArray(headerSid) ? headerSid[0] : headerSid;
+      const decision = decideToolCall(this.serverCtx?.authManager, 'http', {
+        toolName: info.toolName,
+        sessionId,
+      });
+      if (!decision.allowed) {
+        return { status: 401, body: deniedJsonRpcBody(info.id, decision.reason) };
+      }
+    }
+    return undefined;
+  }
+
   async connect(ctx: ServerContext): Promise<void> {
     if (this._connected) {
       throw new Error('[http] already connected');
     }
 
+    this.serverCtx = ctx;
     this.httpServer = createHttpServer();
 
     this.transport = new SdkHttpTransport({
@@ -100,6 +130,12 @@ export class HttpTransportAdapter implements TransportAdapter {
         } catch {
           parsedBody = bodyStr;
         }
+        const denied = this.authorizeHttpCall(req, parsedBody);
+        if (denied) {
+          res.writeHead(denied.status, { 'Content-Type': 'application/json' });
+          res.end(denied.body);
+          return;
+        }
         await this.transport!.handleRequest(req, res, parsedBody);
       } else {
         await this.transport!.handleRequest(req, res);
@@ -145,6 +181,7 @@ export class HttpTransportAdapter implements TransportAdapter {
       this._connected = false;
       this.transport = undefined;
       this.httpServer = undefined;
+      this.serverCtx = undefined;
     }
   }
 
