@@ -796,6 +796,68 @@ export function registerMemoryTools(ctx: ServerContext): void {
     }
   );
 
+  // ─── graph_visualize (WIRE-005) ────────────────────────────────
+  ctx.server.registerTool(
+    "graph_visualize",
+    {
+      title: "Visualize Knowledge Graph",
+      description:
+        "Render the entity-graph as a self-contained interactive HTML page " +
+        "(SVG + JS, zero dependencies). Seed by node ID (subgraph) or lexical " +
+        "query; returns HTML plus node/edge counts.",
+      inputSchema: {
+        nodeId: z.string().optional().describe("Root node ID for subgraph expansion"),
+        query: z.string().optional().describe("Lexical seed query over node names"),
+        depth: z.number().int().min(0).max(3).default(1).optional().describe("Neighborhood depth for nodeId mode"),
+        limit: z.number().int().min(1).max(200).default(50).optional().describe("Maximum nodes to include"),
+        title: z.string().max(120).optional().describe("Page title"),
+      },
+    },
+    async (args) => {
+      if (!args.nodeId && !args.query) {
+        return err("either nodeId or query is required");
+      }
+      const { EntityGraph } = await import('../memory/entity-graph.js');
+      const { generateGraphHTML } = await import('../memory/graph-viz.js');
+      const graph = new EntityGraph();
+      const limit = args.limit ?? 50;
+
+      let seeds: { id: string; name: string }[];
+      if (args.nodeId) {
+        const nodes = graph.subgraph(args.nodeId, args.depth ?? 1);
+        if (nodes.length === 0) return err(`node not found: ${args.nodeId}`);
+        seeds = nodes;
+      } else {
+        seeds = graph.search(args.query as string, limit).map((h) => h.node);
+      }
+
+      const seen = new Map<string, { id: string; label: string }>();
+      for (const n of seeds.slice(0, limit)) seen.set(n.id, { id: n.id, label: n.name });
+      const edges: { source: string; target: string; label?: string }[] = [];
+      const edgeKeys = new Set<string>();
+      const link = (from: string, to: string, label: string): void => {
+        const key = `${from}>${to}:${label}`;
+        if (from !== to && seen.has(from) && seen.has(to) && !edgeKeys.has(key)) {
+          edgeKeys.add(key);
+          edges.push({ source: from, target: to, label });
+        }
+      };
+      for (const id of Array.from(seen.keys())) {
+        for (const dep of graph.getDependencies(id)) link(id, dep.id, 'dependsOn');
+        for (const dep of graph.getDependents(id)) link(dep.id, id, 'dependentOf');
+      }
+
+      const html = generateGraphHTML(
+        {
+          nodes: Array.from(seen.values()).map((n) => ({ id: n.id, label: n.label, type: 'entity' as const })),
+          edges,
+        },
+        { title: args.title ?? 'Knowledge Graph' },
+      );
+      return ok({ nodeCount: seen.size, edgeCount: edges.length, htmlLength: html.length, html });
+    }
+  );
+
   // ─── knowledge_import_multimodal (WIRE-004) ──────────────────────
   ctx.server.registerTool(
     "knowledge_import_multimodal",
