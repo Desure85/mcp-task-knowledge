@@ -946,4 +946,99 @@ export function registerMemoryTools(ctx: ServerContext): void {
       });
     }
   );
+
+  // ─── memory_benchmark_run (WIRE-007) ───────────────────────────────
+  ctx.server.registerTool(
+    "memory_benchmark_run",
+    {
+      title: "Run Memory Benchmarks",
+      description:
+        "Run the agent-memory benchmark harness (LOCOMO, LongMemEval, BEAM, DMR) " +
+        "against an ephemeral in-memory adapter and return structured scores. " +
+        "Synchronous and bounded by design: at most 4 suites × maxQuestions questions, " +
+        "in-memory retrieval, finishes in milliseconds — safe for CI. " +
+        "For real-instance runs against a live server use `npm run benchmark` (NEXT2-007 CLI). " +
+        "For long/async jobs use the WIRE-008 async processors when available.",
+      inputSchema: {
+        suite: z.enum(["all", "locomo", "longmemeval", "beam", "dmr"]).default("all").optional().describe("Benchmark suite to run (default: all)"),
+        maxQuestions: z.number().int().min(1).max(5).default(5).optional().describe("Cap questions per suite for bounded runs (each suite has 5; lower for faster smoke runs)"),
+        includeDetails: z.boolean().default(false).optional().describe("Include per-question details (larger payload)"),
+      },
+    },
+    async (args) => {
+      const { runAllBenchmarks, runBenchmark, createLOCOMOSuite, createLongMemEvalSuite, createBEAMSuite, createDMRSuite } = await import('../memory/benchmarks.js');
+      const { EphemeralBenchmarkAdapter } = await import('../memory/ephemeral-benchmark-adapter.js');
+
+      const suiteKey = (args.suite ?? "all").toLowerCase();
+      const maxQuestions = args.maxQuestions ?? 5;
+      const includeDetails = args.includeDetails ?? false;
+
+      const suiteFactories: Record<string, () => import('../memory/benchmarks.js').BenchmarkSuite> = {
+        locomo: createLOCOMOSuite,
+        longmemeval: createLongMemEvalSuite,
+        beam: createBEAMSuite,
+        dmr: createDMRSuite,
+      };
+
+      const adapter = new EphemeralBenchmarkAdapter();
+
+      let reports: import('../memory/benchmarks.js').BenchmarkReport[];
+      if (suiteKey === "all" && maxQuestions >= 5) {
+        // Full default path — all suites, all questions.
+        reports = await runAllBenchmarks(adapter);
+      } else if (suiteKey === "all") {
+        const factories = [createLOCOMOSuite, createLongMemEvalSuite, createBEAMSuite, createDMRSuite];
+        reports = [];
+        for (const factory of factories) {
+          const suite = factory();
+          suite.questions = suite.questions.slice(0, maxQuestions);
+          reports.push(await runBenchmark(suite, adapter));
+        }
+      } else {
+        const factory = suiteFactories[suiteKey];
+        if (!factory) {
+          return err(`unknown suite: ${args.suite} (expected one of: all, locomo, longmemeval, beam, dmr)`);
+        }
+        const suite = factory();
+        suite.questions = suite.questions.slice(0, maxQuestions);
+        reports = [await runBenchmark(suite, adapter)];
+      }
+
+      const totalQuestions = reports.reduce((sum, r) => sum + r.totalQuestions, 0);
+      const totalCorrect = reports.reduce((sum, r) => sum + r.correctAnswers, 0);
+
+      if (includeDetails) {
+        return ok({
+          adapter: adapter.name,
+          suites: reports.map((r) => r.suite),
+          totalQuestions,
+          totalCorrect,
+          reports,
+          note: 'Synchronous bounded run against an ephemeral in-memory adapter (no persistence, no side effects).',
+        });
+      }
+
+      return ok({
+        adapter: adapter.name,
+        suites: reports.map((r) => r.suite),
+        totalQuestions,
+        totalCorrect,
+        reports: reports.map((r) => ({
+          suite: r.suite,
+          adapter: r.adapter,
+          totalQuestions: r.totalQuestions,
+          correctAnswers: r.correctAnswers,
+          recallAt1: r.recallAt1,
+          recallAt5: r.recallAt5,
+          recallAt10: r.recallAt10,
+          precision: r.precision,
+          f1: r.f1,
+          avgLatencyMs: r.avgLatencyMs,
+          p95LatencyMs: r.p95LatencyMs,
+          timestamp: r.timestamp,
+        })),
+        note: 'Synchronous bounded run against an ephemeral in-memory adapter (no persistence, no side effects). Pass includeDetails=true for per-question breakdown.',
+      });
+    }
+  );
 }
