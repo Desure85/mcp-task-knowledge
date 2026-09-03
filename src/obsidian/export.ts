@@ -5,6 +5,9 @@ import { ensureDir, writeText } from '../fs.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { listTasksTree, listTasks } from '../storage/tasks.js';
 import type { KnowledgeDocMeta } from '../types.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('obsidian-export');
 
 function toFrontmatter(obj: Record<string, any>): string {
   const lines: string[] = ['---'];
@@ -182,12 +185,15 @@ export async function planExportProjectToVault(project?: string, opts?: ExportOp
       const raw = await fs.readFile(catPath, 'utf8');
       const man = JSON.parse(raw);
       pCount = man && man.items ? Object.keys(man.items).length : 0;
-    } catch {
+    } catch (err) {
+      log.warn({ err }, 'prompts catalog count failed, falling back to builds count');
       try {
         const buildsDir = path.join(PROMPTS_DIR, project || 'mcp', 'exports', 'builds');
         const items = await fs.readdir(buildsDir);
         pCount = items.filter(n => n.endsWith('.json')).length;
-      } catch {}
+      } catch (fallbackErr) {
+        log.warn({ err: fallbackErr }, 'prompts builds count failed, reporting 0');
+      }
     }
   }
 
@@ -463,7 +469,9 @@ export async function exportProjectToVault(project?: string, opts?: ExportOption
       await fs.writeFile(path.join(dstCatalogDir, 'prompts.catalog.json'), raw, 'utf8');
       const man = JSON.parse(raw);
       promptsCount = man && man.items ? Object.keys(man.items).length : promptsCount;
-    } catch {}
+    } catch (err) {
+      log.warn({ err }, 'prompts catalog copy failed, skipping');
+    }
     // builds
     try {
       await ensureDir(dstBuildsDir);
@@ -478,7 +486,9 @@ export async function exportProjectToVault(project?: string, opts?: ExportOption
           await fs.writeFile(path.join(dstBuildsDir, e.name), b);
         }
       }
-    } catch {}
+    } catch (err) {
+      log.warn({ err }, 'prompts builds copy failed, skipping');
+    }
     // optional sources markdown
     if (opts?.includePromptSourcesMd) {
       try {
@@ -490,7 +500,9 @@ export async function exportProjectToVault(project?: string, opts?: ExportOption
             await fs.writeFile(path.join(dstMdDir, e.name), b);
           }
         }
-      } catch {}
+      } catch (err) {
+        log.warn({ err }, 'prompt sources markdown copy failed, skipping');
+      }
     }
     // optional sources json
     if (opts?.includePromptSourcesJson) {
@@ -518,7 +530,9 @@ export async function exportProjectToVault(project?: string, opts?: ExportOption
               }
             }
           }
-        } catch {}
+        } catch (err) {
+          log.warn({ err, root }, 'prompt sources json copy failed, skipping root');
+        }
       }
     }
   }
