@@ -680,7 +680,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Обоснование |
 |----|--------|-----------|--------|---------|-------------|-------------|
-| NEXT2-003 | Graph visualization page в web-ui: route `/graph` — рендер knowledge graph (graph-viz.ts) с данными из entity-graph/temporal-graph | medium | pending | J.3 | NEXT-014, UI-001 | graph-viz.ts есть, страницы нет |
+| NEXT2-003 | Graph visualization page в web-ui: route `/graph` — рендер knowledge graph (graph-viz.ts) с данными из entity-graph/temporal-graph | medium | done | J.3 | NEXT-014, UI-001 | feat/next2003-graph-viz-page: app/graph/page.tsx + memory api client, tsc+build clean |
 | NEXT2-004 | Memory browser page в web-ui: route `/memory` — просмотр extracted facts, temporal history, profiles, layers | medium | pending | J.4 | NEXT-002, UI-001 | 33 memory tools есть, UI просмотра нет |
 | NEXT2-005 | Realtime в web-ui: страницы слушают WebSocket (live-updates задач/знаний) | medium | pending | J.5 | WIRE-002, UI-005 | RealtimeServer есть, UI не слушает |
 | NEXT2-007 | Benchmark runner CLI: `npm run benchmark` — запуск LOCOMO/LongMemEval/BEAM/DMR против реального инстанса, markdown-отчёт | medium | pending | J.7 | NEXT-013 | benchmarks.ts есть, CLI нет |
@@ -699,7 +699,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 - [x] NEXT2-001: LLM-экстрактор — закрыто (AD: извлечение = задача агента, не сервера)
 - [x] NEXT2-002: Memory-only mode — закрыто (дублирует ACL + DX-002 namespaces)
-- [ ] NEXT2-003: Graph visualization page в web-ui (/graph)
+- [x] NEXT2-003: Graph visualization page в web-ui (/graph)
 - [ ] NEXT2-004: Memory browser page в web-ui (/memory)
 - [ ] NEXT2-005: Realtime в web-ui (страницы слушают WebSocket)
 - [x] NEXT2-006: TS SDK — закрыто (MCP сам SDK, есть api-client + framework-adapters)
