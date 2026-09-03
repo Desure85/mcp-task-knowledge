@@ -322,6 +322,29 @@ export class ClusterManager extends EventEmitter {
   getSelfId(): string {
     return this.selfId;
   }
+
+  /**
+   * Override the self node ID (WIRE-003: AppContainer applies the configured
+   * cluster.selfId before self-registration so heartbeat refresh targets the
+   * registered node).
+   */
+  setSelfId(id: string): void {
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error('[cluster] selfId must be a non-empty string');
+    }
+    this.selfId = id;
+  }
+
+  /**
+   * Override the heartbeat interval (WIRE-003: AppContainer applies the
+   * configured cluster.heartbeatMs before startHeartbeat).
+   */
+  setHeartbeatMs(ms: number): void {
+    if (!Number.isFinite(ms) || ms <= 0) {
+      throw new Error('[cluster] heartbeatMs must be a positive number');
+    }
+    this.heartbeatMs = ms;
+  }
 }
 
 function selectByLoad(nodes: NodeInfo[], affinity: Map<string, SessionAffinity>): NodeInfo {

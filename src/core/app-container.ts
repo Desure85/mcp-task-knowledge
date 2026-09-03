@@ -357,7 +357,11 @@ export class AppContainer {
       if (this.opts.cluster !== false && this.opts.transportType !== 'stdio') {
         const clusterOpts = this.opts.cluster === undefined ? {} : this.opts.cluster;
         const cm: ClusterManager = getClusterManager();
-        const selfId = clusterOpts.selfId ?? cm.getSelfId();
+        // Apply configured identity/interval first: heartbeat refresh targets
+        // the manager's selfId, so it must match the registered node.
+        if (clusterOpts.selfId) cm.setSelfId(clusterOpts.selfId);
+        if (clusterOpts.heartbeatMs) cm.setHeartbeatMs(clusterOpts.heartbeatMs);
+        const selfId = cm.getSelfId();
         cm.registerNode({
           id: selfId,
           host: clusterOpts.host ?? this.opts.host,
