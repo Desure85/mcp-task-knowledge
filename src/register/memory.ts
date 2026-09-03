@@ -904,4 +904,46 @@ export function registerMemoryTools(ctx: ServerContext): void {
       });
     }
   );
+
+  // ─── memory_framework_adapter (WIRE-006) ─────────────────────────
+  ctx.server.registerTool(
+    "memory_framework_adapter",
+    {
+      title: "Framework Adapter Descriptor",
+      description:
+        "Describe how to use this server as a memory provider from an external " +
+        "framework (LangGraph, AutoGen, CrewAI, LangChain). Returns the MCP " +
+        "endpoint, the adapter operations available for the framework, and a " +
+        "minimal TypeScript client snippet. The adapter itself runs client-side.",
+      inputSchema: {
+        framework: z.enum(["langgraph", "autogen", "crewai", "langchain"]).describe("Target framework"),
+        serverUrl: z.string().min(1).describe("This server's HTTP MCP endpoint (e.g. http://localhost:3001/mcp)"),
+        project: z.string().default(DEFAULT_PROJECT).optional().describe("Project scope for memory ops"),
+      },
+    },
+    async (args) => {
+      const operations: Record<string, string[]> = {
+        langgraph: ["getCheckpoint", "putCheckpoint", "search"],
+        autogen: ["updateContext", "retrieveContext"],
+        crewai: ["addMemory", "searchEntity", "getRecent"],
+        langchain: ["saveContext", "loadMemoryVariables"],
+      };
+      const opList = operations[args.framework];
+      const project = args.project ?? DEFAULT_PROJECT;
+      const snippet = [
+        `import { HttpMCPClient, createAdapter } from './framework-adapters.js';`,
+        `const client = new HttpMCPClient('${args.serverUrl}');`,
+        `const adapter = createAdapter('${args.framework}', client, '${project}');`,
+      ].join('\n');
+      return ok({
+        framework: args.framework,
+        serverUrl: args.serverUrl,
+        project,
+        transport: 'http (Streamable MCP, tools/call)',
+        operations: opList,
+        snippet,
+        note: 'Adapter runs in your framework process and delegates to this server over HTTP. Use MCP_TRANSPORT=http on the server.',
+      });
+    }
+  );
 }
