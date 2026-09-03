@@ -716,7 +716,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
-| MR-012 | Real-time collaboration (WebSocket) | Ждёт UI-005 | pending |
+| MR-012 | Real-time collaboration (WebSocket) | done (дубль строки 295; WIRE-002 завайрен 2026-09-03) |
 
 ---
 
