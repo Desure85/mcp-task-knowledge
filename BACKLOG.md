@@ -684,7 +684,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT2-004 | Memory browser page в web-ui: route `/memory` — просмотр extracted facts, temporal history, profiles, layers | medium | pending | J.4 | NEXT-002, UI-001 | 33 memory tools есть, UI просмотра нет |
 | NEXT2-005 | Realtime в web-ui: страницы слушают WebSocket (live-updates задач/знаний) | medium | pending | J.5 | WIRE-002, UI-005 | RealtimeServer есть, UI не слушает |
 | NEXT2-007 | Benchmark runner CLI: `npm run benchmark` — запуск LOCOMO/LongMemEval/BEAM/DMR против реального инстанса, markdown-отчёт | medium | pending | J.7 | NEXT-013 | benchmarks.ts есть, CLI нет |
-| NEXT2-008 | npm publish pipeline: пакет НЕ опубликован на npm (проверено 2026-09-02), MR-010 значится done но publish не настроен. GitHub Actions workflow: tag → npm publish + GHCR | high | pending | J.8 | MR-010 | npm view пустой |
+| NEXT2-008 | npm publish pipeline: пакет НЕ опубликован на npm (проверено 2026-09-02), MR-010 значится done но publish не настроен. GitHub Actions workflow: tag → npm publish + GHCR | high | done | J.8 | MR-010 | feat/next2008-npm-publish-pipeline: .github/workflows/publish.yml + publishConfig |
 | NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction, temporal-graph (временные инварианты), scoping (комбинаторика) | low | pending | J.9 | Q-008, NEXT-001 | fuzz есть только для JSON-RPC/core |
 | NEXT2-010 | Perf-тесты для memory tools: latency (<50ms retrieval, <200ms extraction). НЕ CI gate — просто benchmark | low | pending | J.10 | NEXT2-007 | perf есть только для search |
 | NEXT2-012 | Quickstart-to-production guide: полный пример «от установки до продакшена» (Docker + auth + web-ui) в docs/ | low | pending | J.12 | D-001 | getting-started есть, e2e-гайда нет |
@@ -704,7 +704,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [ ] NEXT2-005: Realtime в web-ui (страницы слушают WebSocket)
 - [x] NEXT2-006: TS SDK — закрыто (MCP сам SDK, есть api-client + framework-adapters)
 - [ ] NEXT2-007: Benchmark runner CLI (npm run benchmark)
-- [ ] NEXT2-008: npm publish pipeline (пакет НЕ опубликован, MR-010 фиктивно done)
+- [x] NEXT2-008: npm publish pipeline (publish.yml: tag → npm + GHCR)
 - [ ] NEXT2-009: Fuzzing для memory modules (fast-check property tests)
 - [ ] NEXT2-010: Perf-тесты для memory tools (latency benchmark, не CI gate)
 - [x] NEXT2-011: Экспорт в форматы конкурентов — закрыто (никому не нужно)
@@ -717,6 +717,17 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Причина | Статус |
 |----|--------|---------|--------|
 | MR-012 | Real-time collaboration (WebSocket) | done (дубль строки 295; WIRE-002 завайрен 2026-09-03) |
+
+---
+
+## Этап K — Full-server E2E
+
+> Сквозные end-to-end тесты на весь функционал сервера — один погруженный клиент проходит все подсистемы как в проде.
+> Отличие от Q-004 (E2E core tools) и SYNC-005 (E2E durability): здесь покрывается ВЕСЬ сервер целиком, все транспорты и все семейства инструментов.
+
+| ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Что делать |
+|----|--------|-----------|--------|---------|-------------|------------|
+| Q-014 | Full-server E2E: один e2e-сьют поднимает сервер и гоняет весь функционал — транспорты (stdio/HTTP/TCP + WS realtime), auth (authenticate → JWT → ACL deny/allow, fail-closed), сессии (TTL/idle/rate-limit), задачи (CRUD/hierarchy/DAG), знания (CRUD/search BM25+vector+FTS5), память (extract/evolve/profile/context), skills/rules/workflows CRUD+execute, sync (delta/snapshot/merge), cluster/sharding, connectors registry, dashboard/metrics endpoints. Запуск: `npm run e2e:full` (CI nightly, не gate). Требование: hermetic (эфемерные порты, tmp DATA_DIR), deterministic (fake timers где тайминги) | medium | pending | K.1 | Q-004, SYNC-005, SEC-003, WIRE-002 | Новый `tests/e2e-full/*.test.ts`, переиспользовать helpers из DX-007 |
 
 ---
 
@@ -793,8 +804,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Behavioral Memory (G) | 14 | 0 | 0 | 14 | 0 | 0 |
 | Competitive Edge (H) | 22 | 6 | 0 | 16 | 0 | 0 |
 | Wire-in (I) | 10 | 8 | 0 | 2 | 0 | 0 |
-| NEXT2 (J) | 8 | 8 | 0 | 0 | 0 | 0 |
-| **Итого** | **221** | **22** | **0** | **193** | **0** | **1** |
+| NEXT2 (J) | 8 | 7 | 0 | 1 | 0 | 0 |
+| **Итого** | **221** | **21** | **0** | **194** | **0** | **1** |
 
 > Примечание (2026-09-03): тотал 221 = 203 (на 09-01) + 9 WIRE + 8 NEXT2 + 1 SEC-003.
 > Остаток 5 (221 − 22 − 193 − 1) — строки в нестандартных форматах (архив/исследования),
