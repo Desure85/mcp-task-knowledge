@@ -111,6 +111,13 @@ describe('AuthManager — pre-auth gating', () => {
 
     const auth3 = new AuthManager();
     expect(auth3.isAuthRequired()).toBe(false);
+
+    // PROD-002: fail closed on network transports unless explicitly set
+    expect(new AuthManager({ transport: 'http' }).isAuthRequired()).toBe(true);
+    expect(new AuthManager({ transport: 'tcp' }).isAuthRequired()).toBe(true);
+    expect(new AuthManager({ transport: 'stdio' }).isAuthRequired()).toBe(false);
+    expect(new AuthManager({ transport: 'unix' }).isAuthRequired()).toBe(false);
+    expect(new AuthManager({ transport: 'http', requireAuth: false }).isAuthRequired()).toBe(false);
   });
 });
 

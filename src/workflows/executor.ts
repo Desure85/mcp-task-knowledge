@@ -431,19 +431,95 @@ export class WorkflowExecutor {
   }
 
   private evaluateCondition(condition: string, ctx: ExecutionContext): boolean {
+    const trimmed = condition.trim();
     try {
       // Simple condition evaluation: check if a variable is truthy
-      const match = condition.match(/^\$\{(\w+)\}$/);
+      const match = trimmed.match(/^\$\{(\w+)\}$/);
       if (match) {
         return Boolean(ctx.variables[match[1]]);
       }
-      // Otherwise, treat as a JS expression (limited eval)
-      const fn = new Function('ctx', `with(ctx.variables) { return ${condition}; }`);
-      return Boolean(fn(ctx));
+      // Literals without variables
+      if (trimmed === 'true') return true;
+      if (trimmed === 'false' || trimmed === '') return false;
+      // Safe expression over declared variables only — no code execution.
+      // Anything outside the grammar (calls, property access, etc.) throws
+      // and the condition is treated as false (PROD-002: replaced new Function).
+      return this.evaluateSafeCondition(trimmed, ctx.variables);
     } catch {
       log.warn({ condition }, 'condition evaluation failed');
       return false;
     }
+  }
+
+  /**
+   * Minimal boolean/comparison evaluator for workflow conditions (PROD-002).
+   *
+   * Grammar: expr := orExpr; orExpr := andExpr ('||' andExpr)*;
+   * andExpr := unary ('&&' unary)*; unary := '!' unary | comparison;
+   * comparison := primary (('===' | '!==' | '==' | '!=' | '>=' | '<=' | '>' | '<') primary)?;
+   * primary := number | 'quoted string' | true/false/null/undefined | identifier | '(' expr ')'.
+   *
+   * Identifiers resolve ONLY against the provided variables map (unknown → undefined).
+   * No property access, no calls, no assignments — tokenizer rejects everything else.
+   */
+  private evaluateSafeCondition(expr: string, variables: Record<string, unknown>): boolean {
+    const tokens = this.tokenizeCondition(expr);
+    const parser = new ConditionParser(tokens, variables);
+    const value = parser.parseExpr();
+    if (parser.hasMore()) throw new Error('unexpected trailing tokens');
+    return Boolean(value);
+  }
+
+  private tokenizeCondition(expr: string): string[] {
+    const tokens: string[] = [];
+    let i = 0;
+    const pushOp = (op: string): void => {
+      tokens.push(op);
+      i += op.length;
+    };
+    while (i < expr.length) {
+      const ch = expr[i];
+      if (ch === ' ' || ch === '\t' || ch === '\n') {
+        i++;
+        continue;
+      }
+      const rest = expr.slice(i);
+      const three = rest.slice(0, 3);
+      if (three === '===' || three === '!==') {
+        pushOp(three);
+        continue;
+      }
+      const two = rest.slice(0, 2);
+      if (two === '&&' || two === '||' || two === '==' || two === '!=' || two === '>=' || two === '<=') {
+        pushOp(two);
+        continue;
+      }
+      if (ch === '!' || ch === '>' || ch === '<' || ch === '(' || ch === ')') {
+        pushOp(ch);
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        const end = expr.indexOf(ch, i + 1);
+        if (end === -1) throw new Error('unterminated string literal');
+        tokens.push(expr.slice(i, end + 1));
+        i = end + 1;
+        continue;
+      }
+      const numMatch = rest.match(/^(-?\d+(\.\d+)?)/);
+      if (numMatch) {
+        tokens.push(numMatch[1]);
+        i += numMatch[1].length;
+        continue;
+      }
+      const idMatch = rest.match(/^[A-Za-z_]\w*/);
+      if (idMatch) {
+        tokens.push(idMatch[0]);
+        i += idMatch[0].length;
+        continue;
+      }
+      throw new Error(`unsupported token at offset ${i}`);
+    }
+    return tokens;
   }
 
   private getTopologicalOrder(workflow: Workflow): string[] | null {
@@ -480,5 +556,112 @@ export class WorkflowExecutor {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}
+
+// ─── Safe condition parser (PROD-002) ─────────────────────────────────
+// Recursive-descent evaluator for the condition grammar documented on
+// evaluateSafeCondition. Variables resolve from a caller-provided map only.
+class ConditionParser {
+  private pos = 0;
+
+  constructor(
+    private readonly tokens: string[],
+    private readonly variables: Record<string, unknown>,
+  ) {}
+
+  hasMore(): boolean {
+    return this.pos < this.tokens.length;
+  }
+
+  parseExpr(): unknown {
+    let left = this.parseAnd();
+    while (this.peek() === '||') {
+      this.next();
+      const right = this.parseAnd();
+      left = Boolean(left) || Boolean(right);
+    }
+    return left;
+  }
+
+  private parseAnd(): unknown {
+    let left = this.parseUnary();
+    while (this.peek() === '&&') {
+      this.next();
+      const right = this.parseUnary();
+      left = Boolean(left) && Boolean(right);
+    }
+    return left;
+  }
+
+  private parseUnary(): unknown {
+    if (this.peek() === '!') {
+      this.next();
+      return !this.parseUnary();
+    }
+    return this.parseComparison();
+  }
+
+  private parseComparison(): unknown {
+    const left = this.parsePrimary();
+    const op = this.peek();
+    if (op === undefined || !['===', '!==', '==', '!=', '>=', '<=', '>', '<'].includes(op)) {
+      return left;
+    }
+    this.next();
+    const right = this.parsePrimary();
+    switch (op) {
+      case '===':
+        return left === right;
+      case '!==':
+        return left !== right;
+      case '==':
+        // eslint-disable-next-line eqeqeq
+        return left == right;
+      case '!=':
+        // eslint-disable-next-line eqeqeq
+        return left != right;
+      case '>=':
+        return (left as number) >= (right as number);
+      case '<=':
+        return (left as number) <= (right as number);
+      case '>':
+        return (left as number) > (right as number);
+      default:
+        return (left as number) < (right as number);
+    }
+  }
+
+  private parsePrimary(): unknown {
+    const tok = this.next();
+    if (tok === undefined) throw new Error('unexpected end of expression');
+    if (tok === '(') {
+      const value = this.parseExpr();
+      if (this.next() !== ')') throw new Error('missing closing paren');
+      return value;
+    }
+    if ((tok.startsWith('"') && tok.endsWith('"')) || (tok.startsWith("'") && tok.endsWith("'"))) {
+      return tok.slice(1, -1);
+    }
+    if (tok === 'true') return true;
+    if (tok === 'false') return false;
+    if (tok === 'null') return null;
+    if (tok === 'undefined') return undefined;
+    if (/^-?\d+(\.\d+)?$/.test(tok)) return Number(tok);
+    if (/^[A-Za-z_]\w*$/.test(tok)) {
+      // Own properties only — prototype names (constructor, __proto__, …) → undefined.
+      return Object.prototype.hasOwnProperty.call(this.variables, tok)
+        ? this.variables[tok]
+        : undefined;
+    }
+    throw new Error(`unsupported primary: ${tok}`);
+  }
+
+  private peek(): string | undefined {
+    return this.tokens[this.pos];
+  }
+
+  private next(): string | undefined {
+    return this.tokens[this.pos++];
   }
 }

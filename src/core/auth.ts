@@ -74,9 +74,16 @@ export type TokenValidator = (token: string) => Promise<AuthResult | null>;
 export interface AuthManagerOptions {
   /**
    * Whether authentication is required for tool calls.
-   * Default: false (backward compat — stdio mode doesn't require auth).
+   * Default: true for network transports (http/tcp), false for stdio/unix.
+   * Explicit value always wins — set false only for trusted local stdio.
    */
   requireAuth?: boolean;
+
+  /**
+   * Transport this manager guards. Used to derive the fail-closed default
+   * for requireAuth when it is not set explicitly (PROD-002).
+   */
+  transport?: 'stdio' | 'http' | 'tcp' | 'unix';
 
   /**
    * Methods allowed before authentication (in addition to built-in whitelist).
@@ -160,7 +167,9 @@ export class AuthManager {
   ]);
 
   constructor(options?: AuthManagerOptions) {
-    this.requireAuth = options?.requireAuth ?? false;
+    // Fail closed on network transports unless explicitly disabled (PROD-002).
+    this.requireAuth =
+      options?.requireAuth ?? (options?.transport === 'http' || options?.transport === 'tcp');
     this.tokenValidator = options?.tokenValidator;
     this.sessionManager = options?.sessionManager;
     this.tokenTtlGraceMs = options?.tokenTtlGraceMs ?? 30_000;

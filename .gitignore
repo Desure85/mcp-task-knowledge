@@ -84,6 +84,12 @@ junit*.xml
 .env.*
 !.env.example
 !.env*.example
+secrets.enc.json
+*.db
+*.sqlite*
+*.sqlite3*
+*.pem
+*.key
 
 ###############################
 # Docker / CI
