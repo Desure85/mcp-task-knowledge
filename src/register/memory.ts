@@ -18,7 +18,7 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { DEFAULT_PROJECT, DATA_DIR, resolveProject } from '../config.js';
-import { listDocs, readDoc } from '../storage/knowledge.js';
+import { listDocs, readDoc, createDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
 import { ProfileManager } from '../memory/user-profile.js';
@@ -865,13 +865,17 @@ export function registerMemoryTools(ctx: ServerContext): void {
       title: "Import Multimodal File",
       description:
         "Extract text chunks from a file (pdf/text/code/image/video/audio) via the " +
-        "multimodal ingestion pipeline. Extract-only: returns chunks, the calling " +
-        "agent decides what to persist. File must live inside DATA_DIR.",
+        "multimodal ingestion pipeline. Extract-only by default: returns chunks, the calling " +
+        "agent decides what to persist. Pass persist:true to store the extracted chunks " +
+        "as a knowledge doc via the knowledge pipeline. File must live inside DATA_DIR.",
       inputSchema: {
         filePath: z.string().min(1).describe("Path to the file, absolute or relative to DATA_DIR"),
         type: z.enum(["pdf", "image", "video", "code", "text", "audio"]).describe("Modality extractor to use"),
         language: z.string().optional().describe("Content language hint (e.g. en, ru)"),
         maxChunks: z.number().int().min(1).max(500).default(100).optional().describe("Maximum chunks to return"),
+        persist: z.boolean().default(false).optional().describe("Store extracted chunks as a knowledge doc"),
+        project: z.string().min(1).optional().describe("Project scope for the stored doc (default project)"),
+        title: z.string().min(1).max(300).optional().describe("Title for the stored doc (defaults to filename)"),
       },
     },
     async (args) => {
@@ -893,6 +897,20 @@ export function registerMemoryTools(ctx: ServerContext): void {
         language: args.language,
       });
       const chunks = result.chunks.slice(0, args.maxChunks ?? 100);
+      let docId: string | undefined;
+      if (args.persist === true) {
+        const prj = resolveProject(args.project);
+        const body = chunks.map((c) => c.text).join('\n\n');
+        const doc = await createDoc({
+          project: prj,
+          title: args.title ?? `multimodal:${result.filename}`,
+          content: body,
+          tags: ['multimodal_import', `modality:${result.modality}`],
+          source: `multimodal:${result.filename}`,
+          type: 'multimodal_import',
+        });
+        docId = doc.id;
+      }
       return ok({
         filename: result.filename,
         modality: result.modality,
@@ -900,6 +918,8 @@ export function registerMemoryTools(ctx: ServerContext): void {
         returnedChunks: chunks.length,
         truncated: result.totalChunks > chunks.length,
         durationMs: result.durationMs,
+        persisted: args.persist === true,
+        docId,
         chunks,
       });
     }

@@ -94,4 +94,35 @@ describe('knowledge_import_multimodal tool', () => {
     const result = parseResponse(await getHandler('knowledge_import_multimodal')!({ filePath: 'nope.txt', type: 'text' }));
     expect(result.ok).toBe(false);
   });
+
+  it('persists chunks via the knowledge pipeline when persist:true', async () => {
+    const dir = process.env.DATA_DIR!;
+    await fs.writeFile(path.join(dir, 'persist-me.txt'), 'Persist alpha.\n\nPersist beta.');
+    const { ctx, getHandler } = createMockContext();
+    registerMemoryTools(ctx);
+
+    const result = parseResponse(
+      await getHandler('knowledge_import_multimodal')!({ filePath: 'persist-me.txt', type: 'text', persist: true, title: 'mm-persist-test' }),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.data.persisted).toBe(true);
+    expect(typeof result.data.docId).toBe('string');
+    // stored doc is readable via the knowledge pipeline
+    const { readDoc } = await import('../src/storage/knowledge.js');
+    const { resolveProject } = await import('../src/config.js');
+    const doc = await readDoc(resolveProject(undefined), result.data.docId as string);
+    expect(doc).not.toBeNull();
+    expect(doc!.content).toContain('Persist alpha');
+    try {
+      await fs.unlink(path.join(dir, 'persist-me.txt'));
+    } catch { /* already cleaned */ }
+  });
+
+  it('blocks absolute path traversal outside DATA_DIR', async () => {
+    const { ctx, getHandler } = createMockContext();
+    registerMemoryTools(ctx);
+
+    const result = parseResponse(await getHandler('knowledge_import_multimodal')!({ filePath: '/etc/passwd', type: 'text' }));
+    expect(result.ok).toBe(false);
+  });
 });
