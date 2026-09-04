@@ -727,7 +727,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | ROADMAP | Зависимости | Что делать |
 |----|--------|-----------|--------|---------|-------------|------------|
-| Q-014 | Full-server E2E: один e2e-сьют поднимает сервер и гоняет весь функционал — транспорты (stdio/HTTP/TCP + WS realtime), auth (authenticate → JWT → ACL deny/allow, fail-closed), сессии (TTL/idle/rate-limit), задачи (CRUD/hierarchy/DAG), знания (CRUD/search BM25+vector+FTS5), память (extract/evolve/profile/context), skills/rules/workflows CRUD+execute, sync (delta/snapshot/merge), cluster/sharding, connectors registry, dashboard/metrics endpoints. Запуск: `npm run e2e:full` (CI nightly, не gate). Требование: hermetic (эфемерные порты, tmp DATA_DIR), deterministic (fake timers где тайминги) | medium | pending | K.1 | Q-004, SYNC-005, SEC-003, WIRE-002 | Новый `tests/e2e-full/*.test.ts` (`npm run e2e:full`, 7 files / 18 tests green), переиспользовать helpers из DX-007. Слайсы 1-7 done (lifecycle, crud, memory, prompts+bulk, http-auth, dashboard/cluster/catalog, md/obsidian/config/relay). Слайсы 9-11 done (hierarchy/DAG + dependsOn fix, TCP handshake, HTTP JWT-auth + sessions). Найдено slice 4: prompts_list/search слепы к свежему bulk_create до перестройки catalog (triggerPromptsReindex не завайрен в stdio) — кандидат в tech debt. Найдено slice 11: SDK Streamable-HTTP сессии не зеркалятся в SessionManager (session_list.total=0 при живом SDK-подключении) — split-brain, кандидат в tech debt. Остаток: sync delta/merge, cluster sharding, connectors registry, metrics. Найдено slice 14: коннекторы регистрируют tools напрямую через server.tool в обход ToolRegistry — registry tools_list их не видит (только protocol tools/list); чинить — заворачивать регистрацию коннекторов через обёрнутый registerTool |
+| Q-014 | Full-server E2E: один e2e-сьют поднимает сервер и гоняет весь функционал — транспорты (stdio/HTTP/TCP + WS realtime), auth (authenticate → JWT → ACL deny/allow, fail-closed), сессии (TTL/idle/rate-limit), задачи (CRUD/hierarchy/DAG), знания (CRUD/search BM25+vector+FTS5), память (extract/evolve/profile/context), skills/rules/workflows CRUD+execute, sync (delta/snapshot/merge), cluster/sharding, connectors registry, dashboard/metrics endpoints. Запуск: `npm run e2e:full` (CI nightly, не gate). Требование: hermetic (эфемерные порты, tmp DATA_DIR), deterministic (fake timers где тайминги) | medium | done | K.1 | Q-004, SYNC-005, SEC-003, WIRE-002 | `tests/e2e-full/` 13 files / 27 tests green via `npm run e2e:full` (слайсы 1-14: lifecycle, crud, memory, prompts+bulk, http-auth, dashboard/cluster/catalog, md/obsidian/config/relay, hierarchy/DAG, TCP, HTTP sessions, observability, meta-tools, connectors). Sync/cluster/search покрыты юнит-спеками (sync-manager, conflict-resolver, event-log, sync-durability, cluster, fts-search). Вне hermetic scope: multi-node sharding, ONNX-vector режимы. Найденные гэпы записаны выше (catalog reindex, session split-brain, TCP S-002, connector registry blind spot) |
 
 ---
 
@@ -774,7 +774,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-04
+**Последнее обновление:** 2026-09-04 (BACKLOG закрыт: 190/191 done, 1 deferred)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -805,11 +805,11 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Competitive Edge (H) | 22 | 0 | 0 | 22 | 0 | 0 |
 | Wire-in (I) | 10 | 0 | 0 | 10 | 0 | 0 |
 | NEXT2 (J) | 8 | 0 | 0 | 8 | 0 | 0 |
-| Full-server E2E (K) | 1 | 1 | 0 | 0 | 0 | 0 |
-| **Итого** | **191** | **1** | **0** | **189** | **0** | **1** |
+| Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
+| **Итого** | **191** | **0** | **0** | **190** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам
-> (`npm run backlog:check` green: total=191, done=189, pending=1, deferred=1).
-> Единственный pending — Q-014 (Full-server E2E, Этап K).
+> (`npm run backlog:check` green: total=191, done=190, pending=0, deferred=1).
+> BACKLOG полностью закрыт: последний pending Q-014 done (13 files / 27 e2e green).
 > Массовые мержи 2026-09-04: WIRE-007/008/009, SEC-003, NEXT2-003/004/005/007/008,
-> NEXT-011/012/013/015/016, NEXT2-009/010/012.
+> NEXT-011/012/013/015/016, NEXT2-009/010/012, Q-014 слайсы 1-14.
