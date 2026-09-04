@@ -687,7 +687,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT2-008 | npm publish pipeline: пакет НЕ опубликован на npm (проверено 2026-09-02), MR-010 значится done но publish не настроен. GitHub Actions workflow: tag → npm publish + GHCR | high | done | J.8 | MR-010 | feat/next2008-npm-publish-pipeline: .github/workflows/publish.yml + publishConfig |
 | NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction, temporal-graph (временные инварианты), scoping (комбинаторика) | low | done | J.9 | Q-008, NEXT-001 | tests/memory-fuzz.test.ts: 8 property-тестов (extraction bounds/confidence, temporal add/invalidate/supersede, scoping determinism/consistency) |
 | NEXT2-010 | Perf-тесты для memory tools: latency (<50ms retrieval, <200ms extraction). НЕ CI gate — просто benchmark | low | done | J.10 | NEXT2-007 | tests/memory-perf.test.ts: extract/100-sent + entity-retrieve/500 + temporal-add200 с loose bounds, latencies в stdout (entity 5ms, temporal 74ms) |
-| NEXT2-012 | Quickstart-to-production guide: полный пример «от установки до продакшена» (Docker + auth + web-ui) в docs/ | low | pending | J.12 | D-001 | getting-started есть, e2e-гайда нет |
+| NEXT2-012 | Quickstart-to-production guide: полный пример «от установки до продакшена» (Docker + auth + web-ui) в docs/ | low | done | J.12 | D-001 | docs/quickstart-production.md: compose + JWT fail-closed + smoke + prod checklist |
 
 ---
 
@@ -708,7 +708,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [x] NEXT2-009: Fuzzing для memory modules (fast-check property tests)
 - [x] NEXT2-010: Perf-тесты для memory tools (latency benchmark, не CI gate)
 - [x] NEXT2-011: Экспорт в форматы конкурентов — закрыто (никому не нужно)
-- [ ] NEXT2-012: Quickstart-to-production guide в docs/
+- [x] NEXT2-012: Quickstart-to-production guide в docs/
 
 ---
 
