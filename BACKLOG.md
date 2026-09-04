@@ -647,10 +647,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|---------|-------------|------------|
 | WIRE-001 | Wire новые connectors (GDrive, Gmail, Notion, OneDrive, Linear, Web Crawler) в connector registry — зарегистрировать в `src/connectors/index.ts` + `src/connectors/registry.ts` | high | done | I.1 | INT-004 | Смержено 2026-09-03 (cb13fea/9921dad) |
 | WIRE-002 | Wire RealtimeServer в HTTP transport — `getRealtimeServer().attach(httpServer, '/ws')` в `src/transport/http-transport.ts` | high | done | I.2 | MR-012 | Смержено 2026-09-03 (cb13fea) |
-| WIRE-003 | Wire ClusterManager в app-container — register self node, start heartbeat, expose cluster tools | medium | pending | I.3 | SCALE-002 | Добавить getClusterManager() в defaultRegistration, register cluster_* MCP tools |
-| WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | pending | I.4 | NEXT-012 | Регистрация tool, вызов extract() из multimodal.ts |
-| WIRE-005 | Wire graph visualization — MCP tool `graph_visualize` в `src/register/` | low | pending | I.5 | NEXT-014 | Регистрация tool, вызов generateGraphHTML() из graph-viz.ts |
-| WIRE-006 | Wire framework adapters — MCP tool `memory_framework_adapter` или экспорт через REST wrapper | low | pending | I.6 | NEXT-015 | Регистрация tool или REST endpoint |
+| WIRE-003 | Wire ClusterManager в app-container — register self node, start heartbeat, expose cluster tools | medium | done | I.3 | SCALE-002 | Смержено 2026-09-03 (d533e8e/24e5f6d): app-container wiring + register/cluster.ts (cluster_status/nodes/join), 5 tests |
+| WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | done | I.4 | NEXT-012 | Смержено 2026-09-03 (896ecc5/1643e77): knowledge_import_multimodal (extract-only, DATA_DIR jail), 3 tests |
+| WIRE-005 | Wire graph visualization — MCP tool `graph_visualize` в `src/register/` | low | done | I.5 | NEXT-014 | Смержено 2026-09-03 (35e1095/b343b86): graph_visualize (entity subgraph/query render), 3 tests |
+| WIRE-006 | Wire framework adapters — MCP tool `memory_framework_adapter` или экспорт через REST wrapper | low | done | I.6 | NEXT-015 | Смержено 2026-09-03 (e6585e4/468be5f): memory_framework_adapter descriptor (langgraph/autogen/crewai/langchain), 2 tests |
 | WIRE-007 | Wire benchmark harness — MCP tool `memory_benchmark_run` | low | done | I.7 | NEXT-013 | feat/wire007-benchmark-harness-tool — tool в src/register/memory.ts, runAllBenchmarks() + EphemeralBenchmarkAdapter, 6 tests |
 | WIRE-008 | Wire async ops — MCP tools `memory_async_submit` / `memory_async_status` / `memory_async_cancel` | medium | done | I.8 | NEXT-016 | Смержено — feat/wire008-async-ops-tools (2026-09-03): обёртка над AsyncJobManager, 5 default processors (extract/search/bulk_import/evolve/dream) |
 | WIRE-009 | Заполнить stub connectors реальными API-вызовами (GDrive, Gmail, Notion, OneDrive, Linear) | low | done | I.9 | WIRE-001 | Реализовано 2026-09-03 на feat/wire009-real-connector-apis (реальные HTTP к Drive v3 / Gmail v1 / Notion v1 / Graph v1.0 / Linear GraphQL, fail-closed err, 20 hermetic-тестов) |
@@ -662,10 +662,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 - [x] WIRE-001: Wire новые connectors в registry
 - [x] WIRE-002: Wire RealtimeServer в HTTP transport
-- [ ] WIRE-003: Wire ClusterManager в app-container
-- [ ] WIRE-004: Wire multimodal ingestion MCP tool
-- [ ] WIRE-005: Wire graph visualization MCP tool
-- [ ] WIRE-006: Wire framework adapters
+- [x] WIRE-003: Wire ClusterManager в app-container
+- [x] WIRE-004: Wire multimodal ingestion MCP tool
+- [x] WIRE-005: Wire graph visualization MCP tool
+- [x] WIRE-006: Wire framework adapters
 - [x] WIRE-007: Wire benchmark harness MCP tool
 - [x] WIRE-008: Wire async ops MCP tools
 - [x] WIRE-009: Заполнить stub connectors реальными API
