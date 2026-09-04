@@ -9,11 +9,11 @@ Integration hub for external services. Each connector registers MCP tools with a
 | GitHub | `github_issue_*`, `github_pr_*`, `github_repo_*` | ✅ Production |
 | Jira/YouTrack | `jira_issue_*` | ✅ Production |
 | Slack/Discord | `slack_*` | ✅ Production |
-| Google Drive | `gdrive_list_files`, `gdrive_get_file`, `gdrive_sync_folder` | ✅ Stub |
-| Gmail | `gmail_list_messages`, `gmail_get_message`, `gmail_sync_to_kb` | ✅ Stub |
-| Notion | `notion_search_pages`, `notion_get_page`, `notion_sync_database` | ✅ Stub |
-| OneDrive | `onedrive_list_files`, `onedrive_get_file`, `onedrive_sync_folder` | ✅ Stub |
-| Linear | `linear_list_issues`, `linear_get_issue`, `linear_sync_to_kb` | ✅ Stub |
+| Google Drive | `gdrive_list_files`, `gdrive_get_file`, `gdrive_sync_folder` | ✅ Real (Drive v3, OAuth2 Bearer) |
+| Gmail | `gmail_list_messages`, `gmail_get_message`, `gmail_sync_to_kb` | ✅ Real (Gmail v1, OAuth2 Bearer) |
+| Notion | `notion_search_pages`, `notion_get_page`, `notion_sync_database` | ✅ Real (Notion v1) |
+| OneDrive | `onedrive_list_files`, `onedrive_get_file`, `onedrive_sync_folder` | ✅ Real (Graph v1.0) |
+| Linear | `linear_list_issues`, `linear_get_issue`, `linear_sync_to_kb` | ✅ Real (Linear GraphQL) |
 | Web Crawler | `webcrawler_fetch_page`, `webcrawler_crawl_site` | ✅ Working |
 
 ## Connector Framework
