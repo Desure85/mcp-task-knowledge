@@ -22,7 +22,7 @@ export interface E2EServer {
   close: () => Promise<void>;
 }
 
-export async function spawnServer(tag: string): Promise<E2EServer> {
+export async function spawnServer(tag: string, extraEnv: Record<string, string> = {}): Promise<E2EServer> {
   const tmp = path.join(ROOT, `.tmp-e2e-full-${tag}-${process.pid}`);
   const store = path.join(tmp, 'store');
   await fsp.rm(tmp, { recursive: true, force: true });
@@ -37,6 +37,7 @@ export async function spawnServer(tag: string): Promise<E2EServer> {
       OBSIDIAN_VAULT_ROOT: path.join(tmp, 'vault'),
       EMBEDDINGS_MODE: 'none',
       CATALOG_ENABLED: 'false',
+      ...extraEnv,
     },
   });
   const client = new Client({ name: `q014-${tag}`, version: '0.0.1' });
