@@ -651,7 +651,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | WIRE-004 | Wire multimodal ingestion — MCP tool `knowledge_import_multimodal` в `src/register/memory.ts` или `src/register/markdown.ts` | medium | pending | I.4 | NEXT-012 | Регистрация tool, вызов extract() из multimodal.ts |
 | WIRE-005 | Wire graph visualization — MCP tool `graph_visualize` в `src/register/` | low | pending | I.5 | NEXT-014 | Регистрация tool, вызов generateGraphHTML() из graph-viz.ts |
 | WIRE-006 | Wire framework adapters — MCP tool `memory_framework_adapter` или экспорт через REST wrapper | low | pending | I.6 | NEXT-015 | Регистрация tool или REST endpoint |
-| WIRE-007 | Wire benchmark harness — MCP tool `memory_benchmark_run` | low | pending | I.7 | NEXT-013 | Регистрация tool, вызов runAllBenchmarks() из benchmarks.ts |
+| WIRE-007 | Wire benchmark harness — MCP tool `memory_benchmark_run` | low | done | I.7 | NEXT-013 | feat/wire007-benchmark-harness-tool — tool в src/register/memory.ts, runAllBenchmarks() + EphemeralBenchmarkAdapter, 6 tests |
 | WIRE-008 | Wire async ops — MCP tools `memory_async_submit` / `memory_async_status` / `memory_async_cancel` | medium | pending | I.8 | NEXT-016 | Регистрация tools в src/register/memory.ts, обёртка над AsyncJobManager |
 | WIRE-009 | Заполнить stub connectors реальными API-вызовами (GDrive, Gmail, Notion, OneDrive, Linear) | low | pending | I.9 | WIRE-001 | Заменить заглушки на реальные HTTP-запросы к API |
 | SEC-003 | Wire AuthManager в HTTP/TCP transport — auth-гейт на tools/call + fail-closed по дефолту (PROD-002 нашел: AuthManager не завайрен, http-transport без проверок) | high | pending | I.10 | A-002 | Создать AuthManager с transport из MCP_TRANSPORT в app-container/setup, pre-hook на tool calls |
@@ -666,7 +666,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [ ] WIRE-004: Wire multimodal ingestion MCP tool
 - [ ] WIRE-005: Wire graph visualization MCP tool
 - [ ] WIRE-006: Wire framework adapters
-- [ ] WIRE-007: Wire benchmark harness MCP tool
+- [x] WIRE-007: Wire benchmark harness MCP tool
 - [ ] WIRE-008: Wire async ops MCP tools
 - [ ] WIRE-009: Заполнить stub connectors реальными API
 
