@@ -378,6 +378,59 @@ export function registerMemoryTools(ctx: ServerContext): void {
     }
   );
 
+  // ─── memory_extract_async (NEXT-016) ─────────────────────────────
+  ctx.server.registerTool(
+    "memory_extract_async",
+    {
+      title: "Extract Memory Facts (Async)",
+      description:
+        "Non-blocking variant of memory_extract for long-running extraction " +
+        "(large transcripts). Returns immediately with a jobId — poll " +
+        "memory_async_status for the result or receive it via webhookUrl on " +
+        "completion. Same params as memory_extract plus webhookUrl/metadata.",
+      inputSchema: {
+        transcript: z.string().min(10).describe("Conversation/session transcript text to extract facts from"),
+        project: z.string().optional().describe("Project to persist facts to (required if persist=true)"),
+        userId: z.string().optional().describe("User ID for memory scoping"),
+        agentId: z.string().optional().describe("Agent ID for memory scoping"),
+        appId: z.string().optional().describe("Application ID for memory scoping"),
+        runId: z.string().optional().describe("Run/session ID for memory scoping"),
+        maxFacts: z.number().int().min(1).max(100).default(20).optional().describe("Maximum facts to extract"),
+        minConfidence: z.number().min(0).max(1).default(0.5).optional().describe("Minimum confidence threshold"),
+        persist: z.boolean().default(false).optional().describe("Persist facts to knowledge base"),
+        webhookUrl: z.string().url().optional().describe("Webhook POSTed with the job result on completion"),
+        metadata: z.record(z.string(), z.unknown()).optional().describe("Opaque metadata attached to the job"),
+      },
+    },
+    async (args) => {
+      if (args.persist && !args.project) {
+        return err("project is required when persist=true");
+      }
+      const mgr = ensureAsyncProcessors();
+      const job = mgr.submit({
+        type: 'extract',
+        input: {
+          transcript: args.transcript,
+          scope: { userId: args.userId, agentId: args.agentId, appId: args.appId, runId: args.runId },
+          project: args.project,
+          maxFacts: args.maxFacts,
+          minConfidence: args.minConfidence,
+          persist: args.persist === true,
+        },
+        webhookUrl: args.webhookUrl,
+        metadata: args.metadata as Record<string, unknown> | undefined,
+      });
+      return ok({
+        jobId: job.id,
+        type: job.type,
+        status: job.status,
+        webhookUrl: job.webhookUrl ?? null,
+        webhookStatus: job.webhookStatus ?? 'skipped',
+        createdAt: job.createdAt,
+      });
+    }
+  );
+
   // ─── memory_facts_list ───────────────────────────────────────────
   ctx.server.registerTool(
     "memory_facts_list",

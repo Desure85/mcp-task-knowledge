@@ -601,7 +601,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT-013 | Benchmark Participation: запустить LOCOMO, LongMemEval, BEAM, DMR benchmarks. Опубликовать результаты. Цель — доказать превосходство. DONE 2026-09-03: full run 18/20 (LOCOMO 5/5, LME 3/5 BM25 no-stemming quirk, BEAM 5/5, DMR 5/5), BM25-only, report `docs/benchmarks/results-2026-09-03.md`, branch `feat/next013-run-benchmarks-publish` | medium | done | H.13 | NEXT-001..007 | Mem0/Zep/Cognee |
 | NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | done | H.14 | UI-001, MEM-002 | Supermemory/Letta |
 | NEXT-015 | Cross-Framework Portability: SDK adapters для LangGraph, AutoGen, CrewAI, LangChain. mcp-task-knowledge как memory provider для любого framework | low | done (feat/next015-framework-adapters: adapters a54374b + descriptor 468be5f + wire-shape fix :92) | H.15 | — | Mem0 |
-| NEXT-016 | Async Memory Operations: non-blocking `memory_extract_async` — returns immediately, webhook on completion. Для long-running extraction (large transcripts) | low | pending | H.16 | NEXT-002 | Mem0 |
+| NEXT-016 | Async Memory Operations: non-blocking `memory_extract_async` — returns immediately, webhook on completion. Для long-running extraction (large transcripts) | low | done | H.16 | NEXT-002 | feat/next016-extract-async: memory_extract_async поверх AsyncJobManager (те же params + webhookUrl/metadata), 6 tests |
 | NEXT-017 | Memory Layers: conversation (in-flight), session (run-scoped), user (persistent). Three-tier memory scoping | medium | done | H.17 | NEXT-010 | Mem0/Letta |
 | NEXT-018 | Observations/Pattern Detection: graph-based pattern surfacing — recurrences, co-occurrences, temporal patterns из entity-graph. Инструмент `memory_observations` | low | done | H.18 | NEXT-001 | Zep |
 | NEXT-019 | Plugin: memory-dream.ts — background memory refinement (sleep-time compute). Плагин OpenCode: idle detection → dedup/merge/summarise facts.md → MCP sync. Расширение memory-sync.ts | medium | done | H.19 | NEXT-002, MEM-003 | Letta |
@@ -628,7 +628,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [x] NEXT-013: Benchmark Participation (LOCOMO 5/5, LongMemEval 3/5, BEAM 5/5, DMR 5/5 — docs/benchmarks/results-2026-09-03.md)
 - [x] NEXT-014: Graph Visualization UI (interactive knowledge graph)
 - [x] NEXT-015: Cross-Framework Portability (LangGraph/AutoGen/CrewAI adapters)
-- [ ] NEXT-016: Async Memory Operations (non-blocking + webhooks)
+- [x] NEXT-016: Async Memory Operations (non-blocking + webhooks)
 - [x] NEXT-017: Memory Layers (conversation/session/user three-tier)
 - [x] NEXT-018: Observations/Pattern Detection (graph-based pattern surfacing)
 - [x] NEXT-019: Plugin: memory-dream.ts (background memory refinement)
