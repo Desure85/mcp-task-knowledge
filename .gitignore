@@ -129,6 +129,8 @@ __pycache__/
 
 # Runtime temp caches
 .tmp-emb-cache-*/
+.tmp-e2e-*/
+.tmp-tests-*/
 .omo/
 .opencode
 
