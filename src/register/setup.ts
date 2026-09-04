@@ -10,6 +10,8 @@ import type { VectorSearchAdapter } from "../search/index.js";
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
+import { wrapToolHandler } from '../core/auth-gate.js';
+import type { GateExtra } from '../core/auth-gate.js';
 
 const log = childLogger('setup');
 
@@ -133,6 +135,23 @@ export async function createServerContext(): Promise<ServerContext> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawServer = server as any;
+
+  // SEC-003: lazy gate resolution. The holder is populated with the live
+  // ServerContext before this function returns; AuthManager itself is
+  // attached later by AppContainer.init — handlers read it per call.
+  const gateCtx: { ctx?: ServerContext } = {};
+  const gateResolve = () => ({
+    auth: gateCtx.ctx?.authManager,
+    transport: gateCtx.ctx?.transportType ?? 'stdio',
+  });
+  const gateHandler = (name: string, handler: unknown): unknown => {
+    if (typeof handler !== 'function') return handler;
+    return wrapToolHandler(
+      name,
+      handler as (args: unknown, extra?: GateExtra) => unknown,
+      gateResolve,
+    );
+  };
   rawServer.registerResource = ((orig: (...args: unknown[]) => unknown) => {
     return function(id: string, uriOrTemplate: unknown, info: { title?: string; description?: string; mimeType?: string }, handler: unknown) {
       try {
@@ -234,7 +253,7 @@ export async function createServerContext(): Promise<ServerContext> {
   rawServer.registerTool = ((orig: (...args: unknown[]) => unknown) => {
     rawServer._registerToolOrig = orig;
     return function (name: string, def: Record<string, unknown> | undefined, handler: unknown) {
-      if (toolRegistry.has(name)) {
+      const gated = gateHandler(name, handler);      if (toolRegistry.has(name)) {
         const msg = `[tools] duplicate tool registration detected: "${name}"`;
         if (STRICT_TOOL_DEDUP) {
           throw new Error(msg + ' (MCP_STRICT_TOOL_DEDUP=1)');
@@ -268,7 +287,7 @@ export async function createServerContext(): Promise<ServerContext> {
       }
 
       try {
-        const res = orig.call(server, name, def, handler);
+        const res = orig.call(server, name, def, gated);
         toolNames.add(name);
         try {
           toolRegistry.set(name, {
@@ -300,7 +319,21 @@ export async function createServerContext(): Promise<ServerContext> {
     };
   })(rawServer.registerTool);
 
-  return {
+  // SEC-003: server.tool() bypasses registerTool (both call
+  // _createRegisteredTool directly), so gate it too (connector path).
+  if (typeof rawServer.tool === 'function') {
+    rawServer.tool = ((orig: (...args: unknown[]) => unknown) => {
+      return function (name: string, ...rest: unknown[]) {
+        const last = rest[rest.length - 1];
+        if (typeof last === 'function') {
+          rest[rest.length - 1] = gateHandler(name, last);
+        }
+        return orig.call(server, name, ...rest);
+      };
+    })(rawServer.tool.bind(server));
+  }
+
+  const ctx: ServerContext = {
     server,
     cfg,
     catalogCfg,
@@ -321,6 +354,8 @@ export async function createServerContext(): Promise<ServerContext> {
     makeResourceTemplate,
     registerToolAsResource,
   };
+  gateCtx.ctx = ctx;
+  return ctx;
 }
 
 /** Type alias for tool handler functions stored in ToolMeta. */

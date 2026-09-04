@@ -32,6 +32,8 @@ import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk
 import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
+import { decideToolCall } from '../core/auth-gate.js';
+import type { AuthGateCall, AuthGateDecision } from '../core/auth-gate.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('transport:stream');
@@ -124,6 +126,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   private _connected = false;
   private serverInfo?: { name: string; version: string };
   private registerTools?: (server: McpServer) => void;
+  private serverCtx?: ServerContext;
 
   abstract readonly type: string;
 
@@ -133,11 +136,22 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   /** Extra cleanup after close (e.g., remove Unix socket file). */
   protected extraCleanup?(): Promise<void>;
 
+  /**
+   * SEC-003 enforcement primitive for TCP/Unix sessions: fail-closed gate
+   * on every tools/call. Per-session McpServers gain full tool routing with
+   * S-002; until then this is the single decision point covered by unit
+   * tests for transport 'tcp' (same shared gate as HTTP).
+   */
+  authorizeToolCall(call: AuthGateCall): AuthGateDecision {
+    return decideToolCall(this.serverCtx?.authManager, 'tcp', call);
+  }
+
   async connect(ctx: ServerContext): Promise<void> {
     if (this._connected) {
       throw new Error(`[${this.type}] already connected`);
     }
 
+    this.serverCtx = ctx;
     // Extract server info from context
     const rawServer = ctx.server as unknown as Record<string, unknown>;
     const serverInfo = rawServer?.server as Record<string, unknown> | undefined;
@@ -256,6 +270,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
     } finally {
       this._connected = false;
       this.server = undefined;
+      this.serverCtx = undefined;
     }
   }
 
