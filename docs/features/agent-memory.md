@@ -194,6 +194,10 @@ retrieved; **Recall@1/5/10** use score thresholds (0.5/0.3/0.2);
 **Avg/P95 latency** is per-question search time. This CLI is the prerequisite
 for NEXT-013 (running benchmarks + publishing results) — it is not a CI gate.
 
+Latest published results: [Benchmark Results 2026-09-03](../benchmarks/results-2026-09-03.md)
+— full 4-suite run 18/20 (LOCOMO 5/5, LongMemEval 3/5 known BM25 no-stemming
+quirk, BEAM 5/5, DMR 5/5), BM25-only, hermetic real instance.
+
 ## Framework Adapters (NEXT-015)
 
 Use mcp-task-knowledge as memory provider for any framework:
