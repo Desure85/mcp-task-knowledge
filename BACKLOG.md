@@ -600,7 +600,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT-012 | Multimodal Ingestion: PDFs (text extract), images (OCR), video (transcription), code (AST-aware chunking). Расширение knowledge_create для multipart | low | pending | H.12 | — | Supermemory |
 | NEXT-013 | Benchmark Participation: запустить LOCOMO, LongMemEval, BEAM, DMR benchmarks. Опубликовать результаты. Цель — доказать превосходство | medium | pending | H.13 | NEXT-001..007 | Mem0/Zep/Cognee |
 | NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | done | H.14 | UI-001, MEM-002 | Supermemory/Letta |
-| NEXT-015 | Cross-Framework Portability: SDK adapters для LangGraph, AutoGen, CrewAI, LangChain. mcp-task-knowledge как memory provider для любого framework | low | pending | H.15 | — | Mem0 |
+| NEXT-015 | Cross-Framework Portability: SDK adapters для LangGraph, AutoGen, CrewAI, LangChain. mcp-task-knowledge как memory provider для любого framework | low | done (feat/next015-framework-adapters: adapters a54374b + descriptor 468be5f + wire-shape fix :92) | H.15 | — | Mem0 |
 | NEXT-016 | Async Memory Operations: non-blocking `memory_extract_async` — returns immediately, webhook on completion. Для long-running extraction (large transcripts) | low | pending | H.16 | NEXT-002 | Mem0 |
 | NEXT-017 | Memory Layers: conversation (in-flight), session (run-scoped), user (persistent). Three-tier memory scoping | medium | done | H.17 | NEXT-010 | Mem0/Letta |
 | NEXT-018 | Observations/Pattern Detection: graph-based pattern surfacing — recurrences, co-occurrences, temporal patterns из entity-graph. Инструмент `memory_observations` | low | done | H.18 | NEXT-001 | Zep |
@@ -627,7 +627,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [ ] NEXT-012: Multimodal Ingestion (PDF, image OCR, video, code AST)
 - [ ] NEXT-013: Benchmark Participation (LOCOMO, LongMemEval, BEAM, DMR)
 - [x] NEXT-014: Graph Visualization UI (interactive knowledge graph)
-- [ ] NEXT-015: Cross-Framework Portability (LangGraph/AutoGen/CrewAI adapters)
+- [x] NEXT-015: Cross-Framework Portability (LangGraph/AutoGen/CrewAI adapters)
 - [ ] NEXT-016: Async Memory Operations (non-blocking + webhooks)
 - [x] NEXT-017: Memory Layers (conversation/session/user three-tier)
 - [x] NEXT-018: Observations/Pattern Detection (graph-based pattern surfacing)
