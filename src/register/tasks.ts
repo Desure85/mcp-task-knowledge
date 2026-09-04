@@ -74,6 +74,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().optional(),
+        dependsOn: z.array(z.string()).optional().describe("Dependency task IDs (DAG edges, cycle-protected)"),
       },
     },
     async ({ project, title, description, priority, status, tags, links, parentId }) => {
