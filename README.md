@@ -34,6 +34,20 @@ Or via npx:
 npx mcp-task-knowledge
 ```
 
+### Releasing (maintainers)
+
+Releases are fully automated via [`.github/workflows/publish.yml`](.github/workflows/publish.yml):
+
+```bash
+# 1. Bump version in package.json, commit, push to master
+# 2. Cut a version tag matching package.json:
+git tag v1.0.21 && git push origin v1.0.21
+```
+
+The workflow verifies tag ↔ `package.json` version match, runs build + tests,
+publishes to npm with provenance, and pushes a Docker image to GHCR.
+Requires the `NPM_TOKEN` repo secret. Never run `npm publish` manually.
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:

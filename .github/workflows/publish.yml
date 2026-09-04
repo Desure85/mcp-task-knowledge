@@ -1,0 +1,162 @@
+name: Publish (npm + GHCR)
+
+# NEXT2-008: tag-triggered release pipeline.
+# Maintainers cut a release with:  git tag vX.Y.Z && git push origin vX.Y.Z
+# The workflow verifies tag↔package.json version match, runs build + tests,
+# publishes to npm (provenance) and pushes a Docker image to GHCR.
+# Required repo secret: NPM_TOKEN (granular token with publish scope).
+# No manual `npm publish` — releases happen only through this workflow.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Validate only (skip npm publish and docker push)'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # required for npm provenance (sigstore)
+
+jobs:
+  release:
+    name: Build, test, publish to npm
+    runs-on: ubuntu-latest
+    env:
+      # Always use the official registry for release — .npmrc points at a mirror
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual dispatch — skipping tag/version check."
+            exit 0
+          fi
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          echo "tag version: ${TAG}"
+          echo "package.json version: ${PKG}"
+          if [[ "${TAG}" != "${PKG}" ]]; then
+            echo "ERROR: git tag v${TAG} does not match package.json version ${PKG}." >&2
+            echo "Hint: bump \"version\" in package.json, commit, then re-cut the tag." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci --registry=https://registry.npmjs.org/
+
+      - name: Build (publish config)
+        run: npm run build:publish
+
+      - name: Pack dry-run (sanity listing)
+        run: npm pack --dry-run
+
+      - name: Tests (types + unit)
+        run: npm run test:all
+        env:
+          DATA_DIR: ${{ github.workspace }}/.data
+          CURRENT_PROJECT: mcp
+          EMBEDDINGS_MODE: none
+
+      - name: Publish to npm (with provenance)
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry-run note (manual dispatch)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
+        run: echo "Dry run — skipped npm publish and docker push."
+
+  docker:
+    name: Build and push release image (GHCR)
+    runs-on: ubuntu-latest
+    needs: release
+    # On manual dry-run, skip the push but still validate the build below
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute names
+        id: names
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "owner=${owner_lc}" >> "$GITHUB_OUTPUT"
+          echo "image_repo=ghcr.io/${owner_lc}/mcp-task-knowledge" >> "$GITHUB_OUTPUT"
+
+      - name: Derive version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push (bm25 runtime)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runtime-bm25-extbase
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true' }}
+          provenance: true
+          sbom: false
+          build-args: |
+            NPM_REGISTRY=https://registry.npmjs.org/
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ steps.names.outputs.image_repo }}:${{ steps.meta.outputs.version }}
+            ${{ steps.names.outputs.image_repo }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+
+      - name: Release summary
+        run: |
+          echo "Published:" >> $GITHUB_STEP_SUMMARY
+          echo "- npm: mcp-task-knowledge@${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- image: ${{ steps.names.outputs.image_repo }}:${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY

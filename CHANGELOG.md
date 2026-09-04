@@ -8,6 +8,7 @@
 
 ### Added
 
+- npm publish pipeline (NEXT2-008): tag-triggered GitHub Actions workflow (`.github/workflows/publish.yml`) — build + tests → npm publish with provenance → GHCR Docker image; `publishConfig` (public access, provenance) in package.json; tag ↔ version match guard
 - LAN Relay (BM-012): WebSocket + AES-256-GCM + UDP multicast discovery, инструменты `relay_status`/`share_brief`/`broadcast_rule`
 - Hot tool registration (DX-001): `tools_register`/`tools_unregister` без рестарта
 - Hot config reload (DX-004): `config_reload`
