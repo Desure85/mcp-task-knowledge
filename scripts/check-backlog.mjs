@@ -28,7 +28,7 @@ function main() {
     console.error('BACKLOG.md: cannot parse "Итого" row');
     process.exit(1);
   }
-  const [, total, done, wip, pending, blocked, deferred] = summaryMatch.map(Number);
+  const [, total, pending, wip, done, blocked, deferred] = summaryMatch.map(Number);
 
   let actualTotal = 0;
   let actualDone = 0;
