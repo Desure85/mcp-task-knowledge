@@ -32,6 +32,7 @@
     "test:types": "tsc -p tsconfig.test.json --noEmit",
     "test:all": "npm run test:types && npm run test",
     "e2e:cli": "bash scripts/e2e_cli.sh",
+    "e2e:full": "npm run build && vitest run tests/e2e-full",
     "obsidian:smoke": "node scripts/obsidian_roundtrip.mjs",
     "obsidian:matrix": "node scripts/obsidian_live_matrix.mjs",
     "project:purge:tracker": "node scripts/purge_tracker.js",
