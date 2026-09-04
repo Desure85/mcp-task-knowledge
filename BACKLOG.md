@@ -685,7 +685,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT2-005 | Realtime в web-ui: страницы слушают WebSocket (live-updates задач/знаний) | medium | done | J.5 | WIRE-002, UI-005 | feat/next2005-realtime-webui: lib/realtime.ts + tasks/knowledge live-merge |
 | NEXT2-007 | Benchmark runner CLI: `npm run benchmark` — запуск LOCOMO/LongMemEval/BEAM/DMR против реального инстанса, markdown-отчёт | medium | done | J.7 | NEXT-013 | branch feat/next2007-benchmark-runner-cli (pushed, no PR); dev-cli `benchmark` + MCPMemoryAdapter, 18/20 live |
 | NEXT2-008 | npm publish pipeline: пакет НЕ опубликован на npm (проверено 2026-09-02), MR-010 значится done но publish не настроен. GitHub Actions workflow: tag → npm publish + GHCR | high | done | J.8 | MR-010 | feat/next2008-npm-publish-pipeline: .github/workflows/publish.yml + publishConfig |
-| NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction, temporal-graph (временные инварианты), scoping (комбинаторика) | low | pending | J.9 | Q-008, NEXT-001 | fuzz есть только для JSON-RPC/core |
+| NEXT2-009 | Fuzzing для memory modules: fast-check property tests для extraction, temporal-graph (временные инварианты), scoping (комбинаторика) | low | done | J.9 | Q-008, NEXT-001 | tests/memory-fuzz.test.ts: 8 property-тестов (extraction bounds/confidence, temporal add/invalidate/supersede, scoping determinism/consistency) |
 | NEXT2-010 | Perf-тесты для memory tools: latency (<50ms retrieval, <200ms extraction). НЕ CI gate — просто benchmark | low | pending | J.10 | NEXT2-007 | perf есть только для search |
 | NEXT2-012 | Quickstart-to-production guide: полный пример «от установки до продакшена» (Docker + auth + web-ui) в docs/ | low | pending | J.12 | D-001 | getting-started есть, e2e-гайда нет |
 
@@ -705,7 +705,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [x] NEXT2-006: TS SDK — закрыто (MCP сам SDK, есть api-client + framework-adapters)
 - [x] NEXT2-007: Benchmark runner CLI (npm run benchmark)
 - [x] NEXT2-008: npm publish pipeline (publish.yml: tag → npm + GHCR)
-- [ ] NEXT2-009: Fuzzing для memory modules (fast-check property tests)
+- [x] NEXT2-009: Fuzzing для memory modules (fast-check property tests)
 - [ ] NEXT2-010: Perf-тесты для memory tools (latency benchmark, не CI gate)
 - [x] NEXT2-011: Экспорт в форматы конкурентов — закрыто (никому не нужно)
 - [ ] NEXT2-012: Quickstart-to-production guide в docs/
