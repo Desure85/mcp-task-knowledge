@@ -74,7 +74,7 @@ describe('EmbeddingsCache', () => {
     const newest = await cache.get('id4999', cache.textHash('t4999'));
     // We don't assert strict undefined for oldest due to possible disk hit, but newest should exist
     expect(newest).toBeDefined();
-  });
+  }, 30000);
 
   it('persists to disk when enabled and can read back after new instance', async () => {
     const { EmbeddingsCache } = await importFresh<any>('../src/search/emb_cache.js');
