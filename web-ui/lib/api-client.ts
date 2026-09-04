@@ -70,6 +70,28 @@ export interface ProjectInfo {
   hasKnowledge?: boolean;
 }
 
+export interface FactRelationship {
+  targetId: string;
+  type: 'supersedes' | 'contradicts' | 'supports' | 'related' | 'causes' | 'derived';
+  metadata?: Record<string, unknown>;
+}
+
+export interface TemporalFact {
+  id: string;
+  statement: string;
+  category: string;
+  confidence: number;
+  tags: string[];
+  entities: string[];
+  validFrom: string;
+  validTo?: string;
+  recordedAt: string;
+  valid: boolean;
+  supersededBy?: string;
+  invalidationReason?: string;
+  relationships: FactRelationship[];
+}
+
 // ─── API methods ──────────────────────────────────────────────────
 
 export const api = {
@@ -105,5 +127,18 @@ export const api = {
     list: () => callTool<{ projects: ProjectInfo[]; current: string }>('project_list', {}),
     getCurrent: () => callTool<{ project: string }>('project_get_current', {}),
     setCurrent: (project: string) => callTool<{ project: string }>('project_set_current', { project }),
+  },
+
+  // Memory
+  memory: {
+    temporalQuery: (args?: { entity?: string; category?: string; tag?: string; includeInvalidated?: boolean; limit?: number }) =>
+      callTool<{ count: number; facts: TemporalFact[] }>('memory_temporal_query', { ...(args ?? {}) }),
+    temporalHistory: (factId: string) =>
+      callTool<{ count: number; history: TemporalFact[] }>('memory_temporal_history', { factId }),
+    entitySearch: (query: string, limit?: number) =>
+      callTool<{ count: number; results: Array<{ statement: string; entities: string[]; score: number }>; extractedEntities: string[] }>(
+        'memory_entity_search',
+        { query, limit },
+      ),
   },
 };
