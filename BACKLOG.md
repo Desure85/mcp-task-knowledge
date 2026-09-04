@@ -597,7 +597,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT-009 | Memory Conflict Resolution: LLM-based contradiction detection between new and existing facts. Marks old facts invalid (not deleted). Инструмент `memory_resolve_conflict` | medium | done | H.9 | NEXT-001, NEXT-002 | Mem0/Zep |
 | NEXT-010 | Memory Scoping (multi-tenancy): user_id / agent_id / app_id / run_id dimensions. Каждый факт тегируется scope. Filter при search. Изоляция данных между tenants | medium | done | H.10 | ACL-001 | Mem0 |
 | NEXT-011 | More Connectors: Google Drive, Gmail, Notion, OneDrive, Linear, web crawler. Auto-sync with webhooks. Расширение connector framework (INT-004) | low | done | H.11 | INT-004 | Реальные API merged (WIRE-009): Drive v3/Gmail v1/Notion v1/Graph v1.0/Linear GraphQL, fail-closed, 20 hermetic-тестов |
-| NEXT-012 | Multimodal Ingestion: PDFs (text extract), images (OCR), video (transcription), code (AST-aware chunking). Расширение knowledge_create для multipart | low | pending | H.12 | — | Supermemory |
+| NEXT-012 | Multimodal Ingestion: PDFs (text extract), images (OCR), video (transcription), code (AST-aware chunking). Расширение knowledge_create для multipart | low | done | H.12 | — | Ветка feat/next012-multimodal-ingestion: zero-dep extract() — PDF FlateDecode+Tj/TJ, PNG-tEXt/JPEG-COM/SVG, SRT/VTT cues, boundary-aware code chunking; 45 tests |
 | NEXT-013 | Benchmark Participation: запустить LOCOMO, LongMemEval, BEAM, DMR benchmarks. Опубликовать результаты. Цель — доказать превосходство | medium | pending | H.13 | NEXT-001..007 | Mem0/Zep/Cognee |
 | NEXT-014 | Graph Visualization UI: interactive knowledge graph viewer (Web UI). Nodes = entities, edges = relationships. Filter, search, expand. Часть UI-003 | low | done | H.14 | UI-001, MEM-002 | Supermemory/Letta |
 | NEXT-015 | Cross-Framework Portability: SDK adapters для LangGraph, AutoGen, CrewAI, LangChain. mcp-task-knowledge как memory provider для любого framework | low | done (feat/next015-framework-adapters: adapters a54374b + descriptor 468be5f + wire-shape fix :92) | H.15 | — | Mem0 |
@@ -624,7 +624,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 - [x] NEXT-009: Memory Conflict Resolution (LLM-based contradiction detection)
 - [x] NEXT-010: Memory Scoping Multi-tenancy (user/agent/app/run dimensions)
 - [x] NEXT-011: More Connectors (Google Drive, Gmail, Notion, OneDrive, Linear)
-- [ ] NEXT-012: Multimodal Ingestion (PDF, image OCR, video, code AST)
+- [x] NEXT-012: Multimodal Ingestion (PDF, image OCR, video, code AST)
 - [ ] NEXT-013: Benchmark Participation (LOCOMO, LongMemEval, BEAM, DMR)
 - [x] NEXT-014: Graph Visualization UI (interactive knowledge graph)
 - [x] NEXT-015: Cross-Framework Portability (LangGraph/AutoGen/CrewAI adapters)
