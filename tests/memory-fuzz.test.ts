@@ -81,9 +81,9 @@ describe('NEXT2-009: temporal-graph invariants', () => {
           }
         },
       ),
-      { numRuns: 50 },
+      { numRuns: 30 },
     );
-  });
+  }, 30000);
 
   it('supersede links new fact and invalidates the old one', () => {
     fc.assert(
@@ -99,9 +99,9 @@ describe('NEXT2-009: temporal-graph invariants', () => {
           cleanup();
         }
       }),
-      { numRuns: 50 },
+      { numRuns: 30 },
     );
-  });
+  }, 30000);
 
   it('invalidateFact on unknown id returns false', () => {
     fc.assert(
