@@ -35,6 +35,7 @@ await mcp.call('memory_extract', {
 ```
 
 Features:
+
 - 12 regex patterns for fact detection (preferences, decisions, conventions, errors, fixes)
 - Entity extraction (CamelCase, snake_case, kebab-case)
 - Jaccard similarity deduplication
@@ -63,6 +64,7 @@ await mcp.call('memory_temporal_invalidate', { factId: 'fact-123' });
 ```
 
 Features:
+
 - Bi-temporal tracking (valid_time + transaction_time)
 - Edge invalidation (old facts marked invalid, history preserved)
 - Point-in-time queries ("what was true on date X?")
@@ -83,6 +85,7 @@ await mcp.call('memory_profile_update', {
 ```
 
 Features:
+
 - Static + dynamic facts
 - Auto-invalidate outdated facts
 - Token-budget-aware context block
@@ -100,6 +103,7 @@ await mcp.call('memory_context_assemble', {
 ```
 
 Features:
+
 - RRF fusion (k=60) of BM25 + vector + entity results
 - Token-budget-aware selection
 - Profile-first ordering
@@ -117,6 +121,7 @@ await mcp.call('memory_entity_search', {
 ```
 
 Features:
+
 - Entity extraction from query (CamelCase, snake_case, kebab, quoted)
 - Score boost for entity matches
 - Third retrieval signal alongside BM25 + vector
@@ -132,6 +137,7 @@ await mcp.call('memory_evolve', {
 ```
 
 Features:
+
 - Jaccard + entity overlap detection
 - Link, merge, or supersede existing memories
 - Contradiction detection
@@ -159,10 +165,34 @@ const markdown = formatReportMarkdown(reports);
 ```
 
 Suites:
+
 - **LOCOMO** — Long conversation memory (multi-turn QA with distant facts)
 - **LongMemEval** — Cross-session fact recall
 - **BEAM** — Behavioral memory (failure patterns, fix recall)
 - **DMR** — Dynamic memory recall (temporal fact tracking)
+
+### Benchmark Runner CLI (NEXT2-007)
+
+Run all suites against a **real** server instance (hermetic stdio spawn with
+ephemeral `DATA_DIR`, BM25 path) and get a markdown report on stdout + file:
+
+```bash
+npm run build            # CLI uses dist/
+npm run benchmark        # all 4 suites, ~20 questions, <1 min
+npm run benchmark -- --suite beam,dmr --out /tmp/beam.md
+```
+
+Flags: `--suite <locomo|longmemeval|beam|dmr|all>` (comma-separated,
+`longmem`/`lme` aliases), `--out <file>` (default
+`benchmarks/report-<stamp>.md`, gitignored), `--project <base>` (default
+`benchmark`; each suite gets an isolated `<base>-<n>` project),
+`--data-dir <dir>` / `--keep-data` (retain data for inspection),
+`--url <http-url>` (connect to a running instance instead of spawning).
+
+How to read the report: **Correct** = at least half the expected keywords were
+retrieved; **Recall@1/5/10** use score thresholds (0.5/0.3/0.2);
+**Avg/P95 latency** is per-question search time. This CLI is the prerequisite
+for NEXT-013 (running benchmarks + publishing results) — it is not a CI gate.
 
 ## Framework Adapters (NEXT-015)
 
