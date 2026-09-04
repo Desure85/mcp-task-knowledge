@@ -14,6 +14,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, type KnowledgeDoc } from '@/lib/api-client';
+import {
+  useRealtime,
+  applyKnowledgeEvent,
+  connectionBadgeClass,
+  connectionBadgeLabel,
+} from '@/lib/realtime';
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
@@ -30,6 +36,13 @@ export default function KnowledgePage() {
   const [editTags, setEditTags] = useState('');
   const [editType, setEditType] = useState('note');
   const [showPreview, setShowPreview] = useState(true);
+
+  const { status: liveStatus, presence, publish } = useRealtime({
+    eventTypes: ['knowledge.created', 'knowledge.updated', 'knowledge.deleted'],
+    onEvent: (event) => {
+      setDocs((prev) => applyKnowledgeEvent(prev, event));
+    },
+  });
 
   const loadDocs = useCallback(async () => {
     try {
@@ -51,12 +64,15 @@ export default function KnowledgePage() {
     if (!editTitle.trim()) return;
     try {
       const tags = editTags.split(',').map((t) => t.trim()).filter(Boolean);
-      await api.knowledge.bulkCreate('mcp', [{
+      const res = await api.knowledge.bulkCreate('mcp', [{
         title: editTitle,
         content: editContent,
         tags,
         type: editType,
       }]);
+      for (const doc of res.created ?? []) {
+        publish('knowledge.created', doc as unknown as Record<string, unknown>);
+      }
       setEditTitle('');
       setEditContent('');
       setEditTags('');
@@ -118,12 +134,20 @@ export default function KnowledgePage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Knowledge Base</h1>
-        <button
-          onClick={startCreate}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          + New Document
-        </button>
+        <div className="flex items-center gap-3">
+          <span
+            title={liveStatus === 'unavailable' ? 'Realtime server unreachable — polling fallback' : 'Realtime connection'}
+            className={`text-xs px-2 py-1 rounded border ${connectionBadgeClass(liveStatus)}`}
+          >
+            {connectionBadgeLabel(liveStatus, presence.length)}
+          </span>
+          <button
+            onClick={startCreate}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            + New Document
+          </button>
+        </div>
       </div>
 
       {error && (
