@@ -777,6 +777,52 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап M — Аудит request-path: баги и безопасность (2026-09-11)
+
+> Источник: ручной аудит request-path (transports → auth → ACL → handlers) в сессии S-20260911-aud1.
+> Ключевой паттерн: security-модули написаны и протестированы, но **не завайрены** в реальный request path
+> (ноль call sites вне собственных файлов). Формат severity: crit = без auth / потеря данных, high = с auth.
+> Каждая задача = одна ветка + один PR (правило последовательных инкрементов).
+
+### Фаза 1 — Critical (неаутентифицированный доступ)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-01 | Гейтить все MCP-методы, не только tools/call | critical | pending | — | `authorizeHttpCall` (http-transport.ts:84) и `dispatchToMain` (stream-transport.ts:317) пропускают resources/list+read, prompts/list+get, completion/complete без auth. При requireAuth=true неаутентифицированный клиент: initialize → resources/read → читает task://knowledge://prompt://. Гейтить весь MAIN_DISPATCH_METHODS; pre-auth whitelist — только initialize/ping/authenticate |
+| AUD-02 | Убрать мутации из resources/read | critical | pending | AUD-01 | `task://action/{project}/{id}/{action}` вызывает updateTask/closeTask/trashTask/restoreTask/archiveTask через READ-эндпоинт (register/resources.ts:43-56,136-217). Мутации — только через гейтованные tools; resource handlers — read-only |
+| AUD-03 | Path traversal: валидация project/id | critical | pending | — | `project`/`id` = `z.string()` без whitelist → `path.join(TASKS_DIR\|KNOWLEDGE_DIR\|PROMPTS_DIR, project, id)` (storage/tasks.ts:10,29, knowledge.ts:11,67). Чтение/запись произвольных .json/.md вне DATA_DIR. Работает через tools/call (post-auth) и resources/read (pre-auth). Фикс: regex `[a-zA-Z0-9_-]+` на register-границе + `path.resolve` + startsWith(DATA_DIR) в storage |
+
+### Фаза 2 — High (аутентифицированные)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-04 | Session hijack через session_list | high | pending | AUD-07 (admin-роль) | `session_list` отдаёт все живые session id любому аутентифицированному (register/session.ts:100); подстановка чужого `mcp-session-id` в header = имперсонация (http-transport.ts:164). Фикс: session_list/info — только своя сессия или admin-роль; биндинг session→remote при authenticate |
+| AUD-05 | Expiry реально прекращает доступ | high | pending | — | `prune()` удаляет только запись SessionManager: SDK-транспорт в `adapter.sessions` жив + `authenticatedSessions` не чистится → TTL/idle/token-exp мёртвы, «закрытая» сессия работает дальше. Фикс: onClose → transport.close() + `authManager.revokeSession(id)`; гейт проверяет `sm.has(sessionId)` |
+| AUD-06 | WS realtime: auth + фильтры | high | pending | — | `/ws` без auth (realtime.ts:46); клиентский `broadcast` принимает произвольные eventType/data → инъекция событий всем; клиент без project получает события всех проектов (фильтр :141). Фикс: токен при handshake, whitelist клиентских типов, no-subscription = no-events |
+| AUD-07 | Завайрить security-стек | high | pending | — | Мёртвые модули (0 call sites): AuthProtection (SEC-005), InputSanitizer (SEC-006), ACLEngine (ACL-002/003, `ctx.acl` не создаётся), audit middleware (SEC-001), rule enforcement (RL-005), logging middleware (MW-003), RateLimiter.consume (S-003). Единая точка в wrapToolHandler/dispatch: protection.check → rateLimit.consume → acl.evaluate → audit. Каждая фича — e2e «реально срабатывает» |
+
+### Фаза 3 — Medium
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-08 | HTTP body cap + session cap | medium | pending | — | POST body без лимита (http-transport.ts:167) → memory DoS; SM maxSessions обходится — transport попадает в `sessions` до `sm.create` (reject ловится, транспорт живёт). Фикс: Content-Length/maxBytes лимит; при SM-reject — transport.close() |
+| AUD-09 | Unix socket: права + опциональный auth | medium | pending | — | Сокет без chmod + requireAuth=false → любой локальный юзер = полный доступ (stream-transport.ts:478, auth-gate.ts:60). Фикс: chmod 600; опционально requireAuth для unix |
+| AUD-10 | tools_run/tools_batch: gated handler + scope | medium | pending | — | Registry хранит raw handler (setup.ts:270,300) → вызов без requestScope: PH-004 session-project внутри batch не работает; и исполняет tools при TOOLS_ENABLED=0 (tools-introspection.ts:159,208). Фикс: хранить gated handler, честить TOOLS_ENABLED |
+| AUD-11 | JWKS: kid-selection + cache TTL | medium | pending | — | `resolveKey()` вызывает `jwksResolver()` без (protectedHeader, token) → kid не участвует → мульти-ключевой JWKS ломает валидацию (jwt-validator.ts:398). `jwksCacheTtl` — мёртвая опция. Фикс: `jwtVerify(token, jwksResolver, opts)`, передать cacheMaxAge |
+| AUD-12 | Гигиена error-сообщений | medium | pending | — | `e.message` уходит клиенту (auth-gate.ts:180, http-transport.ts:354, register/auth.ts:51) — внутренние пути/детали наружу. Фикс: наружу generic message, детали в server log |
+| AUD-13 | Rate-limit на mcp.authenticate | medium | pending | AUD-07 | Брутфорс токена не ограничен; identity=sessionId → новый initialize = чистый счётчик. Фикс: AuthProtection по remote IP |
+
+### Фаза 4 — Low
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-14 | pendingInitRemotes — per-request map | low | pending | — | FIFO-очередь мисатрибутит remote при параллельных initialize и течёт при неудачных init (http-transport.ts:60,202,265) |
+| AUD-15 | revokeSession на close/prune | low | pending | AUD-05 | `authenticatedSessions` растёт бесконечно, stale marks (auth.ts:160) |
+| AUD-16 | JWT blacklist: eviction по exp + persist | low | pending | — | Count-based eviction де-ревокает старые jti после 10k; рестарт снимает все ревокации (jwt-validator.ts:311) |
+| AUD-17 | TLS: завайрить или дропнуть | low | pending | — | `createTlsContext`/`TlsContext` — ноль вызовов (SEC-002 мёртв, транспорты plaintext). Либо wire в http/tcp adapters, либо честно пометить deferred |
+
+---
+
 ## Архив (последние 20)
 
 | ID | Задача | Закрыто | PR |
@@ -820,7 +866,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-04 (BACKLOG закрыт: 190/191 done, 1 deferred)
+**Последнее обновление:** 2026-09-11 (Этап M: +17 задач из аудита request-path — 3 crit, 4 high, 6 medium, 4 low)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -852,10 +898,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Wire-in (I) | 10 | 0 | 0 | 10 | 0 | 0 |
 | NEXT2 (J) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
-| **Итого** | **191** | **0** | **0** | **190** | **0** | **1** |
+| Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
+| Audit request-path (M) | 17 | 17 | 0 | 0 | 0 | 0 |
+| **Итого** | **222** | **20** | **0** | **201** | **0** | **1** |
 
-> Примечание (2026-09-04): сводка приведена к фактическим строкам
-> (`npm run backlog:check` green: total=191, done=190, pending=0, deferred=1).
-> BACKLOG полностью закрыт: последний pending Q-014 done (13 files / 27 e2e green).
+> Примечание (2026-09-04): сводка приведена к фактическим строкам.
+> Примечание (2026-09-11): Этап M (AUD-01..AUD-17) добавлен постфактум из аудита
+> request-path — 17 pending. `npm run backlog:check` green (222 total, 20 pending).
 > Массовые мержи 2026-09-04: WIRE-007/008/009, SEC-003, NEXT2-003/004/005/007/008,
 > NEXT-011/012/013/015/016, NEXT2-009/010/012, Q-014 слайсы 1-14.
