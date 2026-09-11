@@ -57,6 +57,15 @@ describe('Q-014 slice 15: project lifecycle', () => {
       const stillThere = await srv.callTool('tasks_list', { project: proj });
       expect(JSON.stringify(stillThere.env.data)).toContain('Q014 proj task');
 
+      // PH-005: purge without confirm is refused via error envelope —
+      // { ok:false } + isError, not a raw MCP protocol error.
+      const refused = await srv.callTool('project_purge', { project: proj });
+      expect(refused.isError).toBe(true);
+      expect(refused.env.ok).toBe(false);
+      expect(refused.env.error?.message ?? '').toContain('not confirmed');
+      const afterRefused = await srv.callTool('tasks_list', { project: proj });
+      expect(JSON.stringify(afterRefused.env.data)).toContain('Q014 proj task');
+
       // Real purge empties the project but keeps it.
       const purge = await srv.callTool('project_purge', { project: proj, confirm: true });
       expect(purge.isError).toBe(false);

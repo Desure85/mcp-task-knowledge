@@ -462,7 +462,14 @@ export function registerBulkTools(ctx: ServerContext): void {
       }
 
       if (confirm !== true) {
-        throw new Error('Refusing to proceed: Project purge not confirmed');
+        // PH-005: refuse via error envelope (same style as the rest of the
+        // surface) — the caller gets { ok:false } with the would-be counts,
+        // not a raw MCP protocol error.
+        return err(
+          `Refusing to proceed: project purge not confirmed. ` +
+          `Would delete ${taskIds.length} tasks + ${knowledgeIds.length} knowledge docs ` +
+          `(project=${prj}, scope=${scope}). Re-run with confirm:true, or dryRun:true to inspect.`
+        );
       }
 
       if (doTasks && taskIds.length) {
