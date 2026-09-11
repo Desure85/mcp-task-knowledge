@@ -775,6 +775,15 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | PH-013 | ONNX/vector e2e job | low | pending | — | Отдельный nightly-job с `EMBEDDINGS_MODE=local`, кэш модели в CI; сейчас vector-пути только unit-спеками |
 | PH-014 | WS realtime + MCP resources e2e | low | pending | PH-002 | WS relay с реальным пиром; `resources/list`, `resources/read`, `prompts/get` protocol surface |
 
+### Фаза 6 — Web UI (GUI до ума)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-015a | CORS в http-transport | high | done | — | `MCP_CORS_ORIGIN` env (list/`*`), OPTIONS-preflight 204, `Access-Control-Expose-Headers: mcp-session-id`, foreign origin → 403. e2e в http-sessions.test.ts |
+| PH-015b | api-client → SDK StreamableHTTP | high | done | PH-015a | `web-ui/lib/api-client.ts` переписан на `Client` + `StreamableHTTPClientTransport`: initialize → mcp-session-id reuse → опциональный `mcp.authenticate` (env `NEXT_PUBLIC_MCP_TOKEN` или runtime `setAuthToken` через sessionStorage). Singleton per tab, retry после failed connect |
+| PH-015c | Полный MCP-стек в GUI | high | done | PH-015b | + `/projects` (list/create/set-current session-scoped), `/system` (sessions live, embeddings, tools catalog + auth token UI), tasks DAG (critical path/topo order/edges), knowledge edit-update fix (bulk_update вместо дубля create) + trash, prompts page на shared client + каталог (version/status/domain) + A/B (variants_stats + bandit_next), analytics через `dashboard_stats` с fallback, tool-имена/аргументы выверены по register-сигнатурам |
+| PH-015d | web-ui тесты + CI | medium | review | PH-015b | vitest в web-ui: 35 тестов (18 realtime helpers + 14 api-client mock-SDK + 3 live env-gated `MCP_LIVE_URL`/`MCP_LIVE_JWT_SECRET` против реального сервера — проверены в docker). Workflow `web-ui.yml`: build server → web-ui typecheck → unit → live vs spawned `dist/index.js` http+JWT → next build |
+
 ---
 
 ## Этап M — Аудит request-path: баги и безопасность (2026-09-11)

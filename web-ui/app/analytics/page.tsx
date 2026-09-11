@@ -8,22 +8,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-
-const MCP_API_URL = process.env.NEXT_PUBLIC_MCP_API_URL || '/api/mcp';
-
-async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
-  const res = await fetch(MCP_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name, arguments: args }, id: Date.now() }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  const text = json?.result?.content?.[0]?.text ?? '{}';
-  const env = JSON.parse(text) as { ok: boolean; data?: T; error?: { message: string } };
-  if (!env.ok) throw new Error(env.error?.message ?? 'Unknown error');
-  return env.data as T;
-}
+import { api } from '@/lib/api-client';
 
 interface FeedbackEntry {
   id: string;
@@ -56,7 +41,22 @@ export default function AnalyticsPage() {
   const loadStats = useCallback(async () => {
     try {
       setLoading(true);
-      const tasks = await callTool<Array<{ status: string; priority: string }>>('tasks_list', {});
+      // Prefer the server-side aggregate (dashboard_stats); fall back to
+      // client-side counting over raw lists when it is unavailable.
+      const dash = await api.system.dashboardStats().catch(() => null);
+      const dashTasks = (dash as { tasks?: { total?: number; byStatus?: Record<string, number>; byPriority?: Record<string, number> } } | null)?.tasks;
+      const dashKnowledge = (dash as { knowledge?: { total?: number } } | null)?.knowledge;
+      if (dashTasks?.total != null) {
+        setStats({
+          totalTasks: dashTasks.total,
+          tasksByStatus: dashTasks.byStatus ?? {},
+          tasksByPriority: dashTasks.byPriority ?? {},
+          totalKnowledge: dashKnowledge?.total ?? 0,
+          totalSearches: 0,
+        });
+        return;
+      }
+      const tasks = await api.tasks.list();
       const taskArr = Array.isArray(tasks) ? tasks : [];
       const tasksByStatus: Record<string, number> = {};
       const tasksByPriority: Record<string, number> = {};
@@ -67,7 +67,7 @@ export default function AnalyticsPage() {
 
       let totalKnowledge = 0;
       try {
-        const docs = await callTool<unknown[]>('knowledge_list', {});
+        const docs = await api.knowledge.list();
         totalKnowledge = Array.isArray(docs) ? docs.length : 0;
       } catch { }
 

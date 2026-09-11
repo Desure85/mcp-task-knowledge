@@ -248,4 +248,77 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       await rmrf(TMP);
     }
   }, 60000);
+
+  it('PH-015: CORS for browser clients — preflight + exposed mcp-session-id', async () => {
+    await rmrf(TMP);
+    await fsp.mkdir(STORE, { recursive: true });
+    const port = ++portCounter;
+    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+      env: {
+        ...process.env,
+        DATA_DIR: STORE,
+        OBSIDIAN_VAULT_ROOT: path.join(TMP, 'vault'),
+        EMBEDDINGS_MODE: 'none',
+        CATALOG_ENABLED: 'false',
+        MCP_TRANSPORT: 'http',
+        MCP_PORT: String(port),
+        MCP_HOST: '127.0.0.1',
+        JWT_SECRET,
+        MCP_CORS_ORIGIN: 'http://localhost:3000',
+      },
+      stdio: ['pipe', 'pipe', 'inherit'],
+    });
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      const base = `http://127.0.0.1:${port}/`;
+
+      // Preflight from an allowed origin → 204 with the MCP headers.
+      const preflight = await fetch(base, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost:3000',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'content-type, mcp-session-id',
+        },
+      });
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
+      expect(preflight.headers.get('access-control-allow-headers')).toContain('mcp-session-id');
+      expect(preflight.headers.get('access-control-expose-headers')).toContain('mcp-session-id');
+
+      // Preflight from a foreign origin → denied (no allow headers).
+      const denied = await fetch(base, {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://evil.example' },
+      });
+      expect(denied.status).toBe(403);
+      expect(denied.headers.get('access-control-allow-origin')).toBeNull();
+
+      // Real initialize from the allowed origin: CORS headers + session id
+      // must BOTH be exposed so the browser SDK can continue the session.
+      const init = await fetch(base, {
+        method: 'POST',
+        headers: {
+          Origin: 'http://localhost:3000',
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'cors-e2e', version: '0.0.1' },
+          },
+        }),
+      });
+      expect(init.status).toBe(200);
+      expect(init.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
+      expect(init.headers.get('access-control-expose-headers')).toContain('mcp-session-id');
+      expect(init.headers.get('mcp-session-id')).toBeTruthy();
+    } finally {
+      try { child.kill('SIGTERM'); } catch {}
+      await rmrf(TMP);
+    }
+  }, 60000);
 });

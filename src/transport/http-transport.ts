@@ -47,6 +47,48 @@ const MAIN_DISPATCH_METHODS = new Set([
 
 type MainRequestHandler = (request: unknown, extra: unknown) => Promise<unknown>;
 
+// ─── CORS (browser MCP clients / web-ui) ─────────────────────────────
+// Off by default. MCP_CORS_ORIGIN: comma-separated origins or '*'.
+// Browsers must be able to READ mcp-session-id to keep the session, so it
+// is always in Expose-Headers when CORS is enabled.
+function corsAllowedOrigin(req: IncomingMessage): string | undefined {
+  const cfg = process.env.MCP_CORS_ORIGIN?.trim();
+  if (!cfg) return undefined;
+  const origin = req.headers.origin;
+  if (!origin) return undefined;
+  if (cfg === '*') return '*';
+  const allowed = cfg.split(',').map((s) => s.trim()).filter(Boolean);
+  return allowed.includes(origin) ? origin : undefined;
+}
+
+function applyCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+  const allow = corsAllowedOrigin(req);
+  if (!allow) return;
+  res.setHeader('Access-Control-Allow-Origin', allow);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
+}
+
+function handleCorsPreflight(req: IncomingMessage, res: ServerResponse): boolean {
+  if (req.method !== 'OPTIONS') return false;
+  const allow = corsAllowedOrigin(req);
+  if (!allow) {
+    res.writeHead(403);
+    res.end();
+    return true;
+  }
+  res.writeHead(204, {
+    'Access-Control-Allow-Origin': allow,
+    'Access-Control-Allow-Methods': 'POST, GET, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'content-type, authorization, mcp-session-id, mcp-protocol-version, last-event-id',
+    'Access-Control-Expose-Headers': 'mcp-session-id',
+    'Access-Control-Max-Age': '600',
+    Vary: 'Origin',
+  });
+  res.end();
+  return true;
+}
+
 // ─── Adapter ──────────────────────────────────────────────────────────
 
 export class HttpTransportAdapter implements TransportAdapter {
@@ -134,6 +176,10 @@ export class HttpTransportAdapter implements TransportAdapter {
 
     this.httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       const url = req.url || '/';
+
+      // CORS: preflight short-circuit, then expose headers on real responses.
+      if (handleCorsPreflight(req, res)) return;
+      applyCorsHeaders(req, res);
 
       // Route /healthz, /readyz, /drainz to health handlers (SCALE-001)
       if (this.healthHandlers) {

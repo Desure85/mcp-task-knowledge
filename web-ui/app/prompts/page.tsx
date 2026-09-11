@@ -1,83 +1,99 @@
 /**
- * web-ui/app/prompts/page.tsx — Prompt management (UI-004)
+ * web-ui/app/prompts/page.tsx — Prompt management (UI-004, PH-015)
  *
- * Prompt versioning, A/B testing, variant comparison, template editor.
- * Connects to MCP prompts_* tools.
+ * Prompt catalog browsing (version/kind/status/domain), create with the
+ * real prompt JSON contract, and A/B experiments (variants stats + bandit
+ * next-pick) via shared SDK api-client.
  */
 
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/api-client';
 
-const MCP_API_URL = process.env.NEXT_PUBLIC_MCP_API_URL || '/api/mcp';
-
-async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
-  const res = await fetch(MCP_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name, arguments: args }, id: Date.now() }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  const text = json?.result?.content?.[0]?.text ?? '{}';
-  const env = JSON.parse(text) as { ok: boolean; data?: T; error?: { message: string } };
-  if (!env.ok) throw new Error(env.error?.message ?? 'Unknown error');
-  return env.data as T;
+interface PromptItem {
+  id: string;
+  version: string;
+  kind: string;
+  status?: string;
+  domain?: string;
+  tags: string[];
+  file?: string;
 }
 
-interface PromptVariant {
-  id: string;
-  name: string;
-  content: string;
+interface VariantStat {
+  variant?: string;
+  name?: string;
+  impressions?: number;
+  successes?: number;
+  failures?: number;
   weight?: number;
-  metrics?: { impressions: number; successes: number; failures: number };
+  [k: string]: unknown;
 }
 
-interface PromptExperiment {
-  id: string;
-  name: string;
-  variants: PromptVariant[];
-  status: 'running' | 'paused' | 'completed';
-}
+const STATUS_BADGE: Record<string, string> = {
+  published: 'bg-green-100 text-green-700',
+  review: 'bg-yellow-100 text-yellow-700',
+  draft: 'bg-gray-100 text-gray-600',
+  deprecated: 'bg-red-100 text-red-600',
+};
 
 export default function PromptsPage() {
-  const [prompts, setPrompts] = useState<Array<{ id: string; name: string; content: string; tags?: string[] }>>([]);
+  const [items, setItems] = useState<PromptItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPrompt, setSelectedPrompt] = useState<{ id: string; name: string; content: string; tags?: string[] } | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editContent, setEditContent] = useState('');
-  const [editTags, setEditTags] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [experiments, setExperiments] = useState<PromptExperiment[]>([]);
   const [tab, setTab] = useState<'prompts' | 'experiments'>('prompts');
+
+  // create form — matches validatePromptMinimal contract server-side
+  const [newId, setNewId] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDomain, setNewDomain] = useState('');
+  const [newTemplate, setNewTemplate] = useState('');
+  const [newTags, setNewTags] = useState('');
+
+  // experiments tab
+  const [promptKey, setPromptKey] = useState('');
+  const [stats, setStats] = useState<VariantStat[] | null>(null);
+  const [banditPick, setBanditPick] = useState<unknown>(null);
+  const [expBusy, setExpBusy] = useState(false);
 
   const loadPrompts = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await callTool<Array<{ id: string; name: string; content: string; tags?: string[] }>>('prompts_list', {});
-      setPrompts(Array.isArray(data) ? data : []);
+      const data = await api.prompts.list({ status: statusFilter || undefined });
+      setItems(data?.items ?? []);
+      setTotal(data?.total ?? 0);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter]);
 
-  useEffect(() => {
-    void loadPrompts();
-  }, [loadPrompts]);
+  useEffect(() => { void loadPrompts(); }, [loadPrompts]);
 
   async function createPrompt() {
-    if (!editName.trim()) return;
+    const id = newId.trim();
+    if (!id || !newTitle.trim() || !newDomain.trim() || !newTemplate.trim()) {
+      setError('id, title, domain and template are required (prompt contract)');
+      return;
+    }
     try {
-      const tags = editTags.split(',').map((t) => t.trim()).filter(Boolean);
-      await callTool('prompts_bulk_create', { items: [{ name: editName, content: editContent, tags }] });
-      setEditName('');
-      setEditContent('');
-      setEditTags('');
+      setError(null);
+      const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
+      await api.prompts.bulkCreate([{
+        type: 'prompt',
+        id,
+        version: '1.0.0',
+        metadata: { title: newTitle.trim(), domain: newDomain.trim(), status: 'draft', kind: 'prompt', tags },
+        template: newTemplate,
+        variables: [],
+      }]);
+      setNewId(''); setNewTitle(''); setNewDomain(''); setNewTemplate(''); setNewTags('');
       setShowCreate(false);
       await loadPrompts();
     } catch (e) {
@@ -85,40 +101,38 @@ export default function PromptsPage() {
     }
   }
 
-  function startEdit(prompt: { id: string; name: string; content: string; tags?: string[] }) {
-    setSelectedPrompt(prompt);
-    setEditMode(true);
-    setEditName(prompt.name);
-    setEditContent(prompt.content);
-    setEditTags((prompt.tags ?? []).join(', '));
+  async function loadExperiment() {
+    const key = promptKey.trim();
+    if (!key) return;
+    try {
+      setExpBusy(true);
+      setError(null);
+      const [st, pick] = await Promise.all([
+        api.prompts.variantsStats(key).catch(() => null),
+        api.prompts.banditNext(key).catch(() => null),
+      ]);
+      const statArr = Array.isArray(st) ? st
+        : (st as { variants?: VariantStat[]; stats?: VariantStat[] } | null)?.variants
+        ?? (st as { stats?: VariantStat[] } | null)?.stats
+        ?? null;
+      setStats(statArr);
+      setBanditPick(pick);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExpBusy(false);
+    }
   }
 
-  function startCreate() {
-    setSelectedPrompt(null);
-    setEditMode(true);
-    setShowCreate(true);
-    setEditName('');
-    setEditContent('');
-    setEditTags('');
-  }
-
-  function cancelEdit() {
-    setEditMode(false);
-    setShowCreate(false);
-    setSelectedPrompt(null);
-  }
-
-  const filtered = prompts.filter((p) => {
-    if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  const filtered = items.filter((p) =>
+    !searchQuery || p.id.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Prompts</h1>
+        <h1 className="text-2xl font-bold">Prompts <span className="text-sm font-normal text-gray-400">({total})</span></h1>
         <button
-          onClick={startCreate}
+          onClick={() => setShowCreate(!showCreate)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           + New Prompt
@@ -126,18 +140,15 @@ export default function PromptsPage() {
       </div>
 
       <div className="mb-4 flex gap-2 border-b">
-        <button
-          onClick={() => setTab('prompts')}
-          className={`px-4 py-2 text-sm font-medium ${tab === 'prompts' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-        >
-          Prompts
-        </button>
-        <button
-          onClick={() => setTab('experiments')}
-          className={`px-4 py-2 text-sm font-medium ${tab === 'experiments' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-        >
-          A/B Experiments
-        </button>
+        {(['prompts', 'experiments'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+          >
+            {t === 'prompts' ? 'Catalog' : 'A/B Experiments'}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -147,69 +158,68 @@ export default function PromptsPage() {
         </div>
       )}
 
-      {editMode ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{selectedPrompt ? 'Edit Prompt' : 'New Prompt'}</h2>
-            <div className="flex gap-2">
-              <button onClick={cancelEdit} className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={createPrompt} className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg">Save</button>
-            </div>
+      {showCreate && (
+        <div className="mb-6 p-4 bg-white rounded-lg border space-y-3">
+          <h2 className="font-semibold">New Prompt (v1.0.0, draft)</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <input value={newId} onChange={(e) => setNewId(e.target.value)} placeholder="id (e.g. review-assistant)" className="px-3 py-2 border rounded-lg" />
+            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="title" className="px-3 py-2 border rounded-lg" />
+            <input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="domain (e.g. code-review)" className="px-3 py-2 border rounded-lg" />
+            <input value={newTags} onChange={(e) => setNewTags(e.target.value)} placeholder="tags, comma-separated" className="px-3 py-2 border rounded-lg" />
           </div>
-          <input
-            type="text"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            placeholder="Prompt name..."
-            className="w-full px-3 py-2 border rounded-lg text-lg font-medium"
-            autoFocus
-          />
-          <input
-            type="text"
-            value={editTags}
-            onChange={(e) => setEditTags(e.target.value)}
-            placeholder="tags (comma-separated)"
-            className="w-full px-3 py-2 border rounded-lg"
-          />
           <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            placeholder="Prompt template... Use {{variables}} for dynamic content"
-            className="w-full h-[400px] px-4 py-3 border rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+            value={newTemplate} onChange={(e) => setNewTemplate(e.target.value)}
+            placeholder="Template… Use {{variables}} for dynamic content"
+            className="w-full h-40 px-4 py-3 border rounded-lg font-mono text-sm resize-none"
           />
+          <div className="flex gap-2">
+            <button onClick={createPrompt} className="px-4 py-2 bg-green-600 text-white rounded-lg">Create</button>
+            <button onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+          </div>
         </div>
-      ) : tab === 'prompts' ? (
+      )}
+
+      {tab === 'prompts' ? (
         <>
-          <div className="mb-4">
+          <div className="mb-4 flex gap-2">
             <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search prompts..."
-              className="w-full px-3 py-2 border rounded-lg"
+              type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by id…" className="flex-1 px-3 py-2 border rounded-lg"
             />
+            <select
+              value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border rounded-lg text-sm"
+            >
+              <option value="">any status</option>
+              <option value="draft">draft</option>
+              <option value="review">review</option>
+              <option value="published">published</option>
+              <option value="deprecated">deprecated</option>
+            </select>
           </div>
           {loading ? (
-            <p className="text-gray-500">Loading...</p>
+            <p className="text-gray-500">Loading…</p>
           ) : filtered.length === 0 ? (
             <p className="text-gray-500">No prompts found.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filtered.map((prompt) => (
-                <div
-                  key={prompt.id}
-                  className="bg-white p-4 rounded-lg border hover:shadow-md transition cursor-pointer"
-                  onClick={() => startEdit(prompt)}
-                >
-                  <h2 className="font-semibold text-lg mb-1">{prompt.name}</h2>
-                  {prompt.tags && prompt.tags.length > 0 && (
-                    <div className="flex gap-1 mb-2 flex-wrap">
-                      {prompt.tags.map((tag) => (
-                        <span key={tag} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">{tag}</span>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-sm text-gray-600 line-clamp-3 font-mono">{prompt.content?.slice(0, 200)}</p>
+              {filtered.map((p) => (
+                <div key={`${p.id}@${p.version}`} className="bg-white p-4 rounded-lg border">
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="font-semibold">{p.id}</h2>
+                    <span className="text-xs font-mono text-gray-400">v{p.version}</span>
+                  </div>
+                  <div className="flex gap-1 mb-2 flex-wrap">
+                    <span className="text-xs px-2 py-0.5 bg-gray-100 rounded">{p.kind}</span>
+                    {p.status && (
+                      <span className={`text-xs px-2 py-0.5 rounded ${STATUS_BADGE[p.status] ?? 'bg-gray-100'}`}>{p.status}</span>
+                    )}
+                    {p.domain && <span className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 rounded">{p.domain}</span>}
+                    {(p.tags ?? []).map((tag) => (
+                      <span key={tag} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">{tag}</span>
+                    ))}
+                  </div>
+                  {p.file && <p className="text-xs text-gray-400 font-mono truncate">{p.file}</p>}
                 </div>
               ))}
             </div>
@@ -217,38 +227,39 @@ export default function PromptsPage() {
         </>
       ) : (
         <div>
-          <p className="text-gray-500 mb-4">A/B testing experiments with bandit-based variant selection.</p>
-          {experiments.length === 0 ? (
-            <div className="bg-white p-8 rounded-lg border text-center">
-              <p className="text-gray-400 mb-4">No active experiments</p>
-              <p className="text-sm text-gray-400">Create experiments via MCP tools: prompts_experiments_upsert, prompts_bandit_next, prompts_ab_report</p>
+          <p className="text-gray-500 mb-4 text-sm">
+            Bandit-based A/B experiments. Enter a promptKey to see variant stats and the next pick.
+          </p>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text" value={promptKey} onChange={(e) => setPromptKey(e.target.value)}
+              placeholder="promptKey (e.g. review-assistant)" className="flex-1 px-3 py-2 border rounded-lg"
+              onKeyDown={(e) => e.key === 'Enter' && loadExperiment()}
+            />
+            <button
+              onClick={loadExperiment} disabled={expBusy || !promptKey.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+            >
+              {expBusy ? 'Loading…' : 'Load'}
+            </button>
+          </div>
+          {banditPick != null && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <span className="text-sm text-green-800 font-medium">Bandit next pick: </span>
+              <code className="text-xs">{JSON.stringify(banditPick)}</code>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {experiments.map((exp) => (
-                <div key={exp.id} className="bg-white p-4 rounded-lg border">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold">{exp.name}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded ${
-                      exp.status === 'running' ? 'bg-green-100 text-green-700' :
-                      exp.status === 'paused' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>{exp.status}</span>
+          )}
+          {stats && (
+            <div className="space-y-2">
+              {stats.length === 0 && <p className="text-sm text-gray-400">No variants recorded for this key yet.</p>}
+              {stats.map((v, i) => (
+                <div key={v.variant ?? v.name ?? i} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                  <div>
+                    <p className="font-medium text-sm">{v.variant ?? v.name ?? `variant-${i}`}</p>
+                    {v.weight != null && <p className="text-xs text-gray-500">Weight: {(v.weight * 100).toFixed(1)}%</p>}
                   </div>
-                  <div className="space-y-2">
-                    {exp.variants.map((v) => (
-                      <div key={v.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div>
-                          <p className="font-medium text-sm">{v.name}</p>
-                          <p className="text-xs text-gray-500">Weight: {((v.weight ?? 0) * 100).toFixed(1)}%</p>
-                        </div>
-                        {v.metrics && (
-                          <div className="text-xs text-gray-500">
-                            {v.metrics.impressions} impressions / {v.metrics.successes} wins
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                  <div className="text-xs text-gray-500">
+                    {v.impressions ?? 0} impressions / {v.successes ?? 0} wins / {v.failures ?? 0} fails
                   </div>
                 </div>
               ))}
