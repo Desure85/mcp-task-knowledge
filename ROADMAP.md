@@ -35,30 +35,39 @@
 ## Что реализовано
 
 ### Stage 0-5: Foundation ✅
+
 JSON-RPC engine, transport (stdio/HTTP/TCP/Unix), tool registry, sessions, auth (JWT/OAuth 2.1 PKCE), ACL, thin proxy, sync (versioning, 3-way merge, event sourcing).
 
 ### Stage 6-9: Quality, Security, DX ✅
+
 E2E tests, load tests, fuzzing (fast-check), chaos/shutdown, coverage 92.7%, TLS/mTLS, audit logging, secret management, hot tool registration, namespaces, Dev CLI, hot reload, ESLint+Prettier.
 
 ### Stage 10: Scalability ✅
+
 Health endpoints, load balancer with sticky sessions, cluster state sync, tool sharding, auto-scaling with cooldowns.
 
 ### Stage 11: Integrations ✅
+
 Connector framework, GitHub, Jira/YouTrack, Slack/Discord, REST wrappers, gRPC wrappers, Google Drive, Gmail, Notion, OneDrive, Linear, Web Crawler.
 
 ### Stage 12: Smart Features ✅
+
 Skills CRUD + invocation + discovery + templates + sharing + permissions. Rules engine + evaluation + policy-as-code + rule packs + enforcement + import. Workflows DAG + executor + templates + human-in-loop + state persistence + subflows.
 
 ### Stage 13: Web UI ✅
+
 Next.js 16 foundation, Kanban board (drag&drop), Knowledge editor (Markdown + live preview), Prompt management (A/B experiments), Realtime WebSocket, Analytics dashboard, Docker/CI.
 
 ### Agent Memory (Etap H) ✅
+
 Memory extraction pipeline, temporal knowledge graph, user profiles, smart context assembly, entity-linking retrieval, memory evolution, conflict resolution, automatic forgetting, memory scoping, memory layers, dreaming agent, observations, benchmark harness (LOCOMO/LongMemEval/BEAM/DMR), async operations, cross-framework adapters (LangGraph/AutoGen/CrewAI/LangChain), multimodal ingestion, graph visualization, 4 OpenCode plugins.
 
 ### Behavioral Memory ✅
+
 Intent capture, runtime observation, failure logging, resolution logging, repair brief, code lineage, auto-heal, proactive guardrails, cross-project search, guard rules auto-learning, behavioral dashboard, LAN relay, migration framework, FTS5 search.
 
 ### OpenCode Integration ✅
+
 memory-recall, memory-sync, memory-context, memory-extract, memory-context-v2, memory-profile, memory-dream, session-draft, P2P sync, memory browser, config cleanup.
 
 ---

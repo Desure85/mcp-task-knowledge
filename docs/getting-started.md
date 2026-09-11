@@ -47,6 +47,7 @@ export CURRENT_PROJECT=mcp
 ## Client Setup
 
 See [Integration Guides](getting-started/integrations.md) for:
+
 - Claude Desktop
 - Cursor
 - Claude Code

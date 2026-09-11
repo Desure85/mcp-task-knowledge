@@ -46,7 +46,7 @@ export async function spawnServer(tag: string, extraEnv: Record<string, string> 
   async function callTool(name: string, args: Record<string, unknown>) {
     const res = await client.callTool({ name, arguments: args });
     const text = (res?.content as any)?.[0]?.text ?? '';
-    return { isError: res?.isError ?? false, env: JSON.parse(text) };
+    return { isError: (res as { isError?: boolean } | undefined)?.isError ?? false, env: JSON.parse(text) };
   }
 
   async function close() {

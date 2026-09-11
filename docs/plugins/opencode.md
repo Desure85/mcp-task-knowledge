@@ -23,6 +23,7 @@ Injects self-reflection instructions into system prompt. Agent writes draft entr
 Injects knowledge about the project wiki. Agent knows it can search `facts.md` and `patterns.json` via MCP `search_knowledge` or grep fallback.
 
 **Config:**
+
 ```json
 {
   "plugin": [["memory-recall", { "project": "agent-memory", "topK": 5, "minScore": 1.0 }]]
@@ -34,6 +35,7 @@ Injects knowledge about the project wiki. Agent knows it can search `facts.md` a
 Auto-syncs `facts.md` → MCP knowledge base after `/remember`. Debounce 30s, dedup by title, dual-scope (project + global).
 
 **Config:**
+
 ```json
 {
   "plugin": [["memory-sync", { "project": "agent-memory", "debounceMs": 30000 }]]
@@ -45,6 +47,7 @@ Auto-syncs `facts.md` → MCP knowledge base after `/remember`. Debounce 30s, de
 Full auto-context injection: extracts query from last user message, calls `search_knowledge` via MCP, injects results into system prompt.
 
 **Config:**
+
 ```json
 {
   "plugin": [["memory-context-v2", { "topK": 5, "maxTokensPerEntry": 400, "cacheTtlMs": 300000 }]]
