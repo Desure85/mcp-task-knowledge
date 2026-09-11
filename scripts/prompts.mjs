@@ -156,7 +156,7 @@ async function exportServiceItems(files) {
   const items = [];
   const nowIso = new Date().toISOString();
   for (const file of files) {
-    let _data = null;
+    let data = null;
     try { data = await loadJson(file); } catch { continue; }
     const kind = (data?.metadata?.kind) || 'prompt';
     const id = String(data?.id || '').trim() || path.basename(file, '.json');
@@ -287,7 +287,7 @@ async function loadJson(file) {
 async function indexPrompts(files) {
   const index = { generatedAt: new Date().toISOString(), items: {} };
   for (const file of files) {
-    let data; let _errs = [];
+    let data; let errs = [];
     try {
       data = await loadJson(file);
       errs = minimalValidatePrompt(data);
@@ -530,7 +530,7 @@ async function main() {
       for (const ver of versions) {
         const fileEntry = rec.files.find((f) => f.version === ver) || rec.files[rec.files.length - 1];
         if (!fileEntry) continue;
-        let meta = null; let _data = null;
+        let meta = null; let data = null;
         try {
           data = await loadJson(path.join(PROJECT_ROOT, fileEntry.path));
           meta = data?.metadata || {};
