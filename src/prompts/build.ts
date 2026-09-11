@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { PROMPTS_DIR } from '../config.js';
+import { resolveUnder, resolveUnderPath } from '../fs.js';
 
 export interface BuildOptions {
   ids?: string[]; // filter which workflow ids to build
@@ -24,7 +25,7 @@ interface IndexRec {
 }
 
 async function listSourceJsonFiles(project: string): Promise<string[]> {
-  const base = path.join(PROMPTS_DIR, project);
+  const base = resolveUnder(PROMPTS_DIR, project);
   const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
   const out: string[] = [];
   for (const d of dirs) {
@@ -75,9 +76,9 @@ async function indexPrompts(files: string[], projectRoot: string): Promise<{ ite
 
 export async function buildWorkflows(project: string, opts: BuildOptions = {}): Promise<{ built: number; outputs: Array<{ id: string; md?: string; json?: string }>; skipped: string[] }> {
   const prj = project;
-  const base = path.join(PROMPTS_DIR, prj);
+  const base = resolveUnder(PROMPTS_DIR, prj);
   const exportsDir = path.join(base, 'exports', 'builds');
-  const projectRoot = path.resolve(path.join(PROMPTS_DIR, prj));
+  const projectRoot = resolveUnder(PROMPTS_DIR, prj);
   const SEP = typeof opts.separator === 'string' ? opts.separator : '---';
   const includeTagSet = opts.includeTags && opts.includeTags.length ? new Set(opts.includeTags) : undefined;
   const excludeTagSet = opts.excludeTags && opts.excludeTags.length ? new Set(opts.excludeTags) : undefined;
@@ -136,7 +137,7 @@ export async function buildWorkflows(project: string, opts: BuildOptions = {}): 
       if (!fileEntry) continue;
 
       try {
-        const refData = await loadJson(path.join(projectRoot, fileEntry.path));
+        const refData = await loadJson(resolveUnderPath(projectRoot, fileEntry.path));
         if (typeof refData?.template !== 'string') continue;
         // Tag filters
         const refTags: string[] = Array.from(new Set([...

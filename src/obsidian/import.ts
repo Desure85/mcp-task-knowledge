@@ -4,6 +4,7 @@ import matter from 'gray-matter';
 import fg from 'fast-glob';
 import { loadConfig, PROMPTS_DIR } from '../config.js';
 import { listDocs, createDoc, updateDoc, deleteDocPermanent } from '../storage/knowledge.js';
+import { resolveUnder } from '../fs.js';
 import { listTasks, createTask, updateTask, deleteTaskPermanent } from '../storage/tasks.js';
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'closed';
@@ -367,7 +368,7 @@ export async function planImportProjectFromVault(project?: string, opts?: Import
       }
     }
     if (strategy === 'replace') {
-      const destBase = path.join(PROMPTS_DIR, project || 'mcp');
+      const destBase = resolveUnder(PROMPTS_DIR, project || 'mcp');
       willDeleteDirs.push(
         path.join(destBase, 'exports', 'builds'),
         path.join(destBase, 'exports', 'markdown'),
@@ -717,7 +718,7 @@ export async function importProjectFromVault(project?: string, opts?: ImportOpti
     const includeSources = opts?.importPromptSourcesJson === true;
     const includeMarkdown = opts?.importPromptMarkdown === true;
     if (await pathExists(promptsRoot)) {
-      const destBase = path.join(PROMPTS_DIR, project || 'mcp');
+      const destBase = resolveUnder(PROMPTS_DIR, project || 'mcp');
       async function ensureDir(p: string) { await fs.mkdir(p, { recursive: true }); }
       // Replace cleanup
       if (strategy === 'replace') {

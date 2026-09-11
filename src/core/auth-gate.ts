@@ -113,6 +113,79 @@ export function decideToolCall(
   };
 }
 
+// ─── Protocol-method gate (AUD-01) ──────────────────────────────────
+
+/**
+ * JSON-RPC methods reachable before authentication. initialize must stay
+ * open (it creates the session); ping is harmless liveness. Notifications
+ * are fire-and-forget and never gated.
+ */
+export const PRE_AUTH_PROTOCOL_METHODS = new Set(['initialize', 'ping']);
+
+export interface MethodGateCall {
+  /** JSON-RPC method (e.g. 'resources/read', 'tools/call'). */
+  method?: string;
+  /** Tool name when method === 'tools/call'. */
+  toolName?: string;
+  /** Session id (mcp-session-id / per-connection id). */
+  sessionId?: string;
+}
+
+/**
+ * Gate ANY JSON-RPC method, not just tools/call (AUD-01).
+ *
+ * Previously only tools/call was authorized — resources/list+read,
+ * prompts/list+get and completion/complete bypassed auth entirely, so an
+ * unauthenticated HTTP/TCP client could read all data after initialize.
+ *
+ * Semantics mirror decideToolCall (fail-closed):
+ *   - tools/call              → per-tool decision (mcp.authenticate stays open)
+ *   - initialize/ping/notifications/* → always allowed
+ *   - no AuthManager          → network transports deny, local allow
+ *   - requireAuth=false       → allow
+ *   - everything else         → authenticated session required
+ */
+export function decideMethodCall(
+  auth: AuthManager | undefined,
+  transport: string | undefined,
+  call: MethodGateCall,
+): AuthGateDecision {
+  const method = call.method;
+
+  if (method === 'tools/call') {
+    if (!call.toolName) {
+      return { allowed: false, reason: 'missing tool name — fail-closed (SEC-003)' };
+    }
+    return decideToolCall(auth, transport, { toolName: call.toolName, sessionId: call.sessionId });
+  }
+
+  // Lifecycle + notifications stay open on every transport.
+  if (method !== undefined && (PRE_AUTH_PROTOCOL_METHODS.has(method) || method.startsWith('notifications/'))) {
+    return { allowed: true };
+  }
+
+  const t = normalizeGateTransport(transport);
+  if (!auth) {
+    if (t === 'http' || t === 'tcp') {
+      return {
+        allowed: false,
+        reason: `authentication not configured for ${t} transport — fail-closed (SEC-003)`,
+      };
+    }
+    return { allowed: true };
+  }
+  if (!auth.isAuthRequired()) {
+    return { allowed: true };
+  }
+  if (call.sessionId !== undefined && auth.isAuthenticated(call.sessionId)) {
+    return { allowed: true };
+  }
+  return {
+    allowed: false,
+    reason: `authentication required for '${method ?? 'unknown'}' — call mcp.authenticate first`,
+  };
+}
+
 // ─── Handler wrapper ────────────────────────────────────────────────
 
 /** Minimal shape of the SDK request extra (we only need sessionId). */

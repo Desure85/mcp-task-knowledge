@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject, getCurrentProject, setCurrentProject } from '../config.js';
-import { listProjects, getProjectDetail, createProject, deleteProject, updateProjectMeta } from '../projects.js';
+import { listProjects, getProjectDetail, createProject, deleteProject, updateProjectMeta, PROJECT_ID_RE } from '../projects.js';
 import { ok, err } from '../utils/respond.js';
 import { currentSessionId } from '../core/request-context.js';
 
@@ -72,7 +72,7 @@ export function registerProjectTools(ctx: ServerContext): void {
       title: "Create Project",
       description: "Create a new project with optional description. Creates task and knowledge directories automatically.",
       inputSchema: {
-        id: z.string().min(1).describe('Project identifier (lowercase, alphanumeric, hyphens)'),
+        id: z.string().min(1).regex(PROJECT_ID_RE, 'id must start with a letter/digit and contain only [a-zA-Z0-9_-]').describe('Project identifier (lowercase, alphanumeric, hyphens)'),
         description: z.string().optional().describe('Project description'),
       },
     },

@@ -133,12 +133,11 @@ describe('Q-014 slice 10: TCP transport roundtrip (live server)', () => {
         expect(init.result).toBeDefined();
         client.notify('notifications/initialized', {});
 
-        // PH-003: tools/list is served by the main registry — pre-auth
-        // whitelist allows it without a token.
-        const list = await client.request('tools/list', {});
-        expect(list.error).toBeUndefined();
-        expect(Array.isArray(list.result?.tools)).toBe(true);
-        expect(list.result.tools.length).toBeGreaterThan(50);
+        // AUD-01: tools/list is gated pre-auth like every other data
+        // method — the pre-auth surface is initialize/ping/authenticate.
+        const listDenied = await client.request('tools/list', {});
+        expect(listDenied.error).toBeDefined();
+        expect(listDenied.error?.code).toBe(-32001);
 
         // Fail-closed: tools/call before authenticate → transport-level deny.
         const denied = await client.request('tools/call', {
@@ -156,6 +155,12 @@ describe('Q-014 slice 10: TCP transport roundtrip (live server)', () => {
         expect(auth.error).toBeUndefined();
         const authEnv = JSON.parse(auth.result?.content?.[0]?.text ?? '{}');
         expect(authEnv.ok).toBe(true);
+
+        // Post-auth: tools/list is served by the main registry again.
+        const list = await client.request('tools/list', {});
+        expect(list.error).toBeUndefined();
+        expect(Array.isArray(list.result?.tools)).toBe(true);
+        expect(list.result.tools.length).toBeGreaterThan(50);
 
         const created = await client.request('tools/call', {
           name: 'tasks_create',

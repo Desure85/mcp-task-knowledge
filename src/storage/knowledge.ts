@@ -3,18 +3,18 @@ import fg from 'fast-glob';
 import matter from 'gray-matter';
 import { randomUUID } from 'node:crypto';
 import { KNOWLEDGE_DIR } from '../config.js';
-import { ensureDir, pathExists, readText, writeText } from '../fs.js';
+import { ensureDir, pathExists, readText, resolveUnder, writeText } from '../fs.js';
 import type { KnowledgeDoc, KnowledgeDocMeta } from '../types.js';
 import { promises as fsp } from 'node:fs';
 
 function fileFor(project: string, id: string) {
-  return path.join(KNOWLEDGE_DIR, project, `${id}.md`);
+  return resolveUnder(KNOWLEDGE_DIR, project, `${id}.md`);
 }
 
 // Centralized resolver for knowledge doc file paths (modern first, then legacy)
 function resolveDocFilePaths(project: string, id: string): string[] {
   const modern = fileFor(project, id);
-  const legacy = path.join(KNOWLEDGE_DIR, `${id}.md`);
+  const legacy = resolveUnder(KNOWLEDGE_DIR, `${id}.md`);
   return [modern, legacy];
 }
 
@@ -64,7 +64,7 @@ export async function listDocs(filter?: { project?: string; tag?: string; includ
   const metas: KnowledgeDocMeta[] = [];
   for (const project of projects) {
     // Prefer modern layout: KNOWLEDGE_DIR/<project>/
-    let dir = path.join(KNOWLEDGE_DIR, project);
+    let dir = resolveUnder(KNOWLEDGE_DIR, project);
     if (!(await pathExists(dir))) {
       // Legacy flat layout fallback: KNOWLEDGE_DIR/* without per-project subdir
       if (await pathExists(KNOWLEDGE_DIR)) {
@@ -133,7 +133,7 @@ export async function updateDoc(project: string, id: string, patch: Partial<Omit
   const currentVersion = existing.version ?? 1;
   const historyEntry = { version: currentVersion, updatedAt: existing.updatedAt, title: existing.title };
   const history = [historyEntry, ...(existing.history ?? [])].slice(0, 50);
-  const snapshotDir = path.join(KNOWLEDGE_DIR, project, '.versions', id);
+  const snapshotDir = resolveUnder(KNOWLEDGE_DIR, project, '.versions', id);
   await ensureDir(snapshotDir);
   await writeText(
     path.join(snapshotDir, `${currentVersion}-${Date.now()}.md`),
@@ -208,7 +208,7 @@ export async function restoreDocVersion(project: string, id: string, version: nu
   if (!target) return null;
 
   // Read the snapshot file for that version (stored as <version>-<ts>.md)
-  const snapshotDir = path.join(KNOWLEDGE_DIR, project, '.versions', id);
+  const snapshotDir = resolveUnder(KNOWLEDGE_DIR, project, '.versions', id);
   const snapshots = await listSnapshotFiles(snapshotDir);
   const matching = snapshots.filter((f) => f.startsWith(`${version}-`)).sort().pop();
   if (!matching) return null;

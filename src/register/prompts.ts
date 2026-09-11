@@ -1,6 +1,7 @@
 import type { ServerContext } from './context.js';
 import { z } from 'zod';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
+import { resolveUnder } from '../fs.js';
 import { ok, err } from '../utils/respond.js';
 
 import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion, ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
@@ -60,7 +61,7 @@ export function registerPromptsTools(ctx: ServerContext) {
   }
 
   function dirForKind(project: string, kind?: string): string {
-    const base = path.join(PROMPTS_DIR, project);
+    const base = resolveUnder(PROMPTS_DIR, project);
     const k = (kind || 'prompt').toLowerCase();
     if (k === 'rule' || k === 'rules') return path.join(base, 'rules');
     if (k === 'workflow' || k === 'workflows') return path.join(base, 'workflows');
@@ -246,7 +247,7 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async (params: any) => {
       const prj = resolveProject(params?.project);
-      const file = path.join(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
+      const file = resolveUnder(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
       const ts = new Date().toISOString();
       const event = { ts, project: prj, promptId: params.promptId, version: params.version, variant: params.variant ?? null, sessionId: params.sessionId, userId: params.userId, inputText: params.inputText, modelOutput: params.modelOutput, userMessage: params.userMessage, userEdits: params.userEdits, signals: params.signals || {}, meta: params.meta || {} };
       const appended = await appendJsonl(file, [event]);
@@ -279,7 +280,7 @@ export function registerPromptsTools(ctx: ServerContext) {
           byPrompt[k] = { variants: rows };
         } catch {}
       }
-      const feedbackPath = path.join(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
+      const feedbackPath = resolveUnder(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
       const feedback = await readJsonl(feedbackPath);
       let thumbsUp = 0, thumbsDown = 0, copied = 0, abandoned = 0, editChars = 0, editCount = 0;
       for (const e of feedback) {
@@ -295,7 +296,7 @@ export function registerPromptsTools(ctx: ServerContext) {
       };
       let pathOut: string | undefined;
       if (writeToDisk) {
-        const outDir = path.join(PROMPTS_DIR, prj, 'reports');
+        const outDir = resolveUnder(PROMPTS_DIR, prj, 'reports');
         await fs.mkdir(outDir, { recursive: true });
         pathOut = path.join(outDir, `ab_report_${Date.now()}.json`);
         await fs.writeFile(pathOut, JSON.stringify(outReport, null, 2), 'utf8');
@@ -337,7 +338,7 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, strict }: { project?: string; strict?: boolean }) => {
       const prj = resolveProject(project);
-      const file = path.join(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
+      const file = resolveUnder(PROMPTS_DIR, prj, 'experiments', 'feedback.jsonl');
       const content = await fs.readFile(file, 'utf8').catch(() => '');
       const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
       const samples: Array<{ line: number; error?: string }> = [];
@@ -363,7 +364,7 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, type }: { project?: string; type?: 'json'|'markdown'|'builds'|'catalog'|'all' }) => {
       const prj = resolveProject(project);
-      const base = path.join(PROMPTS_DIR, prj, 'exports');
+      const base = resolveUnder(PROMPTS_DIR, prj, 'exports');
       const wanted = type || 'all';
       const dirs: string[] = [];
       if (wanted === 'all' || wanted === 'builds') dirs.push(path.join(base, 'builds'));
@@ -494,7 +495,7 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, promptKey, variants, params }: { project?: string; promptKey: string; variants: string[]; params?: any }) => {
       const prj = resolveProject(project);
-      const file = path.join(PROMPTS_DIR, prj, 'metrics', 'experiments', `${promptKey}.json`);
+      const file = resolveUnder(PROMPTS_DIR, prj, 'metrics', 'experiments', `${promptKey}.json`);
       const payload = { variants: Array.from(new Set((variants || []).filter((v) => typeof v === 'string' && v.trim().length > 0))), params: params || {} };
       if (payload.variants.length === 0) return err('variants must contain at least one non-empty string');
       try {

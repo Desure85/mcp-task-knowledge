@@ -4,6 +4,7 @@ import type { Dirent } from 'node:fs';
 import { z } from 'zod';
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
+import { resolveUnder } from '../fs.js';
 import { ok, err } from '../utils/respond.js';
 import { reindexPrompts } from '../services/prompts-pipeline.js';
 import { childLogger } from '../core/logger.js';
@@ -41,7 +42,7 @@ export function registerHelpers(ctx: ServerContext) {
 
 export async function readPromptsCatalog(project?: string): Promise<any | null> {
   const prj = resolveProject(project);
-  const file = path.join(PROMPTS_DIR, prj, 'exports', 'catalog', 'prompts.catalog.json');
+  const file = resolveUnder(PROMPTS_DIR, prj, 'exports', 'catalog', 'prompts.catalog.json');
   try {
     const raw = await fs.readFile(file, 'utf8');
     return JSON.parse(raw);
@@ -52,7 +53,7 @@ export async function readPromptsCatalog(project?: string): Promise<any | null> 
 
 export async function readPromptBuildItems(project?: string): Promise<Array<{ id: string; text: string; item: any }>> {
   const prj = resolveProject(project);
-  const buildsDir = path.join(PROMPTS_DIR, prj, 'exports', 'builds');
+  const buildsDir = resolveUnder(PROMPTS_DIR, prj, 'exports', 'builds');
   const mdDir = buildsDir;
   const out: Array<{ id: string; text: string; item: any }> = [];
   let entries: Dirent[] = [];
@@ -133,7 +134,7 @@ export async function listFilesRecursive(dir: string): Promise<string[]> {
 }
 
 export async function listSourceJsonFiles(project: string): Promise<string[]> {
-  const base = path.join(PROMPTS_DIR, project);
+  const base = resolveUnder(PROMPTS_DIR, project);
   const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
   const out: string[] = [];
   for (const d of dirs) {

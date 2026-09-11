@@ -109,9 +109,16 @@ describe('Q-014 slice 15: project lifecycle', () => {
   it('validation: malformed id rejected; delete is idempotent on missing project', async () => {
     const srv = await spawnServer('projects-err');
     try {
-      const bad = await srv.callTool('project_create', { id: 'BAD ID!' });
-      expect(bad.isError).toBe(true);
-      expect(bad.env.ok).toBe(false);
+      // AUD-03: 'BAD ID!' fails PROJECT_ID_RE at schema level → the SDK
+      // client raises McpError(-32602). (Envelope ok:false is the fallback
+      // shape for ids that pass the schema but fail app-level checks.)
+      let bad: { isError: boolean; env: any } | undefined;
+      try {
+        bad = await srv.callTool('project_create', { id: 'BAD ID!' });
+      } catch {
+        bad = undefined; // schema-level rejection
+      }
+      expect(bad === undefined || (bad.isError && bad.env.ok === false)).toBe(true);
 
       // fs.rm(force) makes delete idempotent — a missing project is ok:true.
       const del = await srv.callTool('project_delete', { project: 'no-such-q014' });

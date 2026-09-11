@@ -32,7 +32,7 @@ import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk
 import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
-import { decideToolCall } from '../core/auth-gate.js';
+import { decideToolCall, decideMethodCall, type MethodGateCall } from '../core/auth-gate.js';
 import type { AuthGateCall, AuthGateDecision } from '../core/auth-gate.js';
 import { childLogger } from '../core/logger.js';
 
@@ -164,6 +164,15 @@ abstract class StreamTransportAdapter implements TransportAdapter {
    */
   authorizeToolCall(call: AuthGateCall): AuthGateDecision {
     return decideToolCall(this.serverCtx?.authManager, this.type, call);
+  }
+
+  /**
+   * AUD-01: gate ANY dispatched protocol method, not only tools/call.
+   * initialize/ping/notifications stay open; everything else requires an
+   * authenticated session when requireAuth is on.
+   */
+  authorizeMethodCall(call: MethodGateCall): AuthGateDecision {
+    return decideMethodCall(this.serverCtx?.authManager, this.type, call);
   }
 
   async connect(ctx: ServerContext): Promise<void> {
@@ -312,22 +321,23 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       return;
     }
 
-    // SEC-003 transport-level gate (fail-closed for tcp) on tools/call —
-    // evaluated before dispatch, same contract as the HTTP adapter.
-    if (method === 'tools/call') {
-      const toolName = msg.params?.name;
-      const decision = this.authorizeToolCall({
-        toolName: typeof toolName === 'string' ? toolName : '',
-        sessionId,
+    // SEC-003 + AUD-01 transport-level gate (fail-closed for tcp) on every
+    // dispatched method — evaluated before dispatch, same contract as the
+    // HTTP adapter. tools/call resolves per-tool (mcp.authenticate stays
+    // reachable); resources/prompts/completion require an authenticated
+    // session.
+    const gateDecision = this.authorizeMethodCall({
+      method,
+      toolName: method === 'tools/call' && typeof msg.params?.name === 'string' ? msg.params.name : undefined,
+      sessionId,
+    });
+    if (!gateDecision.allowed) {
+      void transport.send({
+        jsonrpc: '2.0',
+        id: msg.id as string | number,
+        error: { code: -32001, message: gateDecision.reason },
       });
-      if (!decision.allowed) {
-        void transport.send({
-          jsonrpc: '2.0',
-          id: msg.id as string | number,
-          error: { code: -32001, message: decision.reason },
-        });
-        return;
-      }
+      return;
     }
 
     const extraForHandler = {

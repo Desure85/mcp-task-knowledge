@@ -3,7 +3,8 @@
  *
  * Real server (dist/index.js) on HTTP + ephemeral port:
  * - tools/call without a session → 401 JSON-RPC error (fail-closed)
- * - tools/list passes the gate (not a tools/call)
+ * - AUD-01: tools/list is also gated pre-auth → 401 (whitelist = only
+ *   initialize/ping/mcp.authenticate)
  * - tools/call mcp.authenticate passes the gate pre-auth (whitelisted)
  */
 
@@ -113,11 +114,13 @@ describe('Q-014 slice 5: HTTP fail-closed gate (live server)', () => {
     }
   }, 60000);
 
-  it('tools/list passes the gate (no 401)', async () => {
+  it('AUD-01: tools/list is gated pre-auth → 401', async () => {
     await start();
     try {
       const res = await post(port, { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
-      expect(res.status).not.toBe(401);
+      expect(res.status).toBe(401);
+      const body = JSON.parse(res.text);
+      expect(body.error?.code).toBe(-32001);
     } finally {
       await stop();
     }

@@ -1,4 +1,16 @@
 import { DEFAULT_PROJECT, TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from './config.js';
+import { resolveUnder, PathValidationError } from './fs.js';
+
+/**
+ * Strict contract for NEW project ids (AUD-03): safe charset, no separators,
+ * no leading dash/dot. Existing projects with other names remain readable —
+ * resolveUnder() blocks traversal regardless of charset.
+ */
+export const PROJECT_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+
+export function isValidProjectId(id: string): boolean {
+  return PROJECT_ID_RE.test(id);
+}
 
 
 export type ProjectInfo = {
@@ -67,8 +79,8 @@ export async function listProjects(getCurrent: () => string): Promise<{ current:
   const projects: ProjectInfo[] = [];
 
   for (const id of Array.from(set).sort()) {
-    const taskDir = path.join(TASKS_DIR, id);
-    const knowledgeDir = path.join(KNOWLEDGE_DIR, id);
+    const taskDir = resolveUnder(TASKS_DIR, id);
+    const knowledgeDir = resolveUnder(KNOWLEDGE_DIR, id);
 
     // Read metadata if exists
     let description: string | undefined;
@@ -103,8 +115,8 @@ export async function getProjectDetail(projectId: string, getCurrent: () => stri
   const { listDocs } = await import('./storage/knowledge.js');
 
   // Verify project exists
-  const taskDir = path.join(TASKS_DIR, projectId);
-  const knowledgeDir = path.join(KNOWLEDGE_DIR, projectId);
+  const taskDir = resolveUnder(TASKS_DIR, projectId);
+  const knowledgeDir = resolveUnder(KNOWLEDGE_DIR, projectId);
   const hasTasks = await dirExists(taskDir);
   const hasKnowledge = await dirExists(knowledgeDir);
 
@@ -169,8 +181,15 @@ export async function createProject(projectId: string, description?: string): Pr
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
 
-  const taskDir = path.join(TASKS_DIR, projectId);
-  const knowledgeDir = path.join(KNOWLEDGE_DIR, projectId);
+  if (!isValidProjectId(projectId)) {
+    throw new PathValidationError(
+      `invalid project id '${projectId}' — must match ${PROJECT_ID_RE.source}`,
+      projectId,
+    );
+  }
+
+  const taskDir = resolveUnder(TASKS_DIR, projectId);
+  const knowledgeDir = resolveUnder(KNOWLEDGE_DIR, projectId);
 
   await fs.mkdir(taskDir, { recursive: true });
   await fs.mkdir(knowledgeDir, { recursive: true });
@@ -205,8 +224,8 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
     return { deleted: false, message: 'Cannot delete the default project' };
   }
 
-  const taskDir = path.join(TASKS_DIR, projectId);
-  const knowledgeDir = path.join(KNOWLEDGE_DIR, projectId);
+  const taskDir = resolveUnder(TASKS_DIR, projectId);
+  const knowledgeDir = resolveUnder(KNOWLEDGE_DIR, projectId);
 
   // Check if project has data
   const taskFiles = await countJsonFiles(taskDir);
@@ -228,7 +247,7 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
     await fs.rm(knowledgeDir, { recursive: true, force: true });
 
     // Clean up metadata
-    const metaPath = path.join(DATA_DIR, 'projects', `${projectId}.json`);
+    const metaPath = resolveUnder(DATA_DIR, 'projects', `${projectId}.json`);
     try { await fs.unlink(metaPath); } catch {}
   } catch (e: any) {
     return { deleted: false, message: `Failed to delete: ${e.message}` };
@@ -273,7 +292,7 @@ async function countJsonFiles(dir: string): Promise<number> {
 async function getProjectMetaPath(projectId: string): Promise<string> {
   const path = await import('node:path');
   const metaDir = path.join(DATA_DIR, 'projects');
-  return path.join(metaDir, `${projectId}.json`);
+  return resolveUnder(metaDir, `${projectId}.json`);
 }
 
 export async function readProjectMetadata(projectId: string): Promise<ProjectMetadata | null> {

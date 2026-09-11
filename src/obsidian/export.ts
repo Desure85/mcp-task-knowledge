@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { loadConfig, PROMPTS_DIR } from '../config.js';
-import { ensureDir, writeText } from '../fs.js';
+import { ensureDir, resolveUnder, writeText } from '../fs.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { listTasksTree, listTasks } from '../storage/tasks.js';
 import type { KnowledgeDocMeta } from '../types.js';
@@ -181,14 +181,14 @@ export async function planExportProjectToVault(project?: string, opts?: ExportOp
   let pCount = 0;
   if (doPrompts) {
     try {
-      const catPath = path.join(PROMPTS_DIR, project || 'mcp', 'exports', 'catalog', 'prompts.catalog.json');
+      const catPath = resolveUnder(PROMPTS_DIR, project || 'mcp', 'exports', 'catalog', 'prompts.catalog.json');
       const raw = await fs.readFile(catPath, 'utf8');
       const man = JSON.parse(raw);
       pCount = man && man.items ? Object.keys(man.items).length : 0;
     } catch (err) {
       log.warn({ err }, 'prompts catalog count failed, falling back to builds count');
       try {
-        const buildsDir = path.join(PROMPTS_DIR, project || 'mcp', 'exports', 'builds');
+        const buildsDir = resolveUnder(PROMPTS_DIR, project || 'mcp', 'exports', 'builds');
         const items = await fs.readdir(buildsDir);
         pCount = items.filter(n => n.endsWith('.json')).length;
       } catch (fallbackErr) {
@@ -453,7 +453,7 @@ export async function exportProjectToVault(project?: string, opts?: ExportOption
   // --- Export prompts: catalog, builds, and optionally sources ---
   let promptsCount = 0;
   if (doPrompts) {
-    const srcBase = path.join(PROMPTS_DIR, project || 'mcp');
+    const srcBase = resolveUnder(PROMPTS_DIR, project || 'mcp');
     const srcCatalog = path.join(srcBase, 'exports', 'catalog', 'prompts.catalog.json');
     const srcBuilds = path.join(srcBase, 'exports', 'builds');
     const srcMd = path.join(srcBase, 'exports', 'markdown');

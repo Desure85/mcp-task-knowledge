@@ -6,6 +6,7 @@
 // installs (found by Q-014 e2e). This module removes that dependency.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { resolveUnder } from '../fs.js';
 
 const ALLOWED_STATUS = new Set(['draft', 'review', 'published', 'deprecated']);
 const SOURCE_DIRS = ['prompts', 'rules', 'workflows', 'templates', 'policies'];
@@ -93,7 +94,7 @@ interface PromptIndex {
 }
 
 function resolveDirs(baseDir: string, project: string): PipelineDirs {
-  const projectDataDir = path.join(baseDir, project);
+  const projectDataDir = resolveUnder(baseDir, project);
   const exportsDir = path.join(projectDataDir, 'exports');
   return {
     projectDataDir,

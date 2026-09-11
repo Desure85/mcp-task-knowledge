@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
+import { resolveUnder } from '../fs.js';
 
 export interface PromptEventOutcome {
   success?: boolean;
@@ -37,7 +38,7 @@ export type Aggregates = Record<string /* variantId */, VariantStats>;
 
 export async function ensureMetricsDirs(project?: string) {
   const prj = resolveProject(project);
-  const base = path.join(PROMPTS_DIR, prj, 'metrics');
+  const base = resolveUnder(PROMPTS_DIR, prj, 'metrics');
   const eventsDir = path.join(base, 'events');
   const aggrDir = path.join(base, 'aggregates');
   const assignDir = path.join(base, 'assignments');
@@ -120,7 +121,7 @@ export async function appendAssignments(project: string | undefined, items: Assi
 
 export async function readExperiment(project: string | undefined, promptKey: string): Promise<{ variants: string[]; params?: any } | null> {
   const prj = resolveProject(project);
-  const file = path.join(PROMPTS_DIR, prj, 'metrics', 'experiments', `${promptKey}.json`);
+  const file = resolveUnder(PROMPTS_DIR, prj, 'metrics', 'experiments', `${promptKey}.json`);
   try {
     const raw = await fs.readFile(file, 'utf8');
     const j = JSON.parse(raw);
@@ -133,7 +134,7 @@ export async function readExperiment(project: string | undefined, promptKey: str
 
 export async function listBuildVariants(project: string | undefined, promptKey: string): Promise<string[]> {
   const prj = resolveProject(project);
-  const buildsDir = path.join(PROMPTS_DIR, prj, 'exports', 'builds');
+  const buildsDir = resolveUnder(PROMPTS_DIR, prj, 'exports', 'builds');
   try {
     const items = await fs.readdir(buildsDir);
     // Heuristic: accept exact match and prefixed variants like key--variant.json or key.variant.json

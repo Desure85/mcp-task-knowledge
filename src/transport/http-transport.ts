@@ -22,7 +22,7 @@ import { createMetricsHandler } from '../core/metrics.js';
 import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
 import type { HealthChecker } from '../health/index.js';
 import { getRealtimeServer } from './realtime.js';
-import { decideToolCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
+import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
 
 const log = childLogger('transport:http');
 
@@ -114,22 +114,22 @@ export class HttpTransportAdapter implements TransportAdapter {
   }
 
   /**
-   * SEC-003 transport-level gate: deny unauthenticated tools/call before it
-   * reaches the SDK. Reads ctx.authManager per request (lazy — AppContainer
-   * attaches it during init). Non-tools/call traffic passes through.
-   * Returns an HTTP status + JSON-RPC error body when denied, else undefined.
+   * SEC-003 + AUD-01 transport-level gate: deny unauthenticated MCP methods
+   * before they reach the SDK. Previously only tools/call was checked —
+   * resources/*, prompts/* and completion/* bypassed auth entirely.
+   * Reads ctx.authManager per request (lazy — AppContainer attaches it
+   * during init). Returns an HTTP status + JSON-RPC error body when denied,
+   * else undefined.
    */
   authorizeHttpCall(req: IncomingMessage, body: unknown): { status: number; body: string } | undefined {
     const bodies = Array.isArray(body) ? body : [body];
+    const headerSid = req.headers['mcp-session-id'];
+    const sessionId = Array.isArray(headerSid) ? headerSid[0] : headerSid;
     for (const item of bodies) {
       const info = extractHttpCall(item);
-      if (!info || info.method !== 'tools/call') continue;
-      if (!info.toolName) {
-        return { status: 401, body: deniedJsonRpcBody(info.id, 'missing tool name — fail-closed (SEC-003)') };
-      }
-      const headerSid = req.headers['mcp-session-id'];
-      const sessionId = Array.isArray(headerSid) ? headerSid[0] : headerSid;
-      const decision = decideToolCall(this.serverCtx?.authManager, 'http', {
+      if (!info || !info.method) continue;
+      const decision = decideMethodCall(this.serverCtx?.authManager, 'http', {
+        method: info.method,
         toolName: info.toolName,
         sessionId,
       });
@@ -373,6 +373,26 @@ export class HttpTransportAdapter implements TransportAdapter {
     const handler = this.mainHandlers?.get(method);
     if (!handler) {
       sdkOnMessage?.(message, extra);
+      return;
+    }
+
+    // AUD-01: defense-in-depth — POSTs are already gated in
+    // authorizeHttpCall, but gate again here so no dispatch path can serve
+    // registry methods to an unauthenticated session.
+    const gateDecision = decideMethodCall(this.serverCtx?.authManager, 'http', {
+      method,
+      toolName: method === 'tools/call' ? (msg.params?.name as string | undefined) : undefined,
+      sessionId: transport.sessionId,
+    });
+    if (!gateDecision.allowed) {
+      void transport.send(
+        {
+          jsonrpc: '2.0',
+          id: msg.id as string | number,
+          error: { code: -32001, message: gateDecision.reason },
+        },
+        { relatedRequestId: msg.id as string | number },
+      ).catch(() => {});
       return;
     }
 

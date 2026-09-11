@@ -1,13 +1,13 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { TASKS_DIR } from '../config.js';
-import { ensureDir, pathExists, readJson, writeJson } from '../fs.js';
+import { ensureDir, pathExists, readJson, resolveUnder, writeJson } from '../fs.js';
 import type { Task, Priority, Status, TaskTreeNode } from '../types.js';
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 
 export async function tasksProjectDir(project: string) {
-  const dir = path.join(TASKS_DIR, project);
+  const dir = resolveUnder(TASKS_DIR, project);
   await ensureDir(dir);
   return dir;
 }
@@ -26,7 +26,7 @@ export async function restoreTask(project: string, id: string): Promise<Task | n
 }
 
 export async function deleteTaskPermanent(project: string, id: string): Promise<boolean> {
-  const p = path.join(TASKS_DIR, project, `${id}.json`);
+  const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
   if (!(await pathExists(p))) return false;
   await fs.unlink(p);
   return true;
@@ -84,7 +84,7 @@ export async function listTasks(filter?: {
   const results: Task[] = [];
   for (const project of projects) {
     // Prefer modern layout: TASKS_DIR/<project>/
-    let dir = path.join(TASKS_DIR, project);
+    let dir = resolveUnder(TASKS_DIR, project);
     if (!(await pathExists(dir))) {
       // Legacy flat layout fallback: TASKS_DIR/* without per-project subdir
       if (await pathExists(TASKS_DIR)) {
@@ -146,7 +146,7 @@ export async function listTasksTree(filter?: {
 }
 
 export async function getTask(project: string, id: string): Promise<Task | null> {
-  const p = path.join(TASKS_DIR, project, `${id}.json`);
+  const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
   if (!(await pathExists(p))) return null;
   return readJson<Task>(p);
 }
@@ -237,7 +237,7 @@ export async function updateTask(project: string, id: string, patch: Partial<Omi
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
-  const p = path.join(TASKS_DIR, project, `${id}.json`);
+  const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
   await writeJson(p, updated);
   return updated;
 }

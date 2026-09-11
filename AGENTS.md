@@ -410,10 +410,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-09-11
-**Session ID:** S-20260911-e2ec
-**Текущая feature-ветка:** test/q014-e2e-coverage (от master, чистая синхронизация)
-**Текущий этап:** Q-014 расширение e2e — аудит полного tool-сервера (114 tools) против 27 тестов, новые слайсы 15-21, +3 бага найдены и исправлены
-**Статус:** e2e-full: 20 files / 58 tests green в Docker (node:20-bullseye)
+**Session ID:** S-20260911-msec
+**Текущая feature-ветка:** fix/aud-crit-hardening (→ master)
+**Текущий этап:** Этап M — request-path security. Сделано: AUD-01 (все MCP-методы за гейтом, whitelist=initialize/ping/authenticate), AUD-02 (resources read-only, task://action/* → refuse-стабы), AUD-03 (resolveUnder/resolveUnderPath + PROJECT_ID_RE — traversal закрыт на ~40 join-сайтах)
+**Статус:** e2e-full: 21 files / 71 tests green в Docker (node:20-bookworm); unit +22 кейса; tsc clean; eslint 0 err / 816 warn
+
+### Сессия S-20260911-msec (Этап M фаза 1)
+
+- PR #184 замерджен вручную в master (`5d64bc3`) — вся серия PH-001..015 на мастере
+- AUD-01: `decideMethodCall` — общий method-level гейт; раньше resources/prompts/completion шли мимо auth на http+tcp
+- AUD-02: все мутации из resources/read убраны; action-URI → `{ok:false,hint}` стабы
+- AUD-03: `src/fs.ts` path-guards; permissive charset на storage (legacy id с пробелами/точками читаются), строгий regex — только на новых project_create
 
 ### Сессия S-20260911-e2ec (Q-014: добить e2e)
 
