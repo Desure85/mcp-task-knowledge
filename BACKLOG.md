@@ -848,6 +848,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-10 | `mcp-task-knowledge setup` — интерактивный установщик | high | pending | AUD-01, AUD-03 | Бинарь в `dist/` (работает из npx): детект клиентов по конфиг-путям (Claude Desktop, Cursor, Windsurf, VS Code, Claude Code), вопросы (транспорт/DATA_DIR/auth), идемпотентный merge в `mcpServers` с бэкапом, финал — self-check: спавн stdio → `tools/list` → «✓ 114 tools» + cheatsheet. Флаг `--client X --yes` для CI |
 | DX-11 | `mcp-task-knowledge doctor` — диагностика | high | pending | — | Node ≥20, DATA_DIR существует/writable, конфиг валиден, порт свободен, клиентский конфиг ссылается на живой бинарь. Это же health-gate в конце setup |
 | DX-26 | CLI surface polish | low | pending | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
+| DX-29 | Setup-link: одноразовая ссылка самонастройки агента | high | pending | AUD-07, AUD-05, DX-12 | Web UI: «Сгенерировать ссылку» → scope (project, role, TTL токена). Backend: `POST /admin/setup-links` → `{url, expiresAt}`; `GET /.well-known/mcp-setup/<otp>` → one-time reveal markdown-док для агента: server URL, transport, выданный scoped JWT, инструкции самонастройки (агент знает формат своего клиента), capabilities, default project. Security: TTL ссылки ~15мин, one-time reveal, rate-limit redemption, audit-log на create+redeem, токен scoped (project+role+exp). Stdio-вариант: doc отдаёт npx-snippet + env. Дублировать как MCP-tool `admin_setup_link` для админов без Web UI. Спековая альтернатива — OAuth DCR, оценить при дизайне |
 
 ### Фаза 2 — Первые 5 минут после подключения
 
@@ -924,6 +925,41 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап P — MCP spec compliance (2026-09-11)
+
+> Сверка со спекой MCP (SDK 1.17.4, эпоха 2025-06-18). Минимум закрыт
+> (initialize/tools/resources), но: prompts нет как MCP-поверхности,
+> subscribe/listChanged/cancel/completion не реализованы, capabilities
+> заявлены не по спеке. SPEC-01/02 — по сути баги: выполнять вместе с
+> фазой 2 Этапа M.
+
+### Фаза 1 — Баги соответствия
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SPEC-01 | Cancel-propagation: реальный AbortSignal на запрос | high | pending | — | `notifications/cancelled` не может прервать работу: транспорты фабрикуют `new AbortController().signal` (stream-transport.ts:~389, http аналогично). Привязать AbortController к requestId, cancelled → abort |
+| SPEC-02 | Capabilities по спеке | high | pending | — | `SERVER_CAPS = {resources:{list,read}, tools:{call}}` (setup.ts:38) — нестандартная форма; спека ждёт `{subscribe,listChanged}`-флаги. Декларировать только реально обрабатываемое |
+
+### Фаза 2 — Непокрытая поверхность
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SPEC-03 | MCP prompts surface | medium | pending | — | `registerPrompt` — 0 вызовов: prompts только как tools, `prompts/list` → -32601, в UI клиентов пусто. Выставить prompt-library через registerPrompt, решить маппинг с prompts_*-tools |
+| SPEC-04 | `listChanged` notifications | medium | pending | SPEC-02 | 0 `sendToolListChanged`/`sendResourceListChanged`: клиент кэширует список навсегда, хотя registry динамический (connectors, TOOLS_ENABLED). Эмитить при register/unregister и смене флагов |
+| SPEC-05 | `completion/complete` | low | pending | — | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
+| SPEC-06 | `resources/subscribe` + `resources/updated` | medium | pending | SPEC-02 | Event-bus уже есть → мост: подписка на uri → `notifications/resources/updated` при изменении |
+| SPEC-07 | `progressToken` gating | low | pending | — | `streaming.ts` шлёт progress без проверки токена; спека — только если клиент прислал `progressToken` в `_meta` |
+| SPEC-08 | `logging/setLevel` | low | pending | — | Принять → прокинуть в pino level. Полезно для отладки удалённых подключений |
+
+### Фаза 3 — Политика
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SPEC-09 | Protocol-version conformance e2e | medium | pending | DX-23 | Зафиксировать negotiated `protocolVersion` в e2e; Inspector-гейт частично покроет |
+| SPEC-10 | SDK upgrade policy | low | pending | — | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
+
+---
+
 ## Архив (последние 20)
 
 | ID | Задача | Закрыто | PR |
@@ -967,7 +1003,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-11 (Этап M: 18 аудит + Этап N: 19 DX/Onboarding + Этап O: 13 Trust/Hardening)
+**Последнее обновление:** 2026-09-11 (Этапы M/N/O/P: 18 аудит + 20 DX + 13 Trust + 10 spec-compliance)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -1001,13 +1037,14 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
-| DX/Onboarding (N) | 19 | 19 | 0 | 0 | 0 | 0 |
+| DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 13 | 13 | 0 | 0 | 0 | 0 |
-| **Итого** | **255** | **53** | **0** | **201** | **0** | **1** |
+| MCP spec compliance (P) | 10 | 10 | 0 | 0 | 0 | 0 |
+| **Итого** | **266** | **64** | **0** | **201** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
-> Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..28, onboarding UX)
-> и Этап O (TR-01..13, trust/hardening) добавлены постфактум — 53 pending.
+> Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
+> (TR-01..13) и Этап P (SPEC-01..10) добавлены постфактум — 64 pending.
 > `npm run backlog:check` green.
 > Массовые мержи 2026-09-04: WIRE-007/008/009, SEC-003, NEXT2-003/004/005/007/008,
 > NEXT-011/012/013/015/016, NEXT2-009/010/012, Q-014 слайсы 1-14.
