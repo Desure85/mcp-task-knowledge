@@ -255,7 +255,18 @@ abstract class StreamTransportAdapter implements TransportAdapter {
     // Register in SessionManager so session_list/session_info, per-session
     // TTL and auth metadata resolve for TCP/Unix connections too (PH-003).
     try {
-      this.serverCtx?.sessionManager?.create({ id, remote, metadata: { transport: this.type } });
+      this.serverCtx?.sessionManager?.create({
+        id,
+        remote,
+        metadata: { transport: this.type },
+        onClose: async (sid) => {
+          this.serverCtx?.authManager?.revokeSession(sid);
+          const s = this.sessions.get(sid);
+          try { await s?.server.close(); } catch { /* ignore */ }
+          try { await s?.transport.close(); } catch { /* ignore */ }
+          this.sessions.delete(sid);
+        },
+      });
     } catch (e) {
       log.warn({ sessionId: id, err: e }, 'session-manager rejected session create');
     }

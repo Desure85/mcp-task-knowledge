@@ -192,9 +192,14 @@ export class AuthManager {
 
   /**
    * Check if a session is authenticated.
+   * AUD-05: также требует, чтобы сессия была жива в SessionManager —
+   * иначе закрытая TTL/idle сессия продолжала бы работать через
+   * authenticatedSessions, даже когда SM запись уже удалена.
    */
   isAuthenticated(sessionId: string): boolean {
-    return this.authenticatedSessions.has(sessionId);
+    if (!this.authenticatedSessions.has(sessionId)) return false;
+    if (this.sessionManager && !this.sessionManager.has(sessionId)) return false;
+    return true;
   }
 
   /**

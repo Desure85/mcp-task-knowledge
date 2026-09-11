@@ -140,3 +140,6 @@ __pycache__/
 
 # Local benchmark reports (published versions live in docs/benchmarks/)
 benchmarks/
+.loopx-watchdog/*.pid
+.loopx-watchdog/*.lock
+.loopx-watchdog/*.log

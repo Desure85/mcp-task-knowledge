@@ -71,6 +71,16 @@ function parseResponse(result: any): any {
   }
 }
 
+/** AUD-04: GateExtra that marks the caller as `sessionId`. */
+function asSession(sessionId: string): { sessionId: string } {
+  return { sessionId };
+}
+
+/** AUD-04: mark caller as admin by giving the calling session admin role in SM. */
+function makeAdmin(sm: SessionManager, sessionId: string): void {
+  sm.updateMetadata(sessionId, { roles: ['admin'] });
+}
+
 // ─── session_info ──────────────────────────────────────────────────────
 
 describe('session_info tool', () => {
@@ -93,8 +103,12 @@ describe('session_info tool', () => {
     const { ctx, getHandler } = createMockContext({ sessionManager: sm });
     registerSessionTools(ctx);
 
+    const self = sm.create({ remote: 'self:1' });
     const handler = getHandler('session_info');
-    const result = parseResponse(await handler!({ sessionId: '00000000-0000-0000-0000-000000000000' }));
+    const result = parseResponse(await handler!(
+      { sessionId: '00000000-0000-0000-0000-000000000000' },
+      asSession(self.id),
+    ));
     expect(result.ok).toBe(false);
     expect(result.error.message).toContain('Session not found');
 
@@ -115,7 +129,7 @@ describe('session_info tool', () => {
     rl.allow(session.id, 'some_tool');
 
     const handler = getHandler('session_info');
-    const result = parseResponse(await handler!({ sessionId: session.id }));
+    const result = parseResponse(await handler!({ sessionId: session.id }, asSession(session.id)));
 
     expect(result.ok).toBe(true);
     const d = result.data;
@@ -146,7 +160,7 @@ describe('session_info tool', () => {
     const session = sm.create({ remote: 'test:1' });
 
     const handler = getHandler('session_info');
-    const result = parseResponse(await handler!({ sessionId: session.id }));
+    const result = parseResponse(await handler!({ sessionId: session.id }, asSession(session.id)));
 
     expect(result.ok).toBe(true);
     expect(result.data.rateLimitingEnabled).toBe(false);
@@ -164,7 +178,7 @@ describe('session_info tool', () => {
     sm.setSessionExpiry(session.id, Date.now() + 3600_000);
 
     const handler = getHandler('session_info');
-    const result = parseResponse(await handler!({ sessionId: session.id }));
+    const result = parseResponse(await handler!({ sessionId: session.id }, asSession(session.id)));
 
     expect(result.ok).toBe(true);
     expect(result.data.expiresAt).toBeDefined();
@@ -182,10 +196,52 @@ describe('session_info tool', () => {
     const session = sm.create({ remote: 'test:1' });
 
     const handler = getHandler('session_info');
-    const result = parseResponse(await handler!({ sessionId: session.id }));
+    const result = parseResponse(await handler!({ sessionId: session.id }, asSession(session.id)));
 
     expect(result.ok).toBe(true);
     expect(result.data.metadata).toBeUndefined();
+
+    await sm.closeAll();
+  });
+
+  it('denies access to another session without admin role (AUD-04)', async () => {
+    const sm = new SessionManager();
+    const { ctx, getHandler } = createMockContext({ sessionManager: sm });
+    registerSessionTools(ctx);
+
+    const attacker = sm.create({ remote: '10.0.0.1:1000' });
+    const victim = sm.create({ remote: '10.0.0.2:2000', metadata: { userId: 'victim-user' } });
+
+    const handler = getHandler('session_info');
+    const result = parseResponse(await handler!(
+      { sessionId: victim.id },
+      asSession(attacker.id),
+    ));
+
+    expect(result.ok).toBe(false);
+    expect(result.error.message).toContain('access denied');
+
+    await sm.closeAll();
+  });
+
+  it('allows admin role to read another session (AUD-04)', async () => {
+    const sm = new SessionManager();
+    const { ctx, getHandler } = createMockContext({ sessionManager: sm });
+    registerSessionTools(ctx);
+
+    const admin = sm.create({ remote: '10.0.0.1:1000' });
+    makeAdmin(sm, admin.id);
+    const victim = sm.create({ remote: '10.0.0.2:2000', metadata: { userId: 'victim-user' } });
+
+    const handler = getHandler('session_info');
+    const result = parseResponse(await handler!(
+      { sessionId: victim.id },
+      asSession(admin.id),
+    ));
+
+    expect(result.ok).toBe(true);
+    expect(result.data.sessionId).toBe(victim.id);
+    expect(result.data.remote).toBe('10.0.0.2:2000');
 
     await sm.closeAll();
   });
@@ -216,6 +272,7 @@ describe('session_list tool', () => {
 
     const s1 = sm.create({ remote: '10.0.0.1:1000' });
     const s2 = sm.create({ remote: '10.0.0.2:2000', metadata: { role: 'admin' } });
+    makeAdmin(sm, s2.id);
 
     // Consume tokens for s1
     rl.allow(s1.id, 'tool_a');
@@ -223,7 +280,7 @@ describe('session_list tool', () => {
     rl.allow(s1.id, 'tool_c');
 
     const handler = getHandler('session_list');
-    const result = parseResponse(await handler!({}));
+    const result = parseResponse(await handler!({}, asSession(s2.id)));
 
     expect(result.ok).toBe(true);
     expect(result.data.available).toBe(true);
@@ -243,7 +300,7 @@ describe('session_list tool', () => {
     expect(byId[s2.id].remote).toBe('10.0.0.2:2000');
     // s2 never called allow(), so no bucket exists → rateLimit is null
     expect(byId[s2.id].rateLimit).toBeNull();
-    expect(byId[s2.id].metadata).toEqual({ role: 'admin' });
+    expect(byId[s2.id].metadata).toMatchObject({ role: 'admin' });
 
     await sm.closeAll();
   });
@@ -253,12 +310,15 @@ describe('session_list tool', () => {
     const { ctx, getHandler } = createMockContext({ sessionManager: sm });
     registerSessionTools(ctx);
 
+    const admin = sm.create({ remote: 'admin:1' });
+    makeAdmin(sm, admin.id);
+
     const handler = getHandler('session_list');
-    const result = parseResponse(await handler!({}));
+    const result = parseResponse(await handler!({}, asSession(admin.id)));
 
     expect(result.ok).toBe(true);
-    expect(result.data.total).toBe(0);
-    expect(result.data.sessions).toEqual([]);
+    expect(result.data.total).toBe(1);
+    expect(result.data.sessions).toHaveLength(1);
 
     await sm.closeAll();
   });
@@ -268,10 +328,11 @@ describe('session_list tool', () => {
     const { ctx, getHandler } = createMockContext({ sessionManager: sm });
     registerSessionTools(ctx);
 
-    sm.create({ remote: 'test:1' });
+    const admin = sm.create({ remote: 'test:1' });
+    makeAdmin(sm, admin.id);
 
     const handler = getHandler('session_list');
-    const result = parseResponse(await handler!({}));
+    const result = parseResponse(await handler!({}, asSession(admin.id)));
 
     expect(result.ok).toBe(true);
     expect(result.data.rateLimitingEnabled).toBe(false);
@@ -287,10 +348,11 @@ describe('session_list tool', () => {
 
     const s1 = sm.create({ remote: 'a:1' });
     const s2 = sm.create({ remote: 'b:2' });
+    makeAdmin(sm, s1.id);
     sm.setSessionExpiry(s2.id, Date.now() + 1800_000);
 
     const handler = getHandler('session_list');
-    const result = parseResponse(await handler!({}));
+    const result = parseResponse(await handler!({}, asSession(s1.id)));
 
     expect(result.ok).toBe(true);
     const sessions = result.data.sessions;
@@ -301,6 +363,24 @@ describe('session_list tool', () => {
     expect(byId[s1.id].ttlRemainingMs).toBeGreaterThan(1800_000);
     expect(byId[s2.id].ttlRemainingMs).toBeLessThanOrEqual(1800_000);
     expect(byId[s2.id].ttlRemainingMs).toBeGreaterThan(0);
+
+    await sm.closeAll();
+  });
+
+  it('denies session_list for non-admin caller (AUD-04)', async () => {
+    const sm = new SessionManager();
+    const { ctx, getHandler } = createMockContext({ sessionManager: sm });
+    registerSessionTools(ctx);
+
+    const user = sm.create({ remote: '10.0.0.1:1000' });
+    sm.create({ remote: '10.0.0.2:2000' });
+
+    const handler = getHandler('session_list');
+    const result = parseResponse(await handler!({}, asSession(user.id)));
+
+    expect(result.ok).toBe(false);
+    expect(result.error.message).toContain('access denied');
+    expect(result.error.message).toContain('admin');
 
     await sm.closeAll();
   });
@@ -316,13 +396,14 @@ describe('session tools — combined behavior', () => {
     registerSessionTools(ctx);
 
     const session = sm.create({ remote: '127.0.0.1:9999' });
+    makeAdmin(sm, session.id);
     rl.allow(session.id, 'any_tool');
 
     const infoHandler = getHandler('session_info')!;
     const listHandler = getHandler('session_list')!;
 
-    const infoResult = parseResponse(await infoHandler({ sessionId: session.id }));
-    const listResult = parseResponse(await listHandler({}));
+    const infoResult = parseResponse(await infoHandler({ sessionId: session.id }, asSession(session.id)));
+    const listResult = parseResponse(await listHandler({}, asSession(session.id)));
 
     const infoData = infoResult.data;
     const listedSession = listResult.data.sessions.find(
@@ -348,15 +429,12 @@ describe('session tools — combined behavior', () => {
     const handler = getHandler('session_info')!;
     const session = sm.create({ remote: 'test:1' });
 
-    // Session exists now
-    let result = parseResponse(await handler({ sessionId: session.id }));
+    let result = parseResponse(await handler({ sessionId: session.id }, asSession(session.id)));
     expect(result.ok).toBe(true);
 
-    // Close the session
     await sm.close(session.id);
 
-    // Now it should return error
-    result = parseResponse(await handler({ sessionId: session.id }));
+    result = parseResponse(await handler({ sessionId: session.id }, asSession(session.id)));
     expect(result.ok).toBe(false);
     expect(result.error.message).toContain('Session not found');
 

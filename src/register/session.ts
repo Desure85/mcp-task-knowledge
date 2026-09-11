@@ -15,6 +15,19 @@ import type { ServerContext } from './context.js';
 import type { SessionInfo } from '../core/session-manager.js';
 import type { RateLimitInfo } from '../core/rate-limiter.js';
 import { ok, err } from '../utils/respond.js';
+import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
+
+/** AUD-04: caller roles from session metadata (set by AuthManager.authenticate). */
+function callerRoles(ctx: ServerContext, callerSessionId: string | undefined): string[] {
+  if (!callerSessionId) return [];
+  const meta = ctx.sessionManager?.get(callerSessionId)?.metadata;
+  const roles = meta?.roles;
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
+}
+
+function isAdmin(ctx: ServerContext, callerSessionId: string | undefined): boolean {
+  return callerRoles(ctx, callerSessionId).includes('admin');
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -68,7 +81,7 @@ export function registerSessionTools(ctx: ServerContext): void {
         sessionId: z.string().min(1).describe("Session ID to query (UUID v4)"),
       },
     },
-    async ({ sessionId }: { sessionId: string }) => {
+    async ({ sessionId }: { sessionId: string }, extra?: GateExtra) => {
       const sm = ctx.sessionManager;
 
       if (!sm) {
@@ -77,6 +90,12 @@ export function registerSessionTools(ctx: ServerContext): void {
           reason: 'SessionManager not initialized — session management is only available for multi-client transports (TCP, HTTP).',
           sessionsEnabled: false,
         });
+      }
+
+      const callerId = resolveExtraSessionId(extra);
+      const target = sm.get(sessionId);
+      if (callerId !== sessionId && target && !isAdmin(ctx, callerId)) {
+        return err('access denied — session_info is restricted to the calling session or admin role');
       }
 
       const session = sm.get(sessionId);
@@ -104,7 +123,7 @@ export function registerSessionTools(ctx: ServerContext): void {
       description: "List all active sessions with their state. Returns session count, rate limiting status, and per-session details (rate limit, TTL, idle, age). If SessionManager is not available, returns availability status only.",
       inputSchema: {},
     },
-    async () => {
+    async (_args: Record<string, never>, extra?: GateExtra) => {
       const sm = ctx.sessionManager;
 
       if (!sm) {
@@ -115,6 +134,11 @@ export function registerSessionTools(ctx: ServerContext): void {
           total: 0,
           sessions: [],
         });
+      }
+
+      const callerId = resolveExtraSessionId(extra);
+      if (!isAdmin(ctx, callerId)) {
+        return err('access denied — session_list requires admin role');
       }
 
       const sessions = sm.getAll();

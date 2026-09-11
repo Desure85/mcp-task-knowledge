@@ -310,7 +310,16 @@ export class HttpTransportAdapter implements TransportAdapter {
         if (!sm) return;
         const remote = this.pendingInitRemotes.shift() ?? 'http';
         try {
-          sm.create({ id: sessionId, remote, metadata: { transport: 'http' } });
+          sm.create({
+            id: sessionId,
+            remote,
+            metadata: { transport: 'http' },
+            onClose: async (sid) => {
+              this.serverCtx?.authManager?.revokeSession(sid);
+              this.sessions.get(sid)?.close().catch(() => undefined);
+              this.sessions.delete(sid);
+            },
+          });
         } catch (e) {
           log.warn({ sessionId, err: e }, 'session-manager rejected session create');
         }
