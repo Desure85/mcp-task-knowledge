@@ -35,7 +35,8 @@ import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClose
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { currentSessionId } from './request-context.js';
-import { setSessionProjectResolver } from '../config.js';
+import { setSessionProjectResolver, isToolResourcesEnabled } from '../config.js';
+import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
 import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
 import { createServerContext } from '../register/setup.js';
@@ -348,11 +349,39 @@ export class AppContainer {
         connectorRegistry.register(reg);
       }
       const connectorConfigs: Record<string, Record<string, unknown>> = {};
+      // PH-006: connector expose mode — CONNECTOR_EXPOSE_MODE =
+      // tools | resources | both (default: both).
+      //   tools:     callable tools only (previous behavior)
+      //   both:      tools + read-shaped ops also surfaced as MCP resources
+      //   resources: read-shaped ops as resources only; mutations stay tools
+      // Read-shaped = list/get/search/find/info/status/fetch/read segments.
+      const exposeMode = (process.env.CONNECTOR_EXPOSE_MODE ?? 'both').toLowerCase();
+      const isReadOp = (n: string) => /(^|_)(list|get|search|find|info|status|fetch|read)(_|$)/i.test(n);
+      const toolResEnabled = isToolResourcesEnabled();
+
       const connectorResult = await connectorRegistry.initAll(
         connectorConfigs,
         (name, schema, handler) => {
-          this.ctx!.server.tool(name, schema as Record<string, unknown>, handler as never);
-          this.ctx!.toolNames.add(name);
+          const readOp = isReadOp(name);
+          const registerCallable = exposeMode !== 'resources' || !readOp;
+          if (registerCallable) {
+            this.ctx!.server.tool(name, schema as Record<string, unknown>, handler as never);
+            this.ctx!.toolNames.add(name);
+          }
+          // Registry visibility: server.tool() bypasses registerTool, so
+          // connector ops never reached ToolRegistry — tools_list /
+          // tool_help / tools_catalog were blind to them (PH-006 fix).
+          try {
+            this.ctx!.toolRegistry.set(name, {
+              title: schema?.title,
+              description: schema?.description,
+              inputSchema: schema?.inputSchema,
+              handler: handler as ToolMeta['handler'],
+            });
+          } catch {}
+          if (readOp && exposeMode !== 'tools' && toolResEnabled) {
+            try { this.ctx!.registerToolAsResource(name); } catch {}
+          }
         },
       );
       this.ctx.connectorRegistry = connectorRegistry;

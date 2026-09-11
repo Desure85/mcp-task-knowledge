@@ -56,3 +56,69 @@ describe('Q-014 slice 21: each family registers when enabled', () => {
     }, 120000);
   }
 });
+
+describe('PH-006: connector registry visibility + expose modes', () => {
+  it('enabled connector ops are visible to tool_help (ToolRegistry)', async () => {
+    const srv = await spawnServer('conn-reg', { GITHUB_CONNECTOR_ENABLED: '1', GITHUB_TOKEN: 'q014-dummy' });
+    try {
+      const help = await srv.callTool('tool_help', { name: 'github_repo_info' });
+      expect(help.env.ok).toBe(true);
+      expect(JSON.stringify(help.env.data)).toContain('github_repo_info');
+    } finally {
+      await srv.close();
+    }
+  }, 120000);
+
+  it('expose-mode both (default): read op also exposed as tool:// resource', async () => {
+    const srv = await spawnServer('conn-both', { GITHUB_CONNECTOR_ENABLED: '1', GITHUB_TOKEN: 'q014-dummy' });
+    try {
+      const res = await srv.client.listResources();
+      const uris = res.resources.map((r) => r.uri);
+      expect(uris).toContain('tool://github_repo_info');
+      const names = await toolNames(srv);
+      expect(names).toContain('github_repo_info');
+    } finally {
+      await srv.close();
+    }
+  }, 120000);
+
+  it('expose-mode tools: callable but no tool:// resource entry', async () => {
+    const srv = await spawnServer('conn-tools', {
+      GITHUB_CONNECTOR_ENABLED: '1',
+      GITHUB_TOKEN: 'q014-dummy',
+      CONNECTOR_EXPOSE_MODE: 'tools',
+    });
+    try {
+      const names = await toolNames(srv);
+      expect(names).toContain('github_repo_info');
+      const res = await srv.client.listResources();
+      const uris = res.resources.map((r) => r.uri);
+      expect(uris).not.toContain('tool://github_repo_info');
+    } finally {
+      await srv.close();
+    }
+  }, 120000);
+
+  it('expose-mode resources: reads leave tools/list; mutations stay callable', async () => {
+    const srv = await spawnServer('conn-res', {
+      SLACK_CONNECTOR_ENABLED: '1',
+      SLACK_BOT_TOKEN: 'xoxb-q014-dummy',
+      CONNECTOR_EXPOSE_MODE: 'resources',
+    });
+    try {
+      const names = await toolNames(srv);
+      // slack_search is read-shaped → resource-only in this mode
+      expect(names).not.toContain('slack_search');
+      // slack_post is a mutation → remains a callable tool
+      expect(names).toContain('slack_post');
+      const res = await srv.client.listResources();
+      const uris = res.resources.map((r) => r.uri);
+      expect(uris).toContain('tool://slack_search');
+      // Registry still describes the resource-only op (introspection parity)
+      const help = await srv.callTool('tool_help', { name: 'slack_search' });
+      expect(help.env.ok).toBe(true);
+    } finally {
+      await srv.close();
+    }
+  }, 120000);
+});
