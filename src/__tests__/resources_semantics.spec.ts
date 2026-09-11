@@ -24,7 +24,7 @@ async function importAll() {
   searchMod = await import('../search/index.js');
 }
 
-function sortByUpdatedDesc<T extends { updatedAt?: string }>(arr: T[]): T[] {
+function _sortByUpdatedDesc<T extends { updatedAt?: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
 }
 

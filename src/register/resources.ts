@@ -1,15 +1,15 @@
 import type { ServerContext } from './context.js';
-import { PROMPTS_DIR, resolveProject, getCurrentProject } from '../config.js';
+import { PROMPTS_DIR, getCurrentProject } from '../config.js';
 import { listProjects } from '../projects.js';
 import { listTasks, getTask, updateTask, closeTask, trashTask, restoreTask, archiveTask } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
-import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion as findFileByIdVersionHelper, ensureDirForFile, listFilesRecursive } from './helpers.js';
+import { readPromptsCatalog, listFilesRecursive } from './helpers.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 
 export function registerResources(ctx: ServerContext) {
-  const buildTaskResponder = (baseTitle: string, baseDescription: string) => async (uri: { href: string }) => {
+  const buildTaskResponder = (_baseTitle: string, _baseDescription: string) => async (uri: { href: string }) => {
     const url = new URL(uri.href);
     const host = url.hostname;
     const rawPath = url.pathname.replace(/^\/+/, '');
@@ -256,7 +256,7 @@ export function registerResources(ctx: ServerContext) {
     const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
     const out: string[] = [];
     for (const d of dirs) {
-      let entries: Dirent[] = [];
+      let entries: Dirent[];
       try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { continue; }
       for (const e of entries) {
         if (!e.isFile() || !e.name.endsWith('.json')) continue;

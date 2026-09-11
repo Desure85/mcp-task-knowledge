@@ -40,6 +40,58 @@ interface PipelineDirs {
   validationReport: string;
 }
 
+// ─── Prompt document shapes (loose JSON — validated at runtime) ─────
+
+interface PromptMeta {
+  title?: string;
+  domain?: string;
+  status?: string;
+  kind?: string;
+  tags?: string[];
+}
+
+interface PromptVariable {
+  name?: string;
+  type?: string;
+  required?: boolean;
+  default?: unknown;
+}
+
+interface PromptJson {
+  id?: string;
+  version?: string;
+  type?: string;
+  template?: string;
+  compose?: Array<{ ref?: string }>;
+  variables?: PromptVariable[];
+  examples?: Array<{ title?: string; id?: string }>;
+  metadata?: PromptMeta;
+}
+
+interface IndexFileEntry {
+  version: string;
+  path: string;
+  errors: string[];
+  metadata: PromptMeta | null;
+}
+
+interface IndexItem {
+  id: string;
+  versions: string[];
+  latest: string | null;
+  files: IndexFileEntry[];
+  kind: string | null;
+  status?: string | null;
+  domain?: string | null;
+  title?: string | null;
+  tags?: string[];
+}
+
+interface PromptIndex {
+  generatedAt: string;
+  items: Record<string, IndexItem>;
+}
+
 function resolveDirs(baseDir: string, project: string): PipelineDirs {
   const projectDataDir = path.join(baseDir, project);
   const exportsDir = path.join(projectDataDir, 'exports');
@@ -66,7 +118,7 @@ function cmpSemver(a: string, b: string): number {
   return 0;
 }
 
-function minimalValidatePrompt(o: any): string[] {
+function minimalValidatePrompt(o: PromptJson | null | undefined): string[] {
   const errs: string[] = [];
   if (!o || typeof o !== 'object') return ['Not an object'];
   if (o.type !== 'prompt') errs.push('type must be "prompt"');
@@ -93,13 +145,14 @@ function minimalValidatePrompt(o: any): string[] {
   return errs;
 }
 
-async function loadJson(file: string): Promise<any> {
+async function loadJson(file: string): Promise<unknown> {
   const raw = await fs.readFile(file, 'utf8');
   try {
     return JSON.parse(raw);
-  } catch (e: any) {
-    const err = new Error(`Invalid JSON in ${file}: ${e.message}`);
-    (err as any).code = 'EJSON';
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const err = new Error(`Invalid JSON in ${file}: ${msg}`);
+    (err as Error & { code?: string }).code = 'EJSON';
     throw err;
   }
 }
@@ -152,15 +205,16 @@ async function ensureDirs(dirs: PipelineDirs): Promise<void> {
   }
 }
 
-async function indexPrompts(files: string[], projectRoot: string): Promise<any> {
-  const index: any = { generatedAt: new Date().toISOString(), items: {} };
+async function indexPrompts(files: string[], projectRoot: string): Promise<PromptIndex> {
+  const index: PromptIndex = { generatedAt: new Date().toISOString(), items: {} };
   for (const file of files) {
-    let data: any; let errs: string[] = [];
+    let data: PromptJson | null = null;
+    let errs: string[];
     try {
-      data = await loadJson(file);
+      data = (await loadJson(file)) as PromptJson;
       errs = minimalValidatePrompt(data);
-    } catch (e: any) {
-      errs = [e.message];
+    } catch (e: unknown) {
+      errs = [e instanceof Error ? e.message : String(e)];
     }
     const id = data?.id || path.basename(file).replace(/\.json$/, '');
     const ver = data?.version || '0.0.0';
@@ -168,12 +222,12 @@ async function indexPrompts(files: string[], projectRoot: string): Promise<any> 
     index.items[id].versions.push(ver);
     index.items[id].files.push({ version: ver, path: path.relative(projectRoot, file), errors: errs, metadata: data?.metadata || null });
   }
-  for (const it of Object.values(index.items) as any[]) {
+  for (const it of Object.values(index.items)) {
     it.versions.sort(cmpSemver);
     it.latest = it.versions[it.versions.length - 1] || null;
     // Expose the latest version's metadata on the item so catalog consumers
     // (prompts_list status/domain/tag filters) can actually see it.
-    const latestFile = it.files.find((f: any) => f.version === it.latest) || it.files[it.files.length - 1];
+    const latestFile = it.files.find((f) => f.version === it.latest) || it.files[it.files.length - 1];
     const m = latestFile?.metadata || null;
     if (m) {
       it.status = m.status ?? null;
@@ -190,7 +244,7 @@ async function exportCatalog(files: string[], dirs: PipelineDirs, projectRoot: s
   const manifest = {
     generatedAt: idx.generatedAt,
     items: Object.fromEntries(
-      Object.entries(idx.items as Record<string, any>).map(([id, rec]) => [
+      Object.entries(idx.items).map(([id, rec]) => [
         id,
         {
           id: rec.id,
@@ -218,12 +272,12 @@ async function exportServiceItems(
   project: string,
   projectRoot: string,
 ): Promise<{ path: string; count: number }> {
-  const items: any[] = [];
+  const items: Array<Record<string, unknown>> = [];
   const nowIso = new Date().toISOString();
   for (const file of files) {
-    let data: any = null;
+    let data: PromptJson | null;
     try {
-      data = await loadJson(file);
+      data = (await loadJson(file)) as PromptJson;
     } catch {
       continue;
     }
@@ -263,7 +317,7 @@ async function exportServiceItems(
   return { path: dest, count: items.length };
 }
 
-function renderMarkdown(prompt: any): string {
+function renderMarkdown(prompt: PromptJson): string {
   const md: string[] = [];
   md.push(`# ${prompt.metadata?.title || prompt.id}`);
   md.push('');
@@ -312,9 +366,9 @@ async function exportJson(files: string[], dirs: PipelineDirs): Promise<{ count:
 async function exportMarkdown(files: string[], dirs: PipelineDirs): Promise<{ count: number }> {
   let count = 0;
   for (const file of files) {
-    let data: any;
+    let data: PromptJson;
     try {
-      data = await loadJson(file);
+      data = (await loadJson(file)) as PromptJson;
     } catch {
       continue;
     }
@@ -325,10 +379,10 @@ async function exportMarkdown(files: string[], dirs: PipelineDirs): Promise<{ co
   return { count };
 }
 
-async function loadIndexOrBuild(files: string[], dirs: PipelineDirs, projectRoot: string): Promise<any> {
+async function loadIndexOrBuild(files: string[], dirs: PipelineDirs, projectRoot: string): Promise<PromptIndex> {
   try {
     const raw = await fs.readFile(dirs.indexFile, 'utf8');
-    return JSON.parse(raw);
+    return JSON.parse(raw) as PromptIndex;
   } catch {
     return indexPrompts(files, projectRoot);
   }
@@ -336,15 +390,15 @@ async function loadIndexOrBuild(files: string[], dirs: PipelineDirs, projectRoot
 
 async function buildWorkflows(files: string[], dirs: PipelineDirs, projectRoot: string): Promise<{ built: number }> {
   const idx = await loadIndexOrBuild(files, dirs, projectRoot);
-  const byId = new Map<string, any>();
-  for (const [id, rec] of Object.entries(idx.items || {}) as Array<[string, any]>) {
+  const byId = new Map<string, IndexItem>();
+  for (const [id, rec] of Object.entries(idx.items || {})) {
     byId.set(id, rec);
   }
   let built = 0;
   for (const file of files) {
-    let data: any;
+    let data: PromptJson;
     try {
-      data = await loadJson(file);
+      data = (await loadJson(file)) as PromptJson;
     } catch {
       continue;
     }
@@ -357,10 +411,10 @@ async function buildWorkflows(files: string[], dirs: PipelineDirs, projectRoot: 
       const rec = byId.get(refId);
       if (!rec) continue;
       const latestVer = rec.latest || (rec.versions && rec.versions[rec.versions.length - 1]);
-      const fileEntry = rec.files.find((f: any) => f.version === latestVer) || rec.files[rec.files.length - 1];
+      const fileEntry = rec.files.find((f) => f.version === latestVer) || rec.files[rec.files.length - 1];
       if (!fileEntry) continue;
       try {
-        const refData = await loadJson(path.join(projectRoot, fileEntry.path));
+        const refData = (await loadJson(path.join(projectRoot, fileEntry.path))) as PromptJson;
         parts.push(`# ${refData.metadata?.title || refData.id}\n\n${refData.template || ''}`);
       } catch {}
     }
@@ -395,8 +449,8 @@ export async function reindexPrompts(opts: PromptsPipelineOptions): Promise<Rein
   const stage = async (name: string, fn: () => Promise<void>) => {
     try {
       await fn();
-    } catch (e: any) {
-      result.errors.push(`${name}: ${e?.message ?? String(e)}`);
+    } catch (e: unknown) {
+      result.errors.push(`${name}: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 

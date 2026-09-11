@@ -11,7 +11,7 @@ import {
   updateDoc,
 } from '../storage/knowledge.js';
 import { ensureDir, pathExists, readText, writeText } from '../fs.js';
-import { promises as fsp } from 'node:fs';
+
 import { ok, err } from '../utils/respond.js';
 
 // ---------------------------------------------------------------------------

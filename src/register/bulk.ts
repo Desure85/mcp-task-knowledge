@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { resolveProject } from '../config.js';
-import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, listTasksTree, getTask, getTaskSubtree, getDirectChildren, closeTaskWithCascade, MAX_TASK_DEPTH } from '../storage/tasks.js';
-import { createDoc, listDocs, readDoc, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
+import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, getTask} from '../storage/tasks.js';
+import { createDoc, listDocs, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
 import { ok, err } from '../utils/respond.js';
 
 function chunkArray<T>(array: T[], size: number): T[][] {

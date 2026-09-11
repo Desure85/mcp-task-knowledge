@@ -2,7 +2,7 @@
  * connectors/rest-wrappers.spec.ts — Tests for REST wrappers (INT-005)
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect} from 'vitest';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { generateOpenApiSpec, handleRestRequest } from './rest-wrappers.js';
 

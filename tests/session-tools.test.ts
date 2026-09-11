@@ -4,7 +4,7 @@
  * Covers: session_info, session_list tools with and without SessionManager/RateLimiter.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi} from 'vitest';
 import { SessionManager } from '../src/core/session-manager.js';
 import { RateLimiter } from '../src/core/rate-limiter.js';
 import { registerSessionTools } from '../src/register/session.js';

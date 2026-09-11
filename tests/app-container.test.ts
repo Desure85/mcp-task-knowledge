@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { MockInstance } from 'vitest';
 import { AppContainer, defaultRegistration } from '../src/core/app-container.js';
-import type { AppContainerOptions, AppState, RegisterCallback } from '../src/core/app-container.js';
-import type { TransportAdapter, TransportFactory } from '../src/transport/types.js';
+import type { AppState, RegisterCallback } from '../src/core/app-container.js';
+import type { TransportAdapter} from '../src/transport/types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -10,7 +10,7 @@ import type { TransportAdapter, TransportFactory } from '../src/transport/types.
  * Build a mock TransportAdapter for testing.
  * Tracks connect/close calls without actual I/O.
  */
-function createMockAdapter(): TransportAdapter & {
+function _createMockAdapter(): TransportAdapter & {
   connectCalls: number;
   closeCalls: number;
 } {

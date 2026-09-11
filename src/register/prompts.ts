@@ -2,16 +2,16 @@ import type { ServerContext } from './context.js';
 import { z } from 'zod';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
-import { buildWorkflows } from '../prompts/build.js';
+
 import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion, ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
 import { appendAssignments, appendEvents, listBuildVariants, readExperiment, readAggregates, updateAggregates } from '../ab-testing/storage.js';
 import { pickWithEpsilonGreedy } from '../ab-testing/bandits.js';
 import { hybridSearch } from '../search/index.js';
 import { listTasks } from '../storage/tasks.js';
-import { listDocs, readDoc } from '../storage/knowledge.js';
+import { listDocs} from '../storage/knowledge.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import type { Dirent } from 'node:fs';
+
 
 export function registerPromptsTools(ctx: ServerContext) {
   ctx.server.registerTool(
@@ -311,7 +311,7 @@ export function registerPromptsTools(ctx: ServerContext) {
       description: "List prompts from prompts catalog with optional filters",
       inputSchema: { project: z.string().optional(), latest: z.boolean().optional(), kind: z.string().optional(), status: z.string().optional(), domain: z.string().optional(), tag: z.array(z.string()).optional() },
     },
-    async ({ project, latest, kind, status, domain, tag }: { project?: string; latest?: boolean; kind?: string; status?: string; domain?: string; tag?: string[] }) => {
+    async ({ project, _latest, kind, status, domain, tag }: { project?: string; _latest?: boolean; kind?: string; status?: string; domain?: string; tag?: string[] }) => {
       const prj = resolveProject(project);
       const catalog = await readPromptsCatalog(prj);
       const items: any[] = [];

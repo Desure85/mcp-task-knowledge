@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Direct imports — logger is stateful singleton, we test it carefully
 import { createLogger, childLogger } from '../src/core/logger.js';

@@ -5,9 +5,9 @@
  * onClose callbacks, graceful shutdown, interface compliance.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { SessionManager } from '../src/core/session-manager.js';
-import type { SessionManagerOptions, SessionInfo, CreateSessionOptions, SessionCloseReason } from '../src/core/session-manager.js';
+import type { SessionManagerOptions, SessionCloseReason } from '../src/core/session-manager.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

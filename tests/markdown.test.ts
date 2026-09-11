@@ -50,7 +50,7 @@ function makeToolCtx() {
 }
 
 // Helper: get a tool handler by re-registering tools
-async function getToolHandler(toolName: string): Promise<any> {
+async function _getToolHandler(_toolName: string): Promise<any> {
   const ctx = makeToolCtx();
   // The module registers multiple tools; we capture the last one, so we re-register for each
   markdownMod.registerMarkdownTools(ctx);

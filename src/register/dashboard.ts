@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import type { Task } from '../types.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
+import { resolveProject } from '../config.js';
 import { ok } from '../utils/respond.js';
 
 export function registerDashboardTools(ctx: ServerContext): void {
@@ -42,7 +42,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
 
       let totalDeps = 0;
       let tasksWithDeps = 0;
-      let tasksWithSubtasks = 0;
+      let tasksWithSubtasks: number;
       let maxDepth = 0;
       const daysOpen: number[] = [];
 

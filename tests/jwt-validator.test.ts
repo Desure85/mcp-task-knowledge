@@ -22,7 +22,7 @@
  *   - Invalid tokens (malformed, wrong secret)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi} from 'vitest';
 import * as jose from 'jose';
 import {
   JwtValidator,
@@ -36,8 +36,8 @@ import {
   createJwksValidator,
   createTestToken,
 } from '../src/core/jwt-validator.js';
-import { AuthManager, createStaticValidator } from '../src/core/auth.js';
-import type { AuthResult } from '../src/core/auth.js';
+import { AuthManager} from '../src/core/auth.js';
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

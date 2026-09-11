@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolRegistry } from '../src/registry/tool-registry.js';
-import type { ToolMeta, ToolEntry, PaginatedResult } from '../src/registry/tool-registry.js';
+
 
 describe('ToolRegistry', () => {
   let reg: ToolRegistry;

@@ -5,7 +5,7 @@
  * notification forwarding, and re-mirror triggers.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach} from 'vitest';
 import { ProxyForwarder, DEFAULT_FORWARDER_CONFIG } from './forwarder.js';
 import type { ProxyMirror } from './mirror.js';
 

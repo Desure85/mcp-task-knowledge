@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect} from 'vitest';
 import { TransportRegistry } from '../src/transport/registry.js';
 import { StdioTransportFactory, StdioTransportAdapter } from '../src/transport/stdio-transport.js';
 import { HttpTransportFactory, HttpTransportAdapter } from '../src/transport/http-transport.js';
@@ -187,13 +187,11 @@ describe('HttpTransportAdapter', () => {
     const adapter = new HttpTransportAdapter(0, '127.0.0.1');
     const ctx = mockCtx();
 
-    // First connect succeeds but may fail because we use mock server
-    // We need to properly mock the connect
-    let connectCount = 0;
-    (ctx.server as any).connect = async () => { connectCount++; };
-
+    // PH-002b: adapter no longer connects ctx.server at connect() time —
+    // per-session transports are created lazily per initialize request.
+    // The contract that remains: connect() starts the HTTP listener once
+    // and a second connect() throws.
     await adapter.connect(ctx);
-    expect(connectCount).toBe(1);
     await expect(adapter.connect(ctx)).rejects.toThrow('already connected');
 
     await adapter.close();

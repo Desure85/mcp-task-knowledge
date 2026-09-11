@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
+import { resolveProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
 
 export function registerDependencyTools(ctx: ServerContext): void {

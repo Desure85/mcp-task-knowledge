@@ -5,7 +5,7 @@
  * hook pipeline ordering, ToolDeniedError, context-aware vs raw handlers.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi} from 'vitest';
 import {
   createToolContext,
   ToolExecutor,
@@ -20,7 +20,7 @@ import type {
   RawToolHandler,
 } from '../src/core/tool-executor.js';
 import { createMockServerContext } from './helpers.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

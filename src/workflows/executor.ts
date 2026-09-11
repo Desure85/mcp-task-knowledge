@@ -616,10 +616,10 @@ class ConditionParser {
       case '!==':
         return left !== right;
       case '==':
-        // eslint-disable-next-line eqeqeq
+         
         return left == right;
       case '!=':
-        // eslint-disable-next-line eqeqeq
+         
         return left != right;
       case '>=':
         return (left as number) >= (right as number);

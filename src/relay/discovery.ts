@@ -67,7 +67,7 @@ export class LanDiscovery {
     if (this.socket) return;
     const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
-    socket.on('message', (msg, rinfo) => {
+    socket.on('message', (msg, _rinfo) => {
       try {
         const data = JSON.parse(msg.toString('utf8')) as PeerInfo;
         if (typeof data.name === 'string' && data.name !== this.name) {

@@ -120,7 +120,7 @@ export async function readJsonl(filePath: string): Promise<any[]> {
 export async function listFilesRecursive(dir: string): Promise<string[]> {
   const out: string[] = [];
   async function walk(d: string) {
-    let entries: Dirent[] = [];
+    let entries: Dirent[];
     try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = path.join(d, e.name);
@@ -137,7 +137,7 @@ export async function listSourceJsonFiles(project: string): Promise<string[]> {
   const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
   const out: string[] = [];
   for (const d of dirs) {
-    let entries: Dirent[] = [];
+    let entries: Dirent[];
     try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
       if (!e.isFile() || !e.name.endsWith('.json')) continue;

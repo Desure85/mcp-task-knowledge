@@ -2,7 +2,7 @@
  * config/loader.spec.ts — Tests for unified config loader (CFG-001).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { loadUnifiedConfig, configGet, resetConfigCache } from './loader.js';
 
 describe('CFG-001: Unified Config Loader', () => {

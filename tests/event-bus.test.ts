@@ -12,8 +12,8 @@ import type {
   AnyEvent,
   ToolCalledEvent,
   SessionOpenedEvent,
-  ServerStartedEvent,
-  EventListener,
+  _ServerStartedEvent,
+  _EventListener,
 } from '../src/core/event-bus.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────

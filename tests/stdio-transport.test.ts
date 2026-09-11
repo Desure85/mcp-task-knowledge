@@ -17,7 +17,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
-function createMockContext(): ServerContext {
+function _createMockContext(): ServerContext {
   const server = new McpServer({ name: 'test', version: '0.0.0' });
   return {
     server,
@@ -52,7 +52,7 @@ function createMockContext(): ServerContext {
     REPO_ROOT: '/tmp',
     SERVER_CAPS: { resources: { list: true, read: true }, tools: { call: true } },
     normalizeBase64: (s) => s,
-    makeResourceTemplate: (p: string) => ({} as any),
+    makeResourceTemplate: (_p: string) => ({} as any),
     registerToolAsResource: () => {},
   };
 }

@@ -2,7 +2,7 @@
  * workflows/executor.spec.ts — Tests for WorkflowExecutor (WF-002).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { WorkflowExecutor } from './executor.js';

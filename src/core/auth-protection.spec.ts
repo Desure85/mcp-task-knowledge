@@ -2,7 +2,7 @@
  * core/auth-protection.spec.ts — Tests for AuthProtection (SEC-005).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AuthProtection, DEFAULT_AUTH_PROTECTION_OPTIONS } from './auth-protection.js';
 
 describe('SEC-005: AuthProtection', () => {

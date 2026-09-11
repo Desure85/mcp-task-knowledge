@@ -47,7 +47,7 @@ export function createLogger(): Logger {
   let stream: DestinationStream;
   if (format === 'pretty') {
     // pino-pretty for human-readable dev output
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const pinoPretty = require('pino-pretty');
     stream = pinoPretty.default
       ? pinoPretty.default({ colorize: true, translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname' })

@@ -31,7 +31,7 @@ function createContext(roles: string[] = [], userId?: string): any {
   });
 }
 
-function createBasicPolicy(rules: ACLRule[]): ACLPolicy {
+function _createBasicPolicy(rules: ACLRule[]): ACLPolicy {
   return {
     name: 'test-policy',
     defaultAction: 'deny',
@@ -933,7 +933,7 @@ describe('ACLEngine', () => {
       executor.use(acl.createMiddleware());
 
       // Add a post-execution observer to verify ACL result was stored
-      let capturedAclResult: ACLEvaluationResult | undefined;
+      let _capturedAclResult: ACLEvaluationResult | undefined;
       executor.addPostHook((_toolName, _input, _result, _context, _duration) => {
         // Can't access mw context from post-hook directly, but the middleware
         // before() stores it — verified in separate middleware test below

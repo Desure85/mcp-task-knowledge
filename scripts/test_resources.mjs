@@ -66,7 +66,7 @@ function createRpcClient(child) {
     }
   });
 
-  child.stderr.on('data', (chunk) => {
+  child.stderr.on('data', (_chunk) => {
     // Optional: log to console for diagnostics
     // process.stderr.write(chunk);
   });

@@ -168,7 +168,7 @@ async function validateFeedbackJsonl(ajv) {
     const raw = await fs.readFile(full, 'utf8');
     const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     for (let i = 0; i < lines.length; i++) {
-      let obj = null;
+      let _obj = null;
       try { obj = JSON.parse(lines[i]); } catch (e) {
         results.push({ ok: false, errors: [`line ${i+1}: invalid JSON: ${e.message}`], context: rel(full) });
         continue;

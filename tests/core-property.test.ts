@@ -160,16 +160,16 @@ describe('Q-010: ToolExecutor hook ordering', () => {
             const kind = hooks[i];
             const idx = i;
             if (kind === 'pre') {
-              executor.addPreHook(async (toolName) => {
+              executor.addPreHook(async (_toolName) => {
                 order.push(`pre${idx}`);
                 return { deny: false };
               });
             } else if (kind === 'post') {
-              executor.addPostHook(async (toolName) => {
+              executor.addPostHook(async (_toolName) => {
                 order.push(`post${idx}`);
               });
             } else {
-              executor.addErrorHook(async (toolName) => {
+              executor.addErrorHook(async (_toolName) => {
                 order.push(`err${idx}`);
               });
             }

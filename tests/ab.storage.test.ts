@@ -13,7 +13,7 @@ async function rmrf(p: string) {
 async function mkdirp(p: string) {
   await fsp.mkdir(p, { recursive: true });
 }
-async function exists(p: string) {
+async function _exists(p: string) {
   try { await fsp.stat(p); return true; } catch { return false; }
 }
 

@@ -395,7 +395,7 @@ export class JwtValidator {
    * Uses kid from token header to match the correct key.
    * Falls back to the first matching key if no kid is present.
    */
-  private async resolveKey(token: string): Promise<CryptoKey> {
+  private async resolveKey(_token: string): Promise<CryptoKey> {
     if (!this.jwksResolver) {
       this.jwksResolver = jose.createRemoteJWKSet(new URL(this.jwksUri!));
     }

@@ -19,7 +19,7 @@
  */
 
 import type { SkillManager } from './skill-manager.js';
-import type { Skill } from './types.js';
+
 
 // ─── Types ────────────────────────────────────────────────────────
 

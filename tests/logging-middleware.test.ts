@@ -5,17 +5,17 @@
  * maxDepth, configuration options, integration with ToolExecutor.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi} from 'vitest';
 import {
   LoggingMiddleware,
   createLoggingMiddleware,
 } from '../src/core/logging-middleware.js';
-import type { LogVerbosity } from '../src/core/logging-middleware.js';
+
 import { MiddlewarePipeline, MiddlewareContext } from '../src/core/middleware.js';
 import {
   createToolContext,
   ToolExecutor,
-  ToolDeniedError,
+  _ToolDeniedError,
 } from '../src/core/tool-executor.js';
 import type { RawToolHandler, ToolContext } from '../src/core/tool-executor.js';
 import type { ServerContext } from '../src/register/context.js';

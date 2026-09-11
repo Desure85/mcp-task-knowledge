@@ -2,7 +2,7 @@
  * new-connectors.spec.ts — Tests for NEXT-011 connectors.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect} from 'vitest';
 import { GDriveConnector } from '../src/connectors/gdrive.js';
 import { GmailConnector } from '../src/connectors/gmail.js';
 import { NotionConnector } from '../src/connectors/notion.js';

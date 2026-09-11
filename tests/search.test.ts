@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { KnowledgeDoc, Task } from '../src/types.js';
 import {
   searchBM25Only,
@@ -351,7 +351,7 @@ describe('search module', () => {
 
     it('works with vector adapter in second stage', async () => {
       const mockAdapter: VectorSearchAdapter<any> = {
-        search: async (query: string, items: any[]) => [
+        search: async (_query: string, _items: any[]) => [
           { id: '1#0', score: 0.9, item: { doc: { id: '1' }, chunkIndex: 0 } }
         ]
       };

@@ -170,6 +170,6 @@ export class LinearConnector implements Connector {
   }
 }
 
-export function createLinearConnector(config: Record<string, unknown>): Connector {
+export function createLinearConnector(_config: Record<string, unknown>): Connector {
   return new LinearConnector();
 }

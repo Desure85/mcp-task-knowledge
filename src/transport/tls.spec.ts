@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TlsContext, createTlsContext } from './tls.js';
 
@@ -31,7 +31,7 @@ function generateSelfSignedCert(commonName = 'test'): { cert: string; key: strin
 let testDir: string;
 let certPath: string;
 let keyPath: string;
-let caPath: string;
+let _caPath: string;
 
 describe('SEC-002: TlsContext — basic', () => {
   it('is disabled by default', () => {

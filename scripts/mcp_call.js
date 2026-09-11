@@ -16,7 +16,7 @@ if (!toolName) fatal('Tool name required. Example: node scripts/mcp_call.js proj
 
 let args = {}
 if (jsonArgs) {
-  try { args = JSON.parse(jsonArgs) } catch (e) { fatal('Second argument must be valid JSON') }
+  try { args = JSON.parse(jsonArgs) } catch { fatal('Second argument must be valid JSON') }
 }
 
 const cwd = process.cwd()

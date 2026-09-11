@@ -1,5 +1,5 @@
 import { DEFAULT_PROJECT, TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from './config.js';
-import type { Task } from './types.js';
+
 
 export type ProjectInfo = {
   id: string;
@@ -220,12 +220,12 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
     };
   }
 
-  // Delete directories
-  let deleted = false;
+  // Delete directories — fs.rm(force) succeeds even when dirs are absent,
+  // so reaching the end means the project is gone (previous "not found"
+  // branch was unreachable).
   try {
     await fs.rm(taskDir, { recursive: true, force: true });
     await fs.rm(knowledgeDir, { recursive: true, force: true });
-    deleted = true;
 
     // Clean up metadata
     const metaPath = path.join(DATA_DIR, 'projects', `${projectId}.json`);
@@ -234,7 +234,7 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
     return { deleted: false, message: `Failed to delete: ${e.message}` };
   }
 
-  return { deleted, message: deleted ? `Project '${projectId}' deleted` : `Project '${projectId}' not found` };
+  return { deleted: true, message: `Project '${projectId}' deleted` };
 }
 
 export async function updateProjectMeta(projectId: string, updates: { description?: string }): Promise<ProjectMetadata | null> {

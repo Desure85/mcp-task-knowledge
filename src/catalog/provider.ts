@@ -178,7 +178,7 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
         embedded.lastLoadedAt = m;
         embedded.initialized = true;
       }
-    } catch (e) {
+    } catch {
       // On parse/read error, keep previous items but mark initialized
       embedded.initialized = true;
     }
@@ -276,13 +276,13 @@ export function createServiceCatalogProvider(cfg: CatalogConfig): ServiceCatalog
       if (useRemotePreferred) {
         try {
           return await tryRemote();
-        } catch (e) {
+        } catch {
           return await tryEmbedded();
         }
       } else {
         try {
           return await tryEmbedded();
-        } catch (e) {
+        } catch {
           return await tryRemote();
         }
       }

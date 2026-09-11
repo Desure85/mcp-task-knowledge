@@ -367,7 +367,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       if (entries.length > 0) {
         log.info({ count: entries.length }, 'closing sessions');
         await Promise.allSettled(
-          entries.map(async ([id, session]) => {
+          entries.map(async ([_id, session]) => {
             try { await session.server.close(); } catch { /* ignore */ }
             try { await session.transport.close(); } catch { /* ignore */ }
           }),

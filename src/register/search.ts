@@ -4,7 +4,7 @@ import { loadConfig, resolveProject } from '../config.js';
 import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
-import { ok, err } from '../utils/respond.js';
+import { ok} from '../utils/respond.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 
 /** Record vector adapter failures on the process-wide availability tracker. */

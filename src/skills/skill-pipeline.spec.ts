@@ -7,7 +7,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { SkillManager } from './skill-manager.js';
 import { SkillPipeline } from './skill-pipeline.js';
-import type { Skill } from './types.js';
+
 
 let testDir: string;
 let manager: SkillManager;

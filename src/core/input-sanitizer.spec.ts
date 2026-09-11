@@ -2,7 +2,7 @@
  * core/input-sanitizer.spec.ts — Tests for input sanitization (SEC-006).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect} from 'vitest';
 import {
   sanitizeString,
   detectThreats,

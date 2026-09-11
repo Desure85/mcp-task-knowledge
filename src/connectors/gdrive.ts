@@ -165,6 +165,6 @@ export class GDriveConnector implements Connector {
   }
 }
 
-export function createGDriveConnector(config: Record<string, unknown>): Connector {
+export function createGDriveConnector(_config: Record<string, unknown>): Connector {
   return new GDriveConnector();
 }
