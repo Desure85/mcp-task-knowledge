@@ -10,6 +10,8 @@
  */
 
 import { StreamableHTTPServerTransport as SdkHttpTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types.js';
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
@@ -24,16 +26,40 @@ import { decideToolCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth
 
 const log = childLogger('transport:http');
 
+/**
+ * PH-002b: JSON-RPC methods routed to the MAIN server's request handlers —
+ * the same S-002 dispatch contract as the TCP/Unix adapter. One MCP SDK
+ * StreamableHTTPServerTransport == one session == one pending-request
+ * stream map, so each session gets its own transport + a lightweight
+ * per-session McpServer for lifecycle; registry-backed methods dispatch
+ * into the shared main handlers (real schemas + gated handlers).
+ */
+const MAIN_DISPATCH_METHODS = new Set([
+  'tools/list',
+  'tools/call',
+  'resources/list',
+  'resources/read',
+  'resources/templates/list',
+  'prompts/list',
+  'prompts/get',
+  'completion/complete',
+]);
+
+type MainRequestHandler = (request: unknown, extra: unknown) => Promise<unknown>;
+
 // ─── Adapter ──────────────────────────────────────────────────────────
 
 export class HttpTransportAdapter implements TransportAdapter {
   readonly type = 'http';
-  private transport?: SdkHttpTransport;
   private httpServer?: HttpServer;
   private _connected = false;
   private healthHandlers?: ReturnType<typeof createHealthHandlers>;
   private serverCtx?: ServerContext;
+  /** Live SDK transports keyed by mcp-session-id (one transport per session). */
+  private sessions = new Map<string, SdkHttpTransport>();
   private pendingInitRemotes: string[] = [];
+  private serverInfo?: { name: string; version: string };
+  private mainHandlers?: Map<string, MainRequestHandler>;
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
@@ -80,27 +106,24 @@ export class HttpTransportAdapter implements TransportAdapter {
     this.serverCtx = ctx;
     this.httpServer = createHttpServer();
 
-    // PH-002: register SDK sessions in SessionManager under their own id
-    // (== mcp-session-id header) so session_list/session_info, auth metadata
-    // and JWT-expiry binding (A-003) all resolve against live sessions.
-    // pendingInitRemotes is a FIFO: each initialize POST pushes one remote,
-    // onsessioninitialized consumes one — correct under concurrent inits.
-    this.transport = new SdkHttpTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (sessionId: string) => {
-        const sm = this.serverCtx?.sessionManager;
-        if (!sm) return;
-        const remote = this.pendingInitRemotes.shift() ?? 'http';
-        try {
-          sm.create({ id: sessionId, remote, metadata: { transport: 'http' } });
-        } catch (e) {
-          log.warn({ sessionId, err: e }, 'session-manager rejected session create');
-        }
-      },
-      onsessionclosed: (sessionId: string) => {
-        void this.serverCtx?.sessionManager?.close(sessionId);
-      },
-    });
+    // Server info for per-session lifecycle servers.
+    const rawServer = ctx.server as unknown as Record<string, unknown>;
+    const implementation = (rawServer?.server as Record<string, unknown> | undefined)
+      ?._implementation as { name: string; version: string } | undefined;
+    this.serverInfo = {
+      name: implementation?.name ?? 'mcp-task-knowledge',
+      version: implementation?.version ?? '0.0.0',
+    };
+
+    // S-002: capture the MAIN server's request handlers (same as the
+    // stream adapter) — SDK wrappers parse raw requests themselves.
+    const mainBase = (ctx.server as unknown as Record<string, unknown>)?.server as
+      | { _requestHandlers?: Map<string, MainRequestHandler> }
+      | undefined;
+    this.mainHandlers = mainBase?._requestHandlers instanceof Map ? mainBase._requestHandlers : undefined;
+    if (!this.mainHandlers) {
+      log.warn('main server request handlers unavailable — http sessions will expose no tools');
+    }
 
     const apiHandler = createOpenAPIHandler(ctx);
 
@@ -136,7 +159,11 @@ export class HttpTransportAdapter implements TransportAdapter {
         return;
       }
 
-      // MCP protocol requests
+      // MCP protocol requests — routed by mcp-session-id to that session's
+      // transport; a sessionless initialize creates a new one (PH-002b).
+      const sessionId = this.sessionIdOf(req);
+      const existing = sessionId ? this.sessions.get(sessionId) : undefined;
+
       if (req.method === 'POST') {
         const bodyChunks: Buffer[] = [];
         for await (const chunk of req) {
@@ -155,22 +182,43 @@ export class HttpTransportAdapter implements TransportAdapter {
           res.end(denied.body);
           return;
         }
-        // PH-002: capture remote for the session being initialized so
-        // onsessioninitialized can record it; consumed FIFO by the callback.
+        if (existing) {
+          await existing.handleRequest(req, res, parsedBody);
+          this.heartbeatSession(req);
+          return;
+        }
         const isInitialize = (Array.isArray(parsedBody) ? parsedBody : [parsedBody])
           .some((b) => (b as { method?: string } | null)?.method === 'initialize');
-        if (isInitialize) {
-          this.pendingInitRemotes.push(req.socket.remoteAddress ?? 'http');
+        if (!isInitialize) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
+            id: null,
+          }));
+          return;
         }
-        await this.transport!.handleRequest(req, res, parsedBody);
-        this.heartbeatSession(req);
-      } else {
-        await this.transport!.handleRequest(req, res);
-        this.heartbeatSession(req);
+        // New session: dedicated transport + lightweight lifecycle server.
+        this.pendingInitRemotes.push(req.socket.remoteAddress ?? 'http');
+        const transport = await this.createSessionTransport();
+        await transport.handleRequest(req, res, parsedBody);
+        return;
       }
+
+      // GET (SSE stream) / DELETE (session close) route by session id.
+      if (existing) {
+        await existing.handleRequest(req, res);
+        this.heartbeatSession(req);
+        return;
+      }
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
+        id: null,
+      }));
     });
 
-    await ctx.server.connect(this.transport);
     this._connected = true;
 
     if (process.env.MCP_REALTIME !== '0') {
@@ -187,13 +235,130 @@ export class HttpTransportAdapter implements TransportAdapter {
     });
   }
 
+  /** mcp-session-id header value, if present. */
+  private sessionIdOf(req: IncomingMessage): string | undefined {
+    const h = req.headers['mcp-session-id'];
+    return Array.isArray(h) ? h[0] : h;
+  }
+
   /** PH-002: reset idle timer for the session carried by mcp-session-id. */
   private heartbeatSession(req: IncomingMessage): void {
-    const headerSid = req.headers['mcp-session-id'];
-    const sessionId = Array.isArray(headerSid) ? headerSid[0] : headerSid;
+    const sessionId = this.sessionIdOf(req);
     if (sessionId) {
       this.serverCtx?.sessionManager?.heartbeat(sessionId);
     }
+  }
+
+  /**
+   * PH-002b: dedicated SDK transport + lightweight per-session McpServer
+   * (lifecycle only). Registry-backed methods are dispatched to the MAIN
+   * server's handlers via the wrapped onmessage — same contract as the
+   * TCP/Unix adapter (S-002).
+   */
+  private async createSessionTransport(): Promise<SdkHttpTransport> {
+    const transport = new SdkHttpTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sessionId: string) => {
+        this.sessions.set(sessionId, transport);
+        const sm = this.serverCtx?.sessionManager;
+        if (!sm) return;
+        const remote = this.pendingInitRemotes.shift() ?? 'http';
+        try {
+          sm.create({ id: sessionId, remote, metadata: { transport: 'http' } });
+        } catch (e) {
+          log.warn({ sessionId, err: e }, 'session-manager rejected session create');
+        }
+      },
+      onsessionclosed: (sessionId: string) => {
+        this.sessions.delete(sessionId);
+        void this.serverCtx?.sessionManager?.close(sessionId);
+      },
+    });
+
+    const sessionServer = new McpServer({
+      name: this.serverInfo?.name ?? 'mcp-task-knowledge',
+      version: this.serverInfo?.version ?? '0.0.0',
+    });
+    await sessionServer.connect(transport);
+
+    // Dispatch registry-backed methods to main handlers; lifecycle stays
+    // on the per-session server.
+    const sdkOnMessage = transport.onmessage;
+    transport.onmessage = (message, extra) => {
+      const sid = transport.sessionId;
+      if (sid) this.serverCtx?.sessionManager?.heartbeat(sid);
+      this.dispatchToMain(transport, message, extra, sdkOnMessage);
+    };
+
+    // Defensive cleanup when the transport dies without a DELETE.
+    const sdkOnClose = transport.onclose;
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) {
+        this.sessions.delete(sid);
+        void this.serverCtx?.sessionManager?.close(sid);
+      }
+      sdkOnClose?.();
+    };
+
+    return transport;
+  }
+
+  /**
+   * Route a registry-backed method to the main server's request handler.
+   * Responses carry relatedRequestId so StreamableHTTP writes them back on
+   * the POST's own response stream (the request→stream map is per-session).
+   */
+  private dispatchToMain(
+    transport: SdkHttpTransport,
+    message: JSONRPCMessage,
+    extra: MessageExtraInfo | undefined,
+    sdkOnMessage: ((message: JSONRPCMessage, extra?: MessageExtraInfo) => void) | undefined,
+  ): void {
+    const msg = message as { id?: string | number; method?: string; params?: Record<string, unknown> };
+    const method = msg.method;
+    const isRequest = msg.id !== undefined && typeof method === 'string';
+
+    if (!isRequest || !MAIN_DISPATCH_METHODS.has(method)) {
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
+    const handler = this.mainHandlers?.get(method);
+    if (!handler) {
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
+    const requestId = msg.id as string | number;
+    const extraForHandler = {
+      sessionId: transport.sessionId,
+      requestId,
+      signal: new AbortController().signal,
+    };
+
+    void (async () => {
+      try {
+        const result = await handler(message, extraForHandler);
+        await transport.send(
+          { jsonrpc: '2.0', id: requestId, result: result as Record<string, unknown> },
+          { relatedRequestId: requestId },
+        );
+      } catch (e) {
+        const anyErr = e as { code?: number; message?: string };
+        await transport.send(
+          {
+            jsonrpc: '2.0',
+            id: requestId,
+            error: {
+              code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
+              message: anyErr?.message ?? String(e),
+            },
+          },
+          { relatedRequestId: requestId },
+        ).catch(() => {});
+      }
+    })();
   }
 
   async close(): Promise<void> {
@@ -202,9 +367,9 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     try {
-      if (this.transport) {
-        await this.transport.close();
-      }
+      const transports = Array.from(this.sessions.values());
+      this.sessions.clear();
+      await Promise.allSettled(transports.map((t) => t.close()));
       if (process.env.MCP_REALTIME !== '0') {
         const { resetRealtimeServer } = await import('./realtime.js');
         resetRealtimeServer();
@@ -216,7 +381,6 @@ export class HttpTransportAdapter implements TransportAdapter {
       }
     } finally {
       this._connected = false;
-      this.transport = undefined;
       this.httpServer = undefined;
       this.serverCtx = undefined;
     }

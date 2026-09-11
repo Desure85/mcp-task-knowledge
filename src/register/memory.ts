@@ -20,7 +20,7 @@
 
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, DATA_DIR, resolveProject } from '../config.js';
+import { DATA_DIR, resolveProject } from '../config.js';
 import { listDocs, readDoc, createDoc } from '../storage/knowledge.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
@@ -245,7 +245,7 @@ function ensureAsyncProcessors(): AsyncJobManager {
         const args = asRecord(input, 'search');
         const query = asString(args['query'], 'query');
         const project =
-          typeof args['project'] === 'string' ? resolveProject(args['project'] as string) : DEFAULT_PROJECT;
+          resolveProject(args['project'] as string | undefined);
         const limit = asOptionalNumber(args['limit'], 'limit') ?? 10;
         onProgress?.(0.2);
         const metas = (await listDocs({ project })).filter((m) => m.type === 'memory_fact');
@@ -271,7 +271,7 @@ function ensureAsyncProcessors(): AsyncJobManager {
       process: async (input, _job, onProgress) => {
         const args = asRecord(input, 'bulk_import');
         const project =
-          typeof args['project'] === 'string' ? resolveProject(args['project'] as string) : DEFAULT_PROJECT;
+          resolveProject(args['project'] as string | undefined);
         const documents = args['documents'];
         if (!Array.isArray(documents) || documents.length === 0) {
           throw new Error('documents must be a non-empty array of {title, content, tags?}');
@@ -440,7 +440,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         "List extracted memory facts from the knowledge base. " +
         "Filters by type=memory_fact. Supports tag filtering and pagination.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         tag: z.string().optional().describe("Filter by tag"),
         category: z.string().optional().describe("Filter by fact category"),
         limit: z.number().int().min(1).max(200).default(50).optional(),
@@ -468,7 +468,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         "Full-text search across extracted memory facts. " +
         "Uses existing search_knowledge under the hood, filtered to type=memory_fact.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         query: z.string().min(1).describe("Search query"),
         limit: z.number().int().min(1).max(50).default(10).optional(),
       },
@@ -1142,7 +1142,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
       inputSchema: {
         framework: z.enum(["langgraph", "autogen", "crewai", "langchain"]).describe("Target framework"),
         serverUrl: z.string().min(1).describe("This server's HTTP MCP endpoint (e.g. http://localhost:3001/mcp)"),
-        project: z.string().default(DEFAULT_PROJECT).optional().describe("Project scope for memory ops"),
+        project: z.string().optional().optional().describe("Project scope for memory ops"),
       },
     },
     async (args) => {
@@ -1153,7 +1153,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         langchain: ["saveContext", "loadMemoryVariables"],
       };
       const opList = operations[args.framework];
-      const project = args.project ?? DEFAULT_PROJECT;
+      const project = resolveProject(args.project);
       const snippet = [
         `import { HttpMCPClient, createAdapter } from './framework-adapters.js';`,
         `const client = new HttpMCPClient('${args.serverUrl}');`,

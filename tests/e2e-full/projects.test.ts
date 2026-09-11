@@ -31,17 +31,21 @@ describe('Q-014 slice 15: project lifecycle', () => {
 
       const setCur = await srv.callTool('project_set_current', { project: proj });
       expect(setCur.env.ok).toBe(true);
+      expect(setCur.env.data.scope).toBe('global');
       const cur = await srv.callTool('project_get_current', {});
       expect(cur.env.ok).toBe(true);
       expect(cur.env.data.project).toBe(proj);
+      expect(cur.env.data.scope).toBe('global');
 
-      // Note: tool schemas default project to 'mcp', so current-project
-      // affects only tools called without the schema-level default. We pass
-      // the project explicitly — the contract under test is isolation.
-      const t = await srv.callTool('tasks_create', { project: proj, title: 'Q014 proj task' });
+      // PH-004: schema defaults removed — omitting `project` now resolves to
+      // the current project (here: proj, set above via project_set_current).
+      const t = await srv.callTool('tasks_create', { title: 'Q014 proj task' });
       expect(t.env.ok).toBe(true);
       const inProj = await srv.callTool('tasks_list', { project: proj });
       expect(JSON.stringify(inProj.env.data)).toContain('Q014 proj task');
+      // tasks_list without project resolves to current too — same view.
+      const inCurrent = await srv.callTool('tasks_list', {});
+      expect(JSON.stringify(inCurrent.env.data)).toContain('Q014 proj task');
       // ...and the task does NOT leak into the default project.
       const inDefault = await srv.callTool('tasks_list', { project: 'mcp' });
       expect(JSON.stringify(inDefault.env.data)).not.toContain('Q014 proj task');

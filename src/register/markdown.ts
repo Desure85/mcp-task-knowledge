@@ -3,7 +3,7 @@ import path from "node:path";
 import matter from "gray-matter";
 import fg from "fast-glob";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
+import { resolveProject } from '../config.js';
 import {
   listDocs,
   readDoc,
@@ -68,7 +68,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         "Export knowledge docs from a project to a directory as individual .md files with frontmatter. " +
         "Each file is named by slugified title. Supports filtering by tag, type, and parentId.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         outputDir: z.string().min(1),
         tag: z.string().optional(),
         type: z.string().optional(),
@@ -151,7 +151,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         "Docs are separated by horizontal rules with metadata headers. " +
         "Useful for LLM context windows, backups, or clipboard transfer.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         tag: z.string().optional(),
         type: z.string().optional(),
         parentId: z.string().optional(),
@@ -232,7 +232,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         "Files can have YAML frontmatter (title, tags, type, source, parentId). " +
         "Supports merge strategies: append (always create new), overwrite (update existing by title), skip (ignore duplicates).",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         inputDir: z.string().min(1),
         strategy: z.enum(["append", "overwrite", "skip"]).default("overwrite").optional(),
         includePaths: z.array(z.string()).optional(),
@@ -420,7 +420,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         "The markdown can contain YAML frontmatter (title, tags, type, source, parentId). " +
         "If no title is provided in frontmatter, it must be passed as a parameter.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         markdown: z.string().min(1),
         title: z.string().optional(),
         tags: z.array(z.string()).optional(),
@@ -475,7 +475,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         "Export a single knowledge document as a markdown string with YAML frontmatter. " +
         "Returns the full markdown content ready for file writing or clipboard.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         id: z.string().min(1),
         includeSystemFields: z.boolean().default(false).optional(),
       },

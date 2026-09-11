@@ -21,6 +21,7 @@
  */
 
 import type { AuthManager } from './auth.js';
+import { requestScope } from './request-context.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -156,9 +157,10 @@ export function wrapToolHandler<TArgs = unknown>(
 ): (args: TArgs, extra?: GateExtra) => Promise<unknown> {
   return async (args: TArgs, extra?: GateExtra) => {
     const { auth, transport } = resolve();
+    const sessionId = resolveExtraSessionId(extra);
     const decision = decideToolCall(auth, transport, {
       toolName,
-      sessionId: resolveExtraSessionId(extra),
+      sessionId,
     });
     if (!decision.allowed) {
       const envelope = { ok: false as const, error: { message: decision.reason } };
@@ -167,7 +169,9 @@ export function wrapToolHandler<TArgs = unknown>(
         isError: true as const,
       };
     }
-    return handler(args, extra);
+    // PH-004: expose sessionId to the whole call chain via ALS so
+    // resolveProject() can pick session-scoped state (current project).
+    return requestScope.run({ sessionId }, () => handler(args, extra));
   };
 }
 

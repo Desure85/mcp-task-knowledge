@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
+import { resolveProject } from '../config.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { ok, err } from '../utils/respond.js';
 
@@ -55,7 +55,7 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
       title: "Get Knowledge Doc",
       description: "Read a knowledge document by id",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         id: z.string().min(1),
       },
     },

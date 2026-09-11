@@ -193,10 +193,22 @@ export function setCurrentProject(name: string): string {
   return CURRENT_PROJECT_VALUE;
 }
 
+// Session-scoped project resolution (PH-004)
+// On multi-client transports each session can carry its own current project
+// (SessionManager metadata). AppContainer wires the resolver once sessions
+// exist; without a session it falls back to the global current project.
+let sessionProjectResolver: (() => string | undefined) | undefined;
+
+export function setSessionProjectResolver(fn: (() => string | undefined) | undefined): void {
+  sessionProjectResolver = fn;
+}
+
 // Helper to resolve project for API handlers and tools
 export function resolveProject(project?: string): string {
   const p = (project || '').trim();
-  return p.length > 0 ? p : getCurrentProject();
+  if (p.length > 0) return p;
+  const scoped = sessionProjectResolver?.();
+  return scoped && scoped.trim().length > 0 ? scoped : getCurrentProject();
 }
 
 export interface ServerConfig {

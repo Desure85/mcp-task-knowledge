@@ -34,6 +34,8 @@ import { createLogger, childLogger } from './logger.js';
 import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClosed } from './metrics.js';
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
+import { currentSessionId } from './request-context.js';
+import { setSessionProjectResolver } from '../config.js';
 import { EventBus } from './event-bus.js';
 import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
 import { createServerContext } from '../register/setup.js';
@@ -379,6 +381,16 @@ export class AppContainer {
 
         // Attach sessionManager to context so session tools (S-004) can access it
         this.ctx.sessionManager = this.sessionMgr;
+
+        // PH-004: session-scoped current project — resolveProject() picks
+        // metadata.currentProject of the calling session (ALS request scope)
+        // before falling back to the global current project.
+        setSessionProjectResolver(() => {
+          const sid = currentSessionId();
+          if (!sid) return undefined;
+          const cur = this.sessionMgr?.get(sid)?.metadata?.['currentProject'];
+          return typeof cur === 'string' && cur.trim().length > 0 ? cur : undefined;
+        });
 
         // Create RateLimiter and attach to context for session tools (S-003/S-004)
         const rateLimiter = new RateLimiter();

@@ -119,4 +119,70 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       await rmrf(TMP);
     }
   }, 60000);
+
+  it('PH-004: current project is session-scoped — two clients stay isolated', async () => {
+    await rmrf(TMP);
+    await fsp.mkdir(STORE, { recursive: true });
+    const port = ++portCounter;
+    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+      env: {
+        ...process.env,
+        DATA_DIR: STORE,
+        OBSIDIAN_VAULT_ROOT: path.join(TMP, 'vault'),
+        EMBEDDINGS_MODE: 'none',
+        CATALOG_ENABLED: 'false',
+        MCP_TRANSPORT: 'http',
+        MCP_PORT: String(port),
+        MCP_HOST: '127.0.0.1',
+        JWT_SECRET,
+      },
+      stdio: ['pipe', 'pipe', 'inherit'],
+    });
+    const proj = `ph004${Date.now().toString(36)}`;
+    let clientA: Client | null = null;
+    let clientB: Client | null = null;
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      const mkClient = async (name: string) => {
+        const t = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/`));
+        const c = new Client({ name, version: '0.0.1' });
+        await c.connect(t);
+        const auth = (await c.callTool({ name: 'mcp.authenticate', arguments: { token: mintJwt() } })) as { content?: Array<{ text?: string }> };
+        expect(JSON.parse(auth?.content?.[0]?.text ?? '{}').ok).toBe(true);
+        return c;
+      };
+      clientA = await mkClient('q014-http-A');
+      clientB = await mkClient('q014-http-B');
+      const callJson = async (c: Client, tool: string, args: Record<string, unknown>) => {
+        const r = (await c.callTool({ name: tool, arguments: args })) as { content?: Array<{ text?: string }> };
+        return JSON.parse(r?.content?.[0]?.text ?? '{}');
+      };
+
+      // Client A creates a project and makes it current — session-scoped.
+      expect((await callJson(clientA, 'project_create', { id: proj })).ok).toBe(true);
+      const setA = await callJson(clientA, 'project_set_current', { project: proj });
+      expect(setA.ok).toBe(true);
+      expect(setA.data.scope).toBe('session');
+      const curA = await callJson(clientA, 'project_get_current', {});
+      expect(curA.data.project).toBe(proj);
+      expect(curA.data.scope).toBe('session');
+
+      // A creates a task WITHOUT project → resolves to A's session current.
+      expect((await callJson(clientA, 'tasks_create', { title: 'PH004 session task' })).ok).toBe(true);
+      const listA = await callJson(clientA, 'tasks_list', {});
+      expect(JSON.stringify(listA.data)).toContain('PH004 session task');
+
+      // Client B is untouched: global current, no leakage.
+      const curB = await callJson(clientB, 'project_get_current', {});
+      expect(curB.data.project).toBe('mcp');
+      expect(curB.data.scope).toBe('global');
+      const listB = await callJson(clientB, 'tasks_list', {});
+      expect(JSON.stringify(listB.data)).not.toContain('PH004 session task');
+    } finally {
+      try { await clientA?.close(); } catch {}
+      try { await clientB?.close(); } catch {}
+      try { child.kill('SIGTERM'); } catch {}
+      await rmrf(TMP);
+    }
+  }, 60000);
 });
