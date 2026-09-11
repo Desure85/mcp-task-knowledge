@@ -21,10 +21,10 @@ const STORE = path.join(TMP, 'store');
 
 const JWT_SECRET = 'q014-e2e-test-secret-32bytes-min!!';
 
-function mintJwt(): string {
+function mintJwt(sub = 'q014-user'): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify({
-    sub: 'q014-user',
+    sub,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 3600,
   })).toString('base64url');
@@ -181,6 +181,69 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
     } finally {
       try { await clientA?.close(); } catch {}
       try { await clientB?.close(); } catch {}
+      try { child.kill('SIGTERM'); } catch {}
+      await rmrf(TMP);
+    }
+  }, 60000);
+
+  it('PH-007: authenticated sessions auto-scope memory facts per userId', async () => {
+    await rmrf(TMP);
+    await fsp.mkdir(STORE, { recursive: true });
+    const port = ++portCounter;
+    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+      env: {
+        ...process.env,
+        DATA_DIR: STORE,
+        OBSIDIAN_VAULT_ROOT: path.join(TMP, 'vault'),
+        EMBEDDINGS_MODE: 'none',
+        CATALOG_ENABLED: 'false',
+        MCP_TRANSPORT: 'http',
+        MCP_PORT: String(port),
+        MCP_HOST: '127.0.0.1',
+        JWT_SECRET,
+      },
+      stdio: ['pipe', 'pipe', 'inherit'],
+    });
+    let alice: Client | null = null;
+    let bob: Client | null = null;
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      const mkClient = async (name: string, sub: string) => {
+        const t = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/`));
+        const c = new Client({ name, version: '0.0.1' });
+        await c.connect(t);
+        const auth = (await c.callTool({ name: 'mcp.authenticate', arguments: { token: mintJwt(sub) } })) as { content?: Array<{ text?: string }> };
+        expect(JSON.parse(auth?.content?.[0]?.text ?? '{}').ok).toBe(true);
+        return c;
+      };
+      alice = await mkClient('ph007-alice', 'user-alice');
+      bob = await mkClient('ph007-bob', 'user-bob');
+      const callJson = async (c: Client, tool: string, args: Record<string, unknown>) => {
+        const r = (await c.callTool({ name: tool, arguments: args })) as { content?: Array<{ text?: string }> };
+        return JSON.parse(r?.content?.[0]?.text ?? '{}');
+      };
+
+      // Alice writes a fact without explicit scope → inherits user-alice.
+      const addA = await callJson(alice, 'memory_temporal_add', { statement: 'Alice tenant fact ph007-http' });
+      expect(addA.ok).toBe(true);
+      expect(addA.data.scope?.userId).toBe('user-alice');
+
+      // Bob writes one too → user-bob scope.
+      const addB = await callJson(bob, 'memory_temporal_add', { statement: 'Bob tenant fact ph007-http' });
+      expect(addB.data.scope?.userId).toBe('user-bob');
+
+      // Default filter = session scope: Alice sees hers, not Bob's.
+      const aliceView = await callJson(alice, 'memory_scope_filter', {});
+      expect(JSON.stringify(aliceView.data.facts)).toContain('Alice tenant fact');
+      expect(JSON.stringify(aliceView.data.facts)).not.toContain('Bob tenant fact');
+
+      // Bob cannot escape into alice's scope even by passing userId explicitly.
+      const bobEscape = await callJson(bob, 'memory_scope_filter', { userId: 'user-alice' });
+      expect(JSON.stringify(bobEscape.data.facts)).not.toContain('Alice tenant fact');
+      expect(bobEscape.data.scope).toContain('user-bob');
+    } finally {
+      try { await alice?.close(); } catch {}
+      try { await bob?.close(); } catch {}
       try { child.kill('SIGTERM'); } catch {}
       await rmrf(TMP);
     }

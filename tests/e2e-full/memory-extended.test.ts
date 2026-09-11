@@ -140,6 +140,38 @@ describe('Q-014 slice 18: scoped facts + context assembly', () => {
       await srv.close();
     }
   }, 120000);
+
+  it('PH-007: explicit scope on temporal_add → tenant isolation in scope_filter', async () => {
+    const srv = await spawnServer('mem-scope-iso');
+    try {
+      const a = await srv.callTool('memory_temporal_add', {
+        statement: 'Alice-only scoped fact ph007',
+        scope: { userId: 'alice' },
+      });
+      expect(a.env.ok).toBe(true);
+      expect(a.env.data.scope?.userId).toBe('alice');
+
+      await srv.callTool('memory_temporal_add', {
+        statement: 'Bob-only scoped fact ph007',
+        scope: { userId: 'bob' },
+      });
+      // Unscoped fact = global — visible to every scope filter.
+      await srv.callTool('memory_temporal_add', { statement: 'Global shared fact ph007' });
+
+      const aliceView = await srv.callTool('memory_scope_filter', { userId: 'alice' });
+      const aliceFacts = JSON.stringify(aliceView.env.data.facts);
+      expect(aliceFacts).toContain('Alice-only');
+      expect(aliceFacts).not.toContain('Bob-only');
+      expect(aliceFacts).toContain('Global shared');
+
+      const bobView = await srv.callTool('memory_scope_filter', { userId: 'bob' });
+      const bobFacts = JSON.stringify(bobView.env.data.facts);
+      expect(bobFacts).toContain('Bob-only');
+      expect(bobFacts).not.toContain('Alice-only');
+    } finally {
+      await srv.close();
+    }
+  }, 120000);
 });
 
 describe('Q-014 slice 18: entity search + temporal extras', () => {

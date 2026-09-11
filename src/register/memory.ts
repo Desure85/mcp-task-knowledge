@@ -30,7 +30,8 @@ import { EntityRetriever } from '../memory/entity-retrieval.js';
 import { MemoryEvolver } from '../memory/evolution.js';
 import { ConflictResolver } from '../memory/conflict-resolver.js';
 import { ForgettingManager } from '../memory/forgetting.js';
-import { ScopeMatcher, buildScopeTags, type ScopedItem } from '../memory/scoping.js';
+import { ScopeMatcher, buildScopeTags, type ScopedItem, type MemoryScopeFilter } from '../memory/scoping.js';
+import { currentSessionId } from '../core/request-context.js';
 import { LayeredMemory } from '../memory/layers.js';
 import { DreamingAgent } from '../memory/dreaming.js';
 import { ObservationEngine } from '../memory/observations.js';
@@ -44,6 +45,16 @@ import { join } from 'node:path';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { homedir } from 'node:os';
+
+// PH-007: session scope inheritance — memory written by an authenticated
+// session inherits scope.userId (stamped by mcp.authenticate) unless the
+// caller passes an explicit scope. Unauthenticated/stdio → global scope.
+function sessionUserScope(ctx: ServerContext): MemoryScopeFilter | undefined {
+  const sid = currentSessionId();
+  if (!sid || !ctx.sessionManager?.has(sid)) return undefined;
+  const uid = ctx.sessionManager.get(sid)?.metadata?.['userId'];
+  return typeof uid === 'string' && uid.length > 0 ? { userId: uid } : undefined;
+}
 
 /** Singleton extractor instance. */
 let extractor: MemoryExtractor | null = null;
@@ -359,9 +370,10 @@ export function registerMemoryTools(ctx: ServerContext): void {
       }
 
       const ext = getExtractor();
+      const sessScope = sessionUserScope(ctx);
       const result = await ext.extract({
         transcript,
-        scope: { userId, agentId, appId, runId },
+        scope: { userId: userId ?? sessScope?.userId, agentId, appId, runId },
         project: project ? resolveProject(project) : undefined,
         maxFacts,
         minConfidence,
@@ -407,11 +419,14 @@ export function registerMemoryTools(ctx: ServerContext): void {
         return err("project is required when persist=true");
       }
       const mgr = ensureAsyncProcessors();
+      // PH-007: inherit session userId at submit time — the job processor
+      // runs outside ALS request scope.
+      const sessScope = sessionUserScope(ctx);
       const job = mgr.submit({
         type: 'extract',
         input: {
           transcript: args.transcript,
-          scope: { userId: args.userId, agentId: args.agentId, appId: args.appId, runId: args.runId },
+          scope: { userId: args.userId ?? sessScope?.userId, agentId: args.agentId, appId: args.appId, runId: args.runId },
           project: args.project,
           maxFacts: args.maxFacts,
           minConfidence: args.minConfidence,
@@ -511,6 +526,12 @@ export function registerMemoryTools(ctx: ServerContext): void {
         validFrom: z.string().optional().describe("When the fact became true (ISO 8601, default: now)"),
         supersedesFactId: z.string().optional().describe("ID of fact this one supersedes"),
         invalidationReason: z.string().optional().describe("Why the old fact is being superseded"),
+        scope: z.object({
+          userId: z.string().optional(),
+          agentId: z.string().optional(),
+          appId: z.string().optional(),
+          runId: z.string().optional(),
+        }).optional().describe("Multi-tenancy scope; omitted = inherits session userId (http/tcp auth) or global"),
       },
     },
     async (args) => {
@@ -524,6 +545,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         validFrom: args.validFrom,
         supersedesFactId: args.supersedesFactId,
         invalidationReason: args.invalidationReason,
+        scope: args.scope ?? sessionUserScope(ctx),
       });
       return ok(fact);
     }
@@ -836,8 +858,12 @@ export function registerMemoryTools(ctx: ServerContext): void {
     async (args) => {
       const graph = getTemporalGraph();
       const allFacts = graph.query({ includeInvalidated: false, limit: 10000 });
+      // PH-007: session scope overrides same-named filter dims — an
+      // authenticated tenant can narrow (agentId/appId/runId) but can never
+      // escape into another userId's facts.
+      const sessScope = sessionUserScope(ctx);
       const matcher = new ScopeMatcher({
-        userId: args.userId,
+        userId: sessScope?.userId ?? args.userId,
         agentId: args.agentId,
         appId: args.appId,
         runId: args.runId,
