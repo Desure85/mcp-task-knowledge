@@ -45,9 +45,9 @@
  *   executor.addPreHook(auth.createPreHook());
  */
 
-import type { SessionManager, SessionInfo } from './session-manager.js';
+import type { SessionManager} from './session-manager.js';
 import type { ToolContext, PreToolHook } from './tool-executor.js';
-import { ToolDeniedError } from './tool-executor.js';
+
 import { childLogger } from './logger.js';
 
 const log = childLogger('auth');

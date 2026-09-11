@@ -28,7 +28,7 @@ async function listSourceJsonFiles(project: string): Promise<string[]> {
   const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
   const out: string[] = [];
   for (const d of dirs) {
-    let entries: Dirent[] = [];
+    let entries: Dirent[];
     try { entries = await (await import('node:fs')).promises.readdir(d, { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
       if (!e.isFile()) continue;
@@ -58,7 +58,7 @@ async function loadJson(file: string): Promise<any> {
 async function indexPrompts(files: string[], projectRoot: string): Promise<{ items: Record<string, IndexRec> }> {
   const items: Record<string, IndexRec> = {};
   for (const file of files) {
-    let data: any = null;
+    let data: any;
     try { data = await loadJson(file); } catch { continue; }
     const id = String(data?.id || path.basename(file, '.json'));
     const version = String(data?.version || '0.0.0');
@@ -105,7 +105,7 @@ export async function buildWorkflows(project: string, opts: BuildOptions = {}): 
   let built = 0;
 
   for (const wfFile of candidateFiles) {
-    let data: any = null;
+    let data: any;
     try { data = await loadJson(wfFile); } catch { skipped.push(path.basename(wfFile)); continue; }
     const steps: any[] = Array.isArray(data.compose) ? data.compose : [];
     const parts: string[] = [];

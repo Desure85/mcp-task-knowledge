@@ -73,6 +73,13 @@ export interface SessionInfo {
 export interface CreateSessionOptions {
   /** Remote address string. */
   remote: string;
+  /**
+   * Explicit session id (default: randomUUID). Used by transports that
+   * already own a session id — e.g. StreamableHTTP where the id must equal
+   * the `mcp-session-id` header so session tools and auth metadata resolve
+   * against the SDK session (PH-002).
+   */
+  id?: string;
   /** Optional metadata to attach to the session. */
   metadata?: Record<string, unknown>;
   /** Optional callback invoked when the session is closed (by timeout or manually). */
@@ -171,8 +178,16 @@ export class SessionManager {
       );
     }
 
-    const id = randomUUID();
+    const id = opts.id ?? randomUUID();
     const now = Date.now();
+
+    // Idempotent on explicit id: a transport re-initializing an existing
+    // session gets the live record instead of a duplicate or an error.
+    const existing = this.sessions.get(id);
+    if (existing) {
+      existing.lastActivityAt = now;
+      return this.toInfo(existing);
+    }
 
     const session: InternalSession = {
       id,

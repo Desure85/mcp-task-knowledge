@@ -493,6 +493,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 ### Что дальше
 
+- **2026-09-11 (S-20260911-aud1):** аудит request-path (баги+секьюрити) → 17 находок в BACKLOG как Этап M (AUD-01..17) + AUD-18 (data-path аудит не проведён). Плюс Этап N — DX/Onboarding (DX-10..26): setup-wizard с идемпотентным merge клиентских конфигов, doctor, backup/restore DATA_DIR, agent_bootstrap/briefing/capabilities tools (только после design review — не регистрировать сырые), single-binary PoC, MCP Inspector CI. DX-ядро — после crit-фазы Этапа M. Плюс Этап O — Trust/Hardening (TR-01..13): аудиты prompt-injection через stored content, Web UI (уже подтверждён XSS в markdown-ссылках, TR-02), коннекторов/кредов, качества тестов; hardening: Docker root→non-root, dependabot+npm audit CI, privacy-декларация; governance: API-политика, MCP elicitation для confirm-флоу. Критичное: resources/read без auth + мутации через task://action (AUD-01/02), path traversal project/id (AUD-03), мёртвый security-стек — ACL/sanitizer/audit/auth-protection/rate-limit имеют 0 call sites (AUD-07), session expiry не прекращает доступ (AUD-05). Порядок: AUD-01+02+03 связанным инкрементом, затем AUD-07.
 - BM-012 (LAN Relay, low, большая — mDNS+AES WebSocket, отдельный заход)
 - Sync (5 pending), Tech Debt (3 pending: TD-005, TD-007, TD-008), Quality (3: Q-010, Q-011 + Q-012/013 done), Docs (5), Integration Hub (6), Web UI (7), OpenCode Integration (4+2)
 - LoopX-цель: mcp-task-knowledge-goal (16 todo, 15 done)

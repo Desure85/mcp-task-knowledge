@@ -5,7 +5,7 @@
  * Upstream connection is mocked — no real MCP server needed.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProxyBootstrap } from './bootstrap.js';
 import { DEFAULT_PROXY_CONFIG, type ProxyConfig } from './types.js';
 

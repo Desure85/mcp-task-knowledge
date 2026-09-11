@@ -145,6 +145,6 @@ export class OneDriveConnector implements Connector {
   }
 }
 
-export function createOneDriveConnector(config: Record<string, unknown>): Connector {
+export function createOneDriveConnector(_config: Record<string, unknown>): Connector {
   return new OneDriveConnector();
 }

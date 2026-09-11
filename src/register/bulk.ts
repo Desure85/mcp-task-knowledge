@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
-import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, listTasksTree, getTask, getTaskSubtree, getDirectChildren, closeTaskWithCascade, MAX_TASK_DEPTH } from '../storage/tasks.js';
-import { createDoc, listDocs, readDoc, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
+import { resolveProject } from '../config.js';
+import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, getTask} from '../storage/tasks.js';
+import { createDoc, listDocs, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
 import { ok, err } from '../utils/respond.js';
 
 function chunkArray<T>(array: T[], size: number): T[][] {
@@ -20,7 +20,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Update Tasks",
       description: "Update fields of many tasks at once",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         items: z
           .array(
             z.object({
@@ -56,7 +56,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Update Knowledge Docs",
       description: "Update fields of many knowledge docs at once",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         items: z
           .array(
             z.object({
@@ -91,7 +91,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Create Tasks",
       description: "Create many tasks at once (optionally hierarchical via parentId)",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         items: z
           .array(
             z.object({
@@ -124,7 +124,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Archive Tasks",
       description: "Archive many tasks",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -142,7 +142,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Trash Tasks",
       description: "Move many tasks to trash",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -160,7 +160,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Restore Tasks",
       description: "Restore many tasks from archive/trash",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -178,7 +178,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Close Tasks",
       description: "Mark many tasks as closed",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -197,7 +197,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Delete Tasks Permanently",
       description: "Permanently delete many tasks (use with caution)",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         ids: z.array(z.string().min(1)).min(1).max(200),
         confirm: z.boolean().optional(),
         dryRun: z.boolean().optional(),
@@ -241,7 +241,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Create Knowledge Docs",
       description: "Create many knowledge docs at once (optionally hierarchical via parentId)",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         items: z
           .array(
             z.object({
@@ -273,7 +273,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Archive Knowledge Docs",
       description: "Archive many knowledge docs",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -291,7 +291,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Trash Knowledge Docs",
       description: "Move many knowledge docs to trash",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -309,7 +309,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Restore Knowledge Docs",
       description: "Restore many knowledge docs from archive/trash",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -327,7 +327,7 @@ export function registerBulkTools(ctx: ServerContext): void {
     {
       title: "Bulk Delete Knowledge Docs Permanently",
       description: "Permanently delete many knowledge docs (use with caution)",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), ids: z.array(z.string().min(1)).min(1).max(200) },
+      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
@@ -462,7 +462,14 @@ export function registerBulkTools(ctx: ServerContext): void {
       }
 
       if (confirm !== true) {
-        throw new Error('Refusing to proceed: Project purge not confirmed');
+        // PH-005: refuse via error envelope (same style as the rest of the
+        // surface) — the caller gets { ok:false } with the would-be counts,
+        // not a raw MCP protocol error.
+        return err(
+          `Refusing to proceed: project purge not confirmed. ` +
+          `Would delete ${taskIds.length} tasks + ${knowledgeIds.length} knowledge docs ` +
+          `(project=${prj}, scope=${scope}). Re-run with confirm:true, or dryRun:true to inspect.`
+        );
       }
 
       if (doTasks && taskIds.length) {

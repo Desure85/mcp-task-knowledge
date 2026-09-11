@@ -16,7 +16,7 @@ export function pickWithEpsilonGreedy(variants: string[], stats: Aggregates, par
   let bestScore = -Infinity;
   for (const v of variants) {
     const s = stats[v];
-    let metric = 0;
+    let metric: number;
     if (s && s.trials > 0) {
       const avgScore = s.scoreSum / s.trials;
       const successRate = s.successes / s.trials;

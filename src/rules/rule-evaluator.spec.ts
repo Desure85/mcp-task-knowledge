@@ -7,7 +7,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { RuleManager } from './rule-manager.js';
 import { RuleEvaluator } from './rule-evaluator.js';
-import type { RuleScope } from './types.js';
+
 
 let testDir: string;
 let manager: RuleManager;

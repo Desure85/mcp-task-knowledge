@@ -2,7 +2,7 @@
  * framework-adapters.spec.ts — Tests for cross-framework portability adapters.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach} from 'vitest';
 import {
   LangGraphMemoryAdapter,
   AutoGenMemoryAdapter,

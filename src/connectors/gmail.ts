@@ -175,6 +175,6 @@ export class GmailConnector implements Connector {
   }
 }
 
-export function createGmailConnector(config: Record<string, unknown>): Connector {
+export function createGmailConnector(_config: Record<string, unknown>): Connector {
   return new GmailConnector();
 }

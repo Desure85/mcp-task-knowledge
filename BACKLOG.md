@@ -731,6 +731,244 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап L — Prod Hardening (доведение до прод-состояния)
+
+> План по итогам Q-014 аудита (S-20260911-e2ec): найденные prod-баги исправлены, остались мёртвый функционал, архитектурные гэпы и CI-хрупкость.
+> Каждая задача = одна ветка + один PR (правило последовательных инкрементов).
+
+### Фаза 1 — Реанимация мёртвого функционала (блокеры для prod-пользователей)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-001 | Prompts pipeline in-process / npm-пакет | high | done | — | `scripts/` не в npm `files` → reindex мёртв в установленном пакете. Переписать цепочку index→catalog→export→build как in-process сервис `src/services/prompts-pipeline.ts` (spawn node → вызов функции), `scripts/prompts.mjs` оставить тонкой CLI-обёрткой. Проверка: `npm pack` → установка → `prompts_list` после `bulk_create` |
+| PH-002 | SessionManager ↔ StreamableHTTP wiring | high | done | — | HTTP-сессии не регистрируются в SessionManager → `session_list` пуст, `session_info` по живой сессии недостижим, per-session rate-limit не работает. Подключить sessionId из initialize-рукопожатия StreamableHTTP к SessionManager. e2e: authenticate → session_list показывает сессию, session_info по id, rate-limit счётчики |
+| PH-003 | TCP ToolExecutor (S-002) | high | done | PH-002 | Per-connection TCP-сессии без tools (stream-transport `registerTools` no-op). Реализовать ToolExecutor для stream-transport: tools/list + tools/call по TCP. e2e: initialize → tools/list непустой → tasks_create roundtrip |
+
+### Фаза 2 — Консистентность API и поверхности
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-004 | Семантика current project (session-scoped) | medium | done | PH-002 | Глобальный `current` — shared mutable state: один агент `set_current` ломает default для всех подключённых. После PH-002 сделать current per-session (SessionManager), stdio-режим — single-session. Schema-default `'mcp'` не трогаем (обратная совместимость); явный `project` остаётся главным контрактом. Задокументировать в docs |
+| PH-005 | Унификация error-стиля handlers | low | done | — | `project_purge` и другие бросают raw `Error` (protocol error) вместо `{ok:false}` envelope. Аудит всех `throw` в `src/register/*`, перевести на `err()` где это доменная ошибка, оставить throw только для протокольных |
+| PH-006 | Connector expose-mode + registry visibility | medium | done | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry → `tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
+
+### Фаза 3 — Memory multi-tenancy (полная изоляция)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-007 | Scope write-path для temporal facts | medium | done | — | `memory_temporal_add`/`memory_extract`(persist)/`memory_layer_add` принимают `scope{userId,agentId,appId,runId}` → факты хранят scope → `scope_filter` реально изолирует tenant'ов. e2e: факты tenant A невидимы при фильтре tenant B; unscoped остаются глобальными |
+
+### Фаза 4 — CI / инфрагигиена
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-008 | ESLint warnings sweep | medium | done | — | ~998/1000 warnings — любой новый `any` роняет линт. Пройтись по top-offenders (`no-explicit-any`, `no-unused-vars`, `no-useless-assignment`) → цель <700, либо осознанно поднять cap с планом снижения |
+| PH-009 | Node 22/24 compatibility | medium | done | — | GHA форсит actions на Node 24 (deprecation warnings). Проверить `npm test`/`npm run e2e:full` на node:24, починить несовместимости, поднять `engines`/CI-matrix |
+| PH-010 | Env-gated unit-тесты | low | done | — | `embeddings.cache` (model download), `new-connectors` webcrawler (network), `obsidian.roundtrip` — падают без сети/нативных зависимостей. Пометить `describe.skipIf(!process.env.NETWORK_TESTS)` / аналог |
+| PH-011 | Добивка e2e-пробелов | low | done | — | `tasks_tree` — единственный registered tool без e2e-вызова; `memory_async_submit type:bulk_import` конкретно не дёрнут; session_info положительный путь после PH-002 |
+
+### Фаза 5 — Расширенное покрытие (опционально)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-012 | Connector contract-тесты через mock-HTTP | low | pending | PH-006 | nock/msw-стабы GitHub/Jira/Slack API → реальные вызовы без credentials, проверка payload-маппинга и error-paths |
+| PH-013 | ONNX/vector e2e job | low | pending | — | Отдельный nightly-job с `EMBEDDINGS_MODE=local`, кэш модели в CI; сейчас vector-пути только unit-спеками |
+| PH-014 | WS realtime + MCP resources e2e | low | pending | PH-002 | WS relay с реальным пиром; `resources/list`, `resources/read`, `prompts/get` protocol surface |
+
+### Фаза 6 — Web UI (GUI до ума)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| PH-015a | CORS в http-transport | high | done | — | `MCP_CORS_ORIGIN` env (list/`*`), OPTIONS-preflight 204, `Access-Control-Expose-Headers: mcp-session-id`, foreign origin → 403. e2e в http-sessions.test.ts |
+| PH-015b | api-client → SDK StreamableHTTP | high | done | PH-015a | `web-ui/lib/api-client.ts` переписан на `Client` + `StreamableHTTPClientTransport`: initialize → mcp-session-id reuse → опциональный `mcp.authenticate` (env `NEXT_PUBLIC_MCP_TOKEN` или runtime `setAuthToken` через sessionStorage). Singleton per tab, retry после failed connect |
+| PH-015c | Полный MCP-стек в GUI | high | done | PH-015b | + `/projects` (list/create/set-current session-scoped), `/system` (sessions live, embeddings, tools catalog + auth token UI), tasks DAG (critical path/topo order/edges), knowledge edit-update fix (bulk_update вместо дубля create) + trash, prompts page на shared client + каталог (version/status/domain) + A/B (variants_stats + bandit_next), analytics через `dashboard_stats` с fallback, tool-имена/аргументы выверены по register-сигнатурам |
+| PH-015d | web-ui тесты + CI | medium | review | PH-015b | vitest в web-ui: 35 тестов (18 realtime helpers + 14 api-client mock-SDK + 3 live env-gated `MCP_LIVE_URL`/`MCP_LIVE_JWT_SECRET` против реального сервера — проверены в docker). Workflow `web-ui.yml`: build server → web-ui typecheck → unit → live vs spawned `dist/index.js` http+JWT → next build |
+
+---
+
+## Этап M — Аудит request-path: баги и безопасность (2026-09-11)
+
+> Источник: ручной аудит request-path (transports → auth → ACL → handlers) в сессии S-20260911-aud1.
+> Ключевой паттерн: security-модули написаны и протестированы, но **не завайрены** в реальный request path
+> (ноль call sites вне собственных файлов). Формат severity: crit = без auth / потеря данных, high = с auth.
+> Каждая задача = одна ветка + один PR (правило последовательных инкрементов).
+
+### Фаза 1 — Critical (неаутентифицированный доступ)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-01 | Гейтить все MCP-методы, не только tools/call | critical | pending | — | `authorizeHttpCall` (http-transport.ts:84) и `dispatchToMain` (stream-transport.ts:317) пропускают resources/list+read, prompts/list+get, completion/complete без auth. При requireAuth=true неаутентифицированный клиент: initialize → resources/read → читает task://knowledge://prompt://. Гейтить весь MAIN_DISPATCH_METHODS; pre-auth whitelist — только initialize/ping/authenticate |
+| AUD-02 | Убрать мутации из resources/read | critical | pending | AUD-01 | `task://action/{project}/{id}/{action}` вызывает updateTask/closeTask/trashTask/restoreTask/archiveTask через READ-эндпоинт (register/resources.ts:43-56,136-217). Мутации — только через гейтованные tools; resource handlers — read-only |
+| AUD-03 | Path traversal: валидация project/id | critical | pending | — | `project`/`id` = `z.string()` без whitelist → `path.join(TASKS_DIR\|KNOWLEDGE_DIR\|PROMPTS_DIR, project, id)` (storage/tasks.ts:10,29, knowledge.ts:11,67). Чтение/запись произвольных .json/.md вне DATA_DIR. Работает через tools/call (post-auth) и resources/read (pre-auth). Фикс: regex `[a-zA-Z0-9_-]+` на register-границе + `path.resolve` + startsWith(DATA_DIR) в storage |
+
+### Фаза 2 — High (аутентифицированные)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-04 | Session hijack через session_list | high | pending | AUD-07 (admin-роль) | `session_list` отдаёт все живые session id любому аутентифицированному (register/session.ts:100); подстановка чужого `mcp-session-id` в header = имперсонация (http-transport.ts:164). Фикс: session_list/info — только своя сессия или admin-роль; биндинг session→remote при authenticate |
+| AUD-05 | Expiry реально прекращает доступ | high | pending | — | `prune()` удаляет только запись SessionManager: SDK-транспорт в `adapter.sessions` жив + `authenticatedSessions` не чистится → TTL/idle/token-exp мёртвы, «закрытая» сессия работает дальше. Фикс: onClose → transport.close() + `authManager.revokeSession(id)`; гейт проверяет `sm.has(sessionId)` |
+| AUD-06 | WS realtime: auth + фильтры | high | pending | — | `/ws` без auth (realtime.ts:46); клиентский `broadcast` принимает произвольные eventType/data → инъекция событий всем; клиент без project получает события всех проектов (фильтр :141). Фикс: токен при handshake, whitelist клиентских типов, no-subscription = no-events |
+| AUD-07 | Завайрить security-стек | high | pending | — | Мёртвые модули (0 call sites): AuthProtection (SEC-005), InputSanitizer (SEC-006), ACLEngine (ACL-002/003, `ctx.acl` не создаётся), audit middleware (SEC-001), rule enforcement (RL-005), logging middleware (MW-003), RateLimiter.consume (S-003). Единая точка в wrapToolHandler/dispatch: protection.check → rateLimit.consume → acl.evaluate → audit. Каждая фича — e2e «реально срабатывает» |
+
+### Фаза 3 — Medium
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-08 | HTTP body cap + session cap | medium | pending | — | POST body без лимита (http-transport.ts:167) → memory DoS; SM maxSessions обходится — transport попадает в `sessions` до `sm.create` (reject ловится, транспорт живёт). Фикс: Content-Length/maxBytes лимит; при SM-reject — transport.close() |
+| AUD-09 | Unix socket: права + опциональный auth | medium | pending | — | Сокет без chmod + requireAuth=false → любой локальный юзер = полный доступ (stream-transport.ts:478, auth-gate.ts:60). Фикс: chmod 600; опционально requireAuth для unix |
+| AUD-10 | tools_run/tools_batch: gated handler + scope | medium | pending | — | Registry хранит raw handler (setup.ts:270,300) → вызов без requestScope: PH-004 session-project внутри batch не работает; и исполняет tools при TOOLS_ENABLED=0 (tools-introspection.ts:159,208). Фикс: хранить gated handler, честить TOOLS_ENABLED |
+| AUD-11 | JWKS: kid-selection + cache TTL | medium | pending | — | `resolveKey()` вызывает `jwksResolver()` без (protectedHeader, token) → kid не участвует → мульти-ключевой JWKS ломает валидацию (jwt-validator.ts:398). `jwksCacheTtl` — мёртвая опция. Фикс: `jwtVerify(token, jwksResolver, opts)`, передать cacheMaxAge |
+| AUD-12 | Гигиена error-сообщений | medium | pending | — | `e.message` уходит клиенту (auth-gate.ts:180, http-transport.ts:354, register/auth.ts:51) — внутренние пути/детали наружу. Фикс: наружу generic message, детали в server log |
+| AUD-13 | Rate-limit на mcp.authenticate | medium | pending | AUD-07 | Брутфорс токена не ограничен; identity=sessionId → новый initialize = чистый счётчик. Фикс: AuthProtection по remote IP |
+
+### Фаза 4 — Low
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-14 | pendingInitRemotes — per-request map | low | pending | — | FIFO-очередь мисатрибутит remote при параллельных initialize и течёт при неудачных init (http-transport.ts:60,202,265) |
+| AUD-15 | revokeSession на close/prune | low | pending | AUD-05 | `authenticatedSessions` растёт бесконечно, stale marks (auth.ts:160) |
+| AUD-16 | JWT blacklist: eviction по exp + persist | low | pending | — | Count-based eviction де-ревокает старые jti после 10k; рестарт снимает все ревокации (jwt-validator.ts:311) |
+| AUD-17 | TLS: завайрить или дропнуть | low | pending | — | `createTlsContext`/`TlsContext` — ноль вызовов (SEC-002 мёртв, транспорты plaintext). Либо wire в http/tcp adapters, либо честно пометить deferred |
+
+### Фаза 5 — Следующий аудит
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-18 | Аудит data-path (storage → sync → search → memory) | high | pending | — | Request-path проаудирован, data-path — нет. Тем же промптом: гонки read-modify-write в `writeJson`, crash-окна, 3-way merge в `src/sync/`, GC event-log не съедает живое, FTS5/BM25 injection, изоляция scope (tenant A vs B). Находки → новый этап задач |
+
+---
+
+## Этап N — DX/Onboarding: развёртывание и первые 5 минут (2026-09-11)
+
+> Цель: путь «установил → подключил агента → получил ценность» без ручной правки JSON
+> и без гадания. Сейчас: `npm i -g` + ручной merge конфига клиента, `dev-cli.mjs`
+> не шипится в npm (только repo scripts/).
+>
+> **Правило:** новые MCP-tools (DX-12/13/15) — сначала design review, регистрировать
+> в ToolRegistry только финальный контракт. Ничего сырого наружу.
+>
+> **Зависимость этапа:** DX-10/DX-11 осмысленны после crit-фазы Этапа M
+> (AUD-01/02/03) — не подключать wizard'ом к незащищённому серверу.
+
+### Фаза 1 — Установка и диагностика (ядро)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-10 | `mcp-task-knowledge setup` — интерактивный установщик | high | pending | AUD-01, AUD-03 | Бинарь в `dist/` (работает из npx): детект клиентов по конфиг-путям (Claude Desktop, Cursor, Windsurf, VS Code, Claude Code), вопросы (транспорт/DATA_DIR/auth), идемпотентный merge в `mcpServers` с бэкапом, финал — self-check: спавн stdio → `tools/list` → «✓ 114 tools» + cheatsheet. Флаг `--client X --yes` для CI |
+| DX-11 | `mcp-task-knowledge doctor` — диагностика | high | pending | — | Node ≥20, DATA_DIR существует/writable, конфиг валиден, порт свободен, клиентский конфиг ссылается на живой бинарь. Это же health-gate в конце setup |
+| DX-26 | CLI surface polish | low | pending | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
+| DX-29 | Setup-link: одноразовая ссылка самонастройки агента | high | pending | AUD-07, AUD-05, DX-12 | Web UI: «Сгенерировать ссылку» → scope (project, role, TTL токена). Backend: `POST /admin/setup-links` → `{url, expiresAt}`; `GET /.well-known/mcp-setup/<otp>` → one-time reveal markdown-док для агента: server URL, transport, выданный scoped JWT, инструкции самонастройки (агент знает формат своего клиента), capabilities, default project. Security: TTL ссылки ~15мин, one-time reveal, rate-limit redemption, audit-log на create+redeem, токен scoped (project+role+exp). Stdio-вариант: doc отдаёт npx-snippet + env. Дублировать как MCP-tool `admin_setup_link` для админов без Web UI. Спековая альтернатива — OAuth DCR, оценить при дизайне |
+
+### Фаза 2 — Первые 5 минут после подключения
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-13 | `briefing` tool — контекст одним вызовом | medium | pending | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрать из готовых кусков (dashboard stats, memory context assembly). Design review до регистрации |
+| DX-14 | Seed workflow-промптов в поставку | medium | pending | — | Prompts-library пуста. Шипить 5-7 готовых (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`) — видимая ценность через `prompts/list` сразу + учит агента паттернам |
+| DX-12 | `agent_bootstrap` tool — самоинтеграция агента | medium | pending | — | Tool возвращает готовый блок инструкций для AGENTS.md/system prompt («всегда передавай project, контракт ok/error, ключевые tools»). Design review до регистрации |
+| DX-15 | `server_capabilities` manifest | low | pending | — | Какие домены включены/выключены env-флагами, версия, лимиты — агент не гадает и не ловит `tool not found` на выключенных фичах. Design review до регистрации |
+
+### Фаза 3 — Данные как актив (backup/restore/integrity)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-16 | `admin_backup`/`admin_restore` — tar.gz DATA_DIR | high | pending | — | Tool + CLI-обёртка; `dev-cli export` умеет 80% — зашипить в bin, завернуть в tool. Ответ на «где мой бэкап» и «как переехать на другую машину» |
+| DX-17 | `doctor --data` — скан целостности DATA_DIR | medium | pending | DX-11 | Все `*.json`/`*.md`: битый JSON, missing required fields, knowledge-сироты без проекта. Read-only отчёт + `--fix` для тривиального |
+| DX-18 | Schema-version манифест + миграции | medium | pending | — | `DATA_DIR/.schema-version`; при смене формата task JSON / frontmatter — миграция при старте или явная ошибка. Иначе апгрейд пакета молча криво читает старые данные |
+| DX-19 | Auto-backup перед деструктивными операциями | medium | pending | DX-16 | `project_purge`, bulk-ops, GC event-log → снапшот в `DATA_DIR/.backups/` перед выполнением. Copy дёшево, «oops» превращается в откат |
+
+### Фаза 4 — Дистрибуция без Node.js
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | pending | — | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». Риск: ONNX нативные зависимости — оценить в PoC, не обещать |
+| DX-21 | Homebrew formula / Scoop manifest | low | pending | DX-20 | Если бинарь получился — генератор формулы в release CI |
+| DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | pending | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс |
+| DX-27 | Публикация в official MCP registry | medium | pending | DX-10 | `server.json` + publish в `modelcontextprotocol/servers` → установка из UI клиента без конфиг-файлов вообще. Высшая форма DX |
+
+### Фаза 5 — Доверие и проверяемость
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-23 | MCP Inspector в CI | medium | pending | — | Автоматизировать `npx @modelcontextprotocol/inspector`: handshake, tools/list, протокольные ошибки. Ловит «наши тесты зелёные, но не по спеке» |
+| DX-24 | Executable docs | medium | pending | — | Скрипт прогоняет каждый bash/json-сниппет README/getting-started против реального пакета. README с враньём убивает первое впечатление |
+| DX-25 | Клиентская compat-матрица | low | pending | — | Таблица «Claude Desktop ✓ / Cursor ✓ / Windsurf ?» + дата последней ручной проверки, обновляется при релизе |
+| DX-28 | Contributor DX | low | pending | — | CONTRIBUTING.md, PR/issue-шаблоны, актуализация docs/architecture.md (после WIRE-находок может расходиться с кодом), опционально devcontainer |
+
+---
+
+## Этап O — Trust/Hardening: вторая волна аудитов и выдержка (2026-09-11)
+
+> Вторая половина поверхности: request-path проаудирован (Этап M), но остались
+> контент-агентная граница, Web UI, коннекторы, контейнер, supply chain и качество
+> самих тестов. Тот же метод: находки только с file:line доказательствами,
+> «подтверждено» vs «гипотеза».
+
+### Фаза 1 — Аудиты
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| TR-01 | Аудит: indirect prompt injection через stored content | high | pending | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки |
+| TR-02 | Аудит Web UI | high | pending | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
+| TR-03 | Аудит коннекторов и lifecycle кредов | medium | pending | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации |
+| TR-04 | Аудит качества тестов («тесты, которые врут») | high | pending | — | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Тот же паттерн «done ≠ работает», но для тестов. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает |
+
+### Фаза 2 — Hardening (конкретные фиксы)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| TR-05 | Docker: non-root + hardening | medium | pending | — | Dockerfile: 0 `USER`-директив = root-контейнер. Добавить non-root user, read-only fs где можно, ревизия .dockerignore, trivy-скан образа в CI |
+| TR-06 | Supply chain базовый комплект | medium | pending | — | Нет dependabot/renovate, `npm audit` не в CI. Добавить: dependabot.yml (npm+actions, weekly), `npm audit --omit=dev` gate, SHA-pinning для actions, политика minimumReleaseAge для новых deps |
+| TR-07 | Privacy-декларация + PII-scrubbing | medium | pending | — | Local-first манифест: честный список того, что уходит наружу (embeddings API, JWKS-fetch, коннекторы). Memory extraction — опция маскировать PII в фактах о пользователях. Selling point для agent-memory продукта |
+| TR-08 | Reliability: деградация и partial failure | medium | pending | — | Недокументировано/нетестировано: поведение при downed-коннекторе (hang vs fail-fast), retry/backoff, partial-failure семантика batch-tools, drain endpoint под нагрузкой. Сначала контракт, потом тесты |
+| TR-09 | Perf-ёмкость: бюджеты и пределы | low | pending | — | benchmarks/ не подключены к CI (0 hits в workflows). Регрессионные бюджеты, макс. датасет до деградации, memory ceiling. Задокументировать пределы |
+
+### Фаза 3 — Governance и spec-frontier
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| TR-10 | API governance doc | low | pending | — | Политика breaking changes для ~114 tools, таксономия error-кодов, нейминг-конвенция (tasks_*/memory_*/tools_*), deprecation-путь. ToolRegistry версионирует — политики нет |
+| TR-11 | MCP spec frontier tracking | low | pending | — | Политика отслеживания спеки + оценка неиспользуемых фич: elicitation, sampling, roots, subscriptions. Выход: что брать, что осознанно нет |
+| TR-12 | Elicitation для confirm-флоу | medium | pending | TR-11, DX-19 | Деструктивные ops (project_purge, bulk-delete) → elicitation-запрос юзеру вместо слепого выполнения. Синергия с auto-backup DX-19 |
+| TR-13 | Upgrade-path e2e | low | pending | DX-18 | Данные версии N → апгрейд пакета → читаются корректно. Ловит то, что schema-version не покроет |
+
+---
+
+## Этап P — MCP spec compliance (2026-09-11)
+
+> Сверка со спекой MCP (SDK 1.17.4, эпоха 2025-06-18). Минимум закрыт
+> (initialize/tools/resources), но: prompts нет как MCP-поверхности,
+> subscribe/listChanged/cancel/completion не реализованы, capabilities
+> заявлены не по спеке. SPEC-01/02 — по сути баги: выполнять вместе с
+> фазой 2 Этапа M.
+
+### Фаза 1 — Баги соответствия
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SPEC-01 | Cancel-propagation: реальный AbortSignal на запрос | high | pending | — | `notifications/cancelled` не может прервать работу: транспорты фабрикуют `new AbortController().signal` (stream-transport.ts:~389, http аналогично). Привязать AbortController к requestId, cancelled → abort |
+| SPEC-02 | Capabilities по спеке | high | pending | — | `SERVER_CAPS = {resources:{list,read}, tools:{call}}` (setup.ts:38) — нестандартная форма; спека ждёт `{subscribe,listChanged}`-флаги. Декларировать только реально обрабатываемое |
+
+### Фаза 2 — Непокрытая поверхность
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SPEC-03 | MCP prompts surface | medium | pending | — | `registerPrompt` — 0 вызовов: prompts только как tools, `prompts/list` → -32601, в UI клиентов пусто. Выставить prompt-library через registerPrompt, решить маппинг с prompts_*-tools |
+| SPEC-04 | `listChanged` notifications | medium | pending | SPEC-02 | 0 `sendToolListChanged`/`sendResourceListChanged`: клиент кэширует список навсегда, хотя registry динамический (connectors, TOOLS_ENABLED). Эмитить при register/unregister и смене флагов |
+| SPEC-05 | `completion/complete` | low | pending | — | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
+| SPEC-06 | `resources/subscribe` + `resources/updated` | medium | pending | SPEC-02 | Event-bus уже есть → мост: подписка на uri → `notifications/resources/updated` при изменении |
+| SPEC-07 | `progressToken` gating | low | pending | — | `streaming.ts` шлёт progress без проверки токена; спека — только если клиент прислал `progressToken` в `_meta` |
+| SPEC-08 | `logging/setLevel` | low | pending | — | Принять → прокинуть в pino level. Полезно для отладки удалённых подключений |
+
+### Фаза 3 — Политика
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SPEC-09 | Protocol-version conformance e2e | medium | pending | DX-23 | Зафиксировать negotiated `protocolVersion` в e2e; Inspector-гейт частично покроет |
+| SPEC-10 | SDK upgrade policy | low | pending | — | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
+
+---
+
 ## Архив (последние 20)
 
 | ID | Задача | Закрыто | PR |
@@ -774,7 +1012,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-04 (BACKLOG закрыт: 190/191 done, 1 deferred)
+**Последнее обновление:** 2026-09-11 (Этапы M/N/O/P: 18 аудит + 20 DX + 13 Trust + 10 spec-compliance)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -806,10 +1044,16 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Wire-in (I) | 10 | 0 | 0 | 10 | 0 | 0 |
 | NEXT2 (J) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
-| **Итого** | **191** | **0** | **0** | **190** | **0** | **1** |
+| Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
+| Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
+| DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
+| Trust/Hardening (O) | 13 | 13 | 0 | 0 | 0 | 0 |
+| MCP spec compliance (P) | 10 | 10 | 0 | 0 | 0 | 0 |
+| **Итого** | **266** | **64** | **0** | **201** | **0** | **1** |
 
-> Примечание (2026-09-04): сводка приведена к фактическим строкам
-> (`npm run backlog:check` green: total=191, done=190, pending=0, deferred=1).
-> BACKLOG полностью закрыт: последний pending Q-014 done (13 files / 27 e2e green).
+> Примечание (2026-09-04): сводка приведена к фактическим строкам.
+> Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
+> (TR-01..13) и Этап P (SPEC-01..10) добавлены постфактум — 64 pending.
+> `npm run backlog:check` green.
 > Массовые мержи 2026-09-04: WIRE-007/008/009, SEC-003, NEXT2-003/004/005/007/008,
 > NEXT-011/012/013/015/016, NEXT2-009/010/012, Q-014 слайсы 1-14.

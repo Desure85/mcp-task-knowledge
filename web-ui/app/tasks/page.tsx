@@ -12,7 +12,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, type Task } from '@/lib/api-client';
+import { api, type Task, type DagData } from '@/lib/api-client';
 import {
   useRealtime,
   applyTaskEvent,
@@ -50,6 +50,8 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<Status | null>(null);
+  const [showDag, setShowDag] = useState(false);
+  const [dag, setDag] = useState<DagData | null>(null);
   const dragCounter = useRef(0);
 
   // NEXT2-005: live-updates — merge task.* events from other clients;
@@ -129,6 +131,18 @@ export default function TasksPage() {
     }
   }
 
+  async function toggleDag() {
+    if (!showDag && !dag) {
+      try {
+        setDag(await api.tasks.dag());
+      } catch (e) {
+        setError((e as Error).message);
+        return;
+      }
+    }
+    setShowDag(!showDag);
+  }
+
   function handleDragStart(e: React.DragEvent, id: string) {
     setDraggedId(id);
     e.dataTransfer.effectAllowed = 'move';
@@ -179,6 +193,12 @@ export default function TasksPage() {
           >
             {connectionBadgeLabel(liveStatus, presence.length)}
           </span>
+          <button
+            onClick={() => void toggleDag()}
+            className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition text-sm"
+          >
+            {showDag ? 'Hide DAG' : 'Dependencies'}
+          </button>
           <button
             onClick={() => setShowCreate(!showCreate)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -288,6 +308,48 @@ export default function TasksPage() {
               className="flex-1 px-3 py-2 border rounded-lg"
             />
             <button onClick={saveEdit} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Save</button>
+          </div>
+        </div>
+      )}
+
+      {showDag && dag && (
+        <div className="mb-4 p-4 bg-white rounded-lg border">
+          <div className="flex gap-4 text-sm mb-3 flex-wrap">
+            <span className="text-gray-500">
+              {dag.totalTasks} tasks · {dag.tasksWithDeps} with deps · {dag.edges.length} edges
+            </span>
+            <span className="text-red-700 font-medium">Blocked: {dag.blockedCount}</span>
+            <span className="text-blue-700">Critical path: {dag.criticalPath.length} tasks</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <h3 className="font-semibold text-blue-700 mb-1">Critical Path</h3>
+              {dag.criticalPath.length === 0 && <p className="text-gray-400">—</p>}
+              {dag.criticalPath.map((t) => (
+                <p key={t.id} className="truncate">
+                  {t.id} — {t.title} <span className="text-gray-400">({t.status})</span>
+                </p>
+              ))}
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-700 mb-1">Topological Order</h3>
+              {dag.topologicalOrder.slice(0, 30).map((t, i) => (
+                <p key={t.id} className={`truncate ${t.status === 'completed' || t.status === 'closed' ? 'text-gray-400 line-through' : ''}`}>
+                  {i + 1}. {t.title} <span className="text-gray-400">({t.status})</span>
+                </p>
+              ))}
+              {dag.topologicalOrder.length > 30 && (
+                <p className="text-gray-400">… +{dag.topologicalOrder.length - 30} more</p>
+              )}
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-700 mb-1">Edges (depends on →)</h3>
+              {dag.edges.length === 0 && <p className="text-gray-400">No dependencies.</p>}
+              {dag.edges.slice(0, 30).map((e, i) => (
+                <p key={i} className="font-mono truncate">{e.to} ← {e.from}</p>
+              ))}
+              {dag.edges.length > 30 && <p className="text-gray-400">… +{dag.edges.length - 30} more</p>}
+            </div>
           </div>
         </div>
       )}

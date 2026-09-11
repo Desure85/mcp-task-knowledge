@@ -2,7 +2,7 @@
  * health/endpoints.spec.ts — Tests for HTTP health endpoints (SCALE-001).
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach} from 'vitest';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HealthChecker } from './checker.js';
 import { createHealthHandlers, matchHealthEndpoint } from './endpoints.js';

@@ -5,7 +5,7 @@
  * static validator, session metadata, error types, diagnostics.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect} from 'vitest';
 import {
   AuthManager,
   AuthError,
@@ -13,7 +13,7 @@ import {
   NotAuthenticatedError,
   createStaticValidator,
 } from '../src/core/auth.js';
-import type { TokenValidator, AuthResult } from '../src/core/auth.js';
+import type { TokenValidator} from '../src/core/auth.js';
 import { ToolExecutor, ToolDeniedError, createToolContext } from '../src/core/tool-executor.js';
 import type { RawToolHandler, ToolContext } from '../src/core/tool-executor.js';
 import { createMockServerContext } from './helpers.js';

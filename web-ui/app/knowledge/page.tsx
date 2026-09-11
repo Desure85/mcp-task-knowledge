@@ -60,24 +60,47 @@ export default function KnowledgePage() {
     void loadDocs();
   }, [loadDocs]);
 
-  async function createDoc() {
+  async function saveDoc() {
     if (!editTitle.trim()) return;
     try {
       const tags = editTags.split(',').map((t) => t.trim()).filter(Boolean);
-      const res = await api.knowledge.bulkCreate('mcp', [{
-        title: editTitle,
-        content: editContent,
-        tags,
-        type: editType,
-      }]);
-      for (const doc of res.created ?? []) {
-        publish('knowledge.created', doc as unknown as Record<string, unknown>);
+      if (selectedDoc) {
+        const res = await api.knowledge.bulkUpdate('mcp', [{
+          id: selectedDoc.id,
+          title: editTitle,
+          content: editContent,
+          tags,
+          type: editType,
+        }]);
+        for (const doc of res.results ?? []) {
+          publish('knowledge.updated', doc as unknown as Record<string, unknown>);
+        }
+      } else {
+        const res = await api.knowledge.bulkCreate('mcp', [{
+          title: editTitle,
+          content: editContent,
+          tags,
+          type: editType,
+        }]);
+        for (const doc of res.created ?? []) {
+          publish('knowledge.created', doc as unknown as Record<string, unknown>);
+        }
       }
-      setEditTitle('');
-      setEditContent('');
-      setEditTags('');
-      setEditType('note');
-      setShowCreate(false);
+      cancelEdit();
+      await loadDocs();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function trashDoc(doc: KnowledgeDoc) {
+    if (!window.confirm(`Move "${doc.title}" to trash?`)) return;
+    try {
+      const res = await api.knowledge.bulkTrash('mcp', [doc.id]);
+      for (const d of res.results ?? []) {
+        publish('knowledge.deleted', d as unknown as Record<string, unknown>);
+      }
+      if (selectedDoc?.id === doc.id) cancelEdit();
       await loadDocs();
     } catch (e) {
       setError((e as Error).message);
@@ -188,8 +211,13 @@ export default function KnowledgePage() {
               >
                 {showPreview ? 'Hide Preview' : 'Show Preview'}
               </button>
+              {selectedDoc && (
+                <button onClick={() => void trashDoc(selectedDoc)} className="px-3 py-1 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                  Trash
+                </button>
+              )}
               <button onClick={cancelEdit} className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={createDoc} className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg">Save</button>
+              <button onClick={saveDoc} className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg">Save</button>
             </div>
           </div>
 

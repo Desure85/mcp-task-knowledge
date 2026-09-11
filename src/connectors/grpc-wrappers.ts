@@ -52,7 +52,7 @@ export function generateProtoSpec(
 
     messages.push({
       name: inputType,
-      fields: inputKeys.map((k, i) => ({ name: k, type: 'string', repeated: false })),
+      fields: inputKeys.map((k, _i) => ({ name: k, type: 'string', repeated: false })),
     });
 
     messages.push({

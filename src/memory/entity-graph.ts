@@ -427,7 +427,7 @@ export class EntityGraph {
     return Array.from(new Set(specs));
   }
 
-  private resolveRelative(fromFile: string, spec: string, root: string): string | null {
+  private resolveRelative(fromFile: string, spec: string, _root: string): string | null {
     const base = dirname(fromFile);
     let candidate = resolve(base, spec);
     for (const ext of RESOLVE_EXTS) {

@@ -5,7 +5,7 @@
  * PreToolHook integration, bucket management, diagnostics.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi} from 'vitest';
 import { RateLimiter } from '../src/core/rate-limiter.js';
 import { ToolExecutor } from '../src/core/tool-executor.js';
 import type { RateLimiterOptions } from '../src/core/rate-limiter.js';

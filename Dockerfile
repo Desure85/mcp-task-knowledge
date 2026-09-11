@@ -35,13 +35,10 @@ RUN printf "registry=${NPM_REGISTRY}\n@modelcontextprotocol:registry=${NPM_REGIS
  && npm config set fetch-retries 5 \
  && npm config set fetch-retry-factor 2 \
  && npm config set fetch-timeout 600000
-# Prepare dummy local dependency if embedding is disabled, so npm can resolve file:service-catalog
-# Use a version that matches package-lock.json (expected 0.1.0)
-RUN set -eux; \
-    if [ -z "${SERVICE_CATALOG_TARBALL}" ] && [ -z "${SERVICE_CATALOG_GIT}" ]; then \
-      mkdir -p service-catalog; \
-      printf '{"name":"service-catalog","version":"0.1.0"}\n' > service-catalog/package.json; \
-    fi
+# service-catalog is not an npm dependency: when embedding is requested it is
+# installed ad-hoc below (tarball or git clone). The dynamic
+# import('service-catalog/lib') in src/catalog/provider.ts resolves it at
+# runtime; types come from src/types/service-catalog.d.ts.
 # Use BuildKit cache for npm to speed up repeat installs
 # Prefer deterministic `npm ci`; if lock is out of sync (e.g., first-time base build),
 # fall back to `npm install` to generate a consistent lock inside the image.

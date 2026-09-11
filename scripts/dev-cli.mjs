@@ -10,7 +10,7 @@
 // Each command boots the real server via stdio and calls the corresponding
 // MCP tools (tools_list, health, project_list, etc.).
 
-import { mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';

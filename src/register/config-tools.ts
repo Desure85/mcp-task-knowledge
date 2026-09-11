@@ -3,7 +3,7 @@
  * config_reload: hot-reload file config without restarting the server.
  */
 
-import { z } from 'zod';
+
 import type { ServerContext } from './context.js';
 import { reloadFileConfig, loadConfig } from '../config.js';
 import { ok } from '../utils/respond.js';

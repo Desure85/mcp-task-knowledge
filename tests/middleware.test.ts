@@ -6,7 +6,7 @@
  * error propagation/swallowing, ordering, integration with ToolExecutor.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi} from 'vitest';
 import {
   MiddlewareContext,
   MiddlewarePipeline,
@@ -19,11 +19,11 @@ import {
 } from '../src/core/tool-executor.js';
 import type {
   ToolContext,
-  ContextAwareToolHandler,
+  _ContextAwareToolHandler,
   RawToolHandler,
 } from '../src/core/tool-executor.js';
 import { createMockServerContext } from './helpers.js';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -174,11 +174,11 @@ describe('MiddlewarePipeline — execution', () => {
 
     pipeline.use({
       name: 'mw1',
-      before: (ctx) => { order.push('mw1-before'); },
+      before: (_ctx) => { order.push('mw1-before'); },
     });
     pipeline.use({
       name: 'mw2',
-      before: (ctx) => { order.push('mw2-before'); },
+      before: (_ctx) => { order.push('mw2-before'); },
     });
 
     const handler = vi.fn().mockResolvedValue('ok');
@@ -349,7 +349,7 @@ describe('MiddlewarePipeline — execution', () => {
       const pipeline = new MiddlewarePipeline();
       pipeline.use({
         name: 'observer',
-        onError: (_ctx, err) => {
+        onError: (_ctx, _err) => {
           // observe but don't swallow
         },
       });

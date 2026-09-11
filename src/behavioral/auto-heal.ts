@@ -22,7 +22,7 @@ import { childLogger } from '../core/logger.js';
 import type { FailureLogger } from './failure-logging.js';
 import type { ResolutionLogger } from './resolution-logging.js';
 import type { FailureRecord } from './failure-logging.js';
-import type { ResolutionRecord } from './resolution-logging.js';
+
 
 const log = childLogger('auto-heal');
 

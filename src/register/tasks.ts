@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { DEFAULT_PROJECT, resolveProject } from '../config.js';
+import { resolveProject } from '../config.js';
 import { createTask, listTasks, listTasksTree, getTask, getTaskSubtree, getDirectChildren, updateTask, closeTaskWithCascade, MAX_TASK_DEPTH } from '../storage/tasks.js';
 import { ok, err } from '../utils/respond.js';
 
@@ -48,7 +48,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     {
       title: "Get Task",
       description: "Get task by id",
-      inputSchema: { project: z.string().default(DEFAULT_PROJECT), id: z.string().min(1) },
+      inputSchema: { project: z.string().optional(), id: z.string().min(1) },
     },
     async ({ project, id }) => {
       const prj = resolveProject(project);
@@ -66,7 +66,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       title: "Create Task",
       description: `Create a single task. Optionally set parentId to create a subtask. Maximum nesting depth is ${MAX_TASK_DEPTH} levels.`,
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         title: z.string().min(1),
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
@@ -103,7 +103,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       title: "Update Task",
       description: "Update a single task by id. Can change any field except id, project, createdAt. Setting parentId moves the task in the hierarchy (cycle and depth protected). Set parentId to null to detach from parent (make root).",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         id: z.string().min(1),
         title: z.string().optional(),
         description: z.string().optional(),
@@ -135,7 +135,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       title: "Add Subtask",
       description: `Create a subtask under a parent task. Shorthand for tasks_create with parentId. Maximum nesting depth is ${MAX_TASK_DEPTH} levels.`,
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         parentId: z.string().min(1).describe("The parent task ID to attach this subtask to"),
         title: z.string().min(1),
         description: z.string().optional(),
@@ -173,7 +173,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       title: "Get Task Subtree",
       description: "Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch of the task hierarchy.",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         id: z.string().min(1).describe("Root task ID of the subtree"),
         maxDepth: z.number().int().min(1).max(10).optional().describe("Limit depth of the subtree (default: unlimited, max: 10)"),
       },
@@ -215,7 +215,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       title: "Get Task Children",
       description: "Get direct children of a task (one level deep, not recursive).",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         id: z.string().min(1).describe("Parent task ID"),
       },
     },
@@ -236,7 +236,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       title: "Close Task",
       description: "Close a task by setting its status to 'closed'. Optionally cascade the close to all descendants (subtasks, sub-subtasks, etc.).",
       inputSchema: {
-        project: z.string().default(DEFAULT_PROJECT),
+        project: z.string().optional(),
         id: z.string().min(1),
         cascade: z.boolean().default(false).optional().describe("If true, also close all descendant tasks"),
       },

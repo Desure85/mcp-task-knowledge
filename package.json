@@ -102,9 +102,6 @@
     "ws": "^8.21.3",
     "zod": "^3.23.8"
   },
-  "optionalDependencies": {
-    "service-catalog": "^1.0.0"
-  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^9.6.0",

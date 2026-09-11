@@ -1,0 +1,29 @@
+name: node-compat
+
+# PH-009: Node 24 forward-compat gate. GHA runners are phasing out Node 20;
+# this job proves build + a representative fast test slice stay green on the
+# current LTS (20) and the incoming runtime (24) before we bump defaults.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript build
+        run: npm run build
+      - name: Representative tests (auth gate + request scope + projects e2e)
+        run: npx vitest run tests/sec003-auth-gate.test.ts tests/request-scope-project.test.ts tests/e2e-full/projects.test.ts

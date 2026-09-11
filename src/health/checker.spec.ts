@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { HealthChecker } from './checker.js';
-import type { ComponentHealth } from './types.js';
+
 
 describe('SCALE-001: HealthChecker', () => {
   let checker: HealthChecker;

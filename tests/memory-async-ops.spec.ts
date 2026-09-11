@@ -8,7 +8,7 @@ import {
   getAsyncJobManager,
   resetAsyncJobManager,
   type AsyncProcessor,
-  type JobType,
+  type _JobType,
 } from '../src/memory/async-ops.js';
 
 describe('AsyncJobManager', () => {

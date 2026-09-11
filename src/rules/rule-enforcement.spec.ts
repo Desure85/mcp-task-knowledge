@@ -7,7 +7,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { RuleManager } from './rule-manager.js';
 import { RuleEvaluator } from './rule-evaluator.js';
-import { RuleEnforcementMiddleware, createRuleEnforcement } from './rule-enforcement.js';
+import { createRuleEnforcement } from './rule-enforcement.js';
 import { MiddlewarePipeline, MiddlewareContext } from '../core/middleware.js';
 import { ToolDeniedError } from '../core/tool-executor.js';
 import type { ToolContext } from '../core/tool-executor.js';

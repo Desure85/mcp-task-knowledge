@@ -1,31 +1,27 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { z } from 'zod';
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
+import { reindexPrompts } from '../services/prompts-pipeline.js';
+import { childLogger } from '../core/logger.js';
+
+const helpersLog = childLogger('helpers');
 
 export function registerHelpers(ctx: ServerContext) {
+  // In-process reindex — previously spawned `node scripts/prompts.mjs`, which
+  // silently no-op'ed in npm installs (scripts/ is not in package files).
   ctx.triggerPromptsReindex = async (project: string): Promise<void> => {
-    const env = { ...process.env, MCP_PROMPTS_DIR: PROMPTS_DIR, CURRENT_PROJECT: project } as NodeJS.ProcessEnv;
-    const scriptPath = path.join(ctx.REPO_ROOT, 'scripts', 'prompts.mjs');
-    const run = (args: string[]) => new Promise<void>((resolve) => {
-      const p = spawn('node', [scriptPath, ...args], {
-        cwd: ctx.REPO_ROOT,
-        env,
-        stdio: 'ignore',
-      });
-      p.on('error', () => resolve());
-      p.on('close', () => resolve());
-    });
-    await run(['index']);
-    await run(['catalog']);
-    try { await run(['catalog:services']); } catch {}
-    try { await run(['export-json']); } catch {}
-    try { await run(['export-md']); } catch {}
-    try { await run(['build']); } catch {}
+    try {
+      const res = await reindexPrompts({ baseDir: PROMPTS_DIR, project, projectRoot: ctx.REPO_ROOT });
+      if (res.errors.length) {
+        helpersLog.warn({ project, errors: res.errors }, 'prompts reindex finished with stage errors');
+      }
+    } catch (e) {
+      helpersLog.warn({ project, err: e }, 'prompts reindex failed');
+    }
   };
 
   ctx.server.registerTool(
@@ -124,7 +120,7 @@ export async function readJsonl(filePath: string): Promise<any[]> {
 export async function listFilesRecursive(dir: string): Promise<string[]> {
   const out: string[] = [];
   async function walk(d: string) {
-    let entries: Dirent[] = [];
+    let entries: Dirent[];
     try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = path.join(d, e.name);
@@ -141,7 +137,7 @@ export async function listSourceJsonFiles(project: string): Promise<string[]> {
   const dirs = ['prompts', 'rules', 'workflows', 'templates', 'policies'].map((d) => path.join(base, d));
   const out: string[] = [];
   for (const d of dirs) {
-    let entries: Dirent[] = [];
+    let entries: Dirent[];
     try { entries = await fs.readdir(d, { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
       if (!e.isFile() || !e.name.endsWith('.json')) continue;

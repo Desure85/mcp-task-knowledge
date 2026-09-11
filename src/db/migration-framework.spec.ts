@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { MigrationFramework, StatementCache } from './migration-framework.js';
+import { MigrationFramework} from './migration-framework.js';
 import type { Migration } from './migration-framework.js';
 
 let testDir: string;

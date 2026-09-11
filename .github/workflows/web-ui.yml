@@ -1,0 +1,55 @@
+name: web-ui
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  web-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install root deps (build MCP server)
+        run: npm install --no-audit --no-fund
+      - name: Build MCP server
+        run: npm run build
+      - name: Install web-ui deps
+        working-directory: web-ui
+        run: npm install --no-audit --no-fund
+      - name: Typecheck web-ui
+        working-directory: web-ui
+        run: npx tsc --noEmit
+      - name: Unit tests (hermetic)
+        working-directory: web-ui
+        run: npm test
+      - name: Start MCP server (http)
+        env:
+          EMBEDDINGS_MODE: none
+          DATA_DIR: /tmp/mcp-webui-data
+          MCP_TRANSPORT: http
+          MCP_PORT: '3001'
+          MCP_HOST: 127.0.0.1
+          MCP_CORS_ORIGIN: '*'
+          JWT_SECRET: e2e-webui-secret
+        run: |
+          mkdir -p "$DATA_DIR"
+          node dist/index.js &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:3001/healthz && exit 0 || sleep 1
+          done
+          echo "server did not start" && exit 1
+      - name: Live api-client tests (vs real server)
+        working-directory: web-ui
+        env:
+          MCP_LIVE_URL: http://127.0.0.1:3001/
+          MCP_LIVE_JWT_SECRET: e2e-webui-secret
+        run: npm test
+      - name: Build web-ui
+        working-directory: web-ui
+        run: npm run build
+      - name: Docker build (web-ui image)
+        run: docker build -f web-ui/Dockerfile -t mcp-task-knowledge-webui:ci .

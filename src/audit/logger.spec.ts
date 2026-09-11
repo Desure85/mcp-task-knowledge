@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, rmSync} from 'node:fs';
 import { join } from 'node:path';
 import { AuditLogger } from './logger.js';
 import { DEFAULT_AUDIT_CONFIG, type AuditConfig, type AuditEvent } from './types.js';

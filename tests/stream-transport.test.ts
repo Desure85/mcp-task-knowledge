@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import net from 'node:net';
 import fs from 'node:fs';
-import path from 'node:path';
 import {
   TcpTransportAdapter,
   TcpTransportFactory,
@@ -56,7 +55,7 @@ function createMockContext(): ServerContext {
     REPO_ROOT: '/tmp',
     SERVER_CAPS: { resources: { list: true, read: true }, tools: { call: true } },
     normalizeBase64: (s) => s,
-    makeResourceTemplate: (p: string) => ({} as any),
+    makeResourceTemplate: (_p: string) => ({} as any),
     registerToolAsResource: () => {},
   };
 }
@@ -87,7 +86,7 @@ function connectUnixClient(socketPath: string): Promise<net.Socket> {
  * Read a complete JSON-RPC message from a socket.
  * Messages use newline-delimited JSON (Content-Length framing is handled by SDK).
  */
-function readMessage(socket: net.Socket): Promise<string> {
+function _readMessage(socket: net.Socket): Promise<string> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('read timeout')), 5000);
     socket.once('data', (data) => {

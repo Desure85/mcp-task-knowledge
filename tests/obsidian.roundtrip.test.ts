@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
-import fs from 'node:fs';
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-tests-obsidian-roundtrip');

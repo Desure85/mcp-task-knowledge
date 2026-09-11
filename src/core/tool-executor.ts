@@ -30,7 +30,7 @@
 import type { ServerContext } from '../register/context.js';
 import { childLogger } from './logger.js';
 import { MiddlewarePipeline } from './middleware.js';
-import type { ToolMiddleware, MiddlewareContext } from './middleware.js';
+import type { ToolMiddleware} from './middleware.js';
 
 const log = childLogger('tool-executor');
 

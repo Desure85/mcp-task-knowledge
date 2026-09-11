@@ -15,7 +15,7 @@
 
 import Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname} from 'node:path';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('fts-search');

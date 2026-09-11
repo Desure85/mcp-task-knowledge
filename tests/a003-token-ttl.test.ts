@@ -15,7 +15,7 @@
  *   - Integration: AuthManager + SessionManager + JwtValidator end-to-end
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { SessionManager } from '../src/core/session-manager.js';
 import { AuthManager, createStaticValidator } from '../src/core/auth.js';
 import { JwtValidator, createTestToken } from '../src/core/jwt-validator.js';

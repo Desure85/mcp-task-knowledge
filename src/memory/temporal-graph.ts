@@ -24,9 +24,10 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { childLogger } from '../core/logger.js';
+import type { MemoryScopeFilter } from './scoping.js';
 
 const log = childLogger('temporal-graph');
 
@@ -58,6 +59,8 @@ export interface TemporalFact {
   supersededBy?: string;
   /** Reason for invalidation. */
   invalidationReason?: string;
+  /** Multi-tenancy scope (PH-007) — absent = global/shared fact. */
+  scope?: MemoryScopeFilter;
   /** Relationships to other facts. */
   relationships: FactRelationship[];
 }
@@ -92,6 +95,8 @@ export interface AddFactInput {
   /** If this fact supersedes an existing fact, its ID. */
   supersedesFactId?: string;
   invalidationReason?: string;
+  /** Multi-tenancy scope (userId/agentId/appId/runId). Omit = global fact. */
+  scope?: MemoryScopeFilter;
 }
 
 /** Query parameters for point-in-time. */
@@ -200,6 +205,7 @@ export class TemporalGraph {
       validFrom: input.validFrom ?? now,
       recordedAt: now,
       valid: true,
+      ...(input.scope ? { scope: input.scope } : {}),
       relationships,
     };
 

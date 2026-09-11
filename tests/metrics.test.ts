@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { initMetrics, getMetricsRegistry, recordToolCall, recordResourceRead, updateServerInfo, createMetricsHandler, wrapToolHandler, recordSessionCreated, recordSessionClosed, setSessionsActive, _resetMetrics } from '../src/core/metrics.js';
 
 describe('core/metrics', () => {

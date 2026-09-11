@@ -95,7 +95,7 @@ export class MemoryIO {
    * Import sessions + conventions from exported JSON.
    * Sessions with existing IDs are skipped.
    */
-  importJson(content: string, options?: ImportOptions): ImportSummary {
+  importJson(content: string, _options?: ImportOptions): ImportSummary {
     const summary: ImportSummary = { sessionsImported: 0, conventionsAdded: 0, decisionsImported: 0, skipped: [] };
     let data: { sessions?: SessionRecord[]; conventions?: string[] };
     try {
@@ -129,7 +129,7 @@ export class MemoryIO {
    * Extract conventions from free text: bullet lines ("- item") and
    * frontmatter `conventions` arrays.
    */
-  importConventionsFromText(content: string, options?: ImportOptions): ImportSummary {
+  importConventionsFromText(content: string, _options?: ImportOptions): ImportSummary {
     const summary: ImportSummary = { sessionsImported: 0, conventionsAdded: 0, decisionsImported: 0, skipped: [] };
     const found = new Set<string>();
 

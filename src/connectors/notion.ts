@@ -186,6 +186,6 @@ export class NotionConnector implements Connector {
   }
 }
 
-export function createNotionConnector(config: Record<string, unknown>): Connector {
+export function createNotionConnector(_config: Record<string, unknown>): Connector {
   return new NotionConnector();
 }

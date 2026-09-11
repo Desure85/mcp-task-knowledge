@@ -21,7 +21,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { dirname } from 'node:path';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('session-memory');

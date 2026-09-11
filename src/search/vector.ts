@@ -23,7 +23,7 @@ function cosine(a: Float32Array, b: Float32Array): number {
 }
 
 export class NoopVectorAdapter<T> implements VectorSearchAdapter<T> {
-  async search(_query: string, _items: Array<{ id: string; text: string; item: T }>, opts?: { limit?: number }): Promise<SearchResult<T>[]> {
+  async search(_query: string, _items: Array<{ id: string; text: string; item: T }>, _opts?: { limit?: number }): Promise<SearchResult<T>[]> {
     return [];
   }
 }

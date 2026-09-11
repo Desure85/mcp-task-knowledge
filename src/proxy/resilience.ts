@@ -21,7 +21,7 @@ const log = childLogger('proxy:resilience');
 // Moved to core (TD-011) — re-exported here for backward compatibility.
 
 export { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG } from '../core/circuit-breaker.js';
-import type { CircuitState, CircuitBreakerConfig } from '../core/circuit-breaker.js';
+import type { CircuitState} from '../core/circuit-breaker.js';
 export type { CircuitState, CircuitBreakerConfig } from '../core/circuit-breaker.js';
 
 // ─── Proxy Metrics ────────────────────────────────────────────────

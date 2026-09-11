@@ -18,7 +18,7 @@ async function rimraf(p: string) {
   try { await fs.rm(p, { recursive: true, force: true }) } catch {}
 }
 
-async function ensureDir(p: string) {
+async function _ensureDir(p: string) {
   await fs.mkdir(p, { recursive: true })
 }
 

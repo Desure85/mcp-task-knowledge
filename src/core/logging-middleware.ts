@@ -207,7 +207,7 @@ export class LoggingMiddleware implements ToolMiddleware {
    * the call was denied. Denied calls that return normally go through after().
    * Denied calls that throw ToolDeniedError go through onError().
    */
-  before(ctx: MiddlewareContext): void | undefined {
+  before(_ctx: MiddlewareContext): void | undefined {
     // No-op in before — all logging happens in after/onError
     return undefined;
   }

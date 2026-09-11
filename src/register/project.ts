@@ -3,6 +3,18 @@ import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject, getCurrentProject, setCurrentProject } from '../config.js';
 import { listProjects, getProjectDetail, createProject, deleteProject, updateProjectMeta } from '../projects.js';
 import { ok, err } from '../utils/respond.js';
+import { currentSessionId } from '../core/request-context.js';
+
+// PH-004: per-session current project. When the caller has a live session
+// (http/tcp), project_set_current writes into session metadata instead of the
+// shared global — concurrent clients keep isolated contexts. stdio / no
+// session → global setCurrentProject (persisted, backward compatible).
+function sessionCurrentProject(ctx: ServerContext): string | undefined {
+  const sid = currentSessionId();
+  if (!sid || !ctx.sessionManager?.has(sid)) return undefined;
+  const cur = ctx.sessionManager.get(sid)?.metadata?.['currentProject'];
+  return typeof cur === 'string' && cur.trim().length > 0 ? cur : undefined;
+}
 
 export function registerProjectTools(ctx: ServerContext): void {
   // project_list — list all projects with task/knowledge counts
@@ -14,7 +26,7 @@ export function registerProjectTools(ctx: ServerContext): void {
       inputSchema: {},
     },
     async () => {
-      const out = await listProjects(getCurrentProject);
+      const out = await listProjects(() => sessionCurrentProject(ctx) ?? getCurrentProject());
       return ok(out);
     }
   );
@@ -24,10 +36,13 @@ export function registerProjectTools(ctx: ServerContext): void {
     "project_get_current",
     {
       title: "Get Current Project",
-      description: "Return the name of the current project context",
+      description: "Return the name of the current project context (session-scoped on multi-client transports)",
       inputSchema: {},
     },
-    async () => ok({ project: getCurrentProject() })
+    async () => {
+      const scoped = sessionCurrentProject(ctx);
+      return ok({ project: scoped ?? getCurrentProject(), scope: scoped ? 'session' : 'global' });
+    }
   );
 
   // project_set_current — switch project
@@ -35,12 +50,19 @@ export function registerProjectTools(ctx: ServerContext): void {
     "project_set_current",
     {
       title: "Set Current Project",
-      description: "Change the current project context used when project is omitted",
+      description: "Change the current project context used when project is omitted (per-session on http/tcp, global on stdio)",
       inputSchema: {
         project: z.string().min(1),
       },
     },
-    async ({ project }: { project: string }) => ok({ project: setCurrentProject(project) })
+    async ({ project }: { project: string }) => {
+      const sid = currentSessionId();
+      if (sid && ctx.sessionManager?.has(sid)) {
+        ctx.sessionManager.updateMetadata(sid, { currentProject: project });
+        return ok({ project, scope: 'session' });
+      }
+      return ok({ project: setCurrentProject(project), scope: 'global' });
+    }
   );
 
   // project_create — create a new project

@@ -6,7 +6,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextAssembler, type SearchFn } from '../src/memory/context-assembly.js';
 import { TemporalGraph } from '../src/memory/temporal-graph.js';
 import { ProfileManager } from '../src/memory/user-profile.js';
-import { promises as fsp } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 

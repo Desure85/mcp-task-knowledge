@@ -119,6 +119,25 @@ interface ActiveSession {
  * Manages a net.Server that accepts connections and creates
  * independent MCP sessions for each one.
  */
+/**
+ * JSON-RPC methods routed to the MAIN server's request handlers (S-002).
+ * The per-connection McpServer only handles the lifecycle handshake
+ * (initialize/ping/notifications); everything below is served by the shared
+ * registry — real schemas, gated handlers, single source of truth.
+ */
+const MAIN_DISPATCH_METHODS = new Set([
+  'tools/list',
+  'tools/call',
+  'resources/list',
+  'resources/read',
+  'resources/templates/list',
+  'prompts/list',
+  'prompts/get',
+  'completion/complete',
+]);
+
+type MainRequestHandler = (request: unknown, extra: unknown) => Promise<unknown>;
+
 abstract class StreamTransportAdapter implements TransportAdapter {
   private server?: net.Server;
   private sessions = new Map<string, ActiveSession>();
@@ -127,6 +146,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   private serverInfo?: { name: string; version: string };
   private registerTools?: (server: McpServer) => void;
   private serverCtx?: ServerContext;
+  private mainHandlers?: Map<string, MainRequestHandler>;
 
   abstract readonly type: string;
 
@@ -143,7 +163,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
    * tests for transport 'tcp' (same shared gate as HTTP).
    */
   authorizeToolCall(call: AuthGateCall): AuthGateDecision {
-    return decideToolCall(this.serverCtx?.authManager, 'tcp', call);
+    return decideToolCall(this.serverCtx?.authManager, this.type, call);
   }
 
   async connect(ctx: ServerContext): Promise<void> {
@@ -161,17 +181,21 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       version: implementation?.version ?? '0.0.0',
     };
 
-    // Store registration callback — will be used per-connection
-    // We need to call defaultRegistration for each new McpServer
-    // Since defaultRegistration operates on ServerContext (not McpServer directly),
-    // we create a minimal wrapper that registers tools via the McpServer API
-    this.registerTools = (_server: McpServer) => {
-      // Per-session full tool registration requires S-002 (ToolExecutor).
-      // For now, each session gets a clean McpServer connected to its socket.
-      // The actual tool routing will be implemented when SessionManager (S-001)
-      // provides per-session contexts.
-      log.debug({ sessionId: 'new' }, 'session created — tool registration deferred to S-002');
-    };
+    // S-002: capture the MAIN server's request handlers. The SDK stores them
+    // as (rawRequest, extra) wrappers that parse the request themselves, so a
+    // per-connection transport can dispatch tools/resources/prompts methods
+    // straight into the shared registry — no per-session re-registration.
+    const mainBase = (ctx.server as unknown as Record<string, unknown>)?.server as
+      | { _requestHandlers?: Map<string, MainRequestHandler> }
+      | undefined;
+    this.mainHandlers = mainBase?._requestHandlers instanceof Map ? mainBase._requestHandlers : undefined;
+    if (!this.mainHandlers) {
+      log.warn('main server request handlers unavailable — sessions will expose no tools');
+    }
+
+    // Per-session McpServer keeps only the lifecycle handshake; real methods
+    // are dispatched to the main handlers in handleConnection.
+    this.registerTools = (_server: McpServer) => {};
 
     this.server = await this.listen();
 
@@ -205,7 +229,8 @@ abstract class StreamTransportAdapter implements TransportAdapter {
 
     const transport = new SocketTransport(socket, id);
 
-    // Create a new McpServer for this session
+    // Create a new McpServer for this session (lifecycle only — real methods
+    // are dispatched to the main server's handlers, see S-002 below)
     const server = new McpServer(
       { name: this.serverInfo!.name, version: this.serverInfo!.version },
     );
@@ -218,11 +243,20 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       connectedAt: Date.now(),
     });
 
+    // Register in SessionManager so session_list/session_info, per-session
+    // TTL and auth metadata resolve for TCP/Unix connections too (PH-003).
+    try {
+      this.serverCtx?.sessionManager?.create({ id, remote, metadata: { transport: this.type } });
+    } catch (e) {
+      log.warn({ sessionId: id, err: e }, 'session-manager rejected session create');
+    }
+
     // Wire transport callbacks
     transport.onclose = () => {
       const duration = Date.now() - (this.sessions.get(id)?.connectedAt ?? Date.now());
       log.info({ sessionId: id, remote, durationMs: duration }, 'session closed');
       this.sessions.delete(id);
+      void this.serverCtx?.sessionManager?.close(id);
     };
 
     transport.onerror = (err) => {
@@ -234,12 +268,94 @@ abstract class StreamTransportAdapter implements TransportAdapter {
 
     try {
       await server.connect(transport);
+
+      // S-002 dispatch: SDK Protocol owns transport.onmessage after connect —
+      // wrap it so registry-backed methods go to the MAIN server's handlers
+      // (real schemas + gated handlers) while lifecycle stays per-session.
+      const sdkOnMessage = transport.onmessage;
+      transport.onmessage = (message, extra) => {
+        this.serverCtx?.sessionManager?.heartbeat(id);
+        this.dispatchToMain(id, transport, message, extra, sdkOnMessage);
+      };
+
       log.info({ sessionId: id, remote }, 'session ready');
     } catch (err) {
       log.error({ sessionId: id, err }, 'failed to create session');
       this.sessions.delete(id);
       socket.destroy();
     }
+  }
+
+  /**
+   * Route a registry-backed method to the main server's request handler.
+   * Everything else falls through to the per-session SDK protocol handler.
+   */
+  private dispatchToMain(
+    sessionId: string,
+    transport: SocketTransport,
+    message: JSONRPCMessage,
+    extra: MessageExtraInfo | undefined,
+    sdkOnMessage: ((message: JSONRPCMessage, extra?: MessageExtraInfo) => void) | undefined,
+  ): void {
+    const msg = message as { id?: string | number; method?: string; params?: Record<string, unknown> };
+    const method = msg.method;
+    const isRequest = msg.id !== undefined && typeof method === 'string';
+
+    if (!isRequest || !MAIN_DISPATCH_METHODS.has(method)) {
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
+    const handler = this.mainHandlers?.get(method);
+    if (!handler) {
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
+    // SEC-003 transport-level gate (fail-closed for tcp) on tools/call —
+    // evaluated before dispatch, same contract as the HTTP adapter.
+    if (method === 'tools/call') {
+      const toolName = msg.params?.name;
+      const decision = this.authorizeToolCall({
+        toolName: typeof toolName === 'string' ? toolName : '',
+        sessionId,
+      });
+      if (!decision.allowed) {
+        void transport.send({
+          jsonrpc: '2.0',
+          id: msg.id as string | number,
+          error: { code: -32001, message: decision.reason },
+        });
+        return;
+      }
+    }
+
+    const extraForHandler = {
+      sessionId,
+      requestId: msg.id as string | number,
+      signal: new AbortController().signal,
+    };
+
+    void (async () => {
+      try {
+        const result = await handler(message, extraForHandler);
+        await transport.send({
+          jsonrpc: '2.0',
+          id: msg.id as string | number,
+          result: result as Record<string, unknown>,
+        });
+      } catch (e) {
+        const anyErr = e as { code?: number; message?: string };
+        await transport.send({
+          jsonrpc: '2.0',
+          id: msg.id as string | number,
+          error: {
+            code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
+            message: anyErr?.message ?? String(e),
+          },
+        }).catch(() => {});
+      }
+    })();
   }
 
   async close(): Promise<void> {
@@ -251,7 +367,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       if (entries.length > 0) {
         log.info({ count: entries.length }, 'closing sessions');
         await Promise.allSettled(
-          entries.map(async ([id, session]) => {
+          entries.map(async ([_id, session]) => {
             try { await session.server.close(); } catch { /* ignore */ }
             try { await session.transport.close(); } catch { /* ignore */ }
           }),

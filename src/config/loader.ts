@@ -16,7 +16,7 @@
  *   config.session.ttlMs     // → 86400000
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync} from 'node:fs';
 import { resolve } from 'node:path';
 import { ConfigSchema, type Config } from './schema.js';
 

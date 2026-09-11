@@ -139,6 +139,6 @@ function sameOrigin(a: string, b: string): boolean {
   }
 }
 
-export function createWebCrawlerConnector(config: Record<string, unknown>): Connector {
+export function createWebCrawlerConnector(_config: Record<string, unknown>): Connector {
   return new WebCrawlerConnector();
 }

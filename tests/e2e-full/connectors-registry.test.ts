@@ -4,8 +4,8 @@
  * Connector tools register dynamically at server init when enabled via env.
  * Proven end to end: with WEBCRAWLER_CONNECTOR_ENABLED=1 the webcrawler_*
  * tools appear in protocol-level tools/list; without the flag they are
- * absent. Known gap (recorded in BACKLOG Q-014): connector registration
- * bypasses ToolRegistry, so registry tools_list stays blind to them.
+ * absent. Since PH-006 connector ops are also registered in ToolRegistry,
+ * so registry tools_list sees enabled connector tools too.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -33,7 +33,7 @@ describe('Q-014 slice 14: connector registry wiring', () => {
 
       const regList = await on.callTool('tools_list', { search: 'webcrawler' });
       expect(regList.env.ok).toBe(true);
-      expect(JSON.stringify(regList.env.data)).not.toContain('webcrawler_fetch_page');
+      expect(JSON.stringify(regList.env.data)).toContain('webcrawler_fetch_page');
     } finally {
       await on.close();
     }

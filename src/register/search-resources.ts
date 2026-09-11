@@ -3,7 +3,7 @@ import type { KnowledgeDoc } from '../types.js';
 import type { VectorSearchAdapter } from '../search/index.js';
 import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
-import { buildTextForTask, buildTextForDoc, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
+import { buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('resources');
