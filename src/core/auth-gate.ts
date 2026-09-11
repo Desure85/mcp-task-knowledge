@@ -171,7 +171,19 @@ export function wrapToolHandler<TArgs = unknown>(
     }
     // PH-004: expose sessionId to the whole call chain via ALS so
     // resolveProject() can pick session-scoped state (current project).
-    return requestScope.run({ sessionId }, () => handler(args, extra));
+    try {
+      return await requestScope.run({ sessionId }, () => handler(args, extra));
+    } catch (e) {
+      // PH-005: unexpected handler failures must still land in the
+      // { ok:false, error:{message} } envelope — otherwise the SDK emits a
+      // bare isError text result and clients can't rely on env.ok.
+      const message = e instanceof Error ? e.message : String(e);
+      const envelope = { ok: false as const, error: { message } };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(envelope) }],
+        isError: true as const,
+      };
+    }
   };
 }
 

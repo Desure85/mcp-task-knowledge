@@ -131,6 +131,18 @@ describe('wrapToolHandler', () => {
     }));
     await expect(wrapped({ a: 1 }, { sessionId: 's-9' })).resolves.toEqual({ echo: { a: 1 } });
   });
+
+  it('PH-005: converts an uncaught handler throw into the err envelope', async () => {
+    const wrapped = wrapToolHandler('tasks_list', async () => {
+      throw new Error('boom internal');
+    }, () => ({ auth: undefined, transport: 'stdio' }));
+    const res = (await wrapped({}, {})) as { isError?: boolean; content: Array<{ text: string }> };
+    expect(res.isError).toBe(true);
+    expect(JSON.parse(res.content[0].text)).toMatchObject({
+      ok: false,
+      error: { message: 'boom internal' },
+    });
+  });
 });
 
 // ─── HTTP body helpers ────────────────────────────────────────────────
