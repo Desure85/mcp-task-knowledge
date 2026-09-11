@@ -874,6 +874,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | pending | — | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». Риск: ONNX нативные зависимости — оценить в PoC, не обещать |
 | DX-21 | Homebrew formula / Scoop manifest | low | pending | DX-20 | Если бинарь получился — генератор формулы в release CI |
 | DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | pending | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс |
+| DX-27 | Публикация в official MCP registry | medium | pending | DX-10 | `server.json` + publish в `modelcontextprotocol/servers` → установка из UI клиента без конфиг-файлов вообще. Высшая форма DX |
 
 ### Фаза 5 — Доверие и проверяемость
 
@@ -882,6 +883,44 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-23 | MCP Inspector в CI | medium | pending | — | Автоматизировать `npx @modelcontextprotocol/inspector`: handshake, tools/list, протокольные ошибки. Ловит «наши тесты зелёные, но не по спеке» |
 | DX-24 | Executable docs | medium | pending | — | Скрипт прогоняет каждый bash/json-сниппет README/getting-started против реального пакета. README с враньём убивает первое впечатление |
 | DX-25 | Клиентская compat-матрица | low | pending | — | Таблица «Claude Desktop ✓ / Cursor ✓ / Windsurf ?» + дата последней ручной проверки, обновляется при релизе |
+| DX-28 | Contributor DX | low | pending | — | CONTRIBUTING.md, PR/issue-шаблоны, актуализация docs/architecture.md (после WIRE-находок может расходиться с кодом), опционально devcontainer |
+
+---
+
+## Этап O — Trust/Hardening: вторая волна аудитов и выдержка (2026-09-11)
+
+> Вторая половина поверхности: request-path проаудирован (Этап M), но остались
+> контент-агентная граница, Web UI, коннекторы, контейнер, supply chain и качество
+> самих тестов. Тот же метод: находки только с file:line доказательствами,
+> «подтверждено» vs «гипотеза».
+
+### Фаза 1 — Аудиты
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| TR-01 | Аудит: indirect prompt injection через stored content | high | pending | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки |
+| TR-02 | Аудит Web UI | high | pending | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
+| TR-03 | Аудит коннекторов и lifecycle кредов | medium | pending | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации |
+| TR-04 | Аудит качества тестов («тесты, которые врут») | high | pending | — | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Тот же паттерн «done ≠ работает», но для тестов. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает |
+
+### Фаза 2 — Hardening (конкретные фиксы)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| TR-05 | Docker: non-root + hardening | medium | pending | — | Dockerfile: 0 `USER`-директив = root-контейнер. Добавить non-root user, read-only fs где можно, ревизия .dockerignore, trivy-скан образа в CI |
+| TR-06 | Supply chain базовый комплект | medium | pending | — | Нет dependabot/renovate, `npm audit` не в CI. Добавить: dependabot.yml (npm+actions, weekly), `npm audit --omit=dev` gate, SHA-pinning для actions, политика minimumReleaseAge для новых deps |
+| TR-07 | Privacy-декларация + PII-scrubbing | medium | pending | — | Local-first манифест: честный список того, что уходит наружу (embeddings API, JWKS-fetch, коннекторы). Memory extraction — опция маскировать PII в фактах о пользователях. Selling point для agent-memory продукта |
+| TR-08 | Reliability: деградация и partial failure | medium | pending | — | Недокументировано/нетестировано: поведение при downed-коннекторе (hang vs fail-fast), retry/backoff, partial-failure семантика batch-tools, drain endpoint под нагрузкой. Сначала контракт, потом тесты |
+| TR-09 | Perf-ёмкость: бюджеты и пределы | low | pending | — | benchmarks/ не подключены к CI (0 hits в workflows). Регрессионные бюджеты, макс. датасет до деградации, memory ceiling. Задокументировать пределы |
+
+### Фаза 3 — Governance и spec-frontier
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| TR-10 | API governance doc | low | pending | — | Политика breaking changes для ~114 tools, таксономия error-кодов, нейминг-конвенция (tasks_*/memory_*/tools_*), deprecation-путь. ToolRegistry версионирует — политики нет |
+| TR-11 | MCP spec frontier tracking | low | pending | — | Политика отслеживания спеки + оценка неиспользуемых фич: elicitation, sampling, roots, subscriptions. Выход: что брать, что осознанно нет |
+| TR-12 | Elicitation для confirm-флоу | medium | pending | TR-11, DX-19 | Деструктивные ops (project_purge, bulk-delete) → elicitation-запрос юзеру вместо слепого выполнения. Синергия с auto-backup DX-19 |
+| TR-13 | Upgrade-path e2e | low | pending | DX-18 | Данные версии N → апгрейд пакета → читаются корректно. Ловит то, что schema-version не покроет |
 
 ---
 
@@ -928,7 +967,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-11 (Этап M: 18 задач аудита + Этап N: 17 задач DX/Onboarding)
+**Последнее обновление:** 2026-09-11 (Этап M: 18 аудит + Этап N: 19 DX/Onboarding + Этап O: 13 Trust/Hardening)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -962,12 +1001,13 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
-| DX/Onboarding (N) | 17 | 17 | 0 | 0 | 0 | 0 |
-| **Итого** | **240** | **38** | **0** | **201** | **0** | **1** |
+| DX/Onboarding (N) | 19 | 19 | 0 | 0 | 0 | 0 |
+| Trust/Hardening (O) | 13 | 13 | 0 | 0 | 0 | 0 |
+| **Итого** | **255** | **53** | **0** | **201** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
-> Примечание (2026-09-11): Этап M (AUD-01..18, аудит request-path + data-path аудит)
-> и Этап N (DX-10..26, onboarding/deployment UX) добавлены постфактум —
-> 38 pending. `npm run backlog:check` green.
+> Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..28, onboarding UX)
+> и Этап O (TR-01..13, trust/hardening) добавлены постфактум — 53 pending.
+> `npm run backlog:check` green.
 > Массовые мержи 2026-09-04: WIRE-007/008/009, SEC-003, NEXT2-003/004/005/007/008,
 > NEXT-011/012/013/015/016, NEXT2-009/010/012, Q-014 слайсы 1-14.
