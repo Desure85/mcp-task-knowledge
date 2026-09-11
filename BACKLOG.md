@@ -821,6 +821,68 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AUD-16 | JWT blacklist: eviction по exp + persist | low | pending | — | Count-based eviction де-ревокает старые jti после 10k; рестарт снимает все ревокации (jwt-validator.ts:311) |
 | AUD-17 | TLS: завайрить или дропнуть | low | pending | — | `createTlsContext`/`TlsContext` — ноль вызовов (SEC-002 мёртв, транспорты plaintext). Либо wire в http/tcp adapters, либо честно пометить deferred |
 
+### Фаза 5 — Следующий аудит
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| AUD-18 | Аудит data-path (storage → sync → search → memory) | high | pending | — | Request-path проаудирован, data-path — нет. Тем же промптом: гонки read-modify-write в `writeJson`, crash-окна, 3-way merge в `src/sync/`, GC event-log не съедает живое, FTS5/BM25 injection, изоляция scope (tenant A vs B). Находки → новый этап задач |
+
+---
+
+## Этап N — DX/Onboarding: развёртывание и первые 5 минут (2026-09-11)
+
+> Цель: путь «установил → подключил агента → получил ценность» без ручной правки JSON
+> и без гадания. Сейчас: `npm i -g` + ручной merge конфига клиента, `dev-cli.mjs`
+> не шипится в npm (только repo scripts/).
+>
+> **Правило:** новые MCP-tools (DX-12/13/15) — сначала design review, регистрировать
+> в ToolRegistry только финальный контракт. Ничего сырого наружу.
+>
+> **Зависимость этапа:** DX-10/DX-11 осмысленны после crit-фазы Этапа M
+> (AUD-01/02/03) — не подключать wizard'ом к незащищённому серверу.
+
+### Фаза 1 — Установка и диагностика (ядро)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-10 | `mcp-task-knowledge setup` — интерактивный установщик | high | pending | AUD-01, AUD-03 | Бинарь в `dist/` (работает из npx): детект клиентов по конфиг-путям (Claude Desktop, Cursor, Windsurf, VS Code, Claude Code), вопросы (транспорт/DATA_DIR/auth), идемпотентный merge в `mcpServers` с бэкапом, финал — self-check: спавн stdio → `tools/list` → «✓ 114 tools» + cheatsheet. Флаг `--client X --yes` для CI |
+| DX-11 | `mcp-task-knowledge doctor` — диагностика | high | pending | — | Node ≥20, DATA_DIR существует/writable, конфиг валиден, порт свободен, клиентский конфиг ссылается на живой бинарь. Это же health-gate в конце setup |
+| DX-26 | CLI surface polish | low | pending | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
+
+### Фаза 2 — Первые 5 минут после подключения
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-13 | `briefing` tool — контекст одним вызовом | medium | pending | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрать из готовых кусков (dashboard stats, memory context assembly). Design review до регистрации |
+| DX-14 | Seed workflow-промптов в поставку | medium | pending | — | Prompts-library пуста. Шипить 5-7 готовых (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`) — видимая ценность через `prompts/list` сразу + учит агента паттернам |
+| DX-12 | `agent_bootstrap` tool — самоинтеграция агента | medium | pending | — | Tool возвращает готовый блок инструкций для AGENTS.md/system prompt («всегда передавай project, контракт ok/error, ключевые tools»). Design review до регистрации |
+| DX-15 | `server_capabilities` manifest | low | pending | — | Какие домены включены/выключены env-флагами, версия, лимиты — агент не гадает и не ловит `tool not found` на выключенных фичах. Design review до регистрации |
+
+### Фаза 3 — Данные как актив (backup/restore/integrity)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-16 | `admin_backup`/`admin_restore` — tar.gz DATA_DIR | high | pending | — | Tool + CLI-обёртка; `dev-cli export` умеет 80% — зашипить в bin, завернуть в tool. Ответ на «где мой бэкап» и «как переехать на другую машину» |
+| DX-17 | `doctor --data` — скан целостности DATA_DIR | medium | pending | DX-11 | Все `*.json`/`*.md`: битый JSON, missing required fields, knowledge-сироты без проекта. Read-only отчёт + `--fix` для тривиального |
+| DX-18 | Schema-version манифест + миграции | medium | pending | — | `DATA_DIR/.schema-version`; при смене формата task JSON / frontmatter — миграция при старте или явная ошибка. Иначе апгрейд пакета молча криво читает старые данные |
+| DX-19 | Auto-backup перед деструктивными операциями | medium | pending | DX-16 | `project_purge`, bulk-ops, GC event-log → снапшот в `DATA_DIR/.backups/` перед выполнением. Copy дёшево, «oops» превращается в откат |
+
+### Фаза 4 — Дистрибуция без Node.js
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | pending | — | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». Риск: ONNX нативные зависимости — оценить в PoC, не обещать |
+| DX-21 | Homebrew formula / Scoop manifest | low | pending | DX-20 | Если бинарь получился — генератор формулы в release CI |
+| DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | pending | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс |
+
+### Фаза 5 — Доверие и проверяемость
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-23 | MCP Inspector в CI | medium | pending | — | Автоматизировать `npx @modelcontextprotocol/inspector`: handshake, tools/list, протокольные ошибки. Ловит «наши тесты зелёные, но не по спеке» |
+| DX-24 | Executable docs | medium | pending | — | Скрипт прогоняет каждый bash/json-сниппет README/getting-started против реального пакета. README с враньём убивает первое впечатление |
+| DX-25 | Клиентская compat-матрица | low | pending | — | Таблица «Claude Desktop ✓ / Cursor ✓ / Windsurf ?» + дата последней ручной проверки, обновляется при релизе |
+
 ---
 
 ## Архив (последние 20)
@@ -866,7 +928,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-11 (Этап M: +17 задач из аудита request-path — 3 crit, 4 high, 6 medium, 4 low)
+**Последнее обновление:** 2026-09-11 (Этап M: 18 задач аудита + Этап N: 17 задач DX/Onboarding)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -899,11 +961,13 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | NEXT2 (J) | 8 | 0 | 0 | 8 | 0 | 0 |
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
-| Audit request-path (M) | 17 | 17 | 0 | 0 | 0 | 0 |
-| **Итого** | **222** | **20** | **0** | **201** | **0** | **1** |
+| Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
+| DX/Onboarding (N) | 17 | 17 | 0 | 0 | 0 | 0 |
+| **Итого** | **240** | **38** | **0** | **201** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
-> Примечание (2026-09-11): Этап M (AUD-01..AUD-17) добавлен постфактум из аудита
-> request-path — 17 pending. `npm run backlog:check` green (222 total, 20 pending).
+> Примечание (2026-09-11): Этап M (AUD-01..18, аудит request-path + data-path аудит)
+> и Этап N (DX-10..26, onboarding/deployment UX) добавлены постфактум —
+> 38 pending. `npm run backlog:check` green.
 > Массовые мержи 2026-09-04: WIRE-007/008/009, SEC-003, NEXT2-003/004/005/007/008,
 > NEXT-011/012/013/015/016, NEXT2-009/010/012, Q-014 слайсы 1-14.
