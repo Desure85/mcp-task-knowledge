@@ -1,4 +1,21 @@
+import { createRequire } from 'node:module';
 import { defineConfig } from 'vitest/config';
+
+// PH-010: probe native deps so specs that import better-sqlite3 at module
+// level are skipped (not crashed) when the binding was never built — e.g.
+// `npm ci --ignore-scripts` containers. In CI the binding exists and the
+// specs run normally.
+function hasSqliteBinding(): boolean {
+  try {
+    const req = createRequire(import.meta.url);
+    const Database = req('better-sqlite3') as new (p: string) => { close(): void };
+    new Database(':memory:').close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+const SQLITE_SPECS = ['src/behavioral/fts-search.spec.ts', 'src/db/migration-framework.spec.ts'];
 
 export default defineConfig({
   test: {
@@ -8,6 +25,7 @@ export default defineConfig({
       'node_modules/**',
       '.opencode/**',
       'dist/**',
+      ...(hasSqliteBinding() ? [] : SQLITE_SPECS),
     ],
     setupFiles: ['./tests/setup.ts'],
     coverage: {

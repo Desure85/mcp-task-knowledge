@@ -178,7 +178,11 @@ describe('WebCrawlerConnector', () => {
 
   it('fetchPage returns empty on invalid URL', async () => {
     const c = new WebCrawlerConnector();
-    await c.init(createMockCtx());
+    const ctx = createMockCtx();
+    // Short connector timeout keeps the test independent of how fast the
+    // environment's DNS resolver gives up on a bogus host.
+    ctx.config = { timeoutMs: 500 };
+    await c.init(ctx);
     const result = await (c as unknown as { fetchPage: (u: string) => Promise<unknown> }).fetchPage('http://invalid.localhost.test/page');
     expect(result).toEqual({ ok: true, url: 'http://invalid.localhost.test/page', title: '', content: '', links: [] });
   });

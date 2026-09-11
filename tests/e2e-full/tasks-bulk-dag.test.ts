@@ -97,4 +97,29 @@ describe('Q-014 slice 16: tasks dependency DAG', () => {
       await srv.close();
     }
   }, 120000);
+
+  it('PH-011: tasks_tree renders parent/subtask hierarchy; filters apply', async () => {
+    const srv = await spawnServer('tasks-tree');
+    try {
+      const parent = await srv.callTool('tasks_create', { project: 'mcp', title: 'Q014 tree parent' });
+      expect(parent.env.ok).toBe(true);
+      const parentId = parent.env.data.id as string;
+      const child = await srv.callTool('tasks_create', { project: 'mcp', title: 'Q014 tree child', parentId });
+      expect(child.env.ok).toBe(true);
+
+      const tree = await srv.callTool('tasks_tree', { project: 'mcp' });
+      expect(tree.isError).toBe(false);
+      expect(tree.env.ok).toBe(true);
+      const payload = JSON.stringify(tree.env.data);
+      expect(payload).toContain('Q014 tree parent');
+      expect(payload).toContain('Q014 tree child');
+
+      // Status filter narrows the tree.
+      const filtered = await srv.callTool('tasks_tree', { project: 'mcp', status: 'completed' });
+      expect(filtered.env.ok).toBe(true);
+      expect(JSON.stringify(filtered.env.data)).not.toContain('Q014 tree parent');
+    } finally {
+      await srv.close();
+    }
+  }, 120000);
 });
