@@ -842,9 +842,10 @@ export function registerMemoryTools(ctx: ServerContext): void {
         appId: args.appId,
         runId: args.runId,
       });
-      const filtered = matcher.filterItems(
-        allFacts.map((f) => ({ ...f, scope: { userId: undefined, agentId: undefined, appId: undefined, runId: undefined } }))
-      );
+      // Pass facts through with their real scope — previously the map below
+      // overwrote every fact's scope with all-undefined, so any dimensioned
+      // filter (userId/agentId/...) always returned count=0 (found by Q-014 e2e).
+      const filtered = matcher.filterItems(allFacts);
       return ok({
         count: filtered.length,
         scope: matcher.description,

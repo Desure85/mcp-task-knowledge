@@ -17,7 +17,10 @@ const log = childLogger('setup');
 
 export async function createServerContext(): Promise<ServerContext> {
   const HERE_DIR = path.dirname(new URL(import.meta.url).pathname);
-  const REPO_ROOT = path.resolve(HERE_DIR, '..');
+  // Two levels up: src/register → repo root in dev (tsx), dist/register →
+  // repo root in prod builds. One level gave dist/, silently breaking
+  // package.json version lookup and the prompts.mjs reindex chain (Q-014 e2e).
+  const REPO_ROOT = path.resolve(HERE_DIR, '..', '..');
 
   async function getPackageVersion(): Promise<string> {
     const vEnv = process.env.npm_package_version;

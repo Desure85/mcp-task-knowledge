@@ -95,6 +95,10 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       expect(env.data.sessionsEnabled).toBe(true);
       expect(env.data.rateLimitingEnabled).toBe(true);
       expect(typeof env.data.total).toBe('number');
+      // Known gap (BACKLOG Q-014): StreamableHTTP sessions are not tracked by
+      // SessionManager — session_list stays empty even after authenticate,
+      // so session_info's full-detail path has no e2e-reachable session.
+      expect(env.data.sessions).toEqual([]);
     } finally {
       try { await client?.close(); } catch {}
       try { child.kill('SIGTERM'); } catch {}

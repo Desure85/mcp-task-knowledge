@@ -409,11 +409,28 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-09-03 (ночная сессия S-20260903-night1 запущена)
-**Session ID:** S-20260903-night1
-**Текущая feature-ветка:** master (чист, синхронно с origin/master; WIRE-005/006 смержены 2026-09-03)
-**Текущий этап:** Ночная сессия «всё подряд до утра» — 22 pending (Wire-in I + NEXT2 J + Competitive H), порядок: SEC-003 → NEXT2-008 → WIRE-003/004/008 → NEXT2/medium → LOW-пачка
-**Статус:** 193 задачи done из 221, 22 pending, 1 deferred
+**Дата последнего обновления:** 2026-09-11
+**Session ID:** S-20260911-e2ec
+**Текущая feature-ветка:** test/q014-e2e-coverage (от master, чистая синхронизация)
+**Текущий этап:** Q-014 расширение e2e — аудит полного tool-сервера (114 tools) против 27 тестов, новые слайсы 15-21, +3 бага найдены и исправлены
+**Статус:** e2e-full: 20 files / 58 tests green в Docker (node:20-bullseye)
+
+### Сессия S-20260911-e2ec (Q-014: добить e2e)
+
+- Построена карта покрытия: до сессии e2e дёргал 45/114 инструментов; добавлены слайсы:
+  - 15 `projects.test.ts` — project lifecycle (create→set_current→purge dryRun/confirm→delete force/идемпотентность)
+  - 16 `tasks-bulk-dag.test.ts` — tasks_bulk_update/archive/trash/restore/delete_permanent + set_deps/get_deps/dag
+  - 17 `knowledge-lifecycle.test.ts` — knowledge bulk lifecycle, tree, export_single/bundle/markdown, import_single, multimodal import, two-stage search
+  - 18 `memory-extended.test.ts` — profiles, layers, scope_filter/tags, context_assemble, entity_search, temporal history/stats, evolve, conflicts, gc, observations, dream, async jobs (submit/status/cancel, extract_async), framework_adapter, benchmark
+  - 19 `prompts-experiments.test.ts` — experiments/variants/bandit/metrics/feedback/ab_report/exports/catalog + bulk_update/delete
+  - 20 `misc-surface.test.ts` — session_info/cluster degraded shapes, embeddings status/try_init, tool_help, graph_export_mermaid/graph_visualize, dashboard_trends, tools_run, relay share_brief/broadcast_rule
+  - 21 `connectors-all.test.ts` — все 9 семейств коннекторов: регистрация по env-флагам (github/jira/slack требуют creds на init)
+- **Баги, найденные e2e и исправлены:**
+  - `src/register/setup.ts` — `REPO_ROOT` указывал на `dist/` в prod-сборке → prompts reindex (scripts/prompts.mjs) молча никогда не работал в prod; версия из package.json тоже не читалась
+  - `src/register/memory.ts` — `memory_scope_filter` затирал `fact.scope` перед фильтрацией → любой dimension-фильтр всегда возвращал 0
+  - `scripts/prompts.mjs` — `exportCatalog` не писал `metadata.status/domain/tags` → `prompts_list` по status/domain/tag никогда не матчился в prod-режиме
+- harness: retry-обёртка rm в close() — orphan-подпроцессы реиндекса догоняли cleanup (ENOTEMPTY)
+- Задокументированные гэпы: StreamableHTTP-сессии не трекаются SessionManager (session_list пуст после authenticate → session_info по живой сессии недостижим); scripts/ не входит в npm `files` (reindex не работает в установленном пакете)
 
 ### Последние действия (ночная сессия 2026-08-28/29, PR #119-#136)
 

@@ -134,6 +134,10 @@ async function exportCatalog(files) {
         {
           id: rec.id,
           kind: rec.kind || null,
+          status: rec.status ?? null,
+          domain: rec.domain ?? null,
+          title: rec.title ?? null,
+          tags: Array.isArray(rec.tags) ? rec.tags : [],
           latest: rec.latest,
           versions: rec.versions,
           files: rec.files,
@@ -294,11 +298,21 @@ async function indexPrompts(files) {
     const ver = data?.version || '0.0.0';
     if (!index.items[id]) index.items[id] = { id, versions: [], latest: null, files: [], kind: data?.metadata?.kind || null };
     index.items[id].versions.push(ver);
-    index.items[id].files.push({ version: ver, path: path.relative(PROJECT_ROOT, file), errors: errs });
+    index.items[id].files.push({ version: ver, path: path.relative(PROJECT_ROOT, file), errors: errs, metadata: data?.metadata || null });
   }
   for (const it of Object.values(index.items)) {
     it.versions.sort(cmpSemver);
     it.latest = it.versions[it.versions.length - 1] || null;
+    // Expose the latest version's metadata on the item so catalog consumers
+    // (prompts_list status/domain/tag filters) can actually see it.
+    const latestFile = it.files.find((f) => f.version === it.latest) || it.files[it.files.length - 1];
+    const m = latestFile?.metadata || null;
+    if (m) {
+      it.status = m.status ?? null;
+      it.domain = m.domain ?? null;
+      it.title = m.title ?? null;
+      it.tags = Array.isArray(m.tags) ? m.tags : [];
+    }
   }
   return index;
 }
