@@ -19,17 +19,18 @@ async function waitJob(
   srv: E2EServer,
   jobId: string,
   timeoutMs = 15000,
-): Promise<{ status: string; env: any }> {
+): Promise<{ status: string; data: Record<string, unknown> }> {
   const deadline = Date.now() + timeoutMs;
-  let last: any = null;
+  let last: Record<string, unknown> = {};
   while (Date.now() < deadline) {
     const res = await srv.callTool('memory_async_status', { jobId });
     expect(res.env.ok).toBe(true);
-    last = res.env.data;
-    if (['completed', 'failed', 'cancelled'].includes(last.status)) return { status: last.status, env: res.env };
+    last = res.env.data as Record<string, unknown>;
+    const status = String(last.status ?? '');
+    if (['completed', 'failed', 'cancelled'].includes(status)) return { status, data: last };
     await new Promise((r) => setTimeout(r, 100));
   }
-  return { status: last?.status ?? 'unknown', env: { data: last } };
+  return { status: String(last.status ?? 'unknown'), data: last };
 }
 
 describe('Q-014 slice 18: user profiles', () => {
@@ -258,7 +259,7 @@ describe('Q-014 slice 18: async memory jobs', () => {
 
       const done = await waitJob(srv, jobId);
       expect(done.status).toBe('completed');
-      expect(done.env.data.output ?? done.env.data).toBeTruthy();
+      expect(done.data.output ?? done.data).toBeTruthy();
 
       // Cancel accepts pending/processing jobs; if the job already finished
       // the tool reports a structured error — either way the wiring is proven.

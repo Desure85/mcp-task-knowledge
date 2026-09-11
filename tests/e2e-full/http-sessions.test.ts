@@ -84,10 +84,10 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       client = new Client({ name: 'q014-http-sess', version: '0.0.1' });
       await client.connect(transport);
 
-      const auth: any = await client.callTool({ name: 'mcp.authenticate', arguments: { token: mintJwt() } });
+      const auth = (await client.callTool({ name: 'mcp.authenticate', arguments: { token: mintJwt() } })) as { content?: Array<{ text?: string }> };
       expect(JSON.parse(auth?.content?.[0]?.text ?? '{}').ok).toBe(true);
 
-      const res: any = await client.callTool({ name: 'session_list', arguments: {} });
+      const res = (await client.callTool({ name: 'session_list', arguments: {} })) as { content?: Array<{ text?: string }> };
       const text = res?.content?.[0]?.text ?? '{}';
       const env = JSON.parse(text);
       expect(env.ok).toBe(true);

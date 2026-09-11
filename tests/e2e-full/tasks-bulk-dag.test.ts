@@ -18,7 +18,9 @@ describe('Q-014 slice 16: tasks bulk lifecycle', () => {
         items: [{ title: 'Q014 bulk-life A' }, { title: 'Q014 bulk-life B' }],
       });
       expect(bulk.env.ok).toBe(true);
-      const ids = (bulk.env.data.created ?? bulk.env.data ?? []).map((t: any) => t.id ?? t);
+      const ids = (bulk.env.data.created ?? bulk.env.data ?? []).map(
+        (t: unknown) => (t as { id?: string }).id ?? t,
+      );
       expect(ids.length).toBe(2);
 
       const upd = await srv.callTool('tasks_bulk_update', {

@@ -24,7 +24,7 @@ describe('Q-014 slice 17: knowledge bulk lifecycle', () => {
         ],
       });
       expect(bulk.env.ok).toBe(true);
-      const ids = (bulk.env.data.created ?? []).map((d: any) => d.id);
+      const ids = (bulk.env.data.created ?? []).map((d: { id: string }) => d.id);
       expect(ids.length).toBe(2);
 
       const upd = await srv.callTool('knowledge_bulk_update', {
