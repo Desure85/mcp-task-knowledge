@@ -32,6 +32,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 ## Features
 
 ### Tasks Board (UI-002)
+
 - 4-column Kanban (pending → in_progress → completed → closed)
 - Drag & drop between columns
 - Search by title
@@ -44,6 +45,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Responsive grid
 
 ### Knowledge Editor (UI-003)
+
 - Markdown editor with live preview
 - Search/filter by title, tags, type
 - Create, edit documents
@@ -53,6 +55,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Toggle preview
 
 ### Prompt Management (UI-004)
+
 - Prompt CRUD
 - A/B experiments tab
 - Template editor with `{{variables}}`
@@ -60,6 +63,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Bandit-based selection info
 
 ### Analytics (UI-006)
+
 - Task stats (by status, by priority)
 - Knowledge doc count
 - Feedback form with star ratings
@@ -67,6 +71,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - localStorage feedback storage
 
 ### Realtime (UI-005 + MR-012)
+
 - WebSocket server at `/ws`
 - Live updates for task/knowledge changes
 - Presence indicators

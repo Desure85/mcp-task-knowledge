@@ -131,6 +131,10 @@ __pycache__/
 .tmp-emb-cache-*/
 .tmp-e2e-*/
 .tmp-tests-*/
+.tmp-*.json
+
+# Entity-graph side-effect store (server cwd-relative, created by memory tools)
+.memory/
 .omo/
 .opencode
 

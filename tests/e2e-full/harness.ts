@@ -46,7 +46,7 @@ export async function spawnServer(tag: string, extraEnv: Record<string, string> 
   async function callTool(name: string, args: Record<string, unknown>) {
     const res = await client.callTool({ name, arguments: args });
     const text = (res?.content as any)?.[0]?.text ?? '';
-    return { isError: res?.isError ?? false, env: JSON.parse(text) };
+    return { isError: (res as { isError?: boolean } | undefined)?.isError ?? false, env: JSON.parse(text) };
   }
 
   async function close() {
@@ -56,7 +56,18 @@ export async function spawnServer(tag: string, extraEnv: Record<string, string> 
     try {
       await (transport as any).close?.();
     } catch {}
-    await fsp.rm(tmp, { recursive: true, force: true });
+    // Prompt mutations spawn an async reindex chain (scripts/prompts.mjs) that
+    // keeps writing into the store after the server exits — retry the cleanup
+    // so ENOTEMPTY/EBUSY from in-flight writers can't fail the suite.
+    for (let i = 0; i < 12; i++) {
+      try {
+        await fsp.rm(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+    await fsp.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
 
   return { client, transport, store, tmp, callTool, close };

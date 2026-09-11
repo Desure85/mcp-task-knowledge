@@ -43,6 +43,7 @@ allowed-tools:
 ### Skill Converters
 
 Convert between formats:
+
 - `.cursorrules` → our format
 - `SKILL.md` → our format
 - `.clinerules` → our format
@@ -51,6 +52,7 @@ Convert between formats:
 ### Skill Templates
 
 Pre-built skills included:
+
 - code-review, deploy, test-gen, refactor, debug, architecture-review
 
 ### Permissions
@@ -79,6 +81,7 @@ Global → Project → User (inheritance + override at each level)
 ### Rule Packs
 
 Pre-built rule packs:
+
 - security-rules, ts-strict, react-conventions, python-style, team-standards
 
 ### Import

@@ -30,7 +30,7 @@ import { EntityRetriever } from '../memory/entity-retrieval.js';
 import { MemoryEvolver } from '../memory/evolution.js';
 import { ConflictResolver } from '../memory/conflict-resolver.js';
 import { ForgettingManager } from '../memory/forgetting.js';
-import { ScopeMatcher, buildScopeTags } from '../memory/scoping.js';
+import { ScopeMatcher, buildScopeTags, type ScopedItem } from '../memory/scoping.js';
 import { LayeredMemory } from '../memory/layers.js';
 import { DreamingAgent } from '../memory/dreaming.js';
 import { ObservationEngine } from '../memory/observations.js';
@@ -842,9 +842,12 @@ export function registerMemoryTools(ctx: ServerContext): void {
         appId: args.appId,
         runId: args.runId,
       });
-      const filtered = matcher.filterItems(
-        allFacts.map((f) => ({ ...f, scope: { userId: undefined, agentId: undefined, appId: undefined, runId: undefined } }))
-      );
+      // Pass facts through with their real scope — previously the map below
+      // overwrote every fact's scope with all-undefined, so any dimensioned
+      // filter (userId/agentId/...) always returned count=0 (found by Q-014 e2e).
+      // TemporalFact is an interface (no implicit index signature) → double
+      // cast to ScopedItem[]; shape is compatible (scope is optional there).
+      const filtered = matcher.filterItems(allFacts as unknown as ScopedItem[]);
       return ok({
         count: filtered.length,
         scope: matcher.description,

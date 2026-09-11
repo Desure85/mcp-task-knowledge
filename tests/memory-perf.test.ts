@@ -24,7 +24,7 @@ function makeTranscript(sentences: number): string {
   ];
   const parts: string[] = [];
   for (let i = 0; i < sentences; i++) {
-    parts.push(templates[i % templates.length]!.replaceAll('SEP', String(i)));
+    parts.push(templates[i % templates.length]!.replace(/SEP/g, String(i)));
   }
   return parts.join(' ');
 }

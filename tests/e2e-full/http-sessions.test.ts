@@ -84,10 +84,10 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       client = new Client({ name: 'q014-http-sess', version: '0.0.1' });
       await client.connect(transport);
 
-      const auth: any = await client.callTool({ name: 'mcp.authenticate', arguments: { token: mintJwt() } });
+      const auth = (await client.callTool({ name: 'mcp.authenticate', arguments: { token: mintJwt() } })) as { content?: Array<{ text?: string }> };
       expect(JSON.parse(auth?.content?.[0]?.text ?? '{}').ok).toBe(true);
 
-      const res: any = await client.callTool({ name: 'session_list', arguments: {} });
+      const res = (await client.callTool({ name: 'session_list', arguments: {} })) as { content?: Array<{ text?: string }> };
       const text = res?.content?.[0]?.text ?? '{}';
       const env = JSON.parse(text);
       expect(env.ok).toBe(true);
@@ -95,6 +95,10 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       expect(env.data.sessionsEnabled).toBe(true);
       expect(env.data.rateLimitingEnabled).toBe(true);
       expect(typeof env.data.total).toBe('number');
+      // Known gap (BACKLOG Q-014): StreamableHTTP sessions are not tracked by
+      // SessionManager — session_list stays empty even after authenticate,
+      // so session_info's full-detail path has no e2e-reachable session.
+      expect(env.data.sessions).toEqual([]);
     } finally {
       try { await client?.close(); } catch {}
       try { child.kill('SIGTERM'); } catch {}
