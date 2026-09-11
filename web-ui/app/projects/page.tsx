@@ -2,8 +2,8 @@
  * web-ui/app/projects/page.tsx — Projects management (PH-015)
  *
  * Multi-project isolation: list, create, set-current (session-scoped per
- * PH-004), per-project info. Purge stays CLI-only on purpose — destructive
- * ops need a deliberate confirmation flow that doesn't belong in a casual UI.
+ * PH-004), update description, delete (force) / purge (wipe all data) —
+ * destructive ops guarded by explicit window.confirm.
  */
 
 'use client';
@@ -60,6 +60,34 @@ export default function ProjectsPage() {
       setBusy(true);
       const res = await api.projects.setCurrent(id);
       setCurrent(res);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteProject(id: string) {
+    if (!window.confirm(`Delete project "${id}" and all its data? This cannot be undone.`)) return;
+    try {
+      setBusy(true);
+      await api.projects.remove(id, true);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function purgeProject(id: string) {
+    if (!window.confirm(
+      `PURGE "${id}"? Permanently deletes ALL tasks, knowledge and memory in this project. Type-confirm required.`,
+    )) return;
+    try {
+      setBusy(true);
+      await api.projects.purge(id, true);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -134,14 +162,33 @@ export default function ProjectsPage() {
                 <span>{p.hasTasks ? '✓ tasks' : '· no tasks'}</span>
                 <span>{p.hasKnowledge ? '✓ knowledge' : '· no knowledge'}</span>
               </div>
-              {!p.isCurrent && (
-                <button
-                  onClick={() => setAsCurrent(p.id)} disabled={busy}
-                  className="text-sm px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Set as current (this session)
-                </button>
-              )}
+              <div className="flex gap-2 flex-wrap">
+                {!p.isCurrent && (
+                  <button
+                    onClick={() => setAsCurrent(p.id)} disabled={busy}
+                    className="text-sm px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Set as current (this session)
+                  </button>
+                )}
+                {!p.isDefault && (
+                  <>
+                    <button
+                      onClick={() => deleteProject(p.id)} disabled={busy}
+                      className="text-sm px-3 py-1 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => purgeProject(p.id)} disabled={busy}
+                      className="text-sm px-3 py-1 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                      title="Permanently wipe all project data"
+                    >
+                      Purge
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
