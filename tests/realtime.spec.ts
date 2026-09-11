@@ -81,6 +81,10 @@ describe('RealtimeServer', () => {
       expect(server.getConnectedClients()).toHaveLength(2);
     }, { timeout: 2000 });
 
+    ws1.send(JSON.stringify({ type: 'subscribe' }));
+    ws2.send(JSON.stringify({ type: 'subscribe' }));
+    await new Promise((r) => setTimeout(r, 100));
+
     const event: RealtimeEvent = {
       type: 'task.created',
       data: { id: 'task-1', title: 'Test Task' },
@@ -159,6 +163,10 @@ describe('RealtimeServer', () => {
       expect(server.getConnectedClients()).toHaveLength(2);
     }, { timeout: 2000 });
 
+    wsProjectA.send(JSON.stringify({ type: 'subscribe' }));
+    wsProjectB.send(JSON.stringify({ type: 'subscribe' }));
+    await new Promise((r) => setTimeout(r, 100));
+
     const receivedA: unknown[] = [];
     const receivedB: unknown[] = [];
 
@@ -235,6 +243,8 @@ describe('RealtimeServer', () => {
   it('broadcasts presence.join on new connection', async () => {
     const ws1 = new WebSocket(`ws://127.0.0.1:${port}/ws`);
     await new Promise<void>((r) => ws1.on('open', () => r()));
+    ws1.send(JSON.stringify({ type: 'subscribe' }));
+    await new Promise((r) => setTimeout(r, 100));
 
     const joinPromise = new Promise<unknown>((resolve) => {
       ws1.on('message', (raw) => {

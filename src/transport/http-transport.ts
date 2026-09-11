@@ -268,7 +268,19 @@ export class HttpTransportAdapter implements TransportAdapter {
     this._connected = true;
 
     if (process.env.MCP_REALTIME !== '0') {
-      getRealtimeServer().attach(this.httpServer, '/ws');
+      const auth = this.serverCtx?.authManager;
+      const tokenValidator = auth?.isAuthRequired()
+        ? async (token: string | null): Promise<boolean> => {
+            if (!token) return false;
+            try {
+              await auth.authenticate(`ws:${token.slice(0, 16)}`, token);
+              return true;
+            } catch {
+              return false;
+            }
+          }
+        : undefined;
+      getRealtimeServer().attach(this.httpServer, '/ws', { tokenValidator });
       log.info('Realtime WS: /ws');
     }
 
