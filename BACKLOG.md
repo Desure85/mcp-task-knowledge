@@ -740,32 +740,32 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| PH-001 | Prompts pipeline in-process / npm-пакет | high | pending | — | `scripts/` не в npm `files` → reindex мёртв в установленном пакете. Переписать цепочку index→catalog→export→build как in-process сервис `src/services/prompts-pipeline.ts` (spawn node → вызов функции), `scripts/prompts.mjs` оставить тонкой CLI-обёрткой. Проверка: `npm pack` → установка → `prompts_list` после `bulk_create` |
-| PH-002 | SessionManager ↔ StreamableHTTP wiring | high | pending | — | HTTP-сессии не регистрируются в SessionManager → `session_list` пуст, `session_info` по живой сессии недостижим, per-session rate-limit не работает. Подключить sessionId из initialize-рукопожатия StreamableHTTP к SessionManager. e2e: authenticate → session_list показывает сессию, session_info по id, rate-limit счётчики |
-| PH-003 | TCP ToolExecutor (S-002) | high | pending | PH-002 | Per-connection TCP-сессии без tools (stream-transport `registerTools` no-op). Реализовать ToolExecutor для stream-transport: tools/list + tools/call по TCP. e2e: initialize → tools/list непустой → tasks_create roundtrip |
+| PH-001 | Prompts pipeline in-process / npm-пакет | high | done | — | `scripts/` не в npm `files` → reindex мёртв в установленном пакете. Переписать цепочку index→catalog→export→build как in-process сервис `src/services/prompts-pipeline.ts` (spawn node → вызов функции), `scripts/prompts.mjs` оставить тонкой CLI-обёрткой. Проверка: `npm pack` → установка → `prompts_list` после `bulk_create` |
+| PH-002 | SessionManager ↔ StreamableHTTP wiring | high | done | — | HTTP-сессии не регистрируются в SessionManager → `session_list` пуст, `session_info` по живой сессии недостижим, per-session rate-limit не работает. Подключить sessionId из initialize-рукопожатия StreamableHTTP к SessionManager. e2e: authenticate → session_list показывает сессию, session_info по id, rate-limit счётчики |
+| PH-003 | TCP ToolExecutor (S-002) | high | done | PH-002 | Per-connection TCP-сессии без tools (stream-transport `registerTools` no-op). Реализовать ToolExecutor для stream-transport: tools/list + tools/call по TCP. e2e: initialize → tools/list непустой → tasks_create roundtrip |
 
 ### Фаза 2 — Консистентность API и поверхности
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| PH-004 | Семантика current project (session-scoped) | medium | pending | PH-002 | Глобальный `current` — shared mutable state: один агент `set_current` ломает default для всех подключённых. После PH-002 сделать current per-session (SessionManager), stdio-режим — single-session. Schema-default `'mcp'` не трогаем (обратная совместимость); явный `project` остаётся главным контрактом. Задокументировать в docs |
-| PH-005 | Унификация error-стиля handlers | low | pending | — | `project_purge` и другие бросают raw `Error` (protocol error) вместо `{ok:false}` envelope. Аудит всех `throw` в `src/register/*`, перевести на `err()` где это доменная ошибка, оставить throw только для протокольных |
-| PH-006 | Connector expose-mode + registry visibility | medium | pending | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry → `tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
+| PH-004 | Семантика current project (session-scoped) | medium | done | PH-002 | Глобальный `current` — shared mutable state: один агент `set_current` ломает default для всех подключённых. После PH-002 сделать current per-session (SessionManager), stdio-режим — single-session. Schema-default `'mcp'` не трогаем (обратная совместимость); явный `project` остаётся главным контрактом. Задокументировать в docs |
+| PH-005 | Унификация error-стиля handlers | low | done | — | `project_purge` и другие бросают raw `Error` (protocol error) вместо `{ok:false}` envelope. Аудит всех `throw` в `src/register/*`, перевести на `err()` где это доменная ошибка, оставить throw только для протокольных |
+| PH-006 | Connector expose-mode + registry visibility | medium | done | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry → `tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
 
 ### Фаза 3 — Memory multi-tenancy (полная изоляция)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| PH-007 | Scope write-path для temporal facts | medium | pending | — | `memory_temporal_add`/`memory_extract`(persist)/`memory_layer_add` принимают `scope{userId,agentId,appId,runId}` → факты хранят scope → `scope_filter` реально изолирует tenant'ов. e2e: факты tenant A невидимы при фильтре tenant B; unscoped остаются глобальными |
+| PH-007 | Scope write-path для temporal facts | medium | done | — | `memory_temporal_add`/`memory_extract`(persist)/`memory_layer_add` принимают `scope{userId,agentId,appId,runId}` → факты хранят scope → `scope_filter` реально изолирует tenant'ов. e2e: факты tenant A невидимы при фильтре tenant B; unscoped остаются глобальными |
 
 ### Фаза 4 — CI / инфрагигиена
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| PH-008 | ESLint warnings sweep | medium | pending | — | ~998/1000 warnings — любой новый `any` роняет линт. Пройтись по top-offenders (`no-explicit-any`, `no-unused-vars`, `no-useless-assignment`) → цель <700, либо осознанно поднять cap с планом снижения |
-| PH-009 | Node 22/24 compatibility | medium | pending | — | GHA форсит actions на Node 24 (deprecation warnings). Проверить `npm test`/`npm run e2e:full` на node:24, починить несовместимости, поднять `engines`/CI-matrix |
-| PH-010 | Env-gated unit-тесты | low | pending | — | `embeddings.cache` (model download), `new-connectors` webcrawler (network), `obsidian.roundtrip` — падают без сети/нативных зависимостей. Пометить `describe.skipIf(!process.env.NETWORK_TESTS)` / аналог |
-| PH-011 | Добивка e2e-пробелов | low | pending | — | `tasks_tree` — единственный registered tool без e2e-вызова; `memory_async_submit type:bulk_import` конкретно не дёрнут; session_info положительный путь после PH-002 |
+| PH-008 | ESLint warnings sweep | medium | done | — | ~998/1000 warnings — любой новый `any` роняет линт. Пройтись по top-offenders (`no-explicit-any`, `no-unused-vars`, `no-useless-assignment`) → цель <700, либо осознанно поднять cap с планом снижения |
+| PH-009 | Node 22/24 compatibility | medium | done | — | GHA форсит actions на Node 24 (deprecation warnings). Проверить `npm test`/`npm run e2e:full` на node:24, починить несовместимости, поднять `engines`/CI-matrix |
+| PH-010 | Env-gated unit-тесты | low | done | — | `embeddings.cache` (model download), `new-connectors` webcrawler (network), `obsidian.roundtrip` — падают без сети/нативных зависимостей. Пометить `describe.skipIf(!process.env.NETWORK_TESTS)` / аналог |
+| PH-011 | Добивка e2e-пробелов | low | done | — | `tasks_tree` — единственный registered tool без e2e-вызова; `memory_async_submit type:bulk_import` конкретно не дёрнут; session_info положительный путь после PH-002 |
 
 ### Фаза 5 — Расширенное покрытие (опционально)
 
