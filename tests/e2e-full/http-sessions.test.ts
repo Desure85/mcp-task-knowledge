@@ -95,10 +95,24 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       expect(env.data.sessionsEnabled).toBe(true);
       expect(env.data.rateLimitingEnabled).toBe(true);
       expect(typeof env.data.total).toBe('number');
-      // Known gap (BACKLOG Q-014): StreamableHTTP sessions are not tracked by
-      // SessionManager — session_list stays empty even after authenticate,
-      // so session_info's full-detail path has no e2e-reachable session.
-      expect(env.data.sessions).toEqual([]);
+
+      // PH-002: HTTP sessions are registered in SessionManager under the SDK
+      // session id (== mcp-session-id header) — session_list is now live.
+      const sdkSessionId = transport.sessionId;
+      expect(sdkSessionId).toBeTruthy();
+      expect(env.data.total).toBeGreaterThanOrEqual(1);
+      const ours = env.data.sessions.find((s: { sessionId?: string }) => s.sessionId === sdkSessionId);
+      expect(ours).toBeTruthy();
+      expect(ours.metadata?.transport).toBe('http');
+      // authenticate() earlier should have stamped userId into metadata
+      // (A-003 wiring reaches SessionManager only once the session exists).
+      expect(ours.metadata?.userId).toBe('q014-user');
+
+      // session_info resolves full detail by the live session id.
+      const info = (await client.callTool({ name: 'session_info', arguments: { sessionId: sdkSessionId } })) as { content?: Array<{ text?: string }> };
+      const infoEnv = JSON.parse(info?.content?.[0]?.text ?? '{}');
+      expect(infoEnv.ok).toBe(true);
+      expect(infoEnv.data.sessionId).toBe(sdkSessionId);
     } finally {
       try { await client?.close(); } catch {}
       try { child.kill('SIGTERM'); } catch {}

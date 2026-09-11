@@ -33,6 +33,7 @@ export class HttpTransportAdapter implements TransportAdapter {
   private _connected = false;
   private healthHandlers?: ReturnType<typeof createHealthHandlers>;
   private serverCtx?: ServerContext;
+  private pendingInitRemotes: string[] = [];
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
@@ -79,8 +80,26 @@ export class HttpTransportAdapter implements TransportAdapter {
     this.serverCtx = ctx;
     this.httpServer = createHttpServer();
 
+    // PH-002: register SDK sessions in SessionManager under their own id
+    // (== mcp-session-id header) so session_list/session_info, auth metadata
+    // and JWT-expiry binding (A-003) all resolve against live sessions.
+    // pendingInitRemotes is a FIFO: each initialize POST pushes one remote,
+    // onsessioninitialized consumes one — correct under concurrent inits.
     this.transport = new SdkHttpTransport({
       sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sessionId: string) => {
+        const sm = this.serverCtx?.sessionManager;
+        if (!sm) return;
+        const remote = this.pendingInitRemotes.shift() ?? 'http';
+        try {
+          sm.create({ id: sessionId, remote, metadata: { transport: 'http' } });
+        } catch (e) {
+          log.warn({ sessionId, err: e }, 'session-manager rejected session create');
+        }
+      },
+      onsessionclosed: (sessionId: string) => {
+        void this.serverCtx?.sessionManager?.close(sessionId);
+      },
     });
 
     const apiHandler = createOpenAPIHandler(ctx);
@@ -136,9 +155,18 @@ export class HttpTransportAdapter implements TransportAdapter {
           res.end(denied.body);
           return;
         }
+        // PH-002: capture remote for the session being initialized so
+        // onsessioninitialized can record it; consumed FIFO by the callback.
+        const isInitialize = (Array.isArray(parsedBody) ? parsedBody : [parsedBody])
+          .some((b) => (b as { method?: string } | null)?.method === 'initialize');
+        if (isInitialize) {
+          this.pendingInitRemotes.push(req.socket.remoteAddress ?? 'http');
+        }
         await this.transport!.handleRequest(req, res, parsedBody);
+        this.heartbeatSession(req);
       } else {
         await this.transport!.handleRequest(req, res);
+        this.heartbeatSession(req);
       }
     });
 
@@ -157,6 +185,15 @@ export class HttpTransportAdapter implements TransportAdapter {
         log.info('Prometheus metrics: http://%s:%s/metrics', this.host, this.port);
       }
     });
+  }
+
+  /** PH-002: reset idle timer for the session carried by mcp-session-id. */
+  private heartbeatSession(req: IncomingMessage): void {
+    const headerSid = req.headers['mcp-session-id'];
+    const sessionId = Array.isArray(headerSid) ? headerSid[0] : headerSid;
+    if (sessionId) {
+      this.serverCtx?.sessionManager?.heartbeat(sessionId);
+    }
   }
 
   async close(): Promise<void> {

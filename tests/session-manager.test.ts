@@ -496,3 +496,37 @@ describe('SessionManager — S-005 metrics callbacks', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe('SessionManager — explicit id (PH-002, transport-owned session ids)', () => {
+  it('create({id}) registers under the given id — not a fresh UUID', () => {
+    const sm = new SessionManager();
+    const info = sm.create({ remote: 'http:1.2.3.4', id: 'sdk-session-abc' });
+    expect(info.id).toBe('sdk-session-abc');
+    expect(sm.has('sdk-session-abc')).toBe(true);
+    expect(sm.get('sdk-session-abc')?.remote).toBe('http:1.2.3.4');
+  });
+
+  it('create({id}) with an existing id is idempotent — returns the live session', () => {
+    const sm = new SessionManager();
+    const first = sm.create({ remote: 'http:a', id: 'dup', metadata: { transport: 'http' } });
+    const again = sm.create({ remote: 'http:b', id: 'dup' });
+    expect(again.id).toBe('dup');
+    expect(again.createdAt).toBe(first.createdAt);
+    expect(sm.size).toBe(1);
+    // original metadata preserved (re-init does not wipe it)
+    expect(sm.get('dup')?.metadata?.transport).toBe('http');
+  });
+
+  it('explicit-id sessions still expire by TTL and per-session expiry', async () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    const sm = new SessionManager({ sessionTtlMs: 500, onSessionClose: onClose });
+    sm.create({ remote: 'http:x', id: 'ext-1' });
+    sm.setSessionExpiry('ext-1', Date.now() + 100);
+    vi.advanceTimersByTime(150);
+    await sm.prune();
+    expect(sm.has('ext-1')).toBe(false);
+    expect(onClose.mock.calls[0][2]).toBe('expired');
+    vi.useRealTimers();
+  });
+});
