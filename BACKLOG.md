@@ -750,7 +750,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | PH-004 | Семантика current project (session-scoped) | medium | done | PH-002 | Глобальный `current` — shared mutable state: один агент `set_current` ломает default для всех подключённых. После PH-002 сделать current per-session (SessionManager), stdio-режим — single-session. Schema-default `'mcp'` не трогаем (обратная совместимость); явный `project` остаётся главным контрактом. Задокументировать в docs |
 | PH-005 | Унификация error-стиля handlers | low | done | — | `project_purge` и другие бросают raw `Error` (protocol error) вместо `{ok:false}` envelope. Аудит всех `throw` в `src/register/*`, перевести на `err()` где это доменная ошибка, оставить throw только для протокольных |
-| PH-006 | Connector expose-mode + registry visibility | medium | done | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry → `tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
+| PH-006 | Connector expose-mode + registry visibility | medium | done | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry →`tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
 
 ### Фаза 3 — Memory multi-tenancy (полная изоляция)
 
@@ -816,7 +816,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | AUD-08 | HTTP body cap + session cap | medium | pending | — | POST body без лимита (http-transport.ts:167) → memory DoS; SM maxSessions обходится — transport попадает в `sessions` до `sm.create` (reject ловится, транспорт живёт). Фикс: Content-Length/maxBytes лимит; при SM-reject — transport.close() |
 | AUD-09 | Unix socket: права + опциональный auth | medium | pending | — | Сокет без chmod + requireAuth=false → любой локальный юзер = полный доступ (stream-transport.ts:478, auth-gate.ts:60). Фикс: chmod 600; опционально requireAuth для unix |
-| AUD-10 | tools_run/tools_batch: gated handler + scope | medium | pending | — | Registry хранит raw handler (setup.ts:270,300) → вызов без requestScope: PH-004 session-project внутри batch не работает; и исполняет tools при TOOLS_ENABLED=0 (tools-introspection.ts:159,208). Фикс: хранить gated handler, честить TOOLS_ENABLED |
+| AUD-10 | tools_run/tools_batch: gated handler + scope | medium | done | — | Registry хранил raw handler → вызов без requestScope/auth/SecurityStack; исполнял tools при TOOLS_ENABLED=0. Фикс: registry хранит gated handler (setup.ts ×4 + app-container connector path через ctx.gateToolHandler), tools_run/tools_batch форвардят SDK extra (sessionId) и рефузят non-whitelist при TOOLS_ENABLED=0. Закрывает и TR-15. Тесты: tests/aud10-tools-run-gate.test.ts |
 | AUD-11 | JWKS: kid-selection + cache TTL | medium | pending | — | `resolveKey()` вызывает `jwksResolver()` без (protectedHeader, token) → kid не участвует → мульти-ключевой JWKS ломает валидацию (jwt-validator.ts:398). `jwksCacheTtl` — мёртвая опция. Фикс: `jwtVerify(token, jwksResolver, opts)`, передать cacheMaxAge |
 | AUD-12 | Гигиена error-сообщений | medium | pending | — | `e.message` уходит клиенту (auth-gate.ts:180, http-transport.ts:354, register/auth.ts:51) — внутренние пути/детали наружу. Фикс: наружу generic message, детали в server log |
 | AUD-13 | Rate-limit на mcp.authenticate | medium | pending | AUD-07 | Брутфорс токена не ограничен; identity=sessionId → новый initialize = чистый счётчик. Фикс: AuthProtection по remote IP |
@@ -909,7 +909,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | TR-01 | Аудит: indirect prompt injection через stored content | high | pending | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки |
-| TR-02 | Аудит Web UI | high | pending | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
+| TR-02 | Аудит Web UI | high | done | 724059a | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
 | TR-03 | Аудит коннекторов и lifecycle кредов | medium | pending | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации |
 | TR-04 | Аудит качества тестов («тесты, которые врут») | high | pending | — | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Тот же паттерн «done ≠ работает», но для тестов. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает |
 
@@ -966,6 +966,28 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | SPEC-09 | Protocol-version conformance e2e | medium | pending | DX-23 | Зафиксировать negotiated `protocolVersion` в e2e; Inspector-гейт частично покроет |
 | SPEC-10 | SDK upgrade policy | low | pending | — | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
+| TR-14 | Egress prompt-injection scanner в ToolMiddleware.after() | high | pending | TR-01 | Сканировать output всех tools на паттерны: "ignore previous", role markers, zero-width, base64 payload >50 chars. Отдельный Sanitizer-instance на egress. |
+| TR-15 | tools_run/tools_batch — пропускает auth-gate+SecurityStack | critical | done | TR-01 | Закрыто вместе с AUD-10: registry хранит gated handler (wrapToolHandler) → auth/ACL/audit/egress-scan применяются на dispatch через tools_run/tools_batch. Тесты: tests/aud10-tools-run-gate.test.ts |
+| TR-16 | Trust/provenance metadata на stored docs | medium | pending | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external. |
+| TR-17 | XML/context escaping в memory_context_assemble | high | pending | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. |
+| DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | pending | AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
+| AUD-18a | Path traversal userId в ProfileManager | critical | pending | AUD-18 | memory/user-profile.ts:95 join(storageDir, userId+'.json') без resolveUnder — arbitrary read/write |
+| AUD-18b | Non-atomic JSON stores в memory/sync | critical | pending | AUD-18 | TemporalGraph/EntityGraph/ProfileManager пишут writeFileSync без tmp+rename — crash = silent data loss |
+| AUD-18c | Lost-update RMW races в stores | high | pending | AUD-18 | In-memory copy→mutate→rewrite без lock; concurrent updates теряются |
+| AUD-18d | EventLog unbounded growth + no compaction | high | pending | AUD-18 | persist() переписывает весь лог на каждый append; compactThreshold не используется |
+| AUD-18e | threeWayMerge LWW no tiebreaker + manual writes null | medium | pending | AUD-18 | src/sync/ — merge bugs; whole sync stack is dead code (not wired) |
+| AUD-18f | writeText не атомарный для .md knowledge docs | medium | pending | AUD-18 | writeJson атомарный (Q-013), writeText — нет |
+| TR-04a | Delete lying tests: tasks_dag, obsidian.*.smoke (×2), confirm.replace.e2e | high | pending | TR-04 | Тесты ре-имплементируют SUT — реальный код может сломаться, тесты зелёные |
+| TR-04b | Rewrite openapi.test.ts + markdown.test.ts на реальные модули | high | pending | TR-04 | zodToOpenApi определён в тесте; _getToolHandler→null |
+| TR-04c | Rewrite cli.tools_list.contract + jsonrpc-fuzz (real imports) | high | pending | TR-04 | Regex по 22-строчному делегату; normalizeEnvelope клон |
+| TR-04d | Rewrite e2e-full/memory-lifecycle — assert data, not shape | medium | pending | TR-04 | 30 вызовов env.ok===true, temporal_query не проверяет данные |
+| TR-04e | Line-fixes batch: 12 файлов слабых ассертов | medium | pending | TR-04 | jwt-validator:787, memory-extended:304/328, chaos-shutdown:134, fts-search:124 и др. |
+| TR-04f | Coverage gaps: dashboard_*, confirm-gate, bandit epsilon>0, bm25 params | medium | pending | TR-04 | Реальные дыры покрытия при 92.7% total |
+| TR-04g | Test hygiene: DATA_DIR isolation + shared e2e http harness | low | pending | TR-04 | /tmp/mcp-data гонки; ~200 строк дублей в 6 e2e файлах |
+| TR-18 | tests/security-stack.test.ts:197,209 — `lockoutMs` → `maxLockoutMs` (pre-existing tsc error) | low | pending | AUD-10 | AuthProtectionOptions нет `lockoutMs` |
+| TR-19 | Битые `_X` импорты в 4+ тест-файлах (event-bus, tool-executor, async-ops, multimodal) | medium | pending | AUD-10 | tsconfig.test.json красный — экспорты удалены при рефакторинге, импорты остались |
+| TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | pending | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
+| TR-21 | AuthProtection дублирует ключи: sessionId в SecurityStack + IP в AuthManager | low | pending | AUD-13 | Два инстанса пишут разные ключи — не баг, но шум; унифицировать на IP-keyed |
 
 ---
 

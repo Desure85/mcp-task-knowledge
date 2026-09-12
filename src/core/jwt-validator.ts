@@ -35,6 +35,8 @@
 
 import * as jose from 'jose';
 import type { JWTHeaderParameters, JWTPayload, JWTVerifyResult } from 'jose';
+import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { TokenValidator, AuthResult } from './auth.js';
 import { childLogger } from './logger.js';
 
@@ -107,9 +109,19 @@ export interface JwtValidatorOptions {
 
   /**
    * Maximum blacklist size. Default: 10_000.
-   * When exceeded, oldest entries are evicted.
+   * When exceeded, expired entries are purged first, then entries with the
+   * earliest token `exp` are evicted (soonest-to-expire first — a revoked
+   * token stops mattering once it would fail the exp check anyway).
    */
   maxBlacklistSize?: number;
+
+  /**
+   * AUD-16: path to persist the revocation blacklist (JSON file).
+   * When set, revocations survive process restarts; the file is loaded
+   * lazily on construction and rewritten on each mutation.
+   * Example: path.join(DATA_DIR, '.jwt-revoked.json')
+   */
+  blacklistPath?: string;
 }
 
 /** Parsed JWT payload with typed claims. */
@@ -185,11 +197,17 @@ export class JwtValidator {
   private readonly roleClaims: string[];
   private readonly metadataClaims: Record<string, string>;
   private readonly maxBlacklistSize: number;
+  private readonly blacklistPath?: string;
 
   // State
   private jwksResolver?: ReturnType<typeof jose.createRemoteJWKSet>;
-  private readonly blacklist = new Set<string>();
-  private readonly blacklistTimestamps: Array<{ jti: string; ts: number }> = [];
+  /**
+   * AUD-16: jti → token exp (epoch seconds). `0` = unknown exp (entry kept
+   * until capacity eviction). Expired entries are purged lazily on mutation
+   * and on validate() — a revoked token whose exp already passed would be
+   * rejected by the exp check anyway, so keeping it only wastes capacity.
+   */
+  private readonly blacklist = new Map<string, number>();
 
   constructor(options: JwtValidatorOptions) {
     if (!options.secret && !options.jwksUri) {
@@ -207,6 +225,10 @@ export class JwtValidator {
     this.roleClaims = options.roleClaims ?? ['roles', 'realm_access.roles', 'groups'];
     this.metadataClaims = options.metadataClaims ?? {};
     this.maxBlacklistSize = options.maxBlacklistSize ?? 10_000;
+    this.blacklistPath = options.blacklistPath;
+    if (this.blacklistPath) {
+      this.loadBlacklist();
+    }
   }
 
   // ─── Public API ────────────────────────────────────────────────────
@@ -300,27 +322,53 @@ export class JwtValidator {
    * Adds the jti to the blacklist so future validation calls will reject it.
    * Note: call this before validate() to prevent race conditions, or use
    * it for proactive revocation (e.g. on logout or token refresh).
+   *
+   * @param jti - the token's jti claim
+   * @param exp - the token's exp claim (epoch seconds), if known. Enables
+   *   exp-based eviction: expired revocations are dead weight and are purged
+   *   first when the blacklist reaches capacity. Unknown → entry is kept
+   *   until capacity eviction.
    */
-  revokeByJti(jti: string): void {
+  revokeByJti(jti: string, exp?: number): void {
     if (this.blacklist.has(jti)) return;
 
-    this.blacklist.add(jti);
-    this.blacklistTimestamps.push({ jti, ts: Date.now() });
-
-    // Evict oldest entries if at capacity
-    while (this.blacklistTimestamps.length > this.maxBlacklistSize) {
-      const oldest = this.blacklistTimestamps.shift()!;
-      this.blacklist.delete(oldest.jti);
-    }
+    this.blacklist.set(jti, typeof exp === 'number' && Number.isFinite(exp) ? exp : 0);
+    this.evictBlacklistIfNeeded();
+    this.persistBlacklist();
 
     log.info({ jti, size: this.blacklist.size }, 'token revoked by jti');
+  }
+
+  /**
+   * Revoke a raw JWT — decodes jti and exp from the token itself.
+   * Preferred over revokeByJti when the caller has the token: the exp claim
+   * lets the blacklist drop the entry once the token would be rejected by
+   * the expiry check anyway. No-op if the token has no jti.
+   */
+  revokeToken(token: string): void {
+    try {
+      const payload = jose.decodeJwt(token);
+      if (payload.jti) {
+        this.revokeByJti(payload.jti, payload.exp);
+      }
+    } catch (err) {
+      log.warn({ err }, 'revokeToken: failed to decode token');
+    }
   }
 
   /**
    * Check if a jti is blacklisted.
    */
   isRevoked(jti: string): boolean {
-    return this.blacklist.has(jti);
+    const exp = this.blacklist.get(jti);
+    if (exp === undefined) return false;
+    // A revocation for an already-expired token is meaningless — treat as
+    // not revoked and drop the entry.
+    if (exp > 0 && exp * 1000 <= Date.now()) {
+      this.blacklist.delete(jti);
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -336,9 +384,73 @@ export class JwtValidator {
   clearBlacklist(): void {
     const size = this.blacklist.size;
     this.blacklist.clear();
-    this.blacklistTimestamps.length = 0;
+    this.persistBlacklist();
     if (size > 0) {
       log.info({ size }, 'token blacklist cleared');
+    }
+  }
+
+  // ─── Blacklist internals (AUD-16) ──────────────────────────────────
+
+  /**
+   * Eviction policy: purge expired entries first (their tokens fail the exp
+   * check regardless), then — if still over capacity — evict entries with
+   * the earliest exp (soonest to become irrelevant). Entries with unknown
+   * exp (0) sort last so they outlive known-exp entries.
+   */
+  private evictBlacklistIfNeeded(): void {
+    const nowSec = Date.now() / 1000;
+    for (const [jti, exp] of this.blacklist) {
+      if (exp > 0 && exp <= nowSec) this.blacklist.delete(jti);
+    }
+    if (this.blacklist.size <= this.maxBlacklistSize) return;
+
+    const byExp = [...this.blacklist.entries()].sort((a, b) => {
+      const ea = a[1] === 0 ? Number.POSITIVE_INFINITY : a[1];
+      const eb = b[1] === 0 ? Number.POSITIVE_INFINITY : b[1];
+      return ea - eb;
+    });
+    const excess = this.blacklist.size - this.maxBlacklistSize;
+    for (let i = 0; i < excess; i++) {
+      this.blacklist.delete(byExp[i][0]);
+    }
+  }
+
+  /** Load persisted revocations from blacklistPath (best-effort). */
+  private loadBlacklist(): void {
+    try {
+      const raw = readFileSync(this.blacklistPath!, 'utf8');
+      const data = JSON.parse(raw) as { revoked?: Record<string, number> };
+      const nowSec = Date.now() / 1000;
+      let loaded = 0;
+      for (const [jti, exp] of Object.entries(data.revoked ?? {})) {
+        if (typeof jti !== 'string' || typeof exp !== 'number') continue;
+        if (exp > 0 && exp <= nowSec) continue; // already-expired revocation
+        this.blacklist.set(jti, exp);
+        loaded++;
+      }
+      if (loaded > 0) {
+        log.info({ loaded, path: this.blacklistPath }, 'token blacklist loaded from disk');
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        log.warn({ err, path: this.blacklistPath }, 'failed to load token blacklist — starting empty');
+      }
+    }
+  }
+
+  /** Persist revocations to blacklistPath (atomic tmp+rename, best-effort). */
+  private persistBlacklist(): void {
+    if (!this.blacklistPath) return;
+    try {
+      mkdirSync(dirname(this.blacklistPath), { recursive: true });
+      const revoked: Record<string, number> = {};
+      for (const [jti, exp] of this.blacklist) revoked[jti] = exp;
+      const tmp = `${this.blacklistPath}.tmp`;
+      writeFileSync(tmp, JSON.stringify({ revoked }), 'utf8');
+      renameSync(tmp, this.blacklistPath);
+    } catch (err) {
+      log.warn({ err, path: this.blacklistPath }, 'failed to persist token blacklist');
     }
   }
 
@@ -383,23 +495,31 @@ export class JwtValidator {
     }
 
     if (this.jwksUri) {
-      const key = await this.resolveKey(token);
-      return await jose.jwtVerify(token, key, verifyOptions);
+      const jwks = this.getJwksResolver();
+      // Pass the resolver function itself — jose calls it with
+      // (protectedHeader, token) and performs kid-based key selection
+      // internally, including refetch on unknown kid (key rotation).
+      return await jose.jwtVerify(token, jwks, verifyOptions);
     }
 
     throw new Error('no secret or jwksUri configured');
   }
 
   /**
-   * Resolve the signing key from JWKS.
-   * Uses kid from token header to match the correct key.
-   * Falls back to the first matching key if no kid is present.
+   * Get (or lazily create) the remote JWKS resolver.
+   *
+   * The returned function has signature `(protectedHeader, token) => KeyLike`
+   * and is passed directly to `jose.jwtVerify`, which invokes it with the
+   * token's protected header so the correct key is selected by `kid`.
+   * `cacheMaxAge` is wired from the `jwksCacheTtl` option.
    */
-  private async resolveKey(_token: string): Promise<CryptoKey> {
+  private getJwksResolver(): ReturnType<typeof jose.createRemoteJWKSet> {
     if (!this.jwksResolver) {
-      this.jwksResolver = jose.createRemoteJWKSet(new URL(this.jwksUri!));
+      this.jwksResolver = jose.createRemoteJWKSet(new URL(this.jwksUri!), {
+        cacheMaxAge: this.jwksCacheTtl,
+      });
     }
-    return await this.jwksResolver();
+    return this.jwksResolver;
   }
 
 

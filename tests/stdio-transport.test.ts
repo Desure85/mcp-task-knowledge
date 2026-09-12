@@ -50,7 +50,7 @@ function _createMockContext(): ServerContext {
     TOOL_RES_ENABLED: false,
     TOOL_RES_EXEC: false,
     REPO_ROOT: '/tmp',
-    SERVER_CAPS: { resources: { list: true, read: true }, tools: { call: true } },
+    SERVER_CAPS: { resources: { subscribe: false, listChanged: false }, tools: { listChanged: false }, prompts: { listChanged: false }, completion: {} },
     normalizeBase64: (s) => s,
     makeResourceTemplate: (_p: string) => ({} as any),
     registerToolAsResource: () => {},

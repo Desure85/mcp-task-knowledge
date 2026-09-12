@@ -52,10 +52,13 @@ export function createMockServerContext(overrides: Partial<ServerContext> = {}):
     TOOL_RES_ENABLED: false,
     TOOL_RES_EXEC: false,
     REPO_ROOT: '/tmp',
-    SERVER_CAPS: { resources: { list: true, read: true }, tools: { call: true } },
+    SERVER_CAPS: { resources: { subscribe: false, listChanged: false }, tools: { listChanged: false }, prompts: { listChanged: false }, completion: {} },
     normalizeBase64: (s: string) => s,
     makeResourceTemplate: () => ({}) as never,
     registerToolAsResource: () => {},
+    // AUD-10: default passthrough gate — tests needing real auth-gate
+    // behaviour build a context via createServerContext() instead.
+    gateToolHandler: (_name, handler) => handler,
     ...overrides,
   };
 }

@@ -35,7 +35,17 @@ export async function createServerContext(): Promise<ServerContext> {
   }
 
   const version = await getPackageVersion();
-  const SERVER_CAPS = { resources: { list: true, read: true }, tools: { call: true } } as const;
+  // MCP spec-compliant capability flags. Server handles:
+  //   tools/list + tools/call, resources/list + resources/read + resources/templates/list,
+  //   prompts/list + prompts/get, completion/complete.
+  // No resources/subscribe, no */list_changed notifications, no logging/setLevel —
+  // so subscribe/listChanged are declared false (SPEC-02).
+  const SERVER_CAPS = {
+    resources: { subscribe: false, listChanged: false },
+    tools: { listChanged: false },
+    prompts: { listChanged: false },
+    completion: {},
+  } as const;
 
   const SHOW_STARTUP = (
     process.env.LOG_STARTUP === '1' ||
@@ -146,6 +156,7 @@ export async function createServerContext(): Promise<ServerContext> {
   const gateResolve = () => ({
     auth: gateCtx.ctx?.authManager,
     transport: gateCtx.ctx?.transportType ?? 'stdio',
+    security: gateCtx.ctx?.securityStack,
   });
   const gateHandler = (name: string, handler: unknown): unknown => {
     if (typeof handler !== 'function') return handler;
@@ -155,6 +166,12 @@ export async function createServerContext(): Promise<ServerContext> {
       gateResolve,
     );
   };
+  // AUD-10: registry must store the GATED handler so tools_run/tools_batch/
+  // REST wrappers get auth-gate + SecurityStack + requestScope. Exposed on
+  // ctx for registration paths outside this function (connector ops in
+  // app-container.ts) — they must gate before toolRegistry.set too.
+  const gateToolHandler = (name: string, handler: ToolMetaHandler): ToolMetaHandler =>
+    gateHandler(name, handler) as ToolMetaHandler;
   rawServer.registerResource = ((orig: (...args: unknown[]) => unknown) => {
     return function(id: string, uriOrTemplate: unknown, info: { title?: string; description?: string; mimeType?: string }, handler: unknown) {
       try {
@@ -267,7 +284,7 @@ export async function createServerContext(): Promise<ServerContext> {
               title: def?.title as string | undefined,
               description: def?.description as string | undefined,
               inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-              handler: handler as ToolMetaHandler,
+              handler: gated as ToolMetaHandler,
             });
             if (TOOL_RES_ENABLED) registerToolAsResource(name);
           } catch {}
@@ -282,7 +299,7 @@ export async function createServerContext(): Promise<ServerContext> {
             title: def?.title as string | undefined,
             description: def?.description as string | undefined,
             inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-            handler: handler as ToolMetaHandler,
+            handler: gated as ToolMetaHandler,
           });
           if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
@@ -297,7 +314,7 @@ export async function createServerContext(): Promise<ServerContext> {
             title: def?.title as string | undefined,
             description: def?.description as string | undefined,
             inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-            handler: handler as ToolMetaHandler,
+            handler: gated as ToolMetaHandler,
           });
           if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
@@ -312,7 +329,7 @@ export async function createServerContext(): Promise<ServerContext> {
               title: def?.title as string | undefined,
               description: def?.description as string | undefined,
               inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-              handler: handler as ToolMetaHandler,
+              handler: gated as ToolMetaHandler,
             });
           } catch {}
           return;
@@ -356,10 +373,14 @@ export async function createServerContext(): Promise<ServerContext> {
     normalizeBase64,
     makeResourceTemplate,
     registerToolAsResource,
+    gateToolHandler,
   };
   gateCtx.ctx = ctx;
   return ctx;
 }
 
 /** Type alias for tool handler functions stored in ToolMeta. */
-export type ToolMetaHandler = (params: Record<string, unknown>) => Promise<unknown>;
+export type ToolMetaHandler = (
+  params: Record<string, unknown>,
+  extra?: unknown,
+) => Promise<unknown>;

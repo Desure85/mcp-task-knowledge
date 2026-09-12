@@ -35,9 +35,13 @@
 | `TOKEN_TTL_MS` | `3600000` | Access token TTL (1h) |
 | `REFRESH_TOKEN_TTL_MS` | `604800000` | Refresh token TTL (7d) |
 | `RATE_LIMIT_RPM` | `60` | Requests per minute per session |
-| `TLS_CERT` | — | TLS certificate path |
-| `TLS_KEY` | — | TLS private key path |
-| `TLS_CA` | — | TLS CA bundle path |
+| `TLS_CERT_PATH` | — | TLS certificate path (enables HTTPS/TLS TCP when set with `TLS_KEY_PATH`) |
+| `TLS_KEY_PATH` | — | TLS private key path |
+| `TLS_CA_PATH` | — | TLS CA bundle path (client cert verification / mTLS) |
+| `TLS_REQUEST_CERT` | `false` | Request client certificate (mTLS) |
+| `TLS_REJECT_UNAUTHORIZED` | `true` | Reject unauthorized client certs |
+| `TLS_MIN_VERSION` | `TLSv1.2` | Minimum TLS version |
+| `TLS_HOT_RELOAD` | `false` | Watch cert/key files and reload on change |
 
 ### Obsidian
 

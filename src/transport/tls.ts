@@ -130,6 +130,10 @@ export class TlsContext {
 
   /**
    * Create options for tls.createServer() or https.createServer().
+   * Passes cert/key inline AND the secureContext — Node's https server
+   * completes the handshake reliably with inline cert/key (a bare
+   * secureContext fails with ssl alert 40 on some Node versions), while
+   * secureContext stays for callers that need it (SNICallback etc.).
    */
   createServerOptions(): TlsOptions {
     if (!this.isEnabled) {
@@ -137,10 +141,20 @@ export class TlsContext {
     }
 
     const options: TlsOptions = {
+      cert: readFileSync(this.config.cert!, 'utf8'),
+      key: readFileSync(this.config.key!, 'utf8'),
       secureContext: this.context,
       requestCert: this.config.requestCert ?? false,
       rejectUnauthorized: this.config.rejectUnauthorized ?? true,
     };
+
+    if (this.config.ca) {
+      options.ca = this.readFileOrArray(this.config.ca);
+    }
+
+    if (this.config.passphrase) {
+      options.passphrase = this.config.passphrase;
+    }
 
     if (this.config.alpnProtocols) {
       options.ALPNProtocols = this.config.alpnProtocols;

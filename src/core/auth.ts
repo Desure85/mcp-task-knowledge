@@ -47,6 +47,7 @@
 
 import type { SessionManager} from './session-manager.js';
 import type { ToolContext, PreToolHook } from './tool-executor.js';
+import type { AuthProtection } from './auth-protection.js';
 
 import { childLogger } from './logger.js';
 
@@ -116,6 +117,14 @@ export interface AuthManagerOptions {
    * Set to Infinity or negative to disable (session lives until global TTL).
    */
   tokenTtlGraceMs?: number;
+
+  /**
+   * AuthProtection instance for brute-force lockout on authenticate() (AUD-13).
+   * Keyed by client remote IP (resolved via SessionManager metadata), NOT by
+   * sessionId — a fresh initialize must not reset the failure counter.
+   * When absent, authenticate() runs unprotected (backwards compat).
+   */
+  authProtection?: AuthProtection;
 }
 
 /** Error thrown when authentication fails. */
@@ -157,6 +166,7 @@ export class AuthManager {
   private readonly tokenValidator?: TokenValidator;
   private readonly sessionManager?: SessionManager;
   private readonly tokenTtlGraceMs: number;
+  private readonly authProtection?: AuthProtection;
   private readonly authenticatedSessions = new Set<string>();
 
   // Default whitelist: methods allowed before auth
@@ -173,6 +183,7 @@ export class AuthManager {
     this.tokenValidator = options?.tokenValidator;
     this.sessionManager = options?.sessionManager;
     this.tokenTtlGraceMs = options?.tokenTtlGraceMs ?? 30_000;
+    this.authProtection = options?.authProtection;
 
     // Build pre-auth method whitelist
     this.preAuthMethods = new Set(AuthManager.DEFAULT_WHITELIST);
@@ -192,9 +203,14 @@ export class AuthManager {
 
   /**
    * Check if a session is authenticated.
+   * AUD-05: также требует, чтобы сессия была жива в SessionManager —
+   * иначе закрытая TTL/idle сессия продолжала бы работать через
+   * authenticatedSessions, даже когда SM запись уже удалена.
    */
   isAuthenticated(sessionId: string): boolean {
-    return this.authenticatedSessions.has(sessionId);
+    if (!this.authenticatedSessions.has(sessionId)) return false;
+    if (this.sessionManager && !this.sessionManager.has(sessionId)) return false;
+    return true;
   }
 
   /**
@@ -231,11 +247,25 @@ export class AuthManager {
       throw new AuthError('NO_VALIDATOR', 'no token validator configured');
     }
 
+    // AUD-13: brute-force gate keyed by client remote IP (resolved from the
+    // session's `remote` in SessionManager), not by sessionId — otherwise
+    // every fresh initialize resets the failure counter.
+    const key = this.clientKey(sessionId);
+    if (this.authProtection) {
+      const gate = this.authProtection.check(key);
+      if (!gate.allowed) {
+        log.warn({ sessionId, key, reason: gate.reason }, 'authentication blocked — identifier locked');
+        throw new AuthError('AUTH_LOCKED', 'too many failed attempts — try again later');
+      }
+    }
+
     const result = await this.tokenValidator(token);
     if (!result) {
+      this.authProtection?.recordFailure(key);
       log.warn({ sessionId }, 'authentication failed — invalid token');
       throw new InvalidTokenError();
     }
+    this.authProtection?.recordSuccess(key);
 
     // Mark session as authenticated
     this.authenticatedSessions.add(sessionId);
@@ -269,6 +299,20 @@ export class AuthManager {
     }
 
     return result;
+  }
+
+  /**
+   * Validate a token without marking any session (AUD-15).
+   *
+   * Used by paths that only need an allow/deny verdict — e.g. the realtime
+   * WebSocket tokenValidator. authenticate() would leave a phantom
+   * 'ws:<token>' entry in authenticatedSessions that no close path revokes.
+   * Does NOT touch authProtection: callers without a stable client identity
+   * must not consume/record failure budget on a shared key.
+   */
+  async validateToken(token: string): Promise<AuthResult | null> {
+    if (!this.tokenValidator) return null;
+    return this.tokenValidator(token);
   }
 
   /**
@@ -395,6 +439,21 @@ export class AuthManager {
       // Session is authenticated — allow
       return { deny: false };
     };
+  }
+
+  /**
+   * AUD-13: brute-force identifier for AuthProtection — the client's remote
+   * IP, resolved from SessionManager session metadata (`remote` set by the
+   * transport at connect time). TCP stores `ip:port` (strip the port);
+   * HTTP stores the bare remoteAddress; unix/stdio have no network peer so
+   * the sessionId itself is the key. A fresh initialize must NOT reset the
+   * counter — sessionId-keyed tracking is the bug being fixed.
+   */
+  private clientKey(sessionId: string): string {
+    const remote = this.sessionManager?.get(sessionId)?.remote;
+    if (!remote) return sessionId;
+    // 'ip:port' → 'ip'; bare IP / 'unknown' / 'unix:...' pass through.
+    return remote.replace(/:\d+$/, '') || sessionId;
   }
 }
 

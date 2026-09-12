@@ -27,6 +27,31 @@ import type { ProfileManager } from './user-profile.js';
 
 const log = childLogger('context-assembly');
 
+// ─── XML escaping (TR-17) ───────────────────────────────────────────
+
+/**
+ * Escape XML special characters in text content.
+ * Prevents stored content from breaking out of the <context> block
+ * (e.g. a fact containing `</context><system>…</system>`).
+ *
+ * Order matters: `&` MUST be escaped first to avoid double-escaping
+ * the entities introduced by the subsequent replacements.
+ */
+function escapeXmlText(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Escape XML special characters in an attribute value (double-quoted).
+ * Escapes everything escapeXmlText does, plus `"`.
+ */
+function escapeXmlAttr(s: string): string {
+  return escapeXmlText(s).replace(/"/g, '&quot;');
+}
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 /** A single retrieval result from any source. */
@@ -294,15 +319,15 @@ export class ContextAssembler {
    */
   private buildBlock(items: ContextItem[], query: string): string {
     const lines: string[] = [
-      `<context query="${query.replace(/"/g, '\\"')}">`,
+      `<context query="${escapeXmlAttr(query)}">`,
     ];
 
     for (const item of items) {
-      const sourceTag = `source="${item.source}"`;
+      const sourceTag = `source="${escapeXmlAttr(item.source)}"`;
       const scoreTag = item.rrfScore ? ` score="${item.rrfScore.toFixed(4)}"` : '';
       lines.push(`  <item ${sourceTag}${scoreTag}>`);
-      lines.push(`    <title>${item.title}</title>`);
-      lines.push(`    <content>${item.content}</content>`);
+      lines.push(`    <title>${escapeXmlText(item.title)}</title>`);
+      lines.push(`    <content>${escapeXmlText(item.content)}</content>`);
       lines.push(`  </item>`);
     }
 

@@ -35,7 +35,8 @@ import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClose
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { currentSessionId } from './request-context.js';
-import { setSessionProjectResolver, isToolResourcesEnabled } from '../config.js';
+import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR } from '../config.js';
+import path from 'node:path';
 import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
 import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
@@ -69,6 +70,13 @@ import type { TokenValidator } from './auth.js';
 import { TokenManager } from './token-manager.js';
 import { JwtValidator } from './jwt-validator.js';
 import { RateLimiter } from './rate-limiter.js';
+import { ACLEngine } from './acl.js';
+import { AuthProtection } from './auth-protection.js';
+import { AuditLogger } from '../audit/logger.js';
+import { SetupLinkStore } from './setup-link.js';
+import { createTestToken } from './jwt-validator.js';
+import { SecurityStack, isSecurityStackEnabled } from './security-stack.js';
+import { resolveEgressMode } from './egress-scanner.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
@@ -190,7 +198,9 @@ export class AppContainer {
   private adapter?: TransportAdapter;
   private sessionMgr?: SessionManager;
   private authManager?: AuthManager;
+  private authProtection?: AuthProtection;
   private tokenManagerCleanup?: () => void;
+  private tokenManager?: TokenManager;
   private clusterMgr?: ClusterManager;
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
@@ -371,12 +381,17 @@ export class AppContainer {
           // Registry visibility: server.tool() bypasses registerTool, so
           // connector ops never reached ToolRegistry — tools_list /
           // tool_help / tools_catalog were blind to them (PH-006 fix).
+          // AUD-10: store the GATED handler — raw handler would let
+          // tools_run/tools_batch skip auth-gate/SecurityStack/requestScope.
           try {
             this.ctx!.toolRegistry.set(name, {
               title: schema?.title,
               description: schema?.description,
               inputSchema: schema?.inputSchema,
-              handler: handler as ToolMeta['handler'],
+              handler: (this.ctx!.gateToolHandler ?? ((_n, h) => h))(
+                name,
+                handler as (params: Record<string, unknown>, extra?: unknown) => Promise<unknown>,
+              ),
             });
           } catch {}
           if (readOp && exposeMode !== 'tools' && toolResEnabled) {
@@ -436,18 +451,110 @@ export class AppContainer {
         const t = this.opts.transportType.toLowerCase();
         const gateTransport = t === 'http' || t === 'tcp' || t === 'unix' ? t : 'stdio';
         const validator = authOpts.tokenValidator ?? this.buildDefaultValidator();
+        // AUD-09: unix socket is a local pipe — auth is off by default because
+        // filesystem permissions (chmod 600) already restrict access to the
+        // owner. MCP_UNIX_REQUIRE_AUTH=1 opts back in for shared-machine
+        // hardening (e.g. socket placed in a group-writable dir).
+        // For unix transport: default open (chmod 600 protects), MCP_UNIX_REQUIRE_AUTH=1 opts in.
+        // For http/tcp: leave requireAuth undefined → AuthManager default (fail-closed) applies.
+        const unixRequireAuth =
+          gateTransport === 'unix' &&
+          ['1', 'true', 'yes', 'on'].includes(
+            (process.env.MCP_UNIX_REQUIRE_AUTH ?? '').toLowerCase(),
+          )
+            ? true
+            : undefined;
+        // AUD-13: brute-force protection on mcp.authenticate is core auth
+        // behaviour — created unconditionally (not gated by SECURITY_STACK)
+        // and shared with the SecurityStack when that is enabled.
+        this.authProtection = new AuthProtection();
         this.authManager = new AuthManager({
-          requireAuth: authOpts.requireAuth,
+          requireAuth: authOpts.requireAuth ?? unixRequireAuth,
           transport: gateTransport,
           tokenValidator: validator,
           sessionManager: this.sessionMgr,
           authMethods: authOpts.authMethods,
+          authProtection: this.authProtection,
         });
         this.ctx.authManager = this.authManager;
         this.log.info(
           { requireAuth: this.authManager.isAuthRequired(), transport: gateTransport },
           'auth manager initialized',
         );
+      }
+
+      // AUD-07: wire the previously-dead security stack into tools/call
+      // dispatch. Opt-in via SECURITY_STACK=1 — when off, wrapToolHandler
+      // skips the stage entirely (backwards compat). Placed after auth init
+      // so ACL can resolve caller roles via AuthManager.
+      let auditLoggerRef: AuditLogger | undefined;
+      if (isSecurityStackEnabled()) {
+        if (!this.ctx.rateLimiter) {
+          this.ctx.rateLimiter = new RateLimiter();
+        }
+        const auditPath =
+          process.env.SECURITY_AUDIT_LOG ??
+          path.join(DATA_DIR, 'audit.log');
+        const auditLogger = new AuditLogger({
+          enabled: true,
+          filePath: auditPath,
+          maxFileSize: 10 * 1024 * 1024,
+          maxFiles: 5,
+          rotateIntervalMs: 0,
+          logInput: true,
+          logResult: false,
+          maxResultLength: 1000,
+          redactFields: ['password', 'token', 'secret', 'apiKey', 'jwt', 'authorization'],
+        });
+        auditLoggerRef = auditLogger;
+        const acl = new ACLEngine({
+          enabled: process.env.SECURITY_ACL === '1' || process.env.SECURITY_ACL === 'true',
+        });
+        this.ctx.acl = acl;
+        this.ctx.securityStack = new SecurityStack({
+          rateLimiter: this.ctx.rateLimiter,
+          acl,
+          auditLogger,
+          authProtection: this.authProtection ?? new AuthProtection(),
+          sanitizer: { mode: process.env.SECURITY_SANITIZER_MODE === 'reject' ? 'reject' : 'sanitize' },
+          authManager: this.authManager,
+          egress: resolveEgressMode(),
+        });
+        this.addCleanup(() => auditLogger.close());
+        this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (SECURITY_STACK=1)');
+      }
+
+      // DX-29: one-time setup links. Token issuer must produce tokens the
+      // configured AuthManager validator accepts: the internal TokenManager
+      // when it backs the validator, else a jose JWT under JWT_SECRET.
+      {
+        const jwtSecret = process.env.JWT_SECRET;
+        const tokenIssuer = this.tokenManager
+          ? (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) =>
+              this.tokenManager!.issue(o.userId, o.roles, { metadata: o.metadata }).accessToken
+          : jwtSecret
+            ? async (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) =>
+                createTestToken(
+                  {
+                    sub: o.userId,
+                    roles: o.roles,
+                    iss: process.env.JWT_ISSUER,
+                    aud: process.env.JWT_AUDIENCE,
+                    exp: Math.floor((Date.now() + o.ttlMs) / 1000),
+                    ...o.metadata,
+                  },
+                  jwtSecret,
+                )
+            : undefined;
+        if (tokenIssuer) {
+          this.ctx.tokenManager = this.tokenManager;
+          this.ctx.setupLinkStore = new SetupLinkStore({
+            tokenIssuer,
+            auditLogger: auditLoggerRef,
+          });
+          this.addCleanup(() => this.ctx?.setupLinkStore?.close());
+          this.log.info('setup-link store initialized');
+        }
       }
 
       // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)
@@ -681,10 +788,13 @@ export class AppContainer {
         jwksUri: jwksUrl,
         issuer: process.env.JWT_ISSUER,
         audience: process.env.JWT_AUDIENCE,
+        // AUD-16: persist revocations so a restart doesn't de-revoke tokens.
+        blacklistPath: path.join(DATA_DIR, '.jwt-revoked.json'),
       });
       return validator.asTokenValidator();
     }
     const manager = new TokenManager();
+    this.tokenManager = manager;
     this.tokenManagerCleanup = () => manager.close();
     this.addCleanup(() => manager.close());
     return manager.createValidator();

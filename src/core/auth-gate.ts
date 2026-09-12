@@ -21,7 +21,11 @@
  */
 
 import type { AuthManager } from './auth.js';
+import type { SecurityStack } from './security-stack.js';
 import { requestScope } from './request-context.js';
+import { childLogger } from './logger.js';
+
+const log = childLogger('auth-gate');
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -226,36 +230,83 @@ export function resolveExtraSessionId(extra?: GateExtra): string | undefined {
 export function wrapToolHandler<TArgs = unknown>(
   toolName: string,
   handler: (args: TArgs, extra?: GateExtra) => unknown,
-  resolve: () => { auth: AuthManager | undefined; transport: string | undefined },
+  resolve: () => {
+    auth: AuthManager | undefined;
+    transport: string | undefined;
+    security?: SecurityStack | undefined;
+  },
 ): (args: TArgs, extra?: GateExtra) => Promise<unknown> {
+  const denyEnvelope = (reason: string) => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({ ok: false as const, error: { message: reason } }),
+      },
+    ],
+    isError: true as const,
+  });
+
   return async (args: TArgs, extra?: GateExtra) => {
-    const { auth, transport } = resolve();
+    const { auth, transport, security } = resolve();
     const sessionId = resolveExtraSessionId(extra);
     const decision = decideToolCall(auth, transport, {
       toolName,
       sessionId,
     });
     if (!decision.allowed) {
-      const envelope = { ok: false as const, error: { message: decision.reason } };
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(envelope) }],
-        isError: true as const,
-      };
+      return denyEnvelope(decision.reason);
     }
+
+    // AUD-07: previously-dead security stack wired into dispatch. Runs only
+    // when AppContainer attached a SecurityStack (SECURITY_STACK=1);
+    // otherwise this is a no-op and behaviour matches the pre-AUD-07 path.
+    const secCall = { toolName, sessionId, input: args };
+    let effectiveArgs: TArgs = args;
+    if (security?.active) {
+      const sec = security.check(secCall);
+      if (!sec.allowed) {
+        security.auditResult(secCall, { denied: sec.stage }, 0, true);
+        return denyEnvelope(sec.reason);
+      }
+      if (sec.sanitizedInput !== undefined) {
+        effectiveArgs = sec.sanitizedInput as TArgs;
+      }
+      security.auditCall(secCall);
+    }
+
     // PH-004: expose sessionId to the whole call chain via ALS so
     // resolveProject() can pick session-scoped state (current project).
+    const startedAt = Date.now();
     try {
-      return await requestScope.run({ sessionId }, () => handler(args, extra));
+      let result = await requestScope.run({ sessionId }, () => handler(effectiveArgs, extra));
+      if (security?.active) {
+        const isErr =
+          result !== null &&
+          typeof result === 'object' &&
+          (result as { isError?: unknown }).isError === true;
+        security.auditResult(secCall, undefined, Date.now() - startedAt, isErr);
+        security.recordAuthOutcome(secCall, !isErr);
+        // TR-14: egress injection scan on tool output (warn/redact/block).
+        // Skipped for error results — nothing useful to screen there.
+        if (!isErr) {
+          const scanned = security.scanOutput(secCall, result);
+          result = scanned.result;
+        }
+      }
+      return result;
     } catch (e) {
       // PH-005: unexpected handler failures must still land in the
       // { ok:false, error:{message} } envelope — otherwise the SDK emits a
       // bare isError text result and clients can't rely on env.ok.
-      const message = e instanceof Error ? e.message : String(e);
-      const envelope = { ok: false as const, error: { message } };
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(envelope) }],
-        isError: true as const,
-      };
+      if (security?.active) {
+        security.auditError(secCall, e, Date.now() - startedAt);
+        security.recordAuthOutcome(secCall, false);
+      }
+      // AUD-12: never leak e.message to the client — it can carry internal
+      // paths, stack fragments or driver details. Generic message out,
+      // full error into the server log.
+      log.warn({ toolName, sessionId, err: e }, 'tool handler threw — returning generic error to client');
+      return denyEnvelope('internal error');
     }
   };
 }

@@ -25,6 +25,7 @@
  */
 
 import net from 'node:net';
+import tls from 'node:tls';
 import fs from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/stdio.js';
@@ -35,6 +36,7 @@ import type { ServerContext } from '../register/context.js';
 import { decideToolCall, decideMethodCall, type MethodGateCall } from '../core/auth-gate.js';
 import type { AuthGateCall, AuthGateDecision } from '../core/auth-gate.js';
 import { childLogger } from '../core/logger.js';
+import { createTlsContext } from './tls.js';
 
 const log = childLogger('transport:stream');
 
@@ -147,6 +149,13 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   private registerTools?: (server: McpServer) => void;
   private serverCtx?: ServerContext;
   private mainHandlers?: Map<string, MainRequestHandler>;
+  /**
+   * SPEC-01: real AbortControllers for requests dispatched to main handlers.
+   * Keyed by `${sessionId}:${requestId}` so a notifications/cancelled from
+   * the client can abort in-flight work instead of the fabricated
+   * never-aborting signal we used to pass.
+   */
+  private pendingRequests = new Map<string, AbortController>();
 
   abstract readonly type: string;
 
@@ -255,7 +264,18 @@ abstract class StreamTransportAdapter implements TransportAdapter {
     // Register in SessionManager so session_list/session_info, per-session
     // TTL and auth metadata resolve for TCP/Unix connections too (PH-003).
     try {
-      this.serverCtx?.sessionManager?.create({ id, remote, metadata: { transport: this.type } });
+      this.serverCtx?.sessionManager?.create({
+        id,
+        remote,
+        metadata: { transport: this.type },
+        onClose: async (sid) => {
+          this.serverCtx?.authManager?.revokeSession(sid);
+          const s = this.sessions.get(sid);
+          try { await s?.server.close(); } catch { /* ignore */ }
+          try { await s?.transport.close(); } catch { /* ignore */ }
+          this.sessions.delete(sid);
+        },
+      });
     } catch (e) {
       log.warn({ sessionId: id, err: e }, 'session-manager rejected session create');
     }
@@ -308,6 +328,17 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   ): void {
     const msg = message as { id?: string | number; method?: string; params?: Record<string, unknown> };
     const method = msg.method;
+
+    // SPEC-01: client cancellation — abort the in-flight request's controller.
+    if (method === 'notifications/cancelled') {
+      const target = msg.params?.requestId;
+      if (typeof target === 'string' || typeof target === 'number') {
+        this.pendingRequests.get(`${sessionId}:${String(target)}`)?.abort(msg.params?.reason);
+      }
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
     const isRequest = msg.id !== undefined && typeof method === 'string';
 
     if (!isRequest || !MAIN_DISPATCH_METHODS.has(method)) {
@@ -340,10 +371,15 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       return;
     }
 
+    const requestId = msg.id as string | number;
+    const controller = new AbortController();
+    const pendingKey = `${sessionId}:${String(requestId)}`;
+    this.pendingRequests.set(pendingKey, controller);
+
     const extraForHandler = {
       sessionId,
-      requestId: msg.id as string | number,
-      signal: new AbortController().signal,
+      requestId,
+      signal: controller.signal,
     };
 
     void (async () => {
@@ -351,19 +387,24 @@ abstract class StreamTransportAdapter implements TransportAdapter {
         const result = await handler(message, extraForHandler);
         await transport.send({
           jsonrpc: '2.0',
-          id: msg.id as string | number,
+          id: requestId,
           result: result as Record<string, unknown>,
         });
       } catch (e) {
-        const anyErr = e as { code?: number; message?: string };
+        // AUD-12: generic message to the client — handler errors can carry
+        // internal paths/details. Full error goes to the server log.
+        log.warn({ sessionId, requestId, err: e }, 'main handler threw — generic error to client');
+        const anyErr = e as { code?: number };
         await transport.send({
           jsonrpc: '2.0',
-          id: msg.id as string | number,
+          id: requestId,
           error: {
             code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
-            message: anyErr?.message ?? String(e),
+            message: 'Internal error',
           },
         }).catch(() => {});
+      } finally {
+        this.pendingRequests.delete(pendingKey);
       }
     })();
   }
@@ -450,11 +491,19 @@ export class TcpTransportAdapter extends StreamTransportAdapter {
   }
 
   protected async listen(): Promise<net.Server> {
-    const server = net.createServer();
+    // AUD-17: TLS opt-in via TLS_CERT_PATH/TLS_KEY_PATH — serves TLS TCP
+    // when configured, plain TCP otherwise.
+    const tlsCtx = createTlsContext();
+    const server = tlsCtx.isEnabled && tlsCtx.isReady
+      ? tls.createServer(tlsCtx.createServerOptions())
+      : net.createServer();
+    if (tlsCtx.isEnabled && !tlsCtx.isReady) {
+      log.warn('TLS_CERT_PATH/TLS_KEY_PATH set but context failed to load — serving plain TCP');
+    }
     return new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(this.port, this.host, () => {
-        log.info('MCP TCP listening on %s:%s', this.host, this.port);
+        log.info('MCP %s listening on %s:%s', tlsCtx.isReady ? 'TLS TCP' : 'TCP', this.host, this.port);
         resolve(server);
       });
     });
@@ -475,21 +524,64 @@ export class UnixTransportAdapter extends StreamTransportAdapter {
   }
 
   protected async listen(): Promise<net.Server> {
-    // Remove stale socket file
-    try {
-      await fs.promises.unlink(this.socketPath);
-    } catch (err: any) {
-      if (err.code !== 'ENOENT') throw err;
-    }
+    // AUD-09: stale socket cleanup — if the file exists, probe whether a live
+    // listener is still bound to it. A live listener means another process
+    // owns the socket → fail with a clear error instead of unlinking it out
+    // from under the owner. A dead file (ENOENT on connect) is stale → remove.
+    await this.removeStaleSocket();
 
     const server = net.createServer();
     return new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(this.socketPath, () => {
+        // AUD-09: restrict socket to owner-only. Without chmod the socket is
+        // created with the process umask (typically 022 → srwxr-xr-x), so any
+        // local user could connect and get full MCP access.
+        try {
+          fs.chmodSync(this.socketPath, 0o600);
+        } catch (err) {
+          log.warn({ err }, 'failed to chmod 600 unix socket %s', this.socketPath);
+        }
         log.info('MCP Unix socket listening on %s', this.socketPath);
         resolve(server);
       });
     });
+  }
+
+  /**
+   * AUD-09: remove the socket file only when it is stale (no live listener).
+   * If a listener is still bound, throw a clear error — unlinking an active
+   * socket would orphan the running server and let clients connect to a
+   * socket path that no longer accepts connections.
+   */
+  private async removeStaleSocket(): Promise<void> {
+    try {
+      await fs.promises.stat(this.socketPath);
+    } catch (err: any) {
+      if (err.code === 'ENOENT') return; // nothing to clean
+      throw err;
+    }
+
+    // File exists — probe for a live listener.
+    const alive = await new Promise<boolean>((resolve) => {
+      const probe = net.createConnection(this.socketPath);
+      probe.once('connect', () => {
+        probe.destroy();
+        resolve(true);
+      });
+      probe.once('error', (err: any) => {
+        // ECONNREFUSED/ENOENT → stale file, safe to remove.
+        resolve(!(err.code === 'ECONNREFUSED' || err.code === 'ENOENT'));
+      });
+    });
+
+    if (alive) {
+      throw new Error(
+        `[stream] unix socket ${this.socketPath} is already in use by a live listener — refusing to remove it`,
+      );
+    }
+
+    await fs.promises.unlink(this.socketPath);
   }
 
   protected async extraCleanup(): Promise<void> {

@@ -15,6 +15,19 @@ import type { ServerContext } from './context.js';
 import type { SessionInfo } from '../core/session-manager.js';
 import type { RateLimitInfo } from '../core/rate-limiter.js';
 import { ok, err } from '../utils/respond.js';
+import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
+
+/** AUD-04: caller roles from session metadata (set by AuthManager.authenticate). */
+function callerRoles(ctx: ServerContext, callerSessionId: string | undefined): string[] {
+  if (!callerSessionId) return [];
+  const meta = ctx.sessionManager?.get(callerSessionId)?.metadata;
+  const roles = meta?.roles;
+  return Array.isArray(roles) ? roles.filter((r): r is string => typeof r === 'string') : [];
+}
+
+function isAdmin(ctx: ServerContext, callerSessionId: string | undefined): boolean {
+  return callerRoles(ctx, callerSessionId).includes('admin');
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -68,7 +81,7 @@ export function registerSessionTools(ctx: ServerContext): void {
         sessionId: z.string().min(1).describe("Session ID to query (UUID v4)"),
       },
     },
-    async ({ sessionId }: { sessionId: string }) => {
+    async ({ sessionId }: { sessionId: string }, extra?: GateExtra) => {
       const sm = ctx.sessionManager;
 
       if (!sm) {
@@ -77,6 +90,12 @@ export function registerSessionTools(ctx: ServerContext): void {
           reason: 'SessionManager not initialized — session management is only available for multi-client transports (TCP, HTTP).',
           sessionsEnabled: false,
         });
+      }
+
+      const callerId = resolveExtraSessionId(extra);
+      const target = sm.get(sessionId);
+      if (callerId !== sessionId && target && !isAdmin(ctx, callerId)) {
+        return err('access denied — session_info is restricted to the calling session or admin role');
       }
 
       const session = sm.get(sessionId);
@@ -104,7 +123,7 @@ export function registerSessionTools(ctx: ServerContext): void {
       description: "List all active sessions with their state. Returns session count, rate limiting status, and per-session details (rate limit, TTL, idle, age). If SessionManager is not available, returns availability status only.",
       inputSchema: {},
     },
-    async () => {
+    async (_args: Record<string, never>, extra?: GateExtra) => {
       const sm = ctx.sessionManager;
 
       if (!sm) {
@@ -115,6 +134,11 @@ export function registerSessionTools(ctx: ServerContext): void {
           total: 0,
           sessions: [],
         });
+      }
+
+      const callerId = resolveExtraSessionId(extra);
+      if (!isAdmin(ctx, callerId)) {
+        return err('access denied — session_list requires admin role');
       }
 
       const sessions = sm.getAll();
@@ -131,6 +155,47 @@ export function registerSessionTools(ctx: ServerContext): void {
         rateLimitingEnabled: ctx.rateLimiter != null,
         total: sessions.length,
         sessions: enriched,
+      });
+    }
+  );
+
+  // ── admin_setup_link (DX-29) ──────────────────────
+  // Create a one-time setup link for agent self-configuration.
+  ctx.server.registerTool(
+    "admin_setup_link",
+    {
+      title: "Create Setup Link",
+      description: "Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transport, a scoped access token, and self-config instructions for an AI agent. Requires admin role. The link can be redeemed exactly once via GET /.well-known/mcp-setup/<otp>.",
+      inputSchema: {
+        project: z.string().min(1).optional().describe("Project scope for the issued token (default: current project)"),
+        role: z.string().min(1).optional().describe("Role scope for the issued token (default: 'agent')"),
+        ttlMs: z.number().int().positive().max(3_600_000).optional().describe("Link TTL in ms (default: 900000 = 15min, max 1h)"),
+        baseUrl: z.string().url().optional().describe("Public base URL for the setup link (default: http://localhost:MCP_PORT)"),
+      },
+    },
+    async (args: { project?: string; role?: string; ttlMs?: number; baseUrl?: string }, extra?: GateExtra) => {
+      const store = ctx.setupLinkStore;
+      if (!store) {
+        return err('setup links unavailable — no token issuer configured (requires TokenManager or JWT_SECRET)');
+      }
+      const callerId = resolveExtraSessionId(extra);
+      if (!isAdmin(ctx, callerId)) {
+        return err('access denied — admin_setup_link requires admin role');
+      }
+      const { getCurrentProject } = await import('../config.js');
+      const link = await store.create({
+        project: args.project ?? getCurrentProject(),
+        role: args.role ?? 'agent',
+        ttlMs: args.ttlMs,
+        createdBy: callerId ?? 'local',
+      });
+      const base = args.baseUrl ?? `http://localhost:${process.env.MCP_PORT || '3001'}`;
+      return ok({
+        url: `${base}/.well-known/mcp-setup/${link.otp}`,
+        expiresAt: new Date(link.expiresAt).toISOString(),
+        otp: link.otp,
+        project: link.project,
+        role: link.role,
       });
     }
   );

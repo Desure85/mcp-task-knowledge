@@ -23,6 +23,8 @@ export default defineConfig({
     exclude: [
       'service-catalog/**',
       'node_modules/**',
+      '**/node_modules/**',
+      'web-ui/**',
       '.opencode/**',
       'dist/**',
       ...(hasSqliteBinding() ? [] : SQLITE_SPECS),

@@ -23,13 +23,30 @@ export interface RealtimeEvent {
   clientId: string;
 }
 
+const CLIENT_BROADCAST_ALLOWED_TYPES = new Set<RealtimeEvent['type']>([
+  'task.created', 'task.updated', 'task.closed',
+  'knowledge.created', 'knowledge.updated',
+  'presence.heartbeat',
+]);
+
 export interface ClientInfo {
   id: string;
   ws: WebSocket;
   project?: string;
   userId?: string;
+  subscribed: boolean;
   joinedAt: string;
   lastHeartbeat: string;
+}
+
+export interface RealtimeAttachOptions {
+  /**
+   * AUD-06: token validator for the WS handshake.
+   * Receives the `?token=` query param; return truthy/AuthResult to accept,
+   * falsy to reject (client gets ws.close(4001, 'unauthorized')).
+   * If not provided, all connections are accepted (backwards-compatible).
+   */
+  tokenValidator?: (token: string | null) => boolean | Promise<boolean>;
 }
 
 export class RealtimeServer extends EventEmitter {
@@ -43,81 +60,35 @@ export class RealtimeServer extends EventEmitter {
     this.heartbeatMs = opts?.heartbeatMs ?? 30_000;
   }
 
-  attach(server: Server, path = '/ws'): void {
+  attach(server: Server, path = '/ws', opts?: RealtimeAttachOptions): void {
     this.wss = new WebSocketServer({ server, path });
 
     this.wss.on('connection', (ws, req) => {
-      const clientId = `client_${createHash('sha256').update(Date.now() + Math.random().toString()).digest('hex').substring(0, 12)}`;
       const url = new URL(req.url ?? '', 'http://localhost');
-      const project = url.searchParams.get('project') ?? undefined;
-      const userId = url.searchParams.get('userId') ?? undefined;
+      const token = url.searchParams.get('token');
 
-      const info: ClientInfo = {
-        id: clientId,
-        ws,
-        project,
-        userId,
-        joinedAt: new Date().toISOString(),
-        lastHeartbeat: new Date().toISOString(),
+      const finish = (allowed: boolean): void => {
+        if (!allowed) {
+          ws.close(4001, 'unauthorized');
+          return;
+        }
+        this.handleConnection(ws, url);
       };
 
-      this.clients.set(clientId, info);
-      this.emit('client:join', info);
-
-      this.broadcast({
-        type: 'presence.join',
-        project,
-        data: { clientId, userId },
-        timestamp: new Date().toISOString(),
-        clientId,
-      });
-
-      ws.on('message', (raw) => {
+      if (opts?.tokenValidator) {
         try {
-          const msg = JSON.parse(raw.toString());
-          info.lastHeartbeat = new Date().toISOString();
-
-          if (msg.type === 'heartbeat') {
-            ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: new Date().toISOString() }));
-            return;
-          }
-
-          if (msg.type === 'subscribe' && msg.project) {
-            info.project = msg.project;
-            return;
-          }
-
-          if (msg.type === 'broadcast') {
-            this.broadcast({
-              type: msg.eventType ?? 'task.updated',
-              project: msg.project ?? info.project,
-              data: msg.data ?? {},
-              timestamp: new Date().toISOString(),
-              clientId,
-            });
+          const verdict = opts.tokenValidator(token);
+          if (verdict instanceof Promise) {
+            verdict.then(finish).catch(() => finish(false));
+          } else {
+            finish(verdict);
           }
         } catch {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
+          finish(false);
         }
-      });
-
-      ws.on('close', () => {
-        this.clients.delete(clientId);
-        this.emit('client:leave', info);
-        this.broadcast({
-          type: 'presence.leave',
-          project: info.project,
-          data: { clientId: info.id, userId: info.userId },
-          timestamp: new Date().toISOString(),
-          clientId,
-        });
-      });
-
-      ws.send(JSON.stringify({
-        type: 'connected',
-        clientId,
-        timestamp: new Date().toISOString(),
-      }));
+      } else {
+        finish(true);
+      }
     });
 
     this.heartbeatInterval = setInterval(() => {
@@ -135,9 +106,90 @@ export class RealtimeServer extends EventEmitter {
     }, this.heartbeatMs);
   }
 
+  private handleConnection(ws: WebSocket, url: URL): void {
+    const clientId = `client_${createHash('sha256').update(Date.now() + Math.random().toString()).digest('hex').substring(0, 12)}`;
+    const project = url.searchParams.get('project') ?? undefined;
+    const userId = url.searchParams.get('userId') ?? undefined;
+
+    const info: ClientInfo = {
+      id: clientId,
+      ws,
+      project,
+      userId,
+      subscribed: false,
+      joinedAt: new Date().toISOString(),
+      lastHeartbeat: new Date().toISOString(),
+    };
+
+    this.clients.set(clientId, info);
+    this.emit('client:join', info);
+
+    this.broadcast({
+      type: 'presence.join',
+      project,
+      data: { clientId, userId },
+      timestamp: new Date().toISOString(),
+      clientId,
+    });
+
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        info.lastHeartbeat = new Date().toISOString();
+
+        if (msg.type === 'heartbeat') {
+          ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: new Date().toISOString() }));
+          return;
+        }
+
+        if (msg.type === 'subscribe') {
+          if (msg.project) info.project = msg.project;
+          info.subscribed = true;
+          return;
+        }
+
+        if (msg.type === 'broadcast') {
+          const eventType = msg.eventType as RealtimeEvent['type'] | undefined;
+          if (!eventType || !CLIENT_BROADCAST_ALLOWED_TYPES.has(eventType)) {
+            ws.send(JSON.stringify({ type: 'error', message: 'unknown eventType' }));
+            return;
+          }
+          this.broadcast({
+            type: eventType,
+            project: msg.project ?? info.project,
+            data: msg.data ?? {},
+            timestamp: new Date().toISOString(),
+            clientId,
+          });
+        }
+      } catch {
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
+      }
+    });
+
+    ws.on('close', () => {
+      this.clients.delete(clientId);
+      this.emit('client:leave', info);
+      this.broadcast({
+        type: 'presence.leave',
+        project: info.project,
+        data: { clientId: info.id, userId: info.userId },
+        timestamp: new Date().toISOString(),
+        clientId,
+      });
+    });
+
+    ws.send(JSON.stringify({
+      type: 'connected',
+      clientId,
+      timestamp: new Date().toISOString(),
+    }));
+  }
+
   broadcast(event: RealtimeEvent): void {
     const msg = JSON.stringify(event);
     for (const [, info] of this.clients) {
+      if (!info.subscribed) continue;
       if (event.project && info.project && info.project !== event.project) continue;
       if (info.ws.readyState === WebSocket.OPEN) {
         info.ws.send(msg);

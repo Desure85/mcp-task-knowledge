@@ -13,6 +13,7 @@ import { StreamableHTTPServerTransport as SdkHttpTransport } from '@modelcontext
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types.js';
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
 import { randomUUID } from 'node:crypto';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
@@ -23,8 +24,58 @@ import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
 import type { HealthChecker } from '../health/index.js';
 import { getRealtimeServer } from './realtime.js';
 import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
+import { buildSetupMarkdown } from '../core/setup-link.js';
+import { getCurrentProject } from '../config.js';
+import { createTlsContext, type TlsContext } from './tls.js';
 
 const log = childLogger('transport:http');
+
+/**
+ * AUD-08: max POST body size for MCP protocol requests.
+ * Env: MCP_MAX_BODY_BYTES (default 10 MiB). Content-Length is checked first
+ * (fast reject), then bytes are counted during streaming — Content-Length can
+ * lie or be absent (chunked transfer).
+ */
+const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+function maxBodyBytes(): number {
+  const raw = process.env.MCP_MAX_BODY_BYTES;
+  if (!raw) return DEFAULT_MAX_BODY_BYTES;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_BODY_BYTES;
+}
+
+class BodyTooLargeError extends Error {
+  constructor(public readonly limit: number) {
+    super(`request body exceeds ${limit} bytes`);
+    this.name = 'BodyTooLargeError';
+  }
+}
+
+/**
+ * Read a POST body with a hard byte cap. Checks Content-Length up front,
+ * then counts actual streamed bytes. On overflow throws BodyTooLargeError
+ * and destroys the request stream so no further buffering happens.
+ */
+async function readBodyWithCap(req: IncomingMessage, limit: number): Promise<string> {
+  const contentLength = req.headers['content-length'];
+  if (contentLength) {
+    const declared = parseInt(Array.isArray(contentLength) ? contentLength[0] : contentLength, 10);
+    if (Number.isFinite(declared) && declared > limit) {
+      throw new BodyTooLargeError(limit);
+    }
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > limit) {
+      throw new BodyTooLargeError(limit);
+    }
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
 
 /**
  * PH-002b: JSON-RPC methods routed to the MAIN server's request handlers —
@@ -93,15 +144,22 @@ function handleCorsPreflight(req: IncomingMessage, res: ServerResponse): boolean
 
 export class HttpTransportAdapter implements TransportAdapter {
   readonly type = 'http';
-  private httpServer?: HttpServer;
+  private httpServer?: HttpServer | HttpsServer;
   private _connected = false;
   private healthHandlers?: ReturnType<typeof createHealthHandlers>;
   private serverCtx?: ServerContext;
+  private tlsContext?: TlsContext;
   /** Live SDK transports keyed by mcp-session-id (one transport per session). */
   private sessions = new Map<string, SdkHttpTransport>();
-  private pendingInitRemotes: string[] = [];
   private serverInfo?: { name: string; version: string };
   private mainHandlers?: Map<string, MainRequestHandler>;
+  /**
+   * SPEC-01: real AbortControllers for requests dispatched to main handlers.
+   * Keyed by `${sessionId}:${requestId}` so a notifications/cancelled from
+   * the client aborts in-flight work instead of the fabricated
+   * never-aborting signal we used to pass.
+   */
+  private pendingRequests = new Map<string, AbortController>();
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
@@ -146,7 +204,15 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     this.serverCtx = ctx;
-    this.httpServer = createHttpServer();
+    // AUD-17: TLS is opt-in via TLS_CERT_PATH/TLS_KEY_PATH (see tls.ts).
+    // When enabled the adapter serves HTTPS; otherwise plain HTTP.
+    this.tlsContext = createTlsContext();
+    this.httpServer = this.tlsContext.isEnabled && this.tlsContext.isReady
+      ? createHttpsServer(this.tlsContext.createServerOptions())
+      : createHttpServer();
+    if (this.tlsContext.isEnabled && !this.tlsContext.isReady) {
+      log.warn('TLS_CERT_PATH/TLS_KEY_PATH set but context failed to load — serving plain HTTP');
+    }
 
     // Server info for per-session lifecycle servers.
     const rawServer = ctx.server as unknown as Record<string, unknown>;
@@ -205,17 +271,44 @@ export class HttpTransportAdapter implements TransportAdapter {
         return;
       }
 
+      // DX-29: one-time setup links.
+      // POST /admin/setup-links — admin-only (session metadata role 'admin').
+      if (req.method === 'POST' && (url === '/admin/setup-links' || url === '/admin/setup-links/')) {
+        await this.handleCreateSetupLink(req, res);
+        return;
+      }
+      // GET /.well-known/mcp-setup/<otp> — public one-time reveal.
+      if (req.method === 'GET' && url.startsWith('/.well-known/mcp-setup/')) {
+        await this.handleRedeemSetupLink(req, res, url);
+        return;
+      }
+
       // MCP protocol requests — routed by mcp-session-id to that session's
       // transport; a sessionless initialize creates a new one (PH-002b).
       const sessionId = this.sessionIdOf(req);
       const existing = sessionId ? this.sessions.get(sessionId) : undefined;
 
       if (req.method === 'POST') {
-        const bodyChunks: Buffer[] = [];
-        for await (const chunk of req) {
-          bodyChunks.push(chunk);
+        let bodyStr: string;
+        try {
+          bodyStr = await readBodyWithCap(req, maxBodyBytes());
+        } catch (e) {
+          if (e instanceof BodyTooLargeError) {
+            // shouldKeepAlive=false: Node drains/closes the connection after
+            // the response instead of leaving a half-read body on a kept-alive
+            // socket. The request stream is abandoned — no further buffering.
+            res.shouldKeepAlive = false;
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32000, message: `Payload Too Large: body exceeds ${e.limit} bytes` },
+              id: null,
+            }));
+            req.destroy();
+            return;
+          }
+          throw e;
         }
-        const bodyStr = Buffer.concat(bodyChunks).toString('utf-8');
         let parsedBody: unknown;
         try {
           parsedBody = JSON.parse(bodyStr);
@@ -245,8 +338,10 @@ export class HttpTransportAdapter implements TransportAdapter {
           return;
         }
         // New session: dedicated transport + lightweight lifecycle server.
-        this.pendingInitRemotes.push(req.socket.remoteAddress ?? 'http');
-        const transport = await this.createSessionTransport();
+        // AUD-14: remote is passed per-request (was a shared FIFO queue —
+        // parallel initialize POSTs could attribute the wrong remote IP to
+        // a session, and a failed init leaked the queue entry forever).
+        const transport = await this.createSessionTransport(req.socket.remoteAddress ?? 'http');
         await transport.handleRequest(req, res, parsedBody);
         return;
       }
@@ -268,17 +363,119 @@ export class HttpTransportAdapter implements TransportAdapter {
     this._connected = true;
 
     if (process.env.MCP_REALTIME !== '0') {
-      getRealtimeServer().attach(this.httpServer, '/ws');
+      const auth = this.serverCtx?.authManager;
+      const tokenValidator = auth?.isAuthRequired()
+        ? async (token: string | null): Promise<boolean> => {
+            if (!token) return false;
+            // AUD-15: validateToken, not authenticate — the WS path only needs
+            // an allow/deny verdict. authenticate() would mark a phantom
+            // 'ws:<token>' session in authenticatedSessions that no close
+            // path ever revokes (unbounded growth).
+            return (await auth.validateToken(token)) !== null;
+          }
+        : undefined;
+      getRealtimeServer().attach(this.httpServer, '/ws', { tokenValidator });
       log.info('Realtime WS: /ws');
     }
 
     this.httpServer.listen(this.port, this.host, () => {
-      log.info('MCP Streamable HTTP listening on http://%s:%s', this.host, this.port);
-      log.info('API docs: http://%s:%s/api/docs', this.host, this.port);
+      const scheme = this.tlsContext?.isReady ? 'https' : 'http';
+      log.info('MCP Streamable HTTP listening on %s://%s:%s', scheme, this.host, this.port);
+      log.info('API docs: %s://%s:%s/api/docs', scheme, this.host, this.port);
       if (createMetricsHandler()) {
-        log.info('Prometheus metrics: http://%s:%s/metrics', this.host, this.port);
+        log.info('Prometheus metrics: %s://%s:%s/metrics', scheme, this.host, this.port);
       }
     });
+  }
+
+  /** DX-29: create a setup link. Requires an authenticated admin session. */
+  private async handleCreateSetupLink(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const json = (status: number, body: unknown) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    const store = this.serverCtx?.setupLinkStore;
+    if (!store) {
+      json(503, { ok: false, error: { message: 'setup links unavailable — no token issuer configured' } });
+      return;
+    }
+    const sessionId = this.sessionIdOf(req);
+    const auth = this.serverCtx?.authManager;
+    if (auth?.isAuthRequired() && (!sessionId || !auth.isAuthenticated(sessionId))) {
+      json(401, { ok: false, error: { message: 'authentication required' } });
+      return;
+    }
+    const roles = sessionId
+      ? (this.serverCtx?.sessionManager?.get(sessionId)?.metadata?.roles as string[] | undefined) ?? []
+      : [];
+    if (auth?.isAuthRequired() && !roles.includes('admin')) {
+      json(403, { ok: false, error: { message: 'admin role required' } });
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk);
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf-8') || '{}') as Record<string, unknown>;
+    } catch { /* empty/invalid body → defaults */ }
+
+    const project = typeof body.project === 'string' && body.project.trim()
+      ? body.project.trim()
+      : getCurrentProject();
+    const role = typeof body.role === 'string' && body.role.trim() ? body.role.trim() : 'agent';
+    const ttlMs = typeof body.ttlMs === 'number' && body.ttlMs > 0 ? Math.min(body.ttlMs, 60 * 60 * 1000) : undefined;
+
+    const link = await store.create({ project, role, ttlMs, createdBy: sessionId ?? 'http' });
+    const base = this.publicBaseUrl(req);
+    json(201, {
+      ok: true,
+      data: {
+        url: `${base}/.well-known/mcp-setup/${link.otp}`,
+        expiresAt: new Date(link.expiresAt).toISOString(),
+        otp: link.otp,
+      },
+    });
+  }
+
+  /** DX-29: one-time reveal of the setup markdown document. */
+  private async handleRedeemSetupLink(req: IncomingMessage, res: ServerResponse, url: string): Promise<void> {
+    const gone = (reason: string) => {
+      res.writeHead(410, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: { message: `setup link unavailable: ${reason}` } }));
+    };
+    const store = this.serverCtx?.setupLinkStore;
+    if (!store) {
+      gone('disabled');
+      return;
+    }
+    const otp = decodeURIComponent(url.slice('/.well-known/mcp-setup/'.length).replace(/\/+$/, ''));
+    if (!/^[0-9a-fA-F-]{36}$/.test(otp)) {
+      gone('not_found');
+      return;
+    }
+    const clientIp = req.socket.remoteAddress;
+    const result = store.redeem(otp, clientIp);
+    if (result.status !== 'ok') {
+      gone(result.reason);
+      return;
+    }
+    const markdown = buildSetupMarkdown(result.link, {
+      serverUrl: this.publicBaseUrl(req),
+      transport: 'http',
+      serverName: this.serverInfo?.name,
+      serverVersion: this.serverInfo?.version,
+      toolCount: this.serverCtx?.toolNames?.size,
+    });
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(markdown);
+  }
+
+  private publicBaseUrl(req: IncomingMessage): string {
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+      ?? (this.tlsContext?.isReady ? 'https' : 'http');
+    const host = req.headers.host ?? `${this.host}:${this.port}`;
+    return `${proto}://${host}`;
   }
 
   /** mcp-session-id header value, if present. */
@@ -301,18 +498,35 @@ export class HttpTransportAdapter implements TransportAdapter {
    * server's handlers via the wrapped onmessage — same contract as the
    * TCP/Unix adapter (S-002).
    */
-  private async createSessionTransport(): Promise<SdkHttpTransport> {
+  private async createSessionTransport(remote: string): Promise<SdkHttpTransport> {
     const transport = new SdkHttpTransport({
       sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (sessionId: string) => {
+      onsessioninitialized: async (sessionId: string) => {
         this.sessions.set(sessionId, transport);
         const sm = this.serverCtx?.sessionManager;
         if (!sm) return;
-        const remote = this.pendingInitRemotes.shift() ?? 'http';
         try {
-          sm.create({ id: sessionId, remote, metadata: { transport: 'http' } });
+          sm.create({
+            id: sessionId,
+            remote,
+            metadata: { transport: 'http' },
+            onClose: async (sid) => {
+              this.serverCtx?.authManager?.revokeSession(sid);
+              this.sessions.get(sid)?.close().catch(() => undefined);
+              this.sessions.delete(sid);
+            },
+          });
         } catch (e) {
           log.warn({ sessionId, err: e }, 'session-manager rejected session create');
+          // AUD-08: the transport was registered in this.sessions above, before
+          // sm.create() ran — a rejected session would otherwise leak a live
+          // transport that keeps serving requests past the cap. Remove it,
+          // close it, then rethrow so the SDK answers the initialize POST
+          // with a JSON-RPC error instead of a success for a session the
+          // SessionManager never accepted.
+          this.sessions.delete(sessionId);
+          await transport.close().catch(() => undefined);
+          throw e;
         }
       },
       onsessionclosed: (sessionId: string) => {
@@ -363,6 +577,18 @@ export class HttpTransportAdapter implements TransportAdapter {
   ): void {
     const msg = message as { id?: string | number; method?: string; params?: Record<string, unknown> };
     const method = msg.method;
+
+    // SPEC-01: client cancellation — abort the in-flight request's controller.
+    if (method === 'notifications/cancelled') {
+      const target = msg.params?.requestId;
+      const sid = transport.sessionId;
+      if (sid && (typeof target === 'string' || typeof target === 'number')) {
+        this.pendingRequests.get(`${sid}:${String(target)}`)?.abort(msg.params?.reason);
+      }
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
     const isRequest = msg.id !== undefined && typeof method === 'string';
 
     if (!isRequest || !MAIN_DISPATCH_METHODS.has(method)) {
@@ -397,10 +623,14 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     const requestId = msg.id as string | number;
+    const controller = new AbortController();
+    const pendingKey = `${transport.sessionId ?? ''}:${String(requestId)}`;
+    this.pendingRequests.set(pendingKey, controller);
+
     const extraForHandler = {
       sessionId: transport.sessionId,
       requestId,
-      signal: new AbortController().signal,
+      signal: controller.signal,
     };
 
     void (async () => {
@@ -411,18 +641,23 @@ export class HttpTransportAdapter implements TransportAdapter {
           { relatedRequestId: requestId },
         );
       } catch (e) {
-        const anyErr = e as { code?: number; message?: string };
+        // AUD-12: generic message to the client — handler errors can carry
+        // internal paths/details. Full error goes to the server log.
+        log.warn({ sessionId: transport.sessionId, requestId, err: e }, 'main handler threw — generic error to client');
+        const anyErr = e as { code?: number };
         await transport.send(
           {
             jsonrpc: '2.0',
             id: requestId,
             error: {
               code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
-              message: anyErr?.message ?? String(e),
+              message: 'Internal error',
             },
           },
           { relatedRequestId: requestId },
         ).catch(() => {});
+      } finally {
+        this.pendingRequests.delete(pendingKey);
       }
     })();
   }
@@ -449,6 +684,8 @@ export class HttpTransportAdapter implements TransportAdapter {
       this._connected = false;
       this.httpServer = undefined;
       this.serverCtx = undefined;
+      this.tlsContext?.dispose();
+      this.tlsContext = undefined;
     }
   }
 
