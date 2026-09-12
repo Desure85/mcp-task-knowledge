@@ -82,6 +82,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 
 `web-ui/lib/api-client.ts` — typed wrapper around MCP HTTP transport:
 
+<!-- doc-test: skip -->
 ```typescript
 api.tasks.list()                    // → Task[]
 api.tasks.create({ title, ... })    // → Task

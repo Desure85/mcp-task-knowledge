@@ -39,6 +39,7 @@ See [Configuration](getting-started/configuration.md) for all options.
 
 Minimal setup:
 
+<!-- doc-test: run -->
 ```bash
 export DATA_DIR=./data
 export CURRENT_PROJECT=mcp

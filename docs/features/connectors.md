@@ -18,6 +18,7 @@ Integration hub for external services. Each connector registers MCP tools with a
 
 ## Connector Framework
 
+<!-- doc-test: skip -->
 ```typescript
 import type { Connector } from './connectors/types.js';
 
