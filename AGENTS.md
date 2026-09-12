@@ -399,6 +399,8 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 ### Тесты
 
 - Фреймворк: Vitest.
+- **config.ts резолвит пути при module load** (DATA_DIR обязателен, иначе throw) — тестируемый код принимает пути параметром, не импортирует config-константы напрямую (паттерн DX-17).
+- **gray-matter stringify падает на undefined** — перед записью frontmatter удаляй undefined-ключи (паттерн cleanMeta из storage/knowledge.ts).
 - Расположение: `tests/` и `src/__tests__/`.
 - Запуск: `npm test`.
 - Для интеграционных: `npm run e2e:cli`.
@@ -410,10 +412,10 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-09-12
-**Session ID:** S-20260912-dx17
-**Текущая feature-ветка:** feat/dx-17-doctor-data (→ master)
-**Текущий этап:** Этап N — DX/Onboarding. Сделано: DX-17 `doctor --data` — read-only скан целостности DATA_DIR + `--fix` для тривиального (derivable id/project). src/cli/doctor.ts + argv-роутинг в index.ts (только первый аргумент 'doctor', stdio-путь не тронут)
-**Статус:** DX-17 → review; 230 files / 2724 tests green; tsc clean; stdio boot smoke OK
+**Session ID:** S-20260912-dx18
+**Текущая feature-ветка:** feat/dx-18-schema-version (→ master)
+**Текущий этап:** Этап N — DX/Onboarding. Сделано: DX-18 `DATA_DIR/.schema-version` манифест + file-level миграции при старте. Новый модуль `src/services/schema-version.ts` (НЕ SQLite MigrationFramework — тот dead code под better-sqlite3). Гейт в `AppContainer.init()` до `createServerContext()`: newer schema → SchemaVersionError + refuse boot; older → миграции из SCHEMA_MIGRATIONS; missing+non-empty → legacy 0 → migrate; missing+empty → stamp. `doctor --data` репортит `Schema: N (supported: M)` + error на newer.
+**Статус:** DX-18 → review; 231 files / 2735 tests green; tsc clean; stdio boot smoke OK (fresh stamp / refuse-newer exit 1 / legacy 0→1 migrate)
 
 ### Сессия S-20260911-msec (Этап M фаза 1)
 

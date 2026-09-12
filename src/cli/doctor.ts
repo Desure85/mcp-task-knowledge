@@ -26,6 +26,7 @@ import fg from 'fast-glob';
 import matter from 'gray-matter';
 import { pathExists, readText, writeJson, writeText } from '../fs.js';
 import { PROJECT_ID_RE } from '../projects.js';
+import { readSchemaManifest, CURRENT_SCHEMA } from '../services/schema-version.js';
 import type { Task } from '../types.js';
 
 // ── Report model ────────────────────────────────────────────────────
@@ -43,6 +44,8 @@ export interface DoctorIssue {
 export interface DoctorReport {
   dataDir: string;
   scanned: { json: number; md: number };
+  /** DX-18: on-disk schema vs the version this build supports. */
+  schema: { found: number | 'none'; current: number };
   issues: DoctorIssue[];
   errors: number;
   warnings: number;
@@ -332,9 +335,23 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
 
   await scanProjects(paths, issues);
 
+  // DX-18: schema-version drift. Missing manifest is reported in the
+  // `schema.found` field only — not an issue, since pre-DX-18 installs
+  // legitimately have none. Only an actual version mismatch is flagged.
+  const manifest = await readSchemaManifest(paths.dataDir);
+  const schemaFound = manifest?.schema ?? 'none';
+  if (manifest !== undefined) {
+    if (manifest.schema > CURRENT_SCHEMA) {
+      issues.push({ level: 'error', check: 'schema-version', file: '.schema-version', detail: `schema ${manifest.schema} > supported ${CURRENT_SCHEMA} — data written by newer package` });
+    } else if (manifest.schema < CURRENT_SCHEMA) {
+      issues.push({ level: 'warn', check: 'schema-version', file: '.schema-version', detail: `schema ${manifest.schema} < ${CURRENT_SCHEMA} — migration pending on next boot` });
+    }
+  }
+
   return {
     dataDir: paths.dataDir,
     scanned,
+    schema: { found: schemaFound, current: CURRENT_SCHEMA },
     issues,
     errors: issues.filter((i) => i.level === 'error').length,
     warnings: issues.filter((i) => i.level === 'warn').length,
@@ -348,6 +365,7 @@ export function formatReport(report: DoctorReport): string {
   const lines: string[] = [];
   lines.push(`DATA_DIR: ${report.dataDir}`);
   lines.push(`Scanned: ${report.scanned.json} json, ${report.scanned.md} md`);
+  lines.push(`Schema: ${report.schema.found} (supported: ${report.schema.current})`);
 
   const groups = new Map<string, DoctorIssue[]>();
   for (const issue of report.issues) {
