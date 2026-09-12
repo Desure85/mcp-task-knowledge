@@ -863,7 +863,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| DX-13 | `briefing` tool — контекст одним вызовом | medium | pending | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрать из готовых кусков (dashboard stats, memory context assembly). Design review до регистрации |
+| DX-13 | `briefing` tool — контекст одним вызовом | medium | review | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрано из listTasks/listDocs/isTaskBlocked. Реализовано в src/register/briefing.ts, 11 тестов green |
 | DX-14 | Seed workflow-промптов в поставку | medium | pending | — | Prompts-library пуста. Шипить 5-7 готовых (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`) — видимая ценность через `prompts/list` сразу + учит агента паттернам |
 | DX-12 | `agent_bootstrap` tool — самоинтеграция агента | medium | pending | — | Tool возвращает готовый блок инструкций для AGENTS.md/system prompt («всегда передавай project, контракт ok/error, ключевые tools»). Design review до регистрации |
 | DX-15 | `server_capabilities` manifest | low | pending | — | Какие домены включены/выключены env-флагами, версия, лимиты — агент не гадает и не ловит `tool not found` на выключенных фичах. Design review до регистрации |

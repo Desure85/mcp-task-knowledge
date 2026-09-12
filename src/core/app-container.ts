@@ -58,6 +58,7 @@ import { registerToolsIntrospection } from '../register/tools-introspection.js';
 import { registerDebugResources } from '../register/debug-resources.js';
 import { registerDependencyTools } from '../register/dependencies.js';
 import { registerDashboardTools } from '../register/dashboard.js';
+import { registerBriefingTools } from '../register/briefing.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
 import { registerClusterTools } from '../register/cluster.js';
@@ -160,6 +161,7 @@ export function defaultRegistration(ctx: ServerContext): void {
   registerSearchResources(ctx);
   registerDependencyTools(ctx);
   registerDashboardTools(ctx);
+  registerBriefingTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);
   registerClusterTools(ctx);
