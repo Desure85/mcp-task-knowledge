@@ -15,7 +15,10 @@
  * Enable/disable via METRICS_ENABLED env var (default: true for http, false for stdio).
  */
 
-import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics, register as globalRegistry } from 'prom-client';
+// DX-22: prom-client is a heavy dep (~54ms import). Loaded lazily inside
+// initMetrics() so stdio cold-start doesn't pay for it — metrics are
+// disabled on stdio by default anyway (ensureMetricsEnabled).
+import type { Registry, Counter, Histogram, Gauge } from 'prom-client';
 
 // ---------- singleton ----------
 
@@ -38,13 +41,14 @@ let _gauges: {
 /**
  * Reset all internal state. For testing only.
  */
-export function _resetMetrics(): void {
+export async function _resetMetrics(): Promise<void> {
   _registry = undefined;
   _counters = undefined;
   _histograms = undefined;
   _gauges = undefined;
   // Clear any metrics registered in the global prom-client registry
   try {
+    const { register: globalRegistry } = await import('prom-client');
     globalRegistry.clear();
   } catch {}
 }
@@ -63,10 +67,11 @@ function ensureMetricsEnabled(): boolean {
  * Initialize metrics. Call once during startup.
  * No-op if metrics are disabled.
  */
-export function initMetrics(opts?: { version?: string; defaultMetrics?: boolean }): Registry | undefined {
+export async function initMetrics(opts?: { version?: string; defaultMetrics?: boolean }): Promise<Registry | undefined> {
   if (!ensureMetricsEnabled()) return undefined;
   if (_registry) return _registry;
 
+  const { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } = await import('prom-client');
   _registry = new Registry();
 
   // Optional: Node.js default metrics (process CPU, memory, GC, event loop lag)

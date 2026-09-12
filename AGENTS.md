@@ -412,10 +412,10 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-09-12
-**Session ID:** S-20260912-dx18
-**Текущая feature-ветка:** feat/dx-18-schema-version (→ master)
-**Текущий этап:** Этап N — DX/Onboarding. Сделано: DX-18 `DATA_DIR/.schema-version` манифест + file-level миграции при старте. Новый модуль `src/services/schema-version.ts` (НЕ SQLite MigrationFramework — тот dead code под better-sqlite3). Гейт в `AppContainer.init()` до `createServerContext()`: newer schema → SchemaVersionError + refuse boot; older → миграции из SCHEMA_MIGRATIONS; missing+non-empty → legacy 0 → migrate; missing+empty → stamp. `doctor --data` репортит `Schema: N (supported: M)` + error на newer.
-**Статус:** DX-18 → review; 231 files / 2735 tests green; tsc clean; stdio boot smoke OK (fresh stamp / refuse-newer exit 1 / legacy 0→1 migrate)
+**Session ID:** S-20260912-dx22
+**Текущая feature-ветка:** feat/dx-22-cold-start (→ master)
+**Текущий этап:** Этап N — DX/Onboarding. Сделано: DX-22 cold-start stdio lazy-load. TTFB median ~407-420ms (было ~483-540ms, цель <500ms). Конвертированы в lazy: prom-client→`initMetrics()` async (54ms), jose→`JwtValidator`/`createTestToken` (59ms), ws→`realtime.js` (36ms). Уже были lazy: onnxruntime-node/web + @xenova/transformers (vector.ts). Regression guard: `tests/cold-start.test.ts` (median of 3, hard-fail <2000ms).
+**Статус:** DX-22 → review; 233 files / 2750 tests green; tsc clean; stdio boot smoke OK; heavy loads at startup: 0
 
 ### Сессия S-20260911-msec (Этап M фаза 1)
 
