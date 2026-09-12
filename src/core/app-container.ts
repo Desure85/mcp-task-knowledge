@@ -454,11 +454,15 @@ export class AppContainer {
         // filesystem permissions (chmod 600) already restrict access to the
         // owner. MCP_UNIX_REQUIRE_AUTH=1 opts back in for shared-machine
         // hardening (e.g. socket placed in a group-writable dir).
+        // For unix transport: default open (chmod 600 protects), MCP_UNIX_REQUIRE_AUTH=1 opts in.
+        // For http/tcp: leave requireAuth undefined → AuthManager default (fail-closed) applies.
         const unixRequireAuth =
           gateTransport === 'unix' &&
           ['1', 'true', 'yes', 'on'].includes(
             (process.env.MCP_UNIX_REQUIRE_AUTH ?? '').toLowerCase(),
-          );
+          )
+            ? true
+            : undefined;
         this.authManager = new AuthManager({
           requireAuth: authOpts.requireAuth ?? unixRequireAuth,
           transport: gateTransport,
