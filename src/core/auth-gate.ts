@@ -23,6 +23,9 @@
 import type { AuthManager } from './auth.js';
 import type { SecurityStack } from './security-stack.js';
 import { requestScope } from './request-context.js';
+import { childLogger } from './logger.js';
+
+const log = childLogger('auth-gate');
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -299,8 +302,11 @@ export function wrapToolHandler<TArgs = unknown>(
         security.auditError(secCall, e, Date.now() - startedAt);
         security.recordAuthOutcome(secCall, false);
       }
-      const message = e instanceof Error ? e.message : String(e);
-      return denyEnvelope(message);
+      // AUD-12: never leak e.message to the client — it can carry internal
+      // paths, stack fragments or driver details. Generic message out,
+      // full error into the server log.
+      log.warn({ toolName, sessionId, err: e }, 'tool handler threw — returning generic error to client');
+      return denyEnvelope('internal error');
     }
   };
 }

@@ -13,6 +13,10 @@ import type { ServerContext } from './context.js';
 import { ok, err } from '../utils/respond.js';
 import { resolveExtraSessionId } from '../core/auth-gate.js';
 import type { GateExtra } from '../core/auth-gate.js';
+import { AuthError } from '../core/auth.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('register:auth');
 
 export const AUTHENTICATE_TOOL = 'mcp.authenticate';
 
@@ -48,7 +52,16 @@ export function registerAuthTools(ctx: ServerContext): void {
           sessionId,
         });
       } catch (e) {
-        return err(e instanceof Error ? e.message : 'authentication failed');
+        // AUD-12: AuthError messages are controlled strings ('invalid token',
+        // 'no token validator configured', lockout notices) — safe to return.
+        // Anything else (validator internals: JWKS fetch errors, fs paths,
+        // driver messages) collapses to a generic client message; details
+        // go to the server log.
+        if (e instanceof AuthError) {
+          return err(e.message);
+        }
+        log.warn({ sessionId, err: e }, 'token validator threw — generic auth failure to client');
+        return err('authentication failed');
       }
     },
   );

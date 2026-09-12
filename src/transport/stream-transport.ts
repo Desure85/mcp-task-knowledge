@@ -25,6 +25,7 @@
  */
 
 import net from 'node:net';
+import tls from 'node:tls';
 import fs from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/stdio.js';
@@ -35,6 +36,7 @@ import type { ServerContext } from '../register/context.js';
 import { decideToolCall, decideMethodCall, type MethodGateCall } from '../core/auth-gate.js';
 import type { AuthGateCall, AuthGateDecision } from '../core/auth-gate.js';
 import { childLogger } from '../core/logger.js';
+import { createTlsContext } from './tls.js';
 
 const log = childLogger('transport:stream');
 
@@ -389,13 +391,16 @@ abstract class StreamTransportAdapter implements TransportAdapter {
           result: result as Record<string, unknown>,
         });
       } catch (e) {
-        const anyErr = e as { code?: number; message?: string };
+        // AUD-12: generic message to the client — handler errors can carry
+        // internal paths/details. Full error goes to the server log.
+        log.warn({ sessionId, requestId, err: e }, 'main handler threw — generic error to client');
+        const anyErr = e as { code?: number };
         await transport.send({
           jsonrpc: '2.0',
           id: requestId,
           error: {
             code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
-            message: anyErr?.message ?? String(e),
+            message: 'Internal error',
           },
         }).catch(() => {});
       } finally {
@@ -486,11 +491,19 @@ export class TcpTransportAdapter extends StreamTransportAdapter {
   }
 
   protected async listen(): Promise<net.Server> {
-    const server = net.createServer();
+    // AUD-17: TLS opt-in via TLS_CERT_PATH/TLS_KEY_PATH — serves TLS TCP
+    // when configured, plain TCP otherwise.
+    const tlsCtx = createTlsContext();
+    const server = tlsCtx.isEnabled && tlsCtx.isReady
+      ? tls.createServer(tlsCtx.createServerOptions())
+      : net.createServer();
+    if (tlsCtx.isEnabled && !tlsCtx.isReady) {
+      log.warn('TLS_CERT_PATH/TLS_KEY_PATH set but context failed to load — serving plain TCP');
+    }
     return new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(this.port, this.host, () => {
-        log.info('MCP TCP listening on %s:%s', this.host, this.port);
+        log.info('MCP %s listening on %s:%s', tlsCtx.isReady ? 'TLS TCP' : 'TCP', this.host, this.port);
         resolve(server);
       });
     });

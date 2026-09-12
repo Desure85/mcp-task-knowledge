@@ -198,6 +198,7 @@ export class AppContainer {
   private adapter?: TransportAdapter;
   private sessionMgr?: SessionManager;
   private authManager?: AuthManager;
+  private authProtection?: AuthProtection;
   private tokenManagerCleanup?: () => void;
   private tokenManager?: TokenManager;
   private clusterMgr?: ClusterManager;
@@ -463,12 +464,17 @@ export class AppContainer {
           )
             ? true
             : undefined;
+        // AUD-13: brute-force protection on mcp.authenticate is core auth
+        // behaviour — created unconditionally (not gated by SECURITY_STACK)
+        // and shared with the SecurityStack when that is enabled.
+        this.authProtection = new AuthProtection();
         this.authManager = new AuthManager({
           requireAuth: authOpts.requireAuth ?? unixRequireAuth,
           transport: gateTransport,
           tokenValidator: validator,
           sessionManager: this.sessionMgr,
           authMethods: authOpts.authMethods,
+          authProtection: this.authProtection,
         });
         this.ctx.authManager = this.authManager;
         this.log.info(
@@ -509,7 +515,7 @@ export class AppContainer {
           rateLimiter: this.ctx.rateLimiter,
           acl,
           auditLogger,
-          authProtection: new AuthProtection(),
+          authProtection: this.authProtection ?? new AuthProtection(),
           sanitizer: { mode: process.env.SECURITY_SANITIZER_MODE === 'reject' ? 'reject' : 'sanitize' },
           authManager: this.authManager,
           egress: resolveEgressMode(),
@@ -782,6 +788,8 @@ export class AppContainer {
         jwksUri: jwksUrl,
         issuer: process.env.JWT_ISSUER,
         audience: process.env.JWT_AUDIENCE,
+        // AUD-16: persist revocations so a restart doesn't de-revoke tokens.
+        blacklistPath: path.join(DATA_DIR, '.jwt-revoked.json'),
       });
       return validator.asTokenValidator();
     }

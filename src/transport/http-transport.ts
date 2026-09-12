@@ -13,6 +13,7 @@ import { StreamableHTTPServerTransport as SdkHttpTransport } from '@modelcontext
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types.js';
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
 import { randomUUID } from 'node:crypto';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
@@ -25,6 +26,7 @@ import { getRealtimeServer } from './realtime.js';
 import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
 import { buildSetupMarkdown } from '../core/setup-link.js';
 import { getCurrentProject } from '../config.js';
+import { createTlsContext, type TlsContext } from './tls.js';
 
 const log = childLogger('transport:http');
 
@@ -142,13 +144,13 @@ function handleCorsPreflight(req: IncomingMessage, res: ServerResponse): boolean
 
 export class HttpTransportAdapter implements TransportAdapter {
   readonly type = 'http';
-  private httpServer?: HttpServer;
+  private httpServer?: HttpServer | HttpsServer;
   private _connected = false;
   private healthHandlers?: ReturnType<typeof createHealthHandlers>;
   private serverCtx?: ServerContext;
+  private tlsContext?: TlsContext;
   /** Live SDK transports keyed by mcp-session-id (one transport per session). */
   private sessions = new Map<string, SdkHttpTransport>();
-  private pendingInitRemotes: string[] = [];
   private serverInfo?: { name: string; version: string };
   private mainHandlers?: Map<string, MainRequestHandler>;
   /**
@@ -202,7 +204,15 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     this.serverCtx = ctx;
-    this.httpServer = createHttpServer();
+    // AUD-17: TLS is opt-in via TLS_CERT_PATH/TLS_KEY_PATH (see tls.ts).
+    // When enabled the adapter serves HTTPS; otherwise plain HTTP.
+    this.tlsContext = createTlsContext();
+    this.httpServer = this.tlsContext.isEnabled && this.tlsContext.isReady
+      ? createHttpsServer(this.tlsContext.createServerOptions())
+      : createHttpServer();
+    if (this.tlsContext.isEnabled && !this.tlsContext.isReady) {
+      log.warn('TLS_CERT_PATH/TLS_KEY_PATH set but context failed to load — serving plain HTTP');
+    }
 
     // Server info for per-session lifecycle servers.
     const rawServer = ctx.server as unknown as Record<string, unknown>;
@@ -328,8 +338,10 @@ export class HttpTransportAdapter implements TransportAdapter {
           return;
         }
         // New session: dedicated transport + lightweight lifecycle server.
-        this.pendingInitRemotes.push(req.socket.remoteAddress ?? 'http');
-        const transport = await this.createSessionTransport();
+        // AUD-14: remote is passed per-request (was a shared FIFO queue —
+        // parallel initialize POSTs could attribute the wrong remote IP to
+        // a session, and a failed init leaked the queue entry forever).
+        const transport = await this.createSessionTransport(req.socket.remoteAddress ?? 'http');
         await transport.handleRequest(req, res, parsedBody);
         return;
       }
@@ -355,12 +367,11 @@ export class HttpTransportAdapter implements TransportAdapter {
       const tokenValidator = auth?.isAuthRequired()
         ? async (token: string | null): Promise<boolean> => {
             if (!token) return false;
-            try {
-              await auth.authenticate(`ws:${token.slice(0, 16)}`, token);
-              return true;
-            } catch {
-              return false;
-            }
+            // AUD-15: validateToken, not authenticate — the WS path only needs
+            // an allow/deny verdict. authenticate() would mark a phantom
+            // 'ws:<token>' session in authenticatedSessions that no close
+            // path ever revokes (unbounded growth).
+            return (await auth.validateToken(token)) !== null;
           }
         : undefined;
       getRealtimeServer().attach(this.httpServer, '/ws', { tokenValidator });
@@ -368,10 +379,11 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     this.httpServer.listen(this.port, this.host, () => {
-      log.info('MCP Streamable HTTP listening on http://%s:%s', this.host, this.port);
-      log.info('API docs: http://%s:%s/api/docs', this.host, this.port);
+      const scheme = this.tlsContext?.isReady ? 'https' : 'http';
+      log.info('MCP Streamable HTTP listening on %s://%s:%s', scheme, this.host, this.port);
+      log.info('API docs: %s://%s:%s/api/docs', scheme, this.host, this.port);
       if (createMetricsHandler()) {
-        log.info('Prometheus metrics: http://%s:%s/metrics', this.host, this.port);
+        log.info('Prometheus metrics: %s://%s:%s/metrics', scheme, this.host, this.port);
       }
     });
   }
@@ -460,7 +472,8 @@ export class HttpTransportAdapter implements TransportAdapter {
   }
 
   private publicBaseUrl(req: IncomingMessage): string {
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined) ?? 'http';
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)
+      ?? (this.tlsContext?.isReady ? 'https' : 'http');
     const host = req.headers.host ?? `${this.host}:${this.port}`;
     return `${proto}://${host}`;
   }
@@ -485,14 +498,13 @@ export class HttpTransportAdapter implements TransportAdapter {
    * server's handlers via the wrapped onmessage — same contract as the
    * TCP/Unix adapter (S-002).
    */
-  private async createSessionTransport(): Promise<SdkHttpTransport> {
+  private async createSessionTransport(remote: string): Promise<SdkHttpTransport> {
     const transport = new SdkHttpTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: async (sessionId: string) => {
         this.sessions.set(sessionId, transport);
         const sm = this.serverCtx?.sessionManager;
         if (!sm) return;
-        const remote = this.pendingInitRemotes.shift() ?? 'http';
         try {
           sm.create({
             id: sessionId,
@@ -629,14 +641,17 @@ export class HttpTransportAdapter implements TransportAdapter {
           { relatedRequestId: requestId },
         );
       } catch (e) {
-        const anyErr = e as { code?: number; message?: string };
+        // AUD-12: generic message to the client — handler errors can carry
+        // internal paths/details. Full error goes to the server log.
+        log.warn({ sessionId: transport.sessionId, requestId, err: e }, 'main handler threw — generic error to client');
+        const anyErr = e as { code?: number };
         await transport.send(
           {
             jsonrpc: '2.0',
             id: requestId,
             error: {
               code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
-              message: anyErr?.message ?? String(e),
+              message: 'Internal error',
             },
           },
           { relatedRequestId: requestId },
@@ -669,6 +684,8 @@ export class HttpTransportAdapter implements TransportAdapter {
       this._connected = false;
       this.httpServer = undefined;
       this.serverCtx = undefined;
+      this.tlsContext?.dispose();
+      this.tlsContext = undefined;
     }
   }
 
