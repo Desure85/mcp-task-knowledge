@@ -90,6 +90,18 @@ describe('DX-14: seedPromptsIfEmpty', () => {
     expect(await countSourceJsons()).toBe(1);
   });
 
+  it('does NOT seed when a catalog exists but source dirs are empty', async () => {
+    const catalogPath = path.join(baseDir, PROJECT, 'exports', 'catalog', 'prompts.catalog.json');
+    await fs.mkdir(path.dirname(catalogPath), { recursive: true });
+    await fs.writeFile(catalogPath, JSON.stringify({ items: { p1: { id: 'p1' } } }), 'utf8');
+    const result = await seedPromptsIfEmpty(baseDir, PROJECT);
+    expect(result.seeded).toBe(false);
+    expect(result.reason).toBe('library not empty');
+    const catalog = JSON.parse(await fs.readFile(catalogPath, 'utf8'));
+    expect(catalog.items.p1).toBeTruthy();
+    expect(await countSourceJsons()).toBe(0);
+  });
+
   it('is idempotent — second call is a no-op', async () => {
     const first = await seedPromptsIfEmpty(baseDir, PROJECT);
     expect(first.seeded).toBe(true);

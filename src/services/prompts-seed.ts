@@ -398,8 +398,8 @@ function kindDir(kind: string): string {
 }
 
 /**
- * Check whether the project's prompt source dirs contain any .json files.
- * Returns true if the library is completely empty (no user prompts).
+ * A library is untouched only when source dirs hold no .json files AND no
+ * catalog was ever built — otherwise re-seeding would clobber the catalog.
  */
 async function isLibraryEmpty(baseDir: string, project: string): Promise<boolean> {
   const projectDir = resolveUnder(baseDir, project);
@@ -414,7 +414,13 @@ async function isLibraryEmpty(baseDir: string, project: string): Promise<boolean
       // dir doesn't exist — that's fine, still empty
     }
   }
-  return true;
+  const catalogPath = path.join(projectDir, 'exports', 'catalog', 'prompts.catalog.json');
+  try {
+    await fs.access(catalogPath);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 export interface SeedResult {
