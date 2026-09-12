@@ -986,6 +986,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-04g | Test hygiene: DATA_DIR isolation + shared e2e http harness | low | pending | TR-04 | /tmp/mcp-data гонки; ~200 строк дублей в 6 e2e файлах |
 | TR-18 | tests/security-stack.test.ts:197,209 — `lockoutMs` → `maxLockoutMs` (pre-existing tsc error) | low | pending | AUD-10 | AuthProtectionOptions нет `lockoutMs` |
 | TR-19 | Битые `_X` импорты в 4+ тест-файлах (event-bus, tool-executor, async-ops, multimodal) | medium | pending | AUD-10 | tsconfig.test.json красный — экспорты удалены при рефакторинге, импорты остались |
+| TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | pending | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
+| TR-21 | AuthProtection дублирует ключи: sessionId в SecurityStack + IP в AuthManager | low | pending | AUD-13 | Два инстанса пишут разные ключи — не баг, но шум; унифицировать на IP-keyed |
 
 ---
 
