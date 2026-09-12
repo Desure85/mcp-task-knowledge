@@ -22,7 +22,7 @@ import { childLogger } from '../core/logger.js';
 import { createMetricsHandler } from '../core/metrics.js';
 import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
 import type { HealthChecker } from '../health/index.js';
-import { getRealtimeServer } from './realtime.js';
+
 import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
 import { buildSetupMarkdown } from '../core/setup-link.js';
 import { getCurrentProject } from '../config.js';
@@ -374,6 +374,8 @@ export class HttpTransportAdapter implements TransportAdapter {
             return (await auth.validateToken(token)) !== null;
           }
         : undefined;
+      // DX-22: ws (~36ms) only needed when realtime is enabled on http transport.
+      const { getRealtimeServer } = await import('./realtime.js');
       getRealtimeServer().attach(this.httpServer, '/ws', { tokenValidator });
       log.info('Realtime WS: /ws');
     }

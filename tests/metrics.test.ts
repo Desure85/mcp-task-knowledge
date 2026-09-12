@@ -2,69 +2,69 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { initMetrics, getMetricsRegistry, recordToolCall, recordResourceRead, updateServerInfo, createMetricsHandler, wrapToolHandler, recordSessionCreated, recordSessionClosed, setSessionsActive, _resetMetrics } from '../src/core/metrics.js';
 
 describe('core/metrics', () => {
-  beforeEach(() => {
-    _resetMetrics();
+  beforeEach(async () => {
+    await _resetMetrics();
     delete process.env.METRICS_ENABLED;
     delete process.env.MCP_TRANSPORT;
   });
 
   describe('initMetrics', () => {
-    it('returns undefined when metrics are disabled (stdio default)', () => {
+    it('returns undefined when metrics are disabled (stdio default)', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
       delete process.env.METRICS_ENABLED;
-      const reg = initMetrics();
+      const reg = await initMetrics();
       expect(reg).toBeUndefined();
     });
 
-    it('returns undefined when METRICS_ENABLED=0', () => {
+    it('returns undefined when METRICS_ENABLED=0', async () => {
       process.env.METRICS_ENABLED = '0';
-      const reg = initMetrics();
+      const reg = await initMetrics();
       expect(reg).toBeUndefined();
     });
 
-    it('returns a registry when METRICS_ENABLED=1', () => {
+    it('returns a registry when METRICS_ENABLED=1', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
       expect(reg).toBeDefined();
     });
 
-    it('returns a registry when transport is http and METRICS_ENABLED not set', () => {
+    it('returns a registry when transport is http and METRICS_ENABLED not set', async () => {
       process.env.MCP_TRANSPORT = 'http';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
       expect(reg).toBeDefined();
     });
 
-    it('is idempotent — returns same registry on repeated calls', () => {
+    it('is idempotent — returns same registry on repeated calls', async () => {
       process.env.METRICS_ENABLED = '1';
-      const a = initMetrics({ version: '1.0.0', defaultMetrics: false });
-      const b = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const a = await initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const b = await initMetrics({ version: '1.0.0', defaultMetrics: false });
       expect(a).toBe(b);
     });
   });
 
   describe('getMetricsRegistry', () => {
-    it('returns undefined when not initialized', () => {
+    it('returns undefined when not initialized', async () => {
       expect(getMetricsRegistry()).toBeUndefined();
     });
 
-    it('returns registry after init', () => {
+    it('returns registry after init', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
       expect(getMetricsRegistry()).toBe(reg);
     });
   });
 
   describe('recordToolCall', () => {
-    it('does not throw when metrics are disabled', () => {
+    it('does not throw when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(() => recordToolCall('test_tool', 100)).not.toThrow();
       expect(() => recordToolCall('test_tool', 50, new Error('test'))).not.toThrow();
     });
 
     it('records successful calls when metrics are enabled', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       recordToolCall('task_create', 100);
       recordToolCall('task_create', 200);
@@ -77,7 +77,7 @@ describe('core/metrics', () => {
 
     it('records duration in histogram', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       recordToolCall('search_tasks', 500);
       recordToolCall('search_tasks', 1000);
@@ -89,15 +89,15 @@ describe('core/metrics', () => {
   });
 
   describe('recordResourceRead', () => {
-    it('does not throw when metrics are disabled', () => {
+    it('does not throw when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(() => recordResourceRead('tasks://')).not.toThrow();
     });
 
     it('records resource reads when enabled', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       recordResourceRead('tasks://current');
       recordResourceRead('knowledge://project', new Error('not found'));
@@ -109,16 +109,16 @@ describe('core/metrics', () => {
   });
 
   describe('updateServerInfo', () => {
-    it('does not throw when metrics are disabled', () => {
+    it('does not throw when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(() => updateServerInfo({ toolCount: 42 })).not.toThrow();
     });
 
     it('updates the gauge when enabled', async () => {
       process.env.METRICS_ENABLED = '1';
       process.env.MCP_TRANSPORT = 'http';
-      const reg = initMetrics({ version: '2.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '2.0.0', defaultMetrics: false });
 
       updateServerInfo({ version: '2.0.0', toolCount: 30 });
 
@@ -128,15 +128,15 @@ describe('core/metrics', () => {
   });
 
   describe('createMetricsHandler', () => {
-    it('returns undefined when metrics are disabled', () => {
+    it('returns undefined when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(createMetricsHandler()).toBeUndefined();
     });
 
-    it('returns a handler when enabled', () => {
+    it('returns a handler when enabled', async () => {
       process.env.METRICS_ENABLED = '1';
-      initMetrics({ version: '1.0.0', defaultMetrics: false });
+      await initMetrics({ version: '1.0.0', defaultMetrics: false });
       const handler = createMetricsHandler();
       expect(handler).toBeDefined();
       expect(typeof handler).toBe('function');
@@ -144,7 +144,7 @@ describe('core/metrics', () => {
 
     it('handler writes metrics to response', async () => {
       process.env.METRICS_ENABLED = '1';
-      initMetrics({ version: '1.0.0', defaultMetrics: false });
+      await initMetrics({ version: '1.0.0', defaultMetrics: false });
       recordToolCall('test', 100);
 
       const handler = createMetricsHandler()!;
@@ -169,7 +169,7 @@ describe('core/metrics', () => {
   describe('wrapToolHandler', () => {
     it('wraps a handler and records metrics', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       const original = async (params: { x: number }) => ({ result: params.x * 2 });
       const wrapped = wrapToolHandler('double', original);
@@ -183,7 +183,7 @@ describe('core/metrics', () => {
 
     it('records error status when handler throws', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       const original = async () => { throw new Error('boom'); };
       const wrapped = wrapToolHandler('failing', original);
@@ -196,7 +196,7 @@ describe('core/metrics', () => {
 
     it('does not affect behavior when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
 
       const original = async (params: { x: number }) => ({ result: params.x * 2 });
       const wrapped = wrapToolHandler('double', original);
@@ -209,15 +209,15 @@ describe('core/metrics', () => {
   // ─── S-005: Session metrics ───────────────────────────────────────
 
   describe('recordSessionCreated (S-005)', () => {
-    it('does not throw when metrics are disabled', () => {
+    it('does not throw when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(() => recordSessionCreated()).not.toThrow();
     });
 
     it('increments sessions_total{status="opened"} and sessions_active gauge', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       recordSessionCreated();
       recordSessionCreated();
@@ -230,9 +230,9 @@ describe('core/metrics', () => {
   });
 
   describe('recordSessionClosed (S-005)', () => {
-    it('does not throw when metrics are disabled', () => {
+    it('does not throw when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(() => recordSessionClosed(5000, 1000, 'manual')).not.toThrow();
       expect(() => recordSessionClosed(3000, 500, 'expired')).not.toThrow();
       expect(() => recordSessionClosed(2000, 2000, 'idle_timeout')).not.toThrow();
@@ -240,7 +240,7 @@ describe('core/metrics', () => {
 
     it('decrements sessions_active and records counter + histograms for manual close', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       // Create 3 sessions then close 1
       recordSessionCreated();
@@ -262,7 +262,7 @@ describe('core/metrics', () => {
 
     it('records expired status for expired close reason', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       recordSessionCreated();
       recordSessionClosed(120_000, 30_000, 'expired');
@@ -275,7 +275,7 @@ describe('core/metrics', () => {
 
     it('records idle_timeout status for idle_timeout close reason', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       recordSessionCreated();
       recordSessionClosed(60_000, 60_000, 'idle_timeout');
@@ -288,7 +288,7 @@ describe('core/metrics', () => {
 
     it('records duration in seconds (not ms)', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       // 5000ms = 5s
       recordSessionCreated();
@@ -301,15 +301,15 @@ describe('core/metrics', () => {
   });
 
   describe('setSessionsActive (S-005)', () => {
-    it('does not throw when metrics are disabled', () => {
+    it('does not throw when metrics are disabled', async () => {
       process.env.MCP_TRANSPORT = 'stdio';
-      initMetrics();
+      await initMetrics();
       expect(() => setSessionsActive(42)).not.toThrow();
     });
 
     it('sets sessions_active gauge to exact value', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       setSessionsActive(10);
       const metrics = await reg!.metrics();
@@ -325,7 +325,7 @@ describe('core/metrics', () => {
   describe('session metrics full lifecycle (S-005)', () => {
     it('tracks create → active → close correctly across multiple sessions', async () => {
       process.env.METRICS_ENABLED = '1';
-      const reg = initMetrics({ version: '1.0.0', defaultMetrics: false });
+      const reg = await initMetrics({ version: '1.0.0', defaultMetrics: false });
 
       // Session A created
       recordSessionCreated();

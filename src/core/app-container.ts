@@ -69,13 +69,11 @@ import { registerAuthTools } from '../register/auth.js';
 import { AuthManager } from './auth.js';
 import type { TokenValidator } from './auth.js';
 import { TokenManager } from './token-manager.js';
-import { JwtValidator } from './jwt-validator.js';
 import { RateLimiter } from './rate-limiter.js';
 import { ACLEngine } from './acl.js';
 import { AuthProtection } from './auth-protection.js';
 import { AuditLogger } from '../audit/logger.js';
 import { SetupLinkStore } from './setup-link.js';
-import { createTestToken } from './jwt-validator.js';
 import { SecurityStack, isSecurityStackEnabled } from './security-stack.js';
 import { resolveEgressMode } from './egress-scanner.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
@@ -337,7 +335,7 @@ export class AppContainer {
       createLogger();
 
       // 2. Metrics
-      initMetrics();
+      await initMetrics();
 
       // 2.5 DX-18: DATA_DIR schema-version gate — BEFORE any storage read.
       // Refuses to boot when the on-disk schema is newer than this build;
@@ -478,7 +476,7 @@ export class AppContainer {
         const authOpts = this.opts.auth ?? {};
         const t = this.opts.transportType.toLowerCase();
         const gateTransport = t === 'http' || t === 'tcp' || t === 'unix' ? t : 'stdio';
-        const validator = authOpts.tokenValidator ?? this.buildDefaultValidator();
+        const validator = authOpts.tokenValidator ?? (await this.buildDefaultValidator());
         // AUD-09: unix socket is a local pipe — auth is off by default because
         // filesystem permissions (chmod 600) already restrict access to the
         // owner. MCP_UNIX_REQUIRE_AUTH=1 opts back in for shared-machine
@@ -561,8 +559,9 @@ export class AppContainer {
           ? (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) =>
               this.tokenManager!.issue(o.userId, o.roles, { metadata: o.metadata }).accessToken
           : jwtSecret
-            ? async (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) =>
-                createTestToken(
+            ? async (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) => {
+                const { createTestToken } = await import('./jwt-validator.js');
+                return createTestToken(
                   {
                     sub: o.userId,
                     roles: o.roles,
@@ -572,7 +571,8 @@ export class AppContainer {
                     ...o.metadata,
                   },
                   jwtSecret,
-                )
+                );
+              }
             : undefined;
         if (tokenIssuer) {
           this.ctx.tokenManager = this.tokenManager;
@@ -819,10 +819,12 @@ export class AppContainer {
 
   // ─── Cleanup registration ────────────────────────────────────────
 
-  private buildDefaultValidator(): TokenValidator {
+  private async buildDefaultValidator(): Promise<TokenValidator> {
     const secret = process.env.JWT_SECRET;
     const jwksUrl = process.env.JWKS_URL;
     if (secret ?? jwksUrl) {
+      // DX-22: jose (~59ms) only needed when JWT/JWKS auth is configured.
+      const { JwtValidator } = await import('./jwt-validator.js');
       const validator = new JwtValidator({
         secret,
         jwksUri: jwksUrl,
