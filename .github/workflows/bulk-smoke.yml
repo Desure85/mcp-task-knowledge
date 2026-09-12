@@ -72,6 +72,12 @@ jobs:
           node scripts/smoke_knowledge.mjs
           node scripts/smoke_tasks_aliases.mjs
 
+      - name: MCP Inspector conformance (DX-23)
+        env:
+          EMBEDDINGS_MODE: none
+        run: |
+          npx vitest run tests/e2e-full/mcp-inspector.test.ts
+
       # service-catalog из внешнего репозитория
       - name: Install & build service-catalog
         working-directory: service-catalog
