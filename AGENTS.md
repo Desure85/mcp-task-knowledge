@@ -409,11 +409,11 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-09-11
-**Session ID:** S-20260911-msec
-**Текущая feature-ветка:** fix/aud-crit-hardening (→ master)
-**Текущий этап:** Этап M — request-path security. Сделано: AUD-01 (все MCP-методы за гейтом, whitelist=initialize/ping/authenticate), AUD-02 (resources read-only, task://action/* → refuse-стабы), AUD-03 (resolveUnder/resolveUnderPath + PROJECT_ID_RE — traversal закрыт на ~40 join-сайтах)
-**Статус:** e2e-full: 21 files / 71 tests green в Docker (node:20-bookworm); unit +22 кейса; tsc clean; eslint 0 err / 816 warn
+**Дата последнего обновления:** 2026-09-12
+**Session ID:** S-20260912-dx17
+**Текущая feature-ветка:** feat/dx-17-doctor-data (→ master)
+**Текущий этап:** Этап N — DX/Onboarding. Сделано: DX-17 `doctor --data` — read-only скан целостности DATA_DIR + `--fix` для тривиального (derivable id/project). src/cli/doctor.ts + argv-роутинг в index.ts (только первый аргумент 'doctor', stdio-путь не тронут)
+**Статус:** DX-17 → review; 230 files / 2724 tests green; tsc clean; stdio boot smoke OK
 
 ### Сессия S-20260911-msec (Этап M фаза 1)
 
