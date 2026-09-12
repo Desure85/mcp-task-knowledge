@@ -13,6 +13,7 @@ import type { AuthManager } from '../core/auth.js';
 import type { SessionManager } from '../core/session-manager.js';
 import type { ClusterManager } from '../core/cluster.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
+import type { SecurityStack } from '../core/security-stack.js';
 import type { RelayManager } from '../relay/relay-manager.js';
 import type { RuleManager } from '../rules/rule-manager.js';
 import type { ConnectorRegistry } from '../connectors/registry.js';
@@ -83,6 +84,9 @@ export interface ServerContext {
 
   /** Optional RateLimiter for per-session rate limiting (S-003, S-004). Set by AppContainer after init. */
   rateLimiter?: RateLimiter;
+
+  /** Optional SecurityStack (AUD-07) — rate-limit/sanitizer/ACL/audit/AuthProtection in tools/call dispatch. Set by AppContainer when SECURITY_STACK=1. */
+  securityStack?: SecurityStack;
 
   /** Connector registry (INT-004, WIRE-001). Set by AppContainer after init. */
   connectorRegistry?: ConnectorRegistry;

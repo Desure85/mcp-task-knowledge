@@ -35,7 +35,8 @@ import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClose
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { currentSessionId } from './request-context.js';
-import { setSessionProjectResolver, isToolResourcesEnabled } from '../config.js';
+import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR } from '../config.js';
+import path from 'node:path';
 import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
 import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
@@ -69,6 +70,10 @@ import type { TokenValidator } from './auth.js';
 import { TokenManager } from './token-manager.js';
 import { JwtValidator } from './jwt-validator.js';
 import { RateLimiter } from './rate-limiter.js';
+import { ACLEngine } from './acl.js';
+import { AuthProtection } from './auth-protection.js';
+import { AuditLogger } from '../audit/logger.js';
+import { SecurityStack, isSecurityStackEnabled } from './security-stack.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
@@ -448,6 +453,44 @@ export class AppContainer {
           { requireAuth: this.authManager.isAuthRequired(), transport: gateTransport },
           'auth manager initialized',
         );
+      }
+
+      // AUD-07: wire the previously-dead security stack into tools/call
+      // dispatch. Opt-in via SECURITY_STACK=1 — when off, wrapToolHandler
+      // skips the stage entirely (backwards compat). Placed after auth init
+      // so ACL can resolve caller roles via AuthManager.
+      if (isSecurityStackEnabled()) {
+        if (!this.ctx.rateLimiter) {
+          this.ctx.rateLimiter = new RateLimiter();
+        }
+        const auditPath =
+          process.env.SECURITY_AUDIT_LOG ??
+          path.join(DATA_DIR, 'audit.log');
+        const auditLogger = new AuditLogger({
+          enabled: true,
+          filePath: auditPath,
+          maxFileSize: 10 * 1024 * 1024,
+          maxFiles: 5,
+          rotateIntervalMs: 0,
+          logInput: true,
+          logResult: false,
+          maxResultLength: 1000,
+          redactFields: ['password', 'token', 'secret', 'apiKey', 'jwt', 'authorization'],
+        });
+        const acl = new ACLEngine({
+          enabled: process.env.SECURITY_ACL === '1' || process.env.SECURITY_ACL === 'true',
+        });
+        this.ctx.acl = acl;
+        this.ctx.securityStack = new SecurityStack({
+          rateLimiter: this.ctx.rateLimiter,
+          acl,
+          auditLogger,
+          authProtection: new AuthProtection(),
+          sanitizer: { mode: process.env.SECURITY_SANITIZER_MODE === 'reject' ? 'reject' : 'sanitize' },
+          authManager: this.authManager,
+        });
+        this.addCleanup(() => auditLogger.close());
+        this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (SECURITY_STACK=1)');
       }
 
       // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)

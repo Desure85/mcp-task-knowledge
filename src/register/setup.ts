@@ -146,6 +146,7 @@ export async function createServerContext(): Promise<ServerContext> {
   const gateResolve = () => ({
     auth: gateCtx.ctx?.authManager,
     transport: gateCtx.ctx?.transportType ?? 'stdio',
+    security: gateCtx.ctx?.securityStack,
   });
   const gateHandler = (name: string, handler: unknown): unknown => {
     if (typeof handler !== 'function') return handler;
