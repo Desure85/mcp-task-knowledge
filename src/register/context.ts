@@ -53,7 +53,12 @@ export interface ServerContext {
   TOOL_RES_EXEC: boolean;
 
   REPO_ROOT: string;
-  SERVER_CAPS: { resources: { list: boolean; read: boolean }; tools: { call: boolean } };
+  SERVER_CAPS: {
+    resources: { subscribe: boolean; listChanged: boolean };
+    tools: { listChanged: boolean };
+    prompts: { listChanged: boolean };
+    completion: Record<string, never>;
+  };
 
   normalizeBase64: (input: string) => string;
   makeResourceTemplate: (pattern: string) => ResourceTemplate;
