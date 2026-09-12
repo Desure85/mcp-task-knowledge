@@ -750,7 +750,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | PH-004 | Семантика current project (session-scoped) | medium | done | PH-002 | Глобальный `current` — shared mutable state: один агент `set_current` ломает default для всех подключённых. После PH-002 сделать current per-session (SessionManager), stdio-режим — single-session. Schema-default `'mcp'` не трогаем (обратная совместимость); явный `project` остаётся главным контрактом. Задокументировать в docs |
 | PH-005 | Унификация error-стиля handlers | low | done | — | `project_purge` и другие бросают raw `Error` (protocol error) вместо `{ok:false}` envelope. Аудит всех `throw` в `src/register/*`, перевести на `err()` где это доменная ошибка, оставить throw только для протокольных |
-| PH-006 | Connector expose-mode + registry visibility | medium | done | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry → `tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
+| PH-006 | Connector expose-mode + registry visibility | medium | done | — | Два режима через env `CONNECTOR_EXPOSE_MODE=tools|resources|both` (default `both`): read-only операции (list/get/sync-status) также как MCP resources; mutations только tools (resources не умеют мутации — ограничение протокола). Плюс: регистрация через ToolRegistry →`tools_list`/`tool_help`/`tools_catalog` видят connector tools (сейчас blind spot). Обновить connectors-all e2e на оба режима |
 
 ### Фаза 3 — Memory multi-tenancy (полная изоляция)
 
@@ -966,6 +966,11 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | SPEC-09 | Protocol-version conformance e2e | medium | pending | DX-23 | Зафиксировать negotiated `protocolVersion` в e2e; Inspector-гейт частично покроет |
 | SPEC-10 | SDK upgrade policy | low | pending | — | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
+| TR-14 | Egress prompt-injection scanner в ToolMiddleware.after() | high | pending | TR-01 | Сканировать output всех tools на паттерны: "ignore previous", role markers, zero-width, base64 payload >50 chars. Отдельный Sanitizer-instance на egress. |
+| TR-15 | tools_run/tools_batch — пропускает auth-gate+SecurityStack | critical | pending | TR-01 | toolRegistry хранит raw handler (setup.ts:267-312) — tools_run вызывает напрямую без auth/ACL/audit. Вернуть через gated dispatch. |
+| TR-16 | Trust/provenance metadata на stored docs | medium | pending | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external. |
+| TR-17 | XML/context escaping в memory_context_assemble | high | pending | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. |
+| DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | pending | AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
 
 ---
 
