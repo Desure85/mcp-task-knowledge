@@ -971,6 +971,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-16 | Trust/provenance metadata на stored docs | medium | pending | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external. |
 | TR-17 | XML/context escaping в memory_context_assemble | high | pending | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. |
 | DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | pending | AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
+| AUD-18a | Path traversal userId в ProfileManager | critical | pending | AUD-18 | memory/user-profile.ts:95 join(storageDir, userId+'.json') без resolveUnder — arbitrary read/write |
+| AUD-18b | Non-atomic JSON stores в memory/sync | critical | pending | AUD-18 | TemporalGraph/EntityGraph/ProfileManager пишут writeFileSync без tmp+rename — crash = silent data loss |
+| AUD-18c | Lost-update RMW races в stores | high | pending | AUD-18 | In-memory copy→mutate→rewrite без lock; concurrent updates теряются |
+| AUD-18d | EventLog unbounded growth + no compaction | high | pending | AUD-18 | persist() переписывает весь лог на каждый append; compactThreshold не используется |
+| AUD-18e | threeWayMerge LWW no tiebreaker + manual writes null | medium | pending | AUD-18 | src/sync/ — merge bugs; whole sync stack is dead code (not wired) |
+| AUD-18f | writeText не атомарный для .md knowledge docs | medium | pending | AUD-18 | writeJson атомарный (Q-013), writeText — нет |
 
 ---
 
