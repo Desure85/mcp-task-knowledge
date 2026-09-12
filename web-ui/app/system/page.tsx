@@ -105,7 +105,10 @@ export default function SystemPage() {
             <h2 className="font-semibold mb-3">Authentication</h2>
             <p className="text-xs text-gray-500 mb-3">
               When the server enforces JWT auth, tools beyond initialize/tools_list/ping require an
-              authenticated session. The token is kept in sessionStorage for this tab only.
+              authenticated session. The token is kept in sessionStorage for this tab only —
+              it is never sent via cookies, so cross-site requests cannot ride an ambient
+              session (no CSRF surface). Trade-off: any XSS in this origin could read the
+              token; keep the markdown preview sanitised and rotate tokens on suspicion.
             </p>
             {authed ? (
               <div className="flex items-center gap-3">
