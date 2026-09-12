@@ -158,4 +158,45 @@ export function registerSessionTools(ctx: ServerContext): void {
       });
     }
   );
+
+  // ── admin_setup_link (DX-29) ──────────────────────
+  // Create a one-time setup link for agent self-configuration.
+  ctx.server.registerTool(
+    "admin_setup_link",
+    {
+      title: "Create Setup Link",
+      description: "Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transport, a scoped access token, and self-config instructions for an AI agent. Requires admin role. The link can be redeemed exactly once via GET /.well-known/mcp-setup/<otp>.",
+      inputSchema: {
+        project: z.string().min(1).optional().describe("Project scope for the issued token (default: current project)"),
+        role: z.string().min(1).optional().describe("Role scope for the issued token (default: 'agent')"),
+        ttlMs: z.number().int().positive().max(3_600_000).optional().describe("Link TTL in ms (default: 900000 = 15min, max 1h)"),
+        baseUrl: z.string().url().optional().describe("Public base URL for the setup link (default: http://localhost:MCP_PORT)"),
+      },
+    },
+    async (args: { project?: string; role?: string; ttlMs?: number; baseUrl?: string }, extra?: GateExtra) => {
+      const store = ctx.setupLinkStore;
+      if (!store) {
+        return err('setup links unavailable — no token issuer configured (requires TokenManager or JWT_SECRET)');
+      }
+      const callerId = resolveExtraSessionId(extra);
+      if (!isAdmin(ctx, callerId)) {
+        return err('access denied — admin_setup_link requires admin role');
+      }
+      const { getCurrentProject } = await import('../config.js');
+      const link = await store.create({
+        project: args.project ?? getCurrentProject(),
+        role: args.role ?? 'agent',
+        ttlMs: args.ttlMs,
+        createdBy: callerId ?? 'local',
+      });
+      const base = args.baseUrl ?? `http://localhost:${process.env.MCP_PORT || '3001'}`;
+      return ok({
+        url: `${base}/.well-known/mcp-setup/${link.otp}`,
+        expiresAt: new Date(link.expiresAt).toISOString(),
+        otp: link.otp,
+        project: link.project,
+        role: link.role,
+      });
+    }
+  );
 }

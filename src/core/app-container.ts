@@ -73,6 +73,8 @@ import { RateLimiter } from './rate-limiter.js';
 import { ACLEngine } from './acl.js';
 import { AuthProtection } from './auth-protection.js';
 import { AuditLogger } from '../audit/logger.js';
+import { SetupLinkStore } from './setup-link.js';
+import { createTestToken } from './jwt-validator.js';
 import { SecurityStack, isSecurityStackEnabled } from './security-stack.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
@@ -196,6 +198,7 @@ export class AppContainer {
   private sessionMgr?: SessionManager;
   private authManager?: AuthManager;
   private tokenManagerCleanup?: () => void;
+  private tokenManager?: TokenManager;
   private clusterMgr?: ClusterManager;
   private readonly eventBus = new EventBus();
   private readonly healthChecker = new HealthChecker();
@@ -459,6 +462,7 @@ export class AppContainer {
       // dispatch. Opt-in via SECURITY_STACK=1 — when off, wrapToolHandler
       // skips the stage entirely (backwards compat). Placed after auth init
       // so ACL can resolve caller roles via AuthManager.
+      let auditLoggerRef: AuditLogger | undefined;
       if (isSecurityStackEnabled()) {
         if (!this.ctx.rateLimiter) {
           this.ctx.rateLimiter = new RateLimiter();
@@ -477,6 +481,7 @@ export class AppContainer {
           maxResultLength: 1000,
           redactFields: ['password', 'token', 'secret', 'apiKey', 'jwt', 'authorization'],
         });
+        auditLoggerRef = auditLogger;
         const acl = new ACLEngine({
           enabled: process.env.SECURITY_ACL === '1' || process.env.SECURITY_ACL === 'true',
         });
@@ -491,6 +496,39 @@ export class AppContainer {
         });
         this.addCleanup(() => auditLogger.close());
         this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (SECURITY_STACK=1)');
+      }
+
+      // DX-29: one-time setup links. Token issuer must produce tokens the
+      // configured AuthManager validator accepts: the internal TokenManager
+      // when it backs the validator, else a jose JWT under JWT_SECRET.
+      {
+        const jwtSecret = process.env.JWT_SECRET;
+        const tokenIssuer = this.tokenManager
+          ? (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) =>
+              this.tokenManager!.issue(o.userId, o.roles, { metadata: o.metadata }).accessToken
+          : jwtSecret
+            ? async (o: { userId: string; roles: string[]; ttlMs: number; metadata: Record<string, unknown> }) =>
+                createTestToken(
+                  {
+                    sub: o.userId,
+                    roles: o.roles,
+                    iss: process.env.JWT_ISSUER,
+                    aud: process.env.JWT_AUDIENCE,
+                    exp: Math.floor((Date.now() + o.ttlMs) / 1000),
+                    ...o.metadata,
+                  },
+                  jwtSecret,
+                )
+            : undefined;
+        if (tokenIssuer) {
+          this.ctx.tokenManager = this.tokenManager;
+          this.ctx.setupLinkStore = new SetupLinkStore({
+            tokenIssuer,
+            auditLogger: auditLoggerRef,
+          });
+          this.addCleanup(() => this.ctx?.setupLinkStore?.close());
+          this.log.info('setup-link store initialized');
+        }
       }
 
       // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)
@@ -728,6 +766,7 @@ export class AppContainer {
       return validator.asTokenValidator();
     }
     const manager = new TokenManager();
+    this.tokenManager = manager;
     this.tokenManagerCleanup = () => manager.close();
     this.addCleanup(() => manager.close());
     return manager.createValidator();

@@ -14,6 +14,8 @@ import type { SessionManager } from '../core/session-manager.js';
 import type { ClusterManager } from '../core/cluster.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
 import type { SecurityStack } from '../core/security-stack.js';
+import type { TokenManager } from '../core/token-manager.js';
+import type { SetupLinkStore } from '../core/setup-link.js';
 import type { RelayManager } from '../relay/relay-manager.js';
 import type { RuleManager } from '../rules/rule-manager.js';
 import type { ConnectorRegistry } from '../connectors/registry.js';
@@ -90,4 +92,10 @@ export interface ServerContext {
 
   /** Connector registry (INT-004, WIRE-001). Set by AppContainer after init. */
   connectorRegistry?: ConnectorRegistry;
+
+  /** TokenManager issuing tokens validated by the default validator (DX-29). Present only when no JWT_SECRET/JWKS_URL validator is configured. */
+  tokenManager?: TokenManager;
+
+  /** One-time setup-link store (DX-29). Set by AppContainer after auth init. */
+  setupLinkStore?: SetupLinkStore;
 }

@@ -23,6 +23,8 @@ import { createHealthHandlers, matchHealthEndpoint } from '../health/index.js';
 import type { HealthChecker } from '../health/index.js';
 import { getRealtimeServer } from './realtime.js';
 import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
+import { buildSetupMarkdown } from '../core/setup-link.js';
+import { getCurrentProject } from '../config.js';
 
 const log = childLogger('transport:http');
 
@@ -205,6 +207,18 @@ export class HttpTransportAdapter implements TransportAdapter {
         return;
       }
 
+      // DX-29: one-time setup links.
+      // POST /admin/setup-links — admin-only (session metadata role 'admin').
+      if (req.method === 'POST' && (url === '/admin/setup-links' || url === '/admin/setup-links/')) {
+        await this.handleCreateSetupLink(req, res);
+        return;
+      }
+      // GET /.well-known/mcp-setup/<otp> — public one-time reveal.
+      if (req.method === 'GET' && url.startsWith('/.well-known/mcp-setup/')) {
+        await this.handleRedeemSetupLink(req, res, url);
+        return;
+      }
+
       // MCP protocol requests — routed by mcp-session-id to that session's
       // transport; a sessionless initialize creates a new one (PH-002b).
       const sessionId = this.sessionIdOf(req);
@@ -291,6 +305,95 @@ export class HttpTransportAdapter implements TransportAdapter {
         log.info('Prometheus metrics: http://%s:%s/metrics', this.host, this.port);
       }
     });
+  }
+
+  /** DX-29: create a setup link. Requires an authenticated admin session. */
+  private async handleCreateSetupLink(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const json = (status: number, body: unknown) => {
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(body));
+    };
+    const store = this.serverCtx?.setupLinkStore;
+    if (!store) {
+      json(503, { ok: false, error: { message: 'setup links unavailable — no token issuer configured' } });
+      return;
+    }
+    const sessionId = this.sessionIdOf(req);
+    const auth = this.serverCtx?.authManager;
+    if (auth?.isAuthRequired() && (!sessionId || !auth.isAuthenticated(sessionId))) {
+      json(401, { ok: false, error: { message: 'authentication required' } });
+      return;
+    }
+    const roles = sessionId
+      ? (this.serverCtx?.sessionManager?.get(sessionId)?.metadata?.roles as string[] | undefined) ?? []
+      : [];
+    if (auth?.isAuthRequired() && !roles.includes('admin')) {
+      json(403, { ok: false, error: { message: 'admin role required' } });
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk);
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf-8') || '{}') as Record<string, unknown>;
+    } catch { /* empty/invalid body → defaults */ }
+
+    const project = typeof body.project === 'string' && body.project.trim()
+      ? body.project.trim()
+      : getCurrentProject();
+    const role = typeof body.role === 'string' && body.role.trim() ? body.role.trim() : 'agent';
+    const ttlMs = typeof body.ttlMs === 'number' && body.ttlMs > 0 ? Math.min(body.ttlMs, 60 * 60 * 1000) : undefined;
+
+    const link = await store.create({ project, role, ttlMs, createdBy: sessionId ?? 'http' });
+    const base = this.publicBaseUrl(req);
+    json(201, {
+      ok: true,
+      data: {
+        url: `${base}/.well-known/mcp-setup/${link.otp}`,
+        expiresAt: new Date(link.expiresAt).toISOString(),
+        otp: link.otp,
+      },
+    });
+  }
+
+  /** DX-29: one-time reveal of the setup markdown document. */
+  private async handleRedeemSetupLink(req: IncomingMessage, res: ServerResponse, url: string): Promise<void> {
+    const gone = (reason: string) => {
+      res.writeHead(410, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: { message: `setup link unavailable: ${reason}` } }));
+    };
+    const store = this.serverCtx?.setupLinkStore;
+    if (!store) {
+      gone('disabled');
+      return;
+    }
+    const otp = decodeURIComponent(url.slice('/.well-known/mcp-setup/'.length).replace(/\/+$/, ''));
+    if (!/^[0-9a-fA-F-]{36}$/.test(otp)) {
+      gone('not_found');
+      return;
+    }
+    const clientIp = req.socket.remoteAddress;
+    const result = store.redeem(otp, clientIp);
+    if (result.status !== 'ok') {
+      gone(result.reason);
+      return;
+    }
+    const markdown = buildSetupMarkdown(result.link, {
+      serverUrl: this.publicBaseUrl(req),
+      transport: 'http',
+      serverName: this.serverInfo?.name,
+      serverVersion: this.serverInfo?.version,
+      toolCount: this.serverCtx?.toolNames?.size,
+    });
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(markdown);
+  }
+
+  private publicBaseUrl(req: IncomingMessage): string {
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined) ?? 'http';
+    const host = req.headers.host ?? `${this.host}:${this.port}`;
+    return `${proto}://${host}`;
   }
 
   /** mcp-session-id header value, if present. */
