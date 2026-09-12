@@ -50,6 +50,7 @@
     "prompts:reindex": "node scripts/prompts.mjs index && node scripts/prompts.mjs catalog && node scripts/prompts.mjs catalog:services && node scripts/prompts.mjs export-json && node scripts/prompts.mjs export-md && node scripts/prompts.mjs build",
     "prompts:reindex:sandbox": "CURRENT_PROJECT=mcp-sandbox npm run -s prompts:reindex",
     "validate:schemas": "node scripts/validate-schemas.mjs",
+    "docs:test": "node scripts/executable-docs.mjs",
     "lint:md": "markdownlint '**/*.md' --ignore-path .markdownlintignore",
     "lint:md:fix": "markdownlint '**/*.md' --fix --ignore-path .markdownlintignore",
     "prepublishOnly": "npm run build:publish",

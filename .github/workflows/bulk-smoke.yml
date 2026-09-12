@@ -78,6 +78,10 @@ jobs:
         run: |
           npx vitest run tests/e2e-full/mcp-inspector.test.ts
 
+      - name: Executable docs (DX-24)
+        run: |
+          npm run docs:test
+
       # service-catalog из внешнего репозитория
       - name: Install & build service-catalog
         working-directory: service-catalog

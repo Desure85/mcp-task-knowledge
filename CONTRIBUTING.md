@@ -38,6 +38,33 @@ npm test
 - Ответы инструментов — `ok()`/`err()` из `src/utils/respond.ts`
 - Новый код должен давать 0 ESLint warnings
 
+## Документация — executable docs (DX-24)
+
+`npm run docs:test` прогоняет `scripts/executable-docs.mjs` по `README.md` и
+`docs/**/*.md` и валидирует fenced code blocks:
+
+- ```` ```json ```` / ```` ```jsonc ```` — парсится через `JSON.parse`
+- ```` ```typescript ```` / ```` ```ts ```` — syntax-check через `ts.transpileModule` (не выполняется)
+- ```` ```javascript ```` / ```` ```js ```` — syntax-check через `new Function` (не выполняется)
+- ```` ```bash ```` / ```` ```sh ```` / ```` ```console ```` — **по умолчанию пропускается**;
+  выполняется только с маркером `<!-- doc-test: run -->` на строке над блоком
+  (в изолированном temp cwd с temp `DATA_DIR`, `HOME`, `EMBEDDINGS_MODE=none`)
+
+Маркеры (HTML-комментарий на строке прямо над открывающим fence):
+
+```markdown
+<!-- doc-test: skip -->   — пропустить блок (псевдокод, неполный пример)
+<!-- doc-test: run -->    — выполнить bash-блок (только для безопасных команд)
+```
+
+Правила:
+
+- Псевдокод с `...`, несуществующими идентификаторами, плейсхолдерами — `doc-test: skip`.
+- `docker run`, `npm install -g`, `claude mcp add`, `curl`, `cp` в домашнюю папку —
+  без маркера (skip по умолчанию для bash).
+- `doc-test: run` — только для команд, которые безопасно выполнить в CI:
+  `export`, `echo`, `node --version`, локальные скрипты без сети/побочных эффектов.
+
 ## Структура
 
 ```
