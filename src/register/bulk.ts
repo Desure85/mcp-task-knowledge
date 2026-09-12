@@ -1,9 +1,52 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
-import { resolveProject } from '../config.js';
+import { resolveProject, DATA_DIR, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, getTask} from '../storage/tasks.js';
 import { createDoc, listDocs, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
 import { ok, err } from '../utils/respond.js';
+import { createDataBackup, isBackupRequired, type BackupScope } from '../services/data-backup.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('bulk');
+
+/**
+ * DX-19: snapshot the affected scope into DATA_DIR/.backups before a
+ * destructive op. Non-blocking by default — a failed backup must not stop
+ * the operation (deleting data without a backup is worse than a failed
+ * backup attempt). BACKUP_REQUIRED=1 flips to fail-closed: the op aborts
+ * when the snapshot cannot be taken.
+ * Returns an error string when strict mode rejects, undefined otherwise.
+ */
+async function backupBeforeDestructive(
+  label: string,
+  scope: BackupScope,
+  project: string,
+  tool: string,
+): Promise<string | undefined> {
+  try {
+    const result = await createDataBackup({
+      dataDir: DATA_DIR,
+      tasksDir: TASKS_DIR,
+      knowledgeDir: KNOWLEDGE_DIR,
+      label,
+      scope,
+      project,
+      tool,
+    });
+    if (result) {
+      log.info({ backupDir: result.backupDir, tool }, 'pre-destructive backup created');
+    }
+    return undefined;
+  } catch (e) {
+    const msg = `backup before ${tool} failed: ${(e as Error).message}`;
+    if (isBackupRequired()) {
+      log.error({ err: e, tool }, 'backup required but failed — aborting destructive op');
+      return msg;
+    }
+    log.warn({ err: e, tool }, 'backup failed — proceeding with destructive op anyway');
+    return undefined;
+  }
+}
 
 function chunkArray<T>(array: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -226,6 +269,9 @@ export function registerBulkTools(ctx: ServerContext): void {
         return err('Bulk task delete not confirmed: pass confirm=true to proceed');
       }
 
+      const backupErr = await backupBeforeDestructive('pre-bulk-delete', 'tasks', prj, 'tasks_bulk_delete_permanent');
+      if (backupErr) return err(backupErr);
+
       const results = [] as any[];
       for (const id of ids) {
         const t = await deleteTaskPermanent(prj, id);
@@ -331,6 +377,9 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
+      const backupErr = await backupBeforeDestructive('pre-bulk-delete', 'knowledge', prj, 'knowledge_bulk_delete_permanent');
+      if (backupErr) return err(backupErr);
+
       const results = [] as any[];
       for (const id of ids) {
         const d = await deleteDocPermanent(prj, id);
@@ -471,6 +520,9 @@ export function registerBulkTools(ctx: ServerContext): void {
           `(project=${prj}, scope=${scope}). Re-run with confirm:true, or dryRun:true to inspect.`
         );
       }
+
+      const backupErr = await backupBeforeDestructive('pre-purge', 'project', prj, 'project_purge');
+      if (backupErr) return err(backupErr);
 
       if (doTasks && taskIds.length) {
         for (const batch of chunkArray(taskIds, 100)) {

@@ -50,6 +50,19 @@
 | `OBSIDIAN_VAULT_ROOT` | — | Obsidian vault root for export/import |
 | `OBSIDIAN_DEFAULT_PROJECT` | `mcp` | Default project for Obsidian sync |
 
+### Backups
+
+Destructive tools (`project_purge`, `tasks_bulk_delete_permanent`,
+`knowledge_bulk_delete_permanent`) snapshot the affected scope into
+`DATA_DIR/.backups/<timestamp>-<label>/` before executing. Each backup
+contains a `manifest.json` with the copied paths, file count and bytes.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BACKUP_MAX_MB` | `512` | Size bound per backup; oversized backups still proceed but are flagged `oversized` in the manifest |
+| `BACKUP_KEEP` | `20` | How many backups to retain; oldest are rotated out on each new backup |
+| `BACKUP_REQUIRED` | `false` | When `1`/`true`, a failed backup aborts the destructive operation instead of only logging a warning |
+
 ### Service Catalog
 
 | Variable | Default | Description |
@@ -107,5 +120,6 @@ data/
   prompts/<project>/exports/        — prompt exports (markdown, catalog)
   .emb_cache/                       — embedding cache
   .behavioral/                      — behavioral memory data
+  .backups/<ts>-<label>/            — pre-destructive-op snapshots (DX-19)
   .sync-state.json                  — memory sync state
 ```
