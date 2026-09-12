@@ -83,7 +83,8 @@ import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
 import { ConnectorRegistry, defaultConnectorRegistrations } from '../connectors/index.js';
 import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
-import { PROMPTS_DIR, getCurrentProject } from '../config.js';
+import { PROMPTS_DIR, getCurrentProject, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
+import { checkSchemaVersion, SchemaVersionError } from '../services/schema-version.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -337,6 +338,29 @@ export class AppContainer {
 
       // 2. Metrics
       initMetrics();
+
+      // 2.5 DX-18: DATA_DIR schema-version gate — BEFORE any storage read.
+      // Refuses to boot when the on-disk schema is newer than this build;
+      // runs file-level migrations when older. Must run before
+      // createServerContext() (which touches storage dirs).
+      try {
+        const schemaResult = await checkSchemaVersion({
+          dataDir: DATA_DIR,
+          tasksDir: TASKS_DIR,
+          knowledgeDir: KNOWLEDGE_DIR,
+        });
+        if (schemaResult.applied.length > 0) {
+          this.log.info(
+            { found: schemaResult.found, current: schemaResult.current, applied: schemaResult.applied },
+            'DATA_DIR schema migrations applied',
+          );
+        }
+      } catch (e) {
+        if (e instanceof SchemaVersionError) {
+          this.log.error({ err: e }, 'DATA_DIR schema version mismatch — refusing to boot');
+        }
+        throw e;
+      }
 
       // 3. Server context (McpServer, config, registries)
       this.ctx = await createServerContext();

@@ -873,8 +873,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | DX-16 | `admin_backup`/`admin_restore` — tar.gz DATA_DIR | high | pending | — | Tool + CLI-обёртка; `dev-cli export` умеет 80% — зашипить в bin, завернуть в tool. Ответ на «где мой бэкап» и «как переехать на другую машину» |
-| DX-17 | `doctor --data` — скан целостности DATA_DIR | medium | review | DX-11 | Все `*.json`/`*.md`: битый JSON, missing required fields, knowledge-сироты без проекта. Read-only отчёт + `--fix` для тривиального |
-| DX-18 | Schema-version манифест + миграции | medium | pending | — | `DATA_DIR/.schema-version`; при смене формата task JSON / frontmatter — миграция при старте или явная ошибка. Иначе апгрейд пакета молча криво читает старые данные |
+| DX-17 | `doctor --data` — скан целостности DATA_DIR | medium | done | DX-11 | Все `*.json`/`*.md`: битый JSON, missing required fields, knowledge-сироты без проекта. Read-only отчёт + `--fix` для тривиального |
+| DX-18 | Schema-version манифест + миграции | medium | review | — | `DATA_DIR/.schema-version`; при смене формата task JSON / frontmatter — миграция при старте или явная ошибка. Иначе апгрейд пакета молча криво читает старые данные |
 | DX-19 | Auto-backup перед деструктивными операциями | medium | pending | DX-16 | `project_purge`, bulk-ops, GC event-log → снапшот в `DATA_DIR/.backups/` перед выполнением. Copy дёшево, «oops» превращается в откат |
 
 ### Фаза 4 — Дистрибуция без Node.js
@@ -989,6 +989,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | pending | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
 | TR-21 | AuthProtection дублирует ключи: sessionId в SecurityStack + IP в AuthManager | low | pending | AUD-13 | Два инстанса пишут разные ключи — не баг, но шум; унифицировать на IP-keyed |
 | TR-22 | better-sqlite3 dead-code: FtsMemorySearch+MigrationFramework — 0 call sites в runtime | low | pending | — | `src/behavioral/fts-search.ts`, `src/db/migration-framework.ts` экспортируются, но не подключены к register/tools (0 импортов). BM-013/BM-014 помечены completed, но фича не доходит до рантайма. Решить: wire FTS5 к `query_memory`/`memory_search` (ценность реальна) ИЛИ удалить модуль (убрать dep better-sqlite3, поможет single-binary DX-20) |
+| TR-23 | `PROJECT_META_FILE` мёртвая константа — src/projects.ts:50 | low | pending | — | `.project.json` нигде не читается/пишется — реальный путь метаданных `DATA_DIR/projects/<id>.json`. Удалить константу + проверить ссылки. Найдено DX-17 |
 
 ---
 
