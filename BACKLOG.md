@@ -910,7 +910,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | TR-01 | Аудит: indirect prompt injection через stored content | high | pending | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки |
 | TR-02 | Аудит Web UI | high | done | 724059a | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
-| TR-03 | Аудит коннекторов и lifecycle кредов | medium | pending | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации |
+| TR-03 | Аудит коннекторов и lifecycle кредов | medium | done | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации. Отчёт: docs/audit/TR-03-connectors.md → TR-26..32 |
 | TR-04 | Аудит качества тестов («тесты, которые врут») | high | pending | — | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Тот же паттерн «done ≠ работает», но для тестов. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает |
 
 ### Фаза 2 — Hardening (конкретные фиксы)
@@ -992,6 +992,13 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-23 | `PROJECT_META_FILE` мёртвая константа — src/projects.ts:50 | low | pending | — | `.project.json` нигде не читается/пишется — реальный путь метаданных `DATA_DIR/projects/<id>.json`. Удалить константу + проверить ссылки. Найдено DX-17 |
 | TR-24 | `getPackageVersion()` продублирована в register/setup.ts и services/schema-version.ts | low | pending | — | 10 строк: npm_package_version → package.json → '0.0.0'. Вынести в shared util при следующем касании. Найдено DX-18 |
 | TR-25 | `knowledge_bulk_delete_permanent` без confirm-гейта — асимметрия с `tasks_bulk_delete_permanent`/`project_purge` | medium | pending | DX-19 | src/register/bulk.ts:372 — перманентное удаление без подтверждения; бэкап (DX-19) снимает урон, но не даёт отмены. Добавить confirm/approve-флоу. Найдено DX-19 |
+| TR-26 | Wire SecretManager в ConnectorContext — убить прямые process.env чтения кредов | high | pending | TR-03 | Все 8 коннекторов читают `process.env.*_TOKEN/API_KEY` напрямую (github.ts:33, jira.ts:33, slack.ts:36, gdrive.ts:63, gmail.ts:76, notion.ts:88, onedrive.ts:60, linear.ts:73). SecretManager (AES-GCM file/docker/vault) существует но 0 call sites — мёртвый код. Прокинуть `ctx.secrets.get()` |
+| TR-27 | Dead `connectorConfigs` path + doc drift в connectors.md | high | pending | TR-03 | app-container.ts:387 — `connectorConfigs = {}` всегда пустой; FileConfig не имеет `connectors` ключа. docs/features/connectors.md:52 документирует JSON-конфиг как рабочий — не работает. Либо wire FileConfig.connectors → connectorConfigs, либо удалить параметр и починить доку |
+| TR-28 | webhookUrl SSRF-guard в memory async-ops | high | pending | TR-03 | register/memory.ts:413,1311 — `z.string().url()` без allowlist; async-ops.ts:277 POSTит job.output на произвольный URL. Нет блока private/loopback/link-local (169.254.169.254), нет scheme-ограничения до https. Эксфильтрация фактов на внутренние сервисы |
+| TR-29 | OAuth refresh для gdrive/gmail/onedrive — или удалить мёртвые поля | medium | pending | TR-03 | gdrive.ts:65-67 читает refreshToken/clientId/clientSecret но нигде не использует — нет вызова oauth2.googleapis.com/token. Access-token живёт ~1ч → после expiry все tools возвращают {ok:false} до рестарта. Либо реализовать refresh-флоу, либо удалить поля + задокументировать «refresh externally» |
+| TR-30 | Web-crawler egress policy | medium | pending | TR-03 | web-crawler.ts:62 — fetch произвольного URL: нет scheme-allowlist (file://?), нет private-IP блока, нет redirect-лимита. sameOrigin() ограничивает только следование ссылок, не стартовый URL. SSRF + prompt-injection ingestion (см. TR-01) |
+| TR-31 | Real health probes для OAuth-коннекторов | medium | pending | TR-03 | gdrive/gmail/notion/onedrive/linear health() проверяет только `!!token` — revoked token = healthy:true. Добавить дешёвый GET (/about, /me, /users/me) как у github/jira/slack |
+| TR-32 | Logger redaction + JIRA_HOST https + scope-доки | low | pending | TR-03 | logger.ts — нет pino `redact` для *.token/*.apiKey/authorization (defense-in-depth перед wiring LoggingMiddleware). jira.ts — JIRA_HOST без https-энфорса → Basic-auth на plaintext host. connectors.md — задокументировать минимальные scopes per connector |
 
 ---
 
@@ -1073,9 +1080,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
-| Trust/Hardening (O) | 13 | 13 | 0 | 0 | 0 | 0 |
+| Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 10 | 0 | 0 | 0 | 0 |
-| **Итого** | **266** | **64** | **0** | **201** | **0** | **1** |
+| **Итого** | **273** | **70** | **0** | **202** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
