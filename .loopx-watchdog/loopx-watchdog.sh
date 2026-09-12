@@ -119,7 +119,11 @@ tick() {
 
 send_message() {
   local text="$1"
-  curl -s -u "${OPENCODE_AUTH:-opencode:FzQ02PmmqZ7tRiieoVhx}"     -X POST "http://localhost:${OPENCODE_PORT:-4099}/session/${OPENCODE_SESSION:-ses_f6de2aa4afferfPcydvys0NEvY}/message"     -H 'Content-Type: application/json'     -d "$(python3 -c "import json,sys; print(json.dumps({'parts':[{'type':'text','text':sys.argv[1]}]}))" "$text")" 2>&1
+  [ -f .loopx-watchdog/.env ] && . .loopx-watchdog/.env
+  : "${OPENCODE_PORT:=4099}"
+  [ -z "${OPENCODE_SESSION:-}" ] && { echo "no OPENCODE_SESSION"; return 1; }
+  [ -z "${OPENCODE_AUTH:-}" ] && { echo "no OPENCODE_AUTH"; return 1; }
+  timeout 20 curl -s -u "$OPENCODE_AUTH"     -X POST "http://localhost:${OPENCODE_PORT}/session/${OPENCODE_SESSION}/message"     -H 'Content-Type: application/json'     -d "$(python3 -c "import json,sys; print(json.dumps({'parts':[{'type':'text','text':sys.argv[1]}]}))" "$text")" >/dev/null 2>&1 &
 }
 
 main_loop() {

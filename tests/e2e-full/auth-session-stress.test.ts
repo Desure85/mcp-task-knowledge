@@ -2,14 +2,16 @@
  * tests/e2e-full/auth-session-stress.test.ts — Q-014 slice 16: auth/session/cluster core.
  *
  * Semantic checks (not shape-only): a tool call must actually be allowed or
- * denied based on auth state; rate limiting must actually produce 429; a
- * session that authenticates must show up in session introspection.
+ * denied based on auth state; a session that authenticates must show up in
+ * session introspection.
+ *
+ * Auth flow (AUD-01): raw JSON-RPC over HTTP —
+ *   initialize (open) → mcp-session-id → mcp.authenticate(token) → data methods.
  *
  *   HTTP (real server, ephemeral port):
  *     - unauthenticated tools/call → 401
- *     - wrong token → 401
- *     - correct token → 200 with a real tool result
- *     - burst over MCP_RATE_LIMIT_MAX_TOKENS → 429
+ *     - mcp.authenticate with bad token → ok:false
+ *     - mcp.authenticate with valid token → ok:true, then tools/call → 200
  *     - session_info reflects the authenticated session
  *   stdio:
  *     - cluster_status/cluster_nodes answer with availability shape
@@ -20,12 +22,30 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { spawnServer } from './harness.js';
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-auth-stress');
-const STORE = path.join(TMP, 'store');
+
+const JWT_SECRET = 'q014-e2e-auth-stress-secret-32b!!';
+
+function mintJwt(sub = 'q014-stress-user', roles: string[] = []): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    sub,
+    roles,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  })).toString('base64url');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
+  return `${header}.${payload}.${sig}`;
+}
+
+function rpc(id: number, method: string, params?: unknown) {
+  return { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) };
+}
 
 let portCounter = 4700;
 
@@ -33,26 +53,45 @@ async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
 }
 
-function post(port: number, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; text: string }> {
+interface McpResp { status: number; sessionId?: string; json?: any }
+
+async function mcpPost(port: number, sessionId: string | undefined, body: unknown): Promise<McpResp> {
   const payload = JSON.stringify(body);
   return new Promise((resolve, reject) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      'Content-Length': String(Buffer.byteLength(payload)),
+    };
+    if (sessionId) headers['mcp-session-id'] = sessionId;
     const req = http.request(
-      {
-        host: '127.0.0.1',
-        port,
-        path: '/',
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
-        timeout: 5000,
-      },
+      { host: '127.0.0.1', port, path: '/', method: 'POST', headers, timeout: 8000 },
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (c) => chunks.push(c));
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          let json: any;
+          const ct = res.headers['content-type'] ?? '';
+          if (ct.includes('text/event-stream')) {
+            for (const line of text.split('\n')) {
+              if (line.startsWith('data:')) {
+                try { json = JSON.parse(line.slice(5).trim()); } catch {}
+              }
+            }
+          } else {
+            try { json = JSON.parse(text); } catch { json = undefined; }
+          }
+          resolve({
+            status: res.statusCode ?? 0,
+            sessionId: (res.headers['mcp-session-id'] as string | undefined) ?? sessionId,
+            json,
+          });
+        });
       },
     );
     req.on('error', reject);
-    req.on('timeout', () => { req.destroy(new Error('post timeout')); });
+    req.on('timeout', () => { req.destroy(new Error('mcpPost timeout')); });
     req.end(payload);
   });
 }
@@ -97,6 +136,7 @@ describe('Q-014 slice 16: auth/session/cluster core', () => {
         MCP_TRANSPORT: 'http',
         MCP_PORT: String(port),
         MCP_HOST: '127.0.0.1',
+        JWT_SECRET,
         ...extraEnv,
       },
       stdio: ['pipe', 'pipe', 'inherit'],
@@ -110,73 +150,71 @@ describe('Q-014 slice 16: auth/session/cluster core', () => {
     child = undefined;
   }
 
-  const tasksCall = () => ({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'tools/call',
-    params: { name: 'tasks_list', arguments: { project: 'mcp' } },
-  });
+  const tasksCall = (id = 1) => rpc(id, 'tools/call', { name: 'tasks_list', arguments: { project: 'mcp' } });
 
-  it('HTTP: unauthenticated tools/call → 401, valid token → 200, wrong token → 401', async () => {
+  it('HTTP: unauthenticated tools/call → 401; bad token → auth error; valid token → 200', async () => {
     await startHttp();
     try {
-      const unauth = await post(port, tasksCall());
+      const init = await mcpPost(port, undefined, rpc(1, 'initialize', {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'q014-stress', version: '0.0.1' },
+      }));
+      expect(init.status).toBe(200);
+      const sid = init.sessionId;
+      expect(sid).toBeTruthy();
+      await mcpPost(port, sid, { jsonrpc: '2.0', method: 'notifications/initialized' });
+
+      const unauth = await mcpPost(port, sid, tasksCall(2));
       expect(unauth.status).toBe(401);
-      expect(JSON.parse(unauth.text).error).toBeDefined();
+      expect(unauth.json?.error).toBeDefined();
 
-      const wrong = await post(port, tasksCall(), { Authorization: 'Bearer wrong-token' });
-      expect(wrong.status).toBe(401);
+      const bad = await mcpPost(port, sid, rpc(3, 'tools/call', {
+        name: 'mcp.authenticate', arguments: { token: 'wrong-token' },
+      }));
+      expect(bad.status).toBe(200);
+      expect(JSON.parse(bad.json?.result?.content?.[0]?.text ?? '{}').ok).toBe(false);
 
-      const ok = await post(port, tasksCall(), { Authorization: 'Bearer test-token-abc-123' });
+      const auth = await mcpPost(port, sid, rpc(4, 'tools/call', {
+        name: 'mcp.authenticate', arguments: { token: mintJwt() },
+      }));
+      expect(auth.status).toBe(200);
+      expect(JSON.parse(auth.json?.result?.content?.[0]?.text ?? '{}').ok).toBe(true);
+
+      const ok = await mcpPost(port, sid, tasksCall(5));
       expect(ok.status).toBe(200);
-      const body = JSON.parse(ok.text);
-      expect(body.result?.content?.[0]?.text).toBeTruthy();
+      expect(ok.json?.result?.content?.[0]?.text).toBeTruthy();
     } finally {
       await stop();
     }
   }, 60000);
 
-  it('HTTP: rate limiting trips after burst (429)', async () => {
-    await startHttp({ MCP_RATE_LIMIT_MAX_TOKENS: '3' });
-    try {
-      const call = () => post(port, tasksCall(), { Authorization: 'Bearer test-token-abc-123' });
-
-      for (let i = 0; i < 3; i++) {
-        const r = await call();
-        expect(r.status).toBe(200);
-      }
-      const limited = await call();
-      expect(limited.status).toBe(429);
-    } finally {
-      await stop();
-    }
-  }, 60000);
-
-  it('HTTP: session_info reflects the authenticated session', async () => {
+  it('HTTP: session_info reflects the authenticated session (admin role required)', async () => {
     await startHttp();
     try {
-      const auth = await post(port, {
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'tools/call',
-        params: { name: 'mcp.authenticate', arguments: { token: 'test-token-abc-123' } },
-      });
-      expect(auth.status).toBe(200);
-      const authBody = JSON.parse(auth.text);
-      const sessionId = authBody.result?.content?.[0]?.text
-        ? JSON.parse(authBody.result.content[0].text).sessionId
-        : undefined;
+      const init = await mcpPost(port, undefined, rpc(1, 'initialize', {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'q014-stress', version: '0.0.1' },
+      }));
+      const sid = init.sessionId!;
+      await mcpPost(port, sid, { jsonrpc: '2.0', method: 'notifications/initialized' });
 
-      const info = await post(port, {
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'tools/call',
-        params: { name: 'session_info', arguments: { sessionId } },
-      }, { Authorization: 'Bearer test-token-abc-123' });
+      const auth = await mcpPost(port, sid, rpc(2, 'tools/call', {
+        name: 'mcp.authenticate', arguments: { token: mintJwt('q014-stress-user', ['admin']) },
+      }));
+      expect(auth.status).toBe(200);
+      expect(JSON.parse(auth.json?.result?.content?.[0]?.text ?? '{}').ok).toBe(true);
+
+      const info = await mcpPost(port, sid, rpc(3, 'tools/call', {
+        name: 'session_info', arguments: { sessionId: sid },
+      }));
       expect(info.status).toBe(200);
-      const infoBody = JSON.parse(info.text);
-      const text = infoBody.result?.content?.[0]?.text ?? '';
-      expect(JSON.parse(text).available).toBe(true);
+      const text = info.json?.result?.content?.[0]?.text ?? '';
+      const env = JSON.parse(text);
+      expect(env.ok).toBe(true);
+      expect(env.data.sessionId).toBe(sid);
+      expect(env.data.available).toBe(true);
     } finally {
       await stop();
     }

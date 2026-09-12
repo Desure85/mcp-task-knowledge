@@ -154,9 +154,11 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
 
       const results: any[] = [];
       for (const r of runs) {
-        // AUD-10: TOOLS_ENABLED=0 keeps only the introspection whitelist
-        // reachable — refuse to run anything else through the registry.
-        if (!ctx.TOOLS_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
+        // AUD-10: TOOLS_ENABLED=0 blocks registry execution — EXCEPT in
+        // resources-only mode (TOOL_RES_ENABLED=1), where tools_run IS the
+        // intended execution surface. Keep the introspection whitelist
+        // reachable in both modes.
+        if (!ctx.TOOLS_ENABLED && !ctx.TOOL_RES_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
           const e = { name: r.name, ok: false, error: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}` };
           results.push(e);
           if (stopOnError) break;
@@ -216,8 +218,9 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
     },
     async ({ items }: { items: Array<{ name: string; params?: any }> }, extra?: GateExtra) => {
       const promises = items.map(async (r) => {
-        // AUD-10: same TOOLS_ENABLED=0 whitelist as tools_run.
-        if (!ctx.TOOLS_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
+        // AUD-10: same TOOLS_ENABLED=0 whitelist as tools_run (with the
+        // TOOL_RES_ENABLED resources-only exception).
+        if (!ctx.TOOLS_ENABLED && !ctx.TOOL_RES_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
           return { name: r.name, ok: false, error: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}` };
         }
         const meta = ctx.toolRegistry.get(r.name);

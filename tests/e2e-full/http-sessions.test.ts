@@ -25,6 +25,7 @@ function mintJwt(sub = 'q014-user'): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify({
     sub,
+    roles: ['admin'],
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 3600,
   })).toString('base64url');

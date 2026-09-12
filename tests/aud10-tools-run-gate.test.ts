@@ -32,8 +32,16 @@ async function makeCtx(toolsEnabled = true): Promise<ServerContext> {
   process.env.DATA_DIR = TMP;
   process.env.EMBEDDINGS_MODE = 'none';
   process.env.CATALOG_ENABLED = 'false';
-  if (!toolsEnabled) process.env.MCP_TOOLS_ENABLED = '0';
-  else delete process.env.MCP_TOOLS_ENABLED;
+  if (!toolsEnabled) {
+    // Fully-off state: classic tools AND resource-based execution both off.
+    // (TOOL_RES_ENABLED=true alone is the resources-only mode where tools_run
+    // is the intended execution surface — covered by a separate test.)
+    process.env.MCP_TOOLS_ENABLED = '0';
+    process.env.MCP_TOOL_RESOURCES_ENABLED = '0';
+  } else {
+    delete process.env.MCP_TOOLS_ENABLED;
+    delete process.env.MCP_TOOL_RESOURCES_ENABLED;
+  }
   const ctx = await createServerContext();
   registerToolsIntrospection(ctx);
   return ctx;
