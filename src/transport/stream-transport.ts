@@ -511,21 +511,64 @@ export class UnixTransportAdapter extends StreamTransportAdapter {
   }
 
   protected async listen(): Promise<net.Server> {
-    // Remove stale socket file
-    try {
-      await fs.promises.unlink(this.socketPath);
-    } catch (err: any) {
-      if (err.code !== 'ENOENT') throw err;
-    }
+    // AUD-09: stale socket cleanup — if the file exists, probe whether a live
+    // listener is still bound to it. A live listener means another process
+    // owns the socket → fail with a clear error instead of unlinking it out
+    // from under the owner. A dead file (ENOENT on connect) is stale → remove.
+    await this.removeStaleSocket();
 
     const server = net.createServer();
     return new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(this.socketPath, () => {
+        // AUD-09: restrict socket to owner-only. Without chmod the socket is
+        // created with the process umask (typically 022 → srwxr-xr-x), so any
+        // local user could connect and get full MCP access.
+        try {
+          fs.chmodSync(this.socketPath, 0o600);
+        } catch (err) {
+          log.warn({ err }, 'failed to chmod 600 unix socket %s', this.socketPath);
+        }
         log.info('MCP Unix socket listening on %s', this.socketPath);
         resolve(server);
       });
     });
+  }
+
+  /**
+   * AUD-09: remove the socket file only when it is stale (no live listener).
+   * If a listener is still bound, throw a clear error — unlinking an active
+   * socket would orphan the running server and let clients connect to a
+   * socket path that no longer accepts connections.
+   */
+  private async removeStaleSocket(): Promise<void> {
+    try {
+      await fs.promises.stat(this.socketPath);
+    } catch (err: any) {
+      if (err.code === 'ENOENT') return; // nothing to clean
+      throw err;
+    }
+
+    // File exists — probe for a live listener.
+    const alive = await new Promise<boolean>((resolve) => {
+      const probe = net.createConnection(this.socketPath);
+      probe.once('connect', () => {
+        probe.destroy();
+        resolve(true);
+      });
+      probe.once('error', (err: any) => {
+        // ECONNREFUSED/ENOENT → stale file, safe to remove.
+        resolve(!(err.code === 'ECONNREFUSED' || err.code === 'ENOENT'));
+      });
+    });
+
+    if (alive) {
+      throw new Error(
+        `[stream] unix socket ${this.socketPath} is already in use by a live listener — refusing to remove it`,
+      );
+    }
+
+    await fs.promises.unlink(this.socketPath);
   }
 
   protected async extraCleanup(): Promise<void> {

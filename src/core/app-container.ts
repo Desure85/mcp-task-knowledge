@@ -445,8 +445,17 @@ export class AppContainer {
         const t = this.opts.transportType.toLowerCase();
         const gateTransport = t === 'http' || t === 'tcp' || t === 'unix' ? t : 'stdio';
         const validator = authOpts.tokenValidator ?? this.buildDefaultValidator();
+        // AUD-09: unix socket is a local pipe — auth is off by default because
+        // filesystem permissions (chmod 600) already restrict access to the
+        // owner. MCP_UNIX_REQUIRE_AUTH=1 opts back in for shared-machine
+        // hardening (e.g. socket placed in a group-writable dir).
+        const unixRequireAuth =
+          gateTransport === 'unix' &&
+          ['1', 'true', 'yes', 'on'].includes(
+            (process.env.MCP_UNIX_REQUIRE_AUTH ?? '').toLowerCase(),
+          );
         this.authManager = new AuthManager({
-          requireAuth: authOpts.requireAuth,
+          requireAuth: authOpts.requireAuth ?? unixRequireAuth,
           transport: gateTransport,
           tokenValidator: validator,
           sessionManager: this.sessionMgr,

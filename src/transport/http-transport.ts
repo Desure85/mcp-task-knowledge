@@ -29,6 +29,53 @@ import { getCurrentProject } from '../config.js';
 const log = childLogger('transport:http');
 
 /**
+ * AUD-08: max POST body size for MCP protocol requests.
+ * Env: MCP_MAX_BODY_BYTES (default 10 MiB). Content-Length is checked first
+ * (fast reject), then bytes are counted during streaming — Content-Length can
+ * lie or be absent (chunked transfer).
+ */
+const DEFAULT_MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+function maxBodyBytes(): number {
+  const raw = process.env.MCP_MAX_BODY_BYTES;
+  if (!raw) return DEFAULT_MAX_BODY_BYTES;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_BODY_BYTES;
+}
+
+class BodyTooLargeError extends Error {
+  constructor(public readonly limit: number) {
+    super(`request body exceeds ${limit} bytes`);
+    this.name = 'BodyTooLargeError';
+  }
+}
+
+/**
+ * Read a POST body with a hard byte cap. Checks Content-Length up front,
+ * then counts actual streamed bytes. On overflow throws BodyTooLargeError
+ * and destroys the request stream so no further buffering happens.
+ */
+async function readBodyWithCap(req: IncomingMessage, limit: number): Promise<string> {
+  const contentLength = req.headers['content-length'];
+  if (contentLength) {
+    const declared = parseInt(Array.isArray(contentLength) ? contentLength[0] : contentLength, 10);
+    if (Number.isFinite(declared) && declared > limit) {
+      throw new BodyTooLargeError(limit);
+    }
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > limit) {
+      throw new BodyTooLargeError(limit);
+    }
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+/**
  * PH-002b: JSON-RPC methods routed to the MAIN server's request handlers —
  * the same S-002 dispatch contract as the TCP/Unix adapter. One MCP SDK
  * StreamableHTTPServerTransport == one session == one pending-request
@@ -232,11 +279,26 @@ export class HttpTransportAdapter implements TransportAdapter {
       const existing = sessionId ? this.sessions.get(sessionId) : undefined;
 
       if (req.method === 'POST') {
-        const bodyChunks: Buffer[] = [];
-        for await (const chunk of req) {
-          bodyChunks.push(chunk);
+        let bodyStr: string;
+        try {
+          bodyStr = await readBodyWithCap(req, maxBodyBytes());
+        } catch (e) {
+          if (e instanceof BodyTooLargeError) {
+            // shouldKeepAlive=false: Node drains/closes the connection after
+            // the response instead of leaving a half-read body on a kept-alive
+            // socket. The request stream is abandoned — no further buffering.
+            res.shouldKeepAlive = false;
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32000, message: `Payload Too Large: body exceeds ${e.limit} bytes` },
+              id: null,
+            }));
+            req.destroy();
+            return;
+          }
+          throw e;
         }
-        const bodyStr = Buffer.concat(bodyChunks).toString('utf-8');
         let parsedBody: unknown;
         try {
           parsedBody = JSON.parse(bodyStr);
@@ -426,7 +488,7 @@ export class HttpTransportAdapter implements TransportAdapter {
   private async createSessionTransport(): Promise<SdkHttpTransport> {
     const transport = new SdkHttpTransport({
       sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (sessionId: string) => {
+      onsessioninitialized: async (sessionId: string) => {
         this.sessions.set(sessionId, transport);
         const sm = this.serverCtx?.sessionManager;
         if (!sm) return;
@@ -444,6 +506,15 @@ export class HttpTransportAdapter implements TransportAdapter {
           });
         } catch (e) {
           log.warn({ sessionId, err: e }, 'session-manager rejected session create');
+          // AUD-08: the transport was registered in this.sessions above, before
+          // sm.create() ran — a rejected session would otherwise leak a live
+          // transport that keeps serving requests past the cap. Remove it,
+          // close it, then rethrow so the SDK answers the initialize POST
+          // with a JSON-RPC error instead of a success for a session the
+          // SessionManager never accepted.
+          this.sessions.delete(sessionId);
+          await transport.close().catch(() => undefined);
+          throw e;
         }
       },
       onsessionclosed: (sessionId: string) => {

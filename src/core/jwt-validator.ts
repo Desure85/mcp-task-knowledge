@@ -383,23 +383,31 @@ export class JwtValidator {
     }
 
     if (this.jwksUri) {
-      const key = await this.resolveKey(token);
-      return await jose.jwtVerify(token, key, verifyOptions);
+      const jwks = this.getJwksResolver();
+      // Pass the resolver function itself — jose calls it with
+      // (protectedHeader, token) and performs kid-based key selection
+      // internally, including refetch on unknown kid (key rotation).
+      return await jose.jwtVerify(token, jwks, verifyOptions);
     }
 
     throw new Error('no secret or jwksUri configured');
   }
 
   /**
-   * Resolve the signing key from JWKS.
-   * Uses kid from token header to match the correct key.
-   * Falls back to the first matching key if no kid is present.
+   * Get (or lazily create) the remote JWKS resolver.
+   *
+   * The returned function has signature `(protectedHeader, token) => KeyLike`
+   * and is passed directly to `jose.jwtVerify`, which invokes it with the
+   * token's protected header so the correct key is selected by `kid`.
+   * `cacheMaxAge` is wired from the `jwksCacheTtl` option.
    */
-  private async resolveKey(_token: string): Promise<CryptoKey> {
+  private getJwksResolver(): ReturnType<typeof jose.createRemoteJWKSet> {
     if (!this.jwksResolver) {
-      this.jwksResolver = jose.createRemoteJWKSet(new URL(this.jwksUri!));
+      this.jwksResolver = jose.createRemoteJWKSet(new URL(this.jwksUri!), {
+        cacheMaxAge: this.jwksCacheTtl,
+      });
     }
-    return await this.jwksResolver();
+    return this.jwksResolver;
   }
 
 
