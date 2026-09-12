@@ -76,6 +76,7 @@ import { AuditLogger } from '../audit/logger.js';
 import { SetupLinkStore } from './setup-link.js';
 import { createTestToken } from './jwt-validator.js';
 import { SecurityStack, isSecurityStackEnabled } from './security-stack.js';
+import { resolveEgressMode } from './egress-scanner.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
@@ -493,6 +494,7 @@ export class AppContainer {
           authProtection: new AuthProtection(),
           sanitizer: { mode: process.env.SECURITY_SANITIZER_MODE === 'reject' ? 'reject' : 'sanitize' },
           authManager: this.authManager,
+          egress: resolveEgressMode(),
         });
         this.addCleanup(() => auditLogger.close());
         this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (SECURITY_STACK=1)');

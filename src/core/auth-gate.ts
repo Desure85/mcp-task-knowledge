@@ -275,7 +275,7 @@ export function wrapToolHandler<TArgs = unknown>(
     // resolveProject() can pick session-scoped state (current project).
     const startedAt = Date.now();
     try {
-      const result = await requestScope.run({ sessionId }, () => handler(effectiveArgs, extra));
+      let result = await requestScope.run({ sessionId }, () => handler(effectiveArgs, extra));
       if (security?.active) {
         const isErr =
           result !== null &&
@@ -283,6 +283,12 @@ export function wrapToolHandler<TArgs = unknown>(
           (result as { isError?: unknown }).isError === true;
         security.auditResult(secCall, undefined, Date.now() - startedAt, isErr);
         security.recordAuthOutcome(secCall, !isErr);
+        // TR-14: egress injection scan on tool output (warn/redact/block).
+        // Skipped for error results — nothing useful to screen there.
+        if (!isErr) {
+          const scanned = security.scanOutput(secCall, result);
+          result = scanned.result;
+        }
       }
       return result;
     } catch (e) {

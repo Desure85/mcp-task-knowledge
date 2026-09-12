@@ -85,6 +85,26 @@ if added:
 PYEOF
 }
 
+# ─── Check drafts → remind to update BACKLOG ─────────────────────
+# Если какой-то draft-*.md новее BACKLOG.md — в tick-сообщение добавится
+# напоминание разобрать находки и пополнить BACKLOG.
+check_drafts() {
+  local backlog_mtime newest_draft=0 newest_name=""
+  backlog_mtime=$(stat -c %Y BACKLOG.md 2>/dev/null || echo 0)
+  for f in .omo/memory/draft-*.md; do
+    [ -f "$f" ] || continue
+    local m
+    m=$(stat -c %Y "$f" 2>/dev/null || echo 0)
+    if [ "$m" -gt "$newest_draft" ]; then
+      newest_draft=$m
+      newest_name=$(basename "$f")
+    fi
+  done
+  if [ "$newest_draft" -gt "$backlog_mtime" ]; then
+    echo "DRAFTS_NEWER newest=$newest_name — разбери [suspicious]/[WARNING]/[decision] и пополни BACKLOG"
+  fi
+}
+
 tick() {
   local turn
   turn=$(date -u +%Y%m%dT%H%M%SZ)
@@ -122,9 +142,11 @@ main_loop() {
     fails=0
     should_run=$(echo "$out" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("should_run"))' 2>/dev/null || echo "?")
     action=$(echo "$out" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("protocol_action_packet",{}).get("summary",""))' 2>/dev/null)
-    log "tick should_run=$should_run action=$action"
+    drafts_hint=$(check_drafts)
+    log "tick should_run=$should_run action=$action drafts=$drafts_hint"
     if [ "$should_run" = "True" ] && [ "$action" != "$last_action" ]; then
       local msg="[LoopX tick] $action. Выполни bounded slice → writeback (refresh-state + spend-slot). В процессе: находки в draft + пополняй BACKLOG новыми задачами."
+      [ -n "$drafts_hint" ] && msg="$msg НОВОЕ: $drafts_hint"
       if send_message "$msg" >/dev/null 2>&1; then
         log "sent tick to tmux:$TMUX_SESSION (new action)"
         last_action="$action"

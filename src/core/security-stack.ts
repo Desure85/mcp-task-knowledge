@@ -38,6 +38,11 @@ import {
 } from './input-sanitizer.js';
 import type { AuthManager } from './auth.js';
 import { childLogger } from './logger.js';
+import {
+  EgressScanner,
+  type EgressFinding,
+  type EgressMode,
+} from './egress-scanner.js';
 
 const log = childLogger('security-stack');
 
@@ -52,6 +57,12 @@ export interface SecurityStackOptions {
   sanitizer?: SanitizerConfig;
   /** AuthManager — used to resolve caller roles for ACL. */
   authManager?: AuthManager;
+  /**
+   * Egress scanner mode (TR-14). Presence enables output-side injection
+   * screening on tool results: 'warn' annotates, 'redact' rewrites matches,
+   * 'block' swaps the result for an error envelope.
+   */
+  egress?: EgressMode;
 }
 
 export interface SecurityStackCall {
@@ -75,11 +86,13 @@ export type SecurityDecision =
 
 export class SecurityStack {
   private readonly sanitizerConfig?: Required<SanitizerConfig>;
+  private readonly egressScanner?: EgressScanner;
 
   constructor(private readonly opts: SecurityStackOptions) {
     this.sanitizerConfig = opts.sanitizer
       ? { ...DEFAULT_SANITIZER_CONFIG, ...opts.sanitizer }
       : undefined;
+    this.egressScanner = opts.egress ? new EgressScanner(opts.egress) : undefined;
   }
 
   /** Whether any stage is configured. */
@@ -89,7 +102,8 @@ export class SecurityStack {
         this.opts.acl ||
         this.opts.auditLogger ||
         this.opts.authProtection ||
-        this.sanitizerConfig,
+        this.sanitizerConfig ||
+        this.egressScanner,
     );
   }
 
@@ -197,6 +211,87 @@ export class SecurityStack {
       durationMs,
       metadata: { phase: 'error' },
     });
+  }
+
+  /**
+   * Egress scan (TR-14): screen tool OUTPUT text for prompt-injection
+   * patterns before it reaches the model. Runs after the handler returns.
+   *
+   * Modes:
+   *   warn   — prepend a warning note to each flagged text item.
+   *   redact — replace matched spans with [REDACTED-INJECTION].
+   *   block  — replace the whole result with an {ok:false} error envelope.
+   *
+   * Returns the (possibly transformed) result plus findings. When no scanner
+   * is configured or the result has no text content, returns it unchanged.
+   */
+  scanOutput(
+    call: SecurityStackCall,
+    result: unknown,
+  ): { result: unknown; findings: EgressFinding[] } {
+    if (!this.egressScanner || result === null || typeof result !== 'object') {
+      return { result, findings: [] };
+    }
+    const content = (result as { content?: unknown }).content;
+    if (!Array.isArray(content)) {
+      return { result, findings: [] };
+    }
+
+    const allFindings: EgressFinding[] = [];
+    let mutated = false;
+    const newContent = content.map((item) => {
+      if (
+        item === null ||
+        typeof item !== 'object' ||
+        (item as { type?: unknown }).type !== 'text' ||
+        typeof (item as { text?: unknown }).text !== 'string'
+      ) {
+        return item;
+      }
+      const text = (item as { text: string }).text;
+      const { clean, findings } = this.egressScanner!.scan(text);
+      if (findings.length === 0) return item;
+      allFindings.push(...findings);
+      mutated = true;
+      return { ...(item as Record<string, unknown>), text: clean };
+    });
+
+    if (allFindings.length === 0) {
+      return { result, findings: [] };
+    }
+
+    this.opts.auditLogger?.record('tool.result', 'success', call.toolName, {
+      sessionId: call.sessionId,
+      metadata: {
+        phase: 'egress-scan',
+        egressMode: this.opts.egress,
+        patterns: [...new Set(allFindings.map((f) => f.pattern))],
+        hits: allFindings.length,
+      },
+    });
+
+    if (this.opts.egress === 'block') {
+      return {
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: false,
+                error: { message: 'output blocked by egress scanner' },
+              }),
+            },
+          ],
+          isError: true,
+        },
+        findings: allFindings,
+      };
+    }
+
+    return {
+      result: mutated ? { ...(result as Record<string, unknown>), content: newContent } : result,
+      findings: allFindings,
+    };
   }
 
   /**
