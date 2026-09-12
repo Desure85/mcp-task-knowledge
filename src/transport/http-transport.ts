@@ -104,6 +104,13 @@ export class HttpTransportAdapter implements TransportAdapter {
   private pendingInitRemotes: string[] = [];
   private serverInfo?: { name: string; version: string };
   private mainHandlers?: Map<string, MainRequestHandler>;
+  /**
+   * SPEC-01: real AbortControllers for requests dispatched to main handlers.
+   * Keyed by `${sessionId}:${requestId}` so a notifications/cancelled from
+   * the client aborts in-flight work instead of the fabricated
+   * never-aborting signal we used to pass.
+   */
+  private pendingRequests = new Map<string, AbortController>();
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
@@ -487,6 +494,18 @@ export class HttpTransportAdapter implements TransportAdapter {
   ): void {
     const msg = message as { id?: string | number; method?: string; params?: Record<string, unknown> };
     const method = msg.method;
+
+    // SPEC-01: client cancellation — abort the in-flight request's controller.
+    if (method === 'notifications/cancelled') {
+      const target = msg.params?.requestId;
+      const sid = transport.sessionId;
+      if (sid && (typeof target === 'string' || typeof target === 'number')) {
+        this.pendingRequests.get(`${sid}:${String(target)}`)?.abort(msg.params?.reason);
+      }
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
     const isRequest = msg.id !== undefined && typeof method === 'string';
 
     if (!isRequest || !MAIN_DISPATCH_METHODS.has(method)) {
@@ -521,10 +540,14 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     const requestId = msg.id as string | number;
+    const controller = new AbortController();
+    const pendingKey = `${transport.sessionId ?? ''}:${String(requestId)}`;
+    this.pendingRequests.set(pendingKey, controller);
+
     const extraForHandler = {
       sessionId: transport.sessionId,
       requestId,
-      signal: new AbortController().signal,
+      signal: controller.signal,
     };
 
     void (async () => {
@@ -547,6 +570,8 @@ export class HttpTransportAdapter implements TransportAdapter {
           },
           { relatedRequestId: requestId },
         ).catch(() => {});
+      } finally {
+        this.pendingRequests.delete(pendingKey);
       }
     })();
   }

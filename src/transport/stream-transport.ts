@@ -147,6 +147,13 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   private registerTools?: (server: McpServer) => void;
   private serverCtx?: ServerContext;
   private mainHandlers?: Map<string, MainRequestHandler>;
+  /**
+   * SPEC-01: real AbortControllers for requests dispatched to main handlers.
+   * Keyed by `${sessionId}:${requestId}` so a notifications/cancelled from
+   * the client can abort in-flight work instead of the fabricated
+   * never-aborting signal we used to pass.
+   */
+  private pendingRequests = new Map<string, AbortController>();
 
   abstract readonly type: string;
 
@@ -319,6 +326,17 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   ): void {
     const msg = message as { id?: string | number; method?: string; params?: Record<string, unknown> };
     const method = msg.method;
+
+    // SPEC-01: client cancellation — abort the in-flight request's controller.
+    if (method === 'notifications/cancelled') {
+      const target = msg.params?.requestId;
+      if (typeof target === 'string' || typeof target === 'number') {
+        this.pendingRequests.get(`${sessionId}:${String(target)}`)?.abort(msg.params?.reason);
+      }
+      sdkOnMessage?.(message, extra);
+      return;
+    }
+
     const isRequest = msg.id !== undefined && typeof method === 'string';
 
     if (!isRequest || !MAIN_DISPATCH_METHODS.has(method)) {
@@ -351,10 +369,15 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       return;
     }
 
+    const requestId = msg.id as string | number;
+    const controller = new AbortController();
+    const pendingKey = `${sessionId}:${String(requestId)}`;
+    this.pendingRequests.set(pendingKey, controller);
+
     const extraForHandler = {
       sessionId,
-      requestId: msg.id as string | number,
-      signal: new AbortController().signal,
+      requestId,
+      signal: controller.signal,
     };
 
     void (async () => {
@@ -362,19 +385,21 @@ abstract class StreamTransportAdapter implements TransportAdapter {
         const result = await handler(message, extraForHandler);
         await transport.send({
           jsonrpc: '2.0',
-          id: msg.id as string | number,
+          id: requestId,
           result: result as Record<string, unknown>,
         });
       } catch (e) {
         const anyErr = e as { code?: number; message?: string };
         await transport.send({
           jsonrpc: '2.0',
-          id: msg.id as string | number,
+          id: requestId,
           error: {
             code: typeof anyErr?.code === 'number' ? anyErr.code : -32603,
             message: anyErr?.message ?? String(e),
           },
         }).catch(() => {});
+      } finally {
+        this.pendingRequests.delete(pendingKey);
       }
     })();
   }
