@@ -2,6 +2,12 @@ import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { getCurrentProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
+import type { GateExtra } from '../core/auth-gate.js';
+
+// AUD-10: when MCP_TOOLS_ENABLED=0 only the introspection whitelist stays
+// registered — tools_run/tools_batch must refuse to execute anything else,
+// otherwise the registry becomes a backdoor around the tools-off switch.
+const TOOLS_DISABLED_WHITELIST = new Set(['tools_list', 'tool_schema', 'tool_help', 'tools_run']);
 
 export function registerToolsIntrospection(ctx: ServerContext): void {
   function buildExampleFor(name: string, meta: { inputSchema?: Record<string, any> } | undefined) {
@@ -140,7 +146,7 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
         stopOnError: z.boolean().optional(),
       },
     },
-    async ({ name, params, items, stopOnError }: { name?: string; params?: any; items?: Array<{ name: string; params?: any }>; stopOnError?: boolean }) => {
+    async ({ name, params, items, stopOnError }: { name?: string; params?: any; items?: Array<{ name: string; params?: any }>; stopOnError?: boolean }, extra?: GateExtra) => {
       const runs: Array<{ name: string; params?: any }> = [];
       if (Array.isArray(items) && items.length > 0) runs.push(...items.map((i) => ({ name: i.name, params: i.params })));
       if (name) runs.push({ name, params });
@@ -148,6 +154,14 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
 
       const results: any[] = [];
       for (const r of runs) {
+        // AUD-10: TOOLS_ENABLED=0 keeps only the introspection whitelist
+        // reachable — refuse to run anything else through the registry.
+        if (!ctx.TOOLS_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
+          const e = { name: r.name, ok: false, error: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}` };
+          results.push(e);
+          if (stopOnError) break;
+          continue;
+        }
         const meta = ctx.toolRegistry.get(r.name);
         if (!meta || typeof meta.handler !== 'function') {
           const e = { name: r.name, ok: false, error: `Tool not found or not executable: ${r.name}` };
@@ -156,7 +170,9 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
           continue;
         }
         try {
-          const res = await meta.handler(r.params ?? {});
+          // AUD-10: forward SDK extra (sessionId) into the gated handler so
+          // auth-gate, SecurityStack and requestScope see the real caller.
+          const res = await meta.handler(r.params ?? {}, extra);
           let payload: any = res;
           try {
             const maybe = (res as any)?.content?.[0]?.text;
@@ -198,14 +214,19 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
         items: z.array(z.object({ name: z.string(), params: z.any().optional() })).min(1).max(50),
       },
     },
-    async ({ items }: { items: Array<{ name: string; params?: any }> }) => {
+    async ({ items }: { items: Array<{ name: string; params?: any }> }, extra?: GateExtra) => {
       const promises = items.map(async (r) => {
+        // AUD-10: same TOOLS_ENABLED=0 whitelist as tools_run.
+        if (!ctx.TOOLS_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
+          return { name: r.name, ok: false, error: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}` };
+        }
         const meta = ctx.toolRegistry.get(r.name);
         if (!meta || typeof meta.handler !== 'function') {
           return { name: r.name, ok: false, error: `Tool not found: ${r.name}` };
         }
         try {
-          const res = await meta.handler(r.params ?? {});
+          // AUD-10: forward SDK extra so the gated handler sees sessionId.
+          const res = await meta.handler(r.params ?? {}, extra);
           let payload: any = res;
           try {
             const maybe = (res as any)?.content?.[0]?.text;

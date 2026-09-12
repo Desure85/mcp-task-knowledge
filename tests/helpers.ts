@@ -56,6 +56,9 @@ export function createMockServerContext(overrides: Partial<ServerContext> = {}):
     normalizeBase64: (s: string) => s,
     makeResourceTemplate: () => ({}) as never,
     registerToolAsResource: () => {},
+    // AUD-10: default passthrough gate — tests needing real auth-gate
+    // behaviour build a context via createServerContext() instead.
+    gateToolHandler: (_name, handler) => handler,
     ...overrides,
   };
 }

@@ -380,12 +380,17 @@ export class AppContainer {
           // Registry visibility: server.tool() bypasses registerTool, so
           // connector ops never reached ToolRegistry — tools_list /
           // tool_help / tools_catalog were blind to them (PH-006 fix).
+          // AUD-10: store the GATED handler — raw handler would let
+          // tools_run/tools_batch skip auth-gate/SecurityStack/requestScope.
           try {
             this.ctx!.toolRegistry.set(name, {
               title: schema?.title,
               description: schema?.description,
               inputSchema: schema?.inputSchema,
-              handler: handler as ToolMeta['handler'],
+              handler: (this.ctx!.gateToolHandler ?? ((_n, h) => h))(
+                name,
+                handler as (params: Record<string, unknown>, extra?: unknown) => Promise<unknown>,
+              ),
             });
           } catch {}
           if (readOp && exposeMode !== 'tools' && toolResEnabled) {

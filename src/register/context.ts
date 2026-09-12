@@ -64,6 +64,19 @@ export interface ServerContext {
   makeResourceTemplate: (pattern: string) => ResourceTemplate;
   registerToolAsResource: (name: string) => void;
 
+  /**
+   * AUD-10: wrap a tool handler with the auth-gate/SecurityStack/requestScope
+   * pipeline. Any code path that writes to toolRegistry (connector ops in
+   * app-container, hot registration) MUST store the gated handler — storing
+   * the raw handler lets tools_run/tools_batch bypass the gate.
+   * Optional: always populated by createServerContext; absent only in
+   * lightweight test mocks where gating is intentionally off.
+   */
+  gateToolHandler?: (
+    name: string,
+    handler: (params: Record<string, unknown>, extra?: unknown) => Promise<unknown>,
+  ) => (params: Record<string, unknown>, extra?: unknown) => Promise<unknown>;
+
   triggerPromptsReindex?: (project: string) => Promise<void>;
 
   /** Optional ACL engine for access control (ACL-002/ACL-003). */

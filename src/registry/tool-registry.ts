@@ -12,11 +12,22 @@ import { createHash } from 'node:crypto';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
+/**
+ * Handler stored in the registry. AUD-10: this is the GATED handler
+ * (wrapToolHandler output) — it accepts the SDK `extra` (sessionId,
+ * requestInfo) so auth-gate / SecurityStack / requestScope apply to
+ * registry-dispatched calls (tools_run, tools_batch, REST wrappers).
+ */
+export type ToolMetaHandler = (
+  params: Record<string, unknown>,
+  extra?: unknown,
+) => Promise<unknown>;
+
 export interface ToolMeta {
   title?: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
-  handler?: (params: Record<string, unknown>) => Promise<unknown>;
+  handler?: ToolMetaHandler;
   /** ISO timestamp when the tool was registered. */
   registeredAt?: string;
   /** ISO timestamp of last update (re-registration). */
