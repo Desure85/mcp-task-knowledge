@@ -881,7 +881,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | pending | — | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». Риск: ONNX нативные зависимости — оценить в PoC, не обещать |
+| DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | pending | — | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». **PoC (2026-09-12): `bun build --compile` работает** — 676 modules/250ms/100MB, initialize OK. Найдено: better-sqlite3 падает в $bunfs (bindings), но он мёртвый код → замена bun:sqlite (FTS5 OK); onnxruntime: .node инлайнится, libonnxruntime.so.1 — нет (нужен LD_LIBRARY_PATH или копия .so рядом). Вывод: для EMBEDDINGS_MODE=none single-binary реален |
 | DX-21 | Homebrew formula / Scoop manifest | low | pending | DX-20 | Если бинарь получился — генератор формулы в release CI |
 | DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | pending | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс |
 | DX-27 | Публикация в official MCP registry | medium | pending | DX-10 | `server.json` + publish в `modelcontextprotocol/servers` → установка из UI клиента без конфиг-файлов вообще. Высшая форма DX |
