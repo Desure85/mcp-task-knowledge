@@ -977,6 +977,13 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AUD-18d | EventLog unbounded growth + no compaction | high | pending | AUD-18 | persist() переписывает весь лог на каждый append; compactThreshold не используется |
 | AUD-18e | threeWayMerge LWW no tiebreaker + manual writes null | medium | pending | AUD-18 | src/sync/ — merge bugs; whole sync stack is dead code (not wired) |
 | AUD-18f | writeText не атомарный для .md knowledge docs | medium | pending | AUD-18 | writeJson атомарный (Q-013), writeText — нет |
+| TR-04a | Delete lying tests: tasks_dag, obsidian.*.smoke (×2), confirm.replace.e2e | high | pending | TR-04 | Тесты ре-имплементируют SUT — реальный код может сломаться, тесты зелёные |
+| TR-04b | Rewrite openapi.test.ts + markdown.test.ts на реальные модули | high | pending | TR-04 | zodToOpenApi определён в тесте; _getToolHandler→null |
+| TR-04c | Rewrite cli.tools_list.contract + jsonrpc-fuzz (real imports) | high | pending | TR-04 | Regex по 22-строчному делегату; normalizeEnvelope клон |
+| TR-04d | Rewrite e2e-full/memory-lifecycle — assert data, not shape | medium | pending | TR-04 | 30 вызовов env.ok===true, temporal_query не проверяет данные |
+| TR-04e | Line-fixes batch: 12 файлов слабых ассертов | medium | pending | TR-04 | jwt-validator:787, memory-extended:304/328, chaos-shutdown:134, fts-search:124 и др. |
+| TR-04f | Coverage gaps: dashboard_*, confirm-gate, bandit epsilon>0, bm25 params | medium | pending | TR-04 | Реальные дыры покрытия при 92.7% total |
+| TR-04g | Test hygiene: DATA_DIR isolation + shared e2e http harness | low | pending | TR-04 | /tmp/mcp-data гонки; ~200 строк дублей в 6 e2e файлах |
 
 ---
 
