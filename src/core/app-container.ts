@@ -82,6 +82,8 @@ import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
 import { ConnectorRegistry, defaultConnectorRegistrations } from '../connectors/index.js';
+import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
+import { PROMPTS_DIR, getCurrentProject } from '../config.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -578,6 +580,18 @@ export class AppContainer {
           cm.unregisterNode(selfId);
         });
         this.log.info({ selfId }, 'cluster manager initialized');
+      }
+
+      // DX-14: seed ready-made workflow prompts into an empty library so
+      // prompts_list shows value on first run. Only fires when the project's
+      // prompt source dirs contain zero .json files — never overwrites user data.
+      try {
+        const seedResult = await seedPromptsIfEmpty(PROMPTS_DIR, getCurrentProject());
+        if (seedResult.seeded && this.ctx.triggerPromptsReindex) {
+          await this.ctx.triggerPromptsReindex(getCurrentProject());
+        }
+      } catch (e) {
+        this.log.warn({ err: e }, 'prompts seeding failed (non-fatal)');
       }
 
       this._state = 'ready';
