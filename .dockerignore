@@ -67,8 +67,8 @@ coverage/
 .whitesource
 .gitlab-ci.yml
 
-# Sub-project with its own Dockerfile (built separately)
-web-ui/
+# NOTE: web-ui/ intentionally NOT excluded — web-ui/Dockerfile builds from the
+# repo root context (docker build -f web-ui/Dockerfile .) and COPYs web-ui/*.
 
 # Git hooks / lint configs not needed in image
 .husky
