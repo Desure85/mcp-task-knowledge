@@ -101,15 +101,20 @@ RUN --mount=type=cache,target=/root/.cache/huggingface \
 
 # ---------- runtime (bm25 only) ----------
 FROM ${BASE_NODE_IMAGE} AS runtime
+# Dedicated non-root user (uid 1001). /app is the user's home so cache dirs
+# ($HOME/.cache, XDG) are writable; /data is the writable volume mountpoint.
+RUN groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=none
-COPY package.json ./
+COPY --chown=mcp:mcp package.json ./
 # Use pre-installed production node_modules
-COPY --from=deps-prod /app/node_modules ./node_modules
+COPY --from=deps-prod --chown=mcp:mcp /app/node_modules ./node_modules
 
 # Copy compiled dist
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 
 # Default data dir inside container; mount a volume to override
 ENV DATA_DIR=/data
@@ -117,79 +122,119 @@ VOLUME ["/data"]
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- runtime-bm25-cat-extbase (external base with embedded catalog) ----------
 FROM ${BASE_DEPS_IMAGE_CAT} AS runtime-bm25-cat-extbase
+# Base may already define mcp user + USER mcp; escalate to set up, then drop back.
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
 VOLUME ["/data"]
+USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- base with deps for bm25 (no models) ----------
 FROM ${BASE_NODE_IMAGE} AS base-bm25-with-deps
+# Published base image: ships with non-root user so downstream extbase stages
+# (and direct runs) are non-root by default.
+RUN groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=none
-COPY package.json ./
-COPY --from=deps-prod /app/node_modules ./node_modules
+COPY --chown=mcp:mcp package.json ./
+COPY --from=deps-prod --chown=mcp:mcp /app/node_modules ./node_modules
+RUN chown mcp:mcp /app
+USER mcp
 
 # ---------- runtime-bm25-extbase (external base image with node_modules) ----------
 FROM ${BASE_DEPS_IMAGE} AS runtime-bm25-extbase
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
 VOLUME ["/data"]
+USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- base with models for onnx-cpu ----------
 FROM node:20-bullseye AS base-onnx-cpu-with-models
+RUN groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=onnx-cpu
-COPY package.json ./
+COPY --chown=mcp:mcp package.json ./
 # Use pre-installed production node_modules
-COPY --from=deps-prod /app/node_modules ./node_modules
+COPY --from=deps-prod --chown=mcp:mcp /app/node_modules ./node_modules
 # Include model files and prepare native deps once in base
-COPY --from=model-export /models ./models
-RUN npm rebuild sharp --unsafe-perm --foreground-scripts || true
+COPY --from=model-export --chown=mcp:mcp /models ./models
+RUN npm rebuild sharp --unsafe-perm --foreground-scripts || true \
+ && chown mcp:mcp /app
+USER mcp
 
 # ---------- runtime-onnx-cpu (bm25 + onnx cpu) ----------
 FROM base-onnx-cpu-with-models AS runtime-onnx-cpu
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
 VOLUME ["/data"]
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- runtime-onnx-cpu-extbase (external base image with models) ----------
 # Allows super-fast rebuilds by reusing a prebuilt base image that already contains
 # production node_modules and ONNX models. Only the small dist layer is added.
 FROM ${BASE_MODELS_IMAGE} AS runtime-onnx-cpu-extbase
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
 VOLUME ["/data"]
+USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- runtime-onnx-cpu-cat-extbase (external CPU base with embedded catalog) ----------
 FROM ${BASE_MODELS_IMAGE_CAT} AS runtime-onnx-cpu-cat-extbase
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
 VOLUME ["/data"]
+USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- base-onnx-gpu-with-models (shared GPU base) ----------
 # Contains Node.js, production node_modules, ONNX models and ORT GPU libs.
 FROM ${BASE_CUDA_IMAGE} AS base-onnx-gpu-with-models
+# Non-root user must exist before COPY --chown below
+RUN groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
 
 # Install Node.js 20.x (NodeSource)
@@ -209,11 +254,11 @@ ENV EMBEDDINGS_MODE=onnx-gpu
 ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cuda,cpu
 
 # App files
-COPY package.json ./
+COPY --chown=mcp:mcp package.json ./
 # Use pre-built production node_modules from deps-prod (contains onnxruntime-node)
-COPY --from=deps-prod /app/node_modules ./node_modules
+COPY --from=deps-prod --chown=mcp:mcp /app/node_modules ./node_modules
 # Local ONNX model & tokenizer
-COPY --from=model-export /models ./models
+COPY --from=model-export --chown=mcp:mcp /models ./models
 
 # Install ORT GPU shared libraries and ensure onnxruntime-node postinstall
 ARG ORT_VER=1.20.0
@@ -227,42 +272,59 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 ENV LD_LIBRARY_PATH=/opt/ort-gpu-libs:/usr/local/lib:/usr/lib
 RUN npm rebuild onnxruntime-node --foreground-scripts || (echo "[warn] onnxruntime-node postinstall failed; will fall back to CPU provider at runtime" && true)
 RUN npm rebuild sharp --unsafe-perm --foreground-scripts || true
+RUN chown mcp:mcp /app
+USER mcp
 
 # ---------- runtime-onnx-gpu (from base) ----------
 FROM base-onnx-gpu-with-models AS runtime-onnx-gpu
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
 # Compiled JS only
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 # Ensure data dir volume
 VOLUME ["/data"]
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:3001/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 # Lightweight entrypoint to configure cache dirs for arbitrary --user and avoid CUDA/ORT segfaults
-COPY bin/entrypoint.sh ./bin/entrypoint.sh
+COPY --chown=mcp:mcp bin/entrypoint.sh ./bin/entrypoint.sh
 RUN chmod +x ./bin/entrypoint.sh
+USER mcp
 ENTRYPOINT ["/app/bin/entrypoint.sh"]
 CMD ["node", "/app/dist/index.js"]
 
 # ---------- runtime-onnx-gpu-cat-extbase (external GPU base with embedded catalog) ----------
 FROM ${BASE_GPU_IMAGE_CAT} AS runtime-onnx-gpu-cat-extbase
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 VOLUME ["/data"]
-COPY bin/entrypoint.sh ./bin/entrypoint.sh
+COPY --chown=mcp:mcp bin/entrypoint.sh ./bin/entrypoint.sh
 RUN chmod +x ./bin/entrypoint.sh
+USER mcp
 ENTRYPOINT ["/app/bin/entrypoint.sh"]
 CMD ["node", "/app/dist/index.js"]
 
 # ---------- runtime-onnx-gpu-extbase (external GPU base) ----------
 FROM ${BASE_GPU_IMAGE} AS runtime-onnx-gpu-extbase
+USER root
+RUN (id -u mcp >/dev/null 2>&1 || (groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp)) \
+ && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/dist ./dist
+COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
+COPY --from=builder --chown=mcp:mcp /app/dist ./dist
+RUN chown mcp:mcp /app
 VOLUME ["/data"]
-COPY bin/entrypoint.sh ./bin/entrypoint.sh
+COPY --chown=mcp:mcp bin/entrypoint.sh ./bin/entrypoint.sh
 RUN chmod +x ./bin/entrypoint.sh
+USER mcp
 ENTRYPOINT ["/app/bin/entrypoint.sh"]
 CMD ["node", "/app/dist/index.js"]
 
@@ -275,6 +337,10 @@ FROM runtime-onnx-gpu AS mcp-onnx-gpu-with-catalog
 
 # ---------- dev target (optional) ----------
 FROM ${BASE_NODE_ALPINE_IMAGE} AS dev
+# Alpine uses addgroup/adduser (no shadow-utils useradd)
+RUN addgroup -S -g 1001 mcp && adduser -S -G mcp -u 1001 -h /app -s /sbin/nologin mcp \
+ && mkdir -p /data && chown -R mcp:mcp /data
+USER mcp
 
 # ---------- proxy stages to bake toolchain bases into GHCR ----------
 # These are used by the base workflow to publish GHCR images that mirror

@@ -36,3 +36,45 @@ coverage
 
 # Compose files not needed in build context
 docker-compose.catalog.yml
+docker-compose.test.yml
+docker-compose.yml
+
+# Secrets and local env — never ship in image context
+.env
+.env.*
+!.env.example
+secrets*.json
+*.pem
+*.key
+
+# Agent/session state and local tooling dirs
+.omo
+.loopx
+.loopx-watchdog
+.session
+.opencode
+.skills
+.windsurf
+mcpTrackerData
+audit_bundle
+.smoke-data
+.tmp
+
+# Coverage and scan artifacts
+coverage/
+*.sarif
+*.cdx.json
+.whitesource
+.gitlab-ci.yml
+
+# Sub-project with its own Dockerfile (built separately)
+web-ui/
+
+# Git hooks / lint configs not needed in image
+.husky
+.markdownlint.json
+.markdownlintignore
+.prettierrc.json
+eslint.config.js
+vitest.config.ts
+tsconfig.test.json

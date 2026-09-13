@@ -180,3 +180,15 @@ jobs:
           echo "Tags:" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+      # Vulnerability scan (report-only for now — exit-code 0; flip to '1' after baseline triage)
+      - name: Trivy scan (bm25 variant)
+        if: matrix.variant == 'bm25'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          format: table
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
