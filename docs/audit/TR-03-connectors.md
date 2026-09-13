@@ -61,6 +61,7 @@ Impact: env vars are visible via `/proc/<pid>/environ`, crash dumps, `docker ins
 
 ### C-02 — GDrive refresh-token fields are dead code — **MEDIUM**
 
+<!-- doc-test: skip -->
 ```ts
 // src/connectors/gdrive.ts:39-42
 private refreshToken?: string;
@@ -105,6 +106,7 @@ return { healthy: true, message: 'Google Drive connector ready' };
 
 ### C-05 — `memory_extract_async` / `memory_dream_async` webhookUrl = unvalidated SSRF — **HIGH**
 
+<!-- doc-test: skip -->
 ```ts
 // src/register/memory.ts:413, 1311
 webhookUrl: z.string().url().optional()
@@ -117,6 +119,7 @@ No host allowlist, no private-IP/loopback block (RFC-1918, 169.254.169.254 metad
 
 ### C-06 — Web crawler fetches arbitrary URLs — **MEDIUM**
 
+<!-- doc-test: skip -->
 ```ts
 // src/connectors/web-crawler.ts:62
 const resp = await fetch(url, { signal: AbortSignal.timeout(this.timeoutMs), ... });
