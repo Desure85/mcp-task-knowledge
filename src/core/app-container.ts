@@ -35,7 +35,7 @@ import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClose
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { currentSessionId } from './request-context.js';
-import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR } from '../config.js';
+import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR, getFileConfig } from '../config.js';
 import path from 'node:path';
 import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
@@ -385,7 +385,12 @@ export class AppContainer {
       for (const reg of defaultConnectorRegistrations) {
         connectorRegistry.register(reg);
       }
-      const connectorConfigs: Record<string, Record<string, unknown>> = {};
+      // TR-27: wire FileConfig.connectors → connectorConfigs. Presence of a
+      // connector entry in the JSON config activates it (see registry.initAll
+      // merge semantics); `enabled: false` in the entry disables explicitly.
+      const connectorConfigs: Record<string, Record<string, unknown>> = {
+        ...(getFileConfig().connectors ?? {}),
+      };
       // PH-006: connector expose mode — CONNECTOR_EXPOSE_MODE =
       // tools | resources | both (default: both).
       //   tools:     callable tools only (previous behavior)

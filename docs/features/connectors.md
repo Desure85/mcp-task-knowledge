@@ -50,7 +50,7 @@ Connectors are configured via env vars or JSON config:
 ```json
 {
   "connectors": {
-    "github": { "token": "ghp_..." },
+    "github": { "enabled": true, "token": "ghp_..." },
     "jira": { "host": "https://my.atlassian.net", "token": "..." },
     "slack": { "token": "xoxb-..." },
     "gdrive": { "apiKey": "...", "refreshToken": "..." },
@@ -59,6 +59,11 @@ Connectors are configured via env vars or JSON config:
   }
 }
 ```
+
+Presence of a connector entry activates it — `"enabled": true` is optional
+(shown above for clarity). Set `"enabled": false` to keep an entry in the
+file while disabling the connector. Entries are merged over the connector's
+env-based defaults (`*_CONNECTOR_ENABLED`), so a file entry wins on conflicts.
 
 ## Credential Resolution
 

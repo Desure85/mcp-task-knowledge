@@ -52,6 +52,14 @@ export interface FileConfig {
   obsidian?: {
     vaultRoot?: string;
   };
+  /**
+   * Per-connector configuration (TR-27).
+   * Keys are connector ids ('github', 'jira', 'slack', ...); values are
+   * arbitrary config objects passed to the connector factory and exposed
+   * as `ctx.config`. Presence of an entry activates the connector unless
+   * `enabled: false` is set explicitly.
+   */
+  connectors?: Record<string, Record<string, unknown>>;
   [key: string]: unknown;
 }
 
@@ -114,6 +122,15 @@ export function reloadFileConfig(): { ok: boolean; error?: string; source: strin
     log.warn({ err: e }, 'config reload failed');
     return { ok: false, error: (e as Error).message, source: cliConfigPath ?? 'MCP_CONFIG_JSON' };
   }
+}
+
+/**
+ * Accessor for the loaded file config (TR-27). `reloadFileConfig()` replaces
+ * the underlying object, so callers needing fresh values must call this again
+ * rather than caching the returned reference.
+ */
+export function getFileConfig(): FileConfig {
+  return fileConfig;
 }
 
 const DATA_DIR_CFG = fileConfig.dataDir as string | undefined;

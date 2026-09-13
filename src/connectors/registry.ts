@@ -37,8 +37,13 @@ export class ConnectorRegistry {
 
   /**
    * Initialize all enabled connectors.
-   * A connector is enabled if its config has `enabled: true` or if
-   * `enabledByDefault` is true and config doesn't explicitly disable it.
+   *
+   * Merge semantics (TR-27): when `configs[id]` is present (file config entry),
+   * it is merged over `reg.defaultConfig` and the connector is activated —
+   * presence of an entry implies intent, so `enabled` defaults to `true`
+   * unless the entry explicitly sets `enabled: false`. Without a file entry,
+   * `reg.defaultConfig` applies and `enabled` falls back to
+   * `reg.enabledByDefault ?? false`.
    */
   async initAll(
     configs: Record<string, Record<string, unknown>>,
@@ -50,8 +55,11 @@ export class ConnectorRegistry {
     const errors: Array<{ id: string; error: string }> = [];
 
     for (const [id, reg] of this.registrations) {
-      const config = configs[id] ?? reg.defaultConfig ?? {};
-      const enabled = config.enabled ?? reg.enabledByDefault ?? false;
+      const fileEntry = configs[id];
+      const config: Record<string, unknown> = fileEntry !== undefined
+        ? { ...reg.defaultConfig, ...fileEntry, enabled: fileEntry.enabled ?? true }
+        : { ...(reg.defaultConfig ?? {}) };
+      const enabled = (config.enabled as boolean | undefined) ?? reg.enabledByDefault ?? false;
 
       if (!enabled) {
         skipped.push(id);

@@ -90,4 +90,66 @@ describe('INT-004: ConnectorRegistry', () => {
     expect(reg.activeCount).toBe(0);
     expect(destroySpy).toHaveBeenCalledOnce();
   });
+
+  // TR-27: file config merge semantics
+  it('file config entry activates connector without explicit enabled flag', async () => {
+    const reg = new ConnectorRegistry();
+    const initSpy = vi.fn();
+    reg.register({
+      id: 'github',
+      factory: (cfg) => ({ ...makeConnector('github'), init: async () => initSpy(cfg) }),
+      enabledByDefault: false,
+    });
+    const result = await reg.initAll({ github: { token: 'ghp_x' } }, () => {});
+    expect(result.initialized).toEqual(['github']);
+    expect(initSpy).toHaveBeenCalledWith(expect.objectContaining({ token: 'ghp_x', enabled: true }));
+  });
+
+  it('file config entry with enabled:false skips connector', async () => {
+    const reg = new ConnectorRegistry();
+    reg.register({ id: 'github', factory: () => makeConnector('github'), enabledByDefault: true });
+    const result = await reg.initAll({ github: { enabled: false, token: 'x' } }, () => {});
+    expect(result.skipped).toEqual(['github']);
+    expect(result.initialized).toEqual([]);
+  });
+
+  it('file config merges over defaultConfig (file wins, defaults preserved)', async () => {
+    const reg = new ConnectorRegistry();
+    const initSpy = vi.fn();
+    reg.register({
+      id: 'jira',
+      factory: (cfg) => ({ ...makeConnector('jira'), init: async () => initSpy(cfg) }),
+      defaultConfig: { enabled: false, host: 'https://default.atlassian.net', timeout: 5000 },
+    });
+    await reg.initAll({ jira: { token: 'tok' } }, () => {});
+    expect(initSpy).toHaveBeenCalledWith({
+      enabled: true,
+      host: 'https://default.atlassian.net',
+      timeout: 5000,
+      token: 'tok',
+    });
+  });
+
+  it('connector without file entry still activates via defaultConfig.enabled', async () => {
+    const reg = new ConnectorRegistry();
+    reg.register({
+      id: 'slack',
+      factory: () => makeConnector('slack'),
+      defaultConfig: { enabled: true },
+      enabledByDefault: false,
+    });
+    const result = await reg.initAll({}, () => {});
+    expect(result.initialized).toEqual(['slack']);
+  });
+
+  it('file config value overrides defaultConfig.enabled=true', async () => {
+    const reg = new ConnectorRegistry();
+    reg.register({
+      id: 'notion',
+      factory: () => makeConnector('notion'),
+      defaultConfig: { enabled: true },
+    });
+    const result = await reg.initAll({ notion: { enabled: false } }, () => {});
+    expect(result.skipped).toEqual(['notion']);
+  });
 });
