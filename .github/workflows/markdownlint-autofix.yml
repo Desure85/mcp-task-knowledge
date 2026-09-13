@@ -18,7 +18,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }} # only same-repo PRs (cannot push to forks)
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
@@ -50,7 +50,7 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
     steps:
       - name: Checkout PR branch (fork)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
