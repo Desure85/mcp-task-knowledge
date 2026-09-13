@@ -106,7 +106,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^20.14.12",
+    "@types/node": "^26.5.1",
     "@types/pino": "^7.0.4",
     "@types/uuid": "^9.0.7",
     "@types/ws": "^8.18.1",
