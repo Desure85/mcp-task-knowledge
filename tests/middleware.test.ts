@@ -19,7 +19,7 @@ import {
 } from '../src/core/tool-executor.js';
 import type {
   ToolContext,
-  _ContextAwareToolHandler,
+  ContextAwareToolHandler,
   RawToolHandler,
 } from '../src/core/tool-executor.js';
 import { createMockServerContext } from './helpers.js';

@@ -15,7 +15,7 @@ import { MiddlewarePipeline, MiddlewareContext } from '../src/core/middleware.js
 import {
   createToolContext,
   ToolExecutor,
-  _ToolDeniedError,
+  ToolDeniedError,
 } from '../src/core/tool-executor.js';
 import type { RawToolHandler, ToolContext } from '../src/core/tool-executor.js';
 import type { ServerContext } from '../src/register/context.js';

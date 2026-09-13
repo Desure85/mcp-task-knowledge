@@ -170,7 +170,7 @@ describe('AUD-08: session cap bypass', () => {
     const sessions = (adapter as unknown as { sessions: Map<string, unknown> }).sessions;
     expect(sessions.size).toBe(0);
 
-    sm.close();
+    await sm.close('taken');
   });
 
   it('sessions map stays empty across repeated rejected initializes', async () => {
@@ -190,6 +190,6 @@ describe('AUD-08: session cap bypass', () => {
     const sessions = (adapter as unknown as { sessions: Map<string, unknown> }).sessions;
     expect(sessions.size).toBe(0);
 
-    sm.close();
+    await sm.close('taken');
   });
 });

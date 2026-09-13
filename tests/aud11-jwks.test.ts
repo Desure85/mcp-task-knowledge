@@ -23,8 +23,8 @@ let publicJwks: jose.JSONWebKeySet;
 let fetchCount = 0;
 
 // Two RSA key pairs — simulates key rotation (old + new key in the set)
-let key1: { privateKey: jose.KeyLike; publicJwk: jose.JWK };
-let key2: { privateKey: jose.KeyLike; publicJwk: jose.JWK };
+let key1: { privateKey: CryptoKey; publicJwk: jose.JWK };
+let key2: { privateKey: CryptoKey; publicJwk: jose.JWK };
 
 beforeAll(async () => {
   const pair1 = await jose.generateKeyPair('RS256', { extractable: true });
@@ -66,7 +66,7 @@ afterAll(async () => {
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 async function signToken(
-  privateKey: jose.KeyLike,
+  privateKey: CryptoKey,
   kid: string,
   claims: Record<string, unknown> = {},
 ): Promise<string> {
