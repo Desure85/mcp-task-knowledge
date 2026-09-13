@@ -104,6 +104,20 @@ See [Agent Memory](agent-memory.md) for full reference.
 | `prompts_feedback_validate` | Validate feedback |
 | `prompts_metrics_log_bulk` | Log metrics in bulk |
 
+### MCP prompts surface (SPEC-03)
+
+The prompt library is also exposed natively via the MCP prompts capability, so
+client UIs (Claude Desktop, IDEs, inspectors) render it under "Prompts":
+
+- `prompts/list` — one entry per cataloged prompt (name = prompt `id`, e.g. `bug_triage`)
+- `prompts/get` — renders the prompt template, substituting `{{variable}}` placeholders
+
+Rules, workflows, templates and policies stay tool-only (they are composition
+building blocks, not end-user prompt templates). Registration happens at startup
+from the catalog — new prompts appear after a server restart (`listChanged` is
+SPEC-04). When the library is empty, `prompts/list` answers with an empty list
+(never `-32601`).
+
 ## Projects (8 tools)
 
 | Tool | Description |
