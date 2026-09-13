@@ -16,12 +16,16 @@ const LIVE = process.env.MCP_LIVE_URL;
 const JWT_SECRET = process.env.MCP_LIVE_JWT_SECRET;
 const maybe = LIVE ? describe : describe.skip;
 
-/** Mint an HS256 JWT for the live server (JwtValidator, sub claim). */
-function mintJwt(secret: string, sub = 'webui-e2e'): string {
+/**
+ * Mint an HS256 JWT for the live server (JwtValidator, sub claim).
+ * AUD-04: session_list is admin-only — include roles claim so the
+ * live tests exercise the same path a real admin UI session uses.
+ */
+function mintJwt(secret: string, sub = 'webui-e2e', roles: string[] = ['admin']): string {
   const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const head = b64({ alg: 'HS256', typ: 'JWT' });
   const now = Math.floor(Date.now() / 1000);
-  const body = b64({ sub, iat: now, exp: now + 600 });
+  const body = b64({ sub, iat: now, exp: now + 600, roles });
   const sig = createHmac('sha256', secret).update(`${head}.${body}`).digest('base64url');
   return `${head}.${body}.${sig}`;
 }
