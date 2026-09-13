@@ -5,6 +5,7 @@ import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTask
 import { createDoc, listDocs, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
 import { ok, err } from '../utils/respond.js';
 import { createDataBackup, isBackupRequired, type BackupScope } from '../services/data-backup.js';
+import { elicitConfirm } from '../core/elicitation.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('bulk');
@@ -266,7 +267,16 @@ export function registerBulkTools(ctx: ServerContext): void {
       }
 
       if (confirm !== true) {
-        return err('Bulk task delete not confirmed: pass confirm=true to proceed');
+        // TR-12: ask the user via MCP elicitation before refusing outright.
+        const elicited = await elicitConfirm(
+          ctx,
+          `Permanently delete ${ids.length} task(s) in project "${prj}"? This cannot be undone.`,
+        );
+        if (elicited !== 'accepted') {
+          return err(
+            `Bulk task delete not confirmed (elicitation ${elicited}): pass confirm=true to proceed`,
+          );
+        }
       }
 
       const backupErr = await backupBeforeDestructive('pre-bulk-delete', 'tasks', prj, 'tasks_bulk_delete_permanent');
@@ -372,11 +382,29 @@ export function registerBulkTools(ctx: ServerContext): void {
     "knowledge_bulk_delete_permanent",
     {
       title: "Bulk Delete Knowledge Docs Permanently",
-      description: "Permanently delete many knowledge docs (use with caution)",
-      inputSchema: { project: z.string().optional(), ids: z.array(z.string().min(1)).min(1).max(200) },
+      description: "Permanently delete many knowledge docs (use with caution). Requires confirm=true unless the client supports elicitation.",
+      inputSchema: {
+        project: z.string().optional(),
+        ids: z.array(z.string().min(1)).min(1).max(200),
+        confirm: z.boolean().optional(),
+      },
     },
-    async ({ project, ids }) => {
+    async ({ project, ids, confirm }) => {
       const prj = resolveProject(project);
+      // TR-25: confirm gate — parity with tasks_bulk_delete_permanent.
+      // TR-12: elicitation fallback before refusing.
+      if (confirm !== true) {
+        const elicited = await elicitConfirm(
+          ctx,
+          `Permanently delete ${ids.length} knowledge doc(s) in project "${prj}"? This cannot be undone.`,
+        );
+        if (elicited !== 'accepted') {
+          return err(
+            `Bulk knowledge delete not confirmed (elicitation ${elicited}): pass confirm=true to proceed`,
+          );
+        }
+      }
+
       const backupErr = await backupBeforeDestructive('pre-bulk-delete', 'knowledge', prj, 'knowledge_bulk_delete_permanent');
       if (backupErr) return err(backupErr);
 
@@ -511,14 +539,22 @@ export function registerBulkTools(ctx: ServerContext): void {
       }
 
       if (confirm !== true) {
-        // PH-005: refuse via error envelope (same style as the rest of the
-        // surface) — the caller gets { ok:false } with the would-be counts,
-        // not a raw MCP protocol error.
-        return err(
-          `Refusing to proceed: project purge not confirmed. ` +
-          `Would delete ${taskIds.length} tasks + ${knowledgeIds.length} knowledge docs ` +
-          `(project=${prj}, scope=${scope}). Re-run with confirm:true, or dryRun:true to inspect.`
+        // TR-12: ask the user via MCP elicitation before refusing outright.
+        const elicited = await elicitConfirm(
+          ctx,
+          `Purge project "${prj}" (scope=${scope}): permanently delete ` +
+          `${taskIds.length} tasks + ${knowledgeIds.length} knowledge docs? This cannot be undone.`,
         );
+        if (elicited !== 'accepted') {
+          // PH-005: refuse via error envelope (same style as the rest of the
+          // surface) — the caller gets { ok:false } with the would-be counts,
+          // not a raw MCP protocol error.
+          return err(
+            `Refusing to proceed: project purge not confirmed (elicitation ${elicited}). ` +
+            `Would delete ${taskIds.length} tasks + ${knowledgeIds.length} knowledge docs ` +
+            `(project=${prj}, scope=${scope}). Re-run with confirm:true, or dryRun:true to inspect.`
+          );
+        }
       }
 
       const backupErr = await backupBeforeDestructive('pre-purge', 'project', prj, 'project_purge');

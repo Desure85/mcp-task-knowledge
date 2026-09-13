@@ -53,7 +53,11 @@ describe('Q-014 slice 17: knowledge bulk lifecycle', () => {
       const afterRestore = await srv.callTool('knowledge_list', { project: 'mcp', tag: 'q014life' });
       expect(JSON.stringify(afterRestore.env.data)).toContain('Q014 kb-life B');
 
-      const gone = await srv.callTool('knowledge_bulk_delete_permanent', { project: 'mcp', ids: [ids[0]] });
+      // TR-25: permanent delete now requires confirm=true (parity with tasks).
+      const refused = await srv.callTool('knowledge_bulk_delete_permanent', { project: 'mcp', ids: [ids[0]] });
+      expect(refused.isError).toBe(true);
+      expect(refused.env.error?.message ?? '').toContain('not confirmed');
+      const gone = await srv.callTool('knowledge_bulk_delete_permanent', { project: 'mcp', ids: [ids[0]], confirm: true });
       expect(gone.isError).toBe(false);
       const getDeleted = await srv.callTool('knowledge_get', { project: 'mcp', id: ids[0] });
       expect(getDeleted.env.ok).not.toBe(true);
