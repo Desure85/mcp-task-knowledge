@@ -45,6 +45,16 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
 
+      # TR-06: supply-chain audit gate — report-only until prod deps are clean.
+      # Currently 2 critical (tar) + high (sharp via @xenova/transformers) —
+      # fix requires breaking change. Flip to blocking (--audit-level=high,
+      # remove continue-on-error) once the tree is clean.
+      - name: npm audit (production deps, report-only)
+        continue-on-error: true
+        run: |
+          npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org/ || \
+            echo "::warning::npm audit found high/critical vulnerabilities in production deps (see log). Gate is report-only until TR-06 follow-up cleans the tree."
+
       - name: Run unit tests
         env:
           EMBEDDINGS_MODE: none

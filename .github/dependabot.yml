@@ -1,0 +1,44 @@
+# Dependabot configuration — TR-06 supply chain baseline.
+# Covers npm dependencies and GitHub Actions. Docker base images are managed
+# manually (multi-stage Dockerfile with pinned digests — see TR-05).
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - npm
+    groups:
+      # Batch minor+patch into one PR to reduce noise; majors stay separate.
+      minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    # Security updates are always separate and immediate.
+    # (dependabot security-updates are enabled repo-side.)
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
