@@ -132,6 +132,8 @@ __pycache__/
 .tmp-e2e-*/
 .tmp-tests-*/
 .tmp-*.json
+# Test-created temp dirs (integration.test.ts and others; see interrupted-run leak .tmp-mcp-integration-*)
+.tmp-*/
 
 # Entity-graph side-effect store (server cwd-relative, created by memory tools)
 .memory/
