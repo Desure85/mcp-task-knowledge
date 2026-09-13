@@ -26,6 +26,7 @@
 import { randomUUID } from 'node:crypto';
 import { createDoc } from '../storage/knowledge.js';
 import { childLogger } from '../core/logger.js';
+import { maskPII } from './pii-masker.js';
 import type {
   ExtractedFact,
   ExtractionInput,
@@ -204,7 +205,23 @@ function isDuplicate(statement: string, existing: ExtractedFact[], threshold = 0
 
 // ─── MemoryExtractor ────────────────────────────────────────────────
 
+/** Options for MemoryExtractor. */
+export interface MemoryExtractorOptions {
+  /**
+   * Mask PII (emails, phones, card numbers, IPs, IBANs, SSNs) in extracted
+   * fact statements before persistence. Default: env `MEMORY_MASK_PII=1`.
+   */
+  maskPii?: boolean;
+}
+
 export class MemoryExtractor {
+  private readonly maskPii: boolean;
+
+  constructor(options: MemoryExtractorOptions = {}) {
+    // Lazy env read: opt-in only, default off (TR-07).
+    this.maskPii = options.maskPii ?? process.env.MEMORY_MASK_PII === '1';
+  }
+
   /**
    * Extract structured facts from a conversation/session transcript.
    *
@@ -244,15 +261,18 @@ export class MemoryExtractor {
 
         const entities = extractEntities(rawStatement);
         const now = new Date().toISOString();
+        const statement = this.maskPii ? maskPII(rawStatement).masked : rawStatement;
+        const rawSnippet = match[0].substring(0, 200);
+        const snippet = this.maskPii ? maskPII(rawSnippet).masked : rawSnippet;
 
         const fact: ExtractedFact = {
           id: randomUUID(),
-          statement: rawStatement,
+          statement,
           category,
           confidence: adjustedConfidence,
           tags: [...tags, ...entities.map((e) => `entity:${e}`)],
           scope,
-          source: { ...source, snippet: match[0].substring(0, 200) },
+          source: { ...source, snippet },
           extractedAt: now,
           valid: true,
           entities,
