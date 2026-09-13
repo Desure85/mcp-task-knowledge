@@ -929,7 +929,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | TR-10 | API governance doc | low | pending | — | Политика breaking changes для ~114 tools, таксономия error-кодов, нейминг-конвенция (tasks_*/memory_*/tools_*), deprecation-путь. ToolRegistry версионирует — политики нет |
 | TR-11 | MCP spec frontier tracking | low | pending | — | Политика отслеживания спеки + оценка неиспользуемых фич: elicitation, sampling, roots, subscriptions. Выход: что брать, что осознанно нет |
-| TR-12 | Elicitation для confirm-флоу | medium | pending | TR-11, DX-19 | Деструктивные ops (project_purge, bulk-delete) → elicitation-запрос юзеру вместо слепого выполнения. Синергия с auto-backup DX-19 |
+| TR-12 | Elicitation для confirm-флоу | medium | in_progress | TR-11, DX-19 | Деструктивные ops (project_purge, bulk-delete) → elicitation-запрос юзеру вместо слепого выполнения. Синергия с auto-backup DX-19 |
 | TR-13 | Upgrade-path e2e | low | pending | DX-18 | Данные версии N → апгрейд пакета → читаются корректно. Ловит то, что schema-version не покроет |
 
 ---
@@ -1088,7 +1088,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 10 | 0 | 0 | 0 | 0 |
-| **Итого** | **292** | **67** | **0** | **220** | **0** | **1** |
+| **Итого** | **292** | **66** | **1** | **220** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
