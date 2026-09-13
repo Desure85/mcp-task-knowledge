@@ -61,7 +61,7 @@ jobs:
         run: node scripts/prompts.mjs build
 
       - name: Upload artifacts (index and validation)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-core
           path: |
@@ -70,28 +70,28 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload artifacts (exports JSON)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-exports-json
           path: .data/prompts/mcp/exports/json/
           if-no-files-found: ignore
 
       - name: Upload artifacts (exports Markdown)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-exports-markdown
           path: .data/prompts/mcp/exports/markdown/
           if-no-files-found: ignore
 
       - name: Upload artifacts (catalog)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-catalog
           path: .data/prompts/mcp/exports/catalog/
           if-no-files-found: ignore
 
       - name: Upload artifacts (builds)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-builds
           path: .data/prompts/mcp/exports/builds/

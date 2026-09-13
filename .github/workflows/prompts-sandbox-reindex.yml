@@ -33,7 +33,7 @@ jobs:
         run: npm run -s prompts:reindex
 
       - name: Upload artifacts (index and validation)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-core-${{ github.event.inputs.project }}
           path: |
@@ -42,28 +42,28 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload artifacts (exports JSON)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-exports-json-${{ github.event.inputs.project }}
           path: .data/prompts/${{ github.event.inputs.project }}/exports/json/
           if-no-files-found: ignore
 
       - name: Upload artifacts (exports Markdown)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-exports-markdown-${{ github.event.inputs.project }}
           path: .data/prompts/${{ github.event.inputs.project }}/exports/markdown/
           if-no-files-found: ignore
 
       - name: Upload artifacts (catalog)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-catalog-${{ github.event.inputs.project }}
           path: .data/prompts/${{ github.event.inputs.project }}/exports/catalog/
           if-no-files-found: ignore
 
       - name: Upload artifacts (builds)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: prompts-builds-${{ github.event.inputs.project }}
           path: .data/prompts/${{ github.event.inputs.project }}/exports/builds/
