@@ -129,6 +129,13 @@ All bulk tools live in `src/register/bulk.ts`. The contract is:
   are *pre-flight* failures: missing `confirm:true` on destructive ops
   (`bulk.ts:259-261`), or a failed mandatory backup
   (`bulk.ts:262-263, 33-44` with `BACKUP_REQUIRED=1`).
+- **Elicitation (TR-12):** when a destructive op (`project_purge`,
+  `tasks_bulk_delete_permanent`, `knowledge_bulk_delete_permanent`) is called
+  without `confirm:true`, the server first tries an MCP `elicitation/create`
+  request asking the user to confirm. If the client doesn't declare the
+  `elicitation` capability, the user declines/cancels, or the request fails,
+  the tool falls back to the `{ok:false}` refusal envelope — fail-safe.
+  `confirm:true` bypasses elicitation entirely (backward compatible).
 - **`results` contains only the successes.** `updateTask`/`updateDoc`/
   `archiveTask`/`trashTask`/`restoreTask`/`closeTask`/`deleteTaskPermanent`
   return `Task | null` / `KnowledgeDoc | null` — `null` on missing ID — and
