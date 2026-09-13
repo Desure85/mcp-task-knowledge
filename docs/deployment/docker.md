@@ -32,6 +32,28 @@ docker pull ghcr.io/desure85/mcp-task-knowledge:onnx-cpu
 docker pull ghcr.io/desure85/mcp-task-knowledge:onnx-gpu
 ```
 
+## Non-root runtime
+
+All published runtime images run as a dedicated non-root user `mcp` (uid/gid `1001`),
+with `/app` as its home and `/data` as the writable data volume.
+
+### Volume permissions
+
+The container writes only to `DATA_DIR` (`/data`). When bind-mounting a host
+directory, make it writable by uid `1001`:
+
+```bash
+mkdir -p .data && chown -R 1001:1001 .data
+docker run -d -v "$PWD/.data":/data ghcr.io/desure85/mcp-task-knowledge:latest
+```
+
+Named volumes (`-v mcp-data:/data`) inherit the image's `mcp:mcp` ownership
+automatically — no host chown needed.
+
+To override the runtime user (e.g. `--user 1234:1234`), ensure the mounted
+`/data` is writable by that uid. GPU images ship `bin/entrypoint.sh`, which
+normalizes `HOME`/cache dirs for arbitrary `--user` values.
+
 ## Docker Compose
 
 ```yaml
@@ -48,7 +70,7 @@ services:
       EMBEDDINGS_MODE: onnx-cpu
       CURRENT_PROJECT: mcp
     volumes:
-      - ./.data:/data
+      - ./.data:/data  # host dir must be writable by uid 1001 (see "Non-root runtime")
     restart: unless-stopped
 
   web-ui:
