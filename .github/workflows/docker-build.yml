@@ -184,7 +184,7 @@ jobs:
       # Vulnerability scan (report-only for now — exit-code 0; flip to '1' after baseline triage)
       - name: Trivy scan (bm25 variant)
         if: matrix.variant == 'bm25'
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.names.outputs.image_repo }}:${{ matrix.variant }}-${{ github.sha }}
           severity: CRITICAL,HIGH
