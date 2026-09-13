@@ -11,6 +11,10 @@
 /// <reference types="node" />
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { childLogger } from '../core/logger.js';
+import { checkWebhookUrlResolved } from '../utils/ssrf-guard.js';
+
+const log = childLogger('async-ops');
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -258,6 +262,15 @@ export class AsyncJobManager extends EventEmitter {
   private async fireWebhook(job: AsyncJob): Promise<void> {
     if (!job.webhookUrl) {
       job.webhookStatus = 'skipped';
+      return;
+    }
+
+    // TR-28: SSRF guard — validate scheme/host and resolve DNS before POSTing
+    // job output to the webhook URL. Blocks private/loopback/link-local targets.
+    const check = await checkWebhookUrlResolved(job.webhookUrl);
+    if (!check.ok) {
+      job.webhookStatus = 'failed';
+      log.warn({ jobId: job.id, webhookUrl: job.webhookUrl, reason: check.reason }, 'webhook blocked by SSRF guard');
       return;
     }
 

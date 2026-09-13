@@ -43,6 +43,27 @@
 | `TLS_MIN_VERSION` | `TLSv1.2` | Minimum TLS version |
 | `TLS_HOT_RELOAD` | `false` | Watch cert/key files and reload on change |
 
+### Webhooks (async jobs)
+
+`memory_extract_async` and other async-job tools accept a `webhookUrl` that is
+POSTed with the job result on completion. To prevent SSRF (e.g. posting job
+output to `http://169.254.169.254/latest/meta-data/`), the URL is validated
+before fetching:
+
+- Only `http:`/`https:` schemes are allowed (`https:` recommended).
+- Private/loopback/link-local hosts are blocked: `localhost`, `*.localhost`,
+  `*.local`, `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+  `169.254.0.0/16`, `0.0.0.0/8`, `100.64.0.0/10`, IPv6 `::1`, `fc00::/7`,
+  `fe80::/10`, and `::ffff:`-mapped private IPv4. Obfuscated IPv4 forms
+  (integer/hex/octal) are normalized and blocked.
+- At fetch time the hostname is resolved via DNS and blocked if ANY resolved
+  address is private (DNS-rebinding defense).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WEBHOOK_ALLOWED_HOSTS` | — | Comma-separated exact hostnames that bypass the private-IP block (scheme rules still apply) |
+| `WEBHOOK_ALLOW_PRIVATE` | — | Set to `1` to disable private-IP blocking entirely (dev only) |
+
 ### Obsidian
 
 | Variable | Default | Description |
