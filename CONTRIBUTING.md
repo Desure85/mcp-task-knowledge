@@ -85,6 +85,32 @@ docs/
   api-reference.md # автогенерируемый справочник (npm run api:reference)
 ```
 
+## Supply chain (TR-06)
+
+Базовый комплект защиты цепочки поставок:
+
+- **Dependabot** (`.github/dependabot.yml`) — еженедельные PR на npm-зависимости
+  и GitHub Actions. Minor+patch сгруппированы, majors — отдельными PR.
+  Security-обновления приходят вне расписания.
+- **npm audit gate** — в `bulk-smoke.yml` шаг `npm audit --omit=dev` после
+  `npm install`. Сейчас **report-only** (`continue-on-error: true`): в продакшн-
+  зависимостях есть известные high/critical (tar, sharp через
+  @xenova/transformers), фикс требует breaking change. Когда дерево почистится —
+  убрать `continue-on-error` и поставить `--audit-level=high`.
+- **SHA-pinning actions** — в `publish.yml`, `docker-build.yml`,
+  `docker-build-base.yml` все third-party actions запинены на commit SHA
+  (`uses: owner/repo@<40-hex> # vX.Y.Z`). Остальные workflow — follow-up.
+  При обновлении action: `gh api repos/<owner>/<repo>/git/ref/tags/vN` →
+  подставить SHA и обновить комментарий.
+- **Minimum release age** — новая зависимость должна быть опубликована ≥7 дней
+  назад (окно для обнаружения supply-chain атак типа ua-parser-js/colors.js).
+  Проверка ручная: `npm view <pkg> time.<version>` перед `npm install`.
+  npm пока не имеет нативного `minimumReleaseAge` (есть в pnpm 10.16+ /
+  yarn 4.x) — когда появится, включить в `.npmrc`.
+- **`.npmrc` registry** — локальный mirror (npmmirror.com) намеренный для
+  dev-скорости; CI и publish всегда идут через `registry.npmjs.org`
+  (`NPM_CONFIG_REGISTRY` в workflow). Не менять.
+
 ## BACKLOG
 
 Единственный источник правды по задачам: `BACKLOG.md`. Сводка «Итого»

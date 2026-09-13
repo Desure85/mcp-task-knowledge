@@ -94,12 +94,13 @@ describe('Q-014 slice 19: experiment loop', () => {
       expect(exports.env.data.baseDir).toBeTruthy();
 
       // Catalog JSON is produced by the async reindex chain (prompts.mjs
-      // index→catalog→…), so poll until it lands instead of assuming timing.
+      // index→catalog→…), so poll until the prompt lands — env.ok alone is
+      // not enough (a stale catalog from a previous step also returns ok).
       const deadline = Date.now() + 20000;
       let catalog: Awaited<ReturnType<E2EServer['callTool']>> | null = null;
       while (Date.now() < deadline) {
         catalog = await srv.callTool('prompts_catalog_get', { project: 'mcp' });
-        if (catalog.env.ok) break;
+        if (catalog.env.ok && JSON.stringify(catalog.env.data).includes(PROMPT_KEY)) break;
         await new Promise((r) => setTimeout(r, 300));
       }
       expect(catalog?.env.ok).toBe(true);
