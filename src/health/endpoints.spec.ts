@@ -165,3 +165,68 @@ describe('SCALE-001: drainz endpoint', () => {
     expect(body.draining).toBe(false);
   });
 });
+
+describe('TR-08: drain lifecycle contract (docs/reliability.md §4)', () => {
+  let checker: HealthChecker;
+  let handlers: ReturnType<typeof createHealthHandlers>;
+
+  beforeEach(() => {
+    checker = new HealthChecker();
+    checker.register('db', () => ({ name: 'db', status: 'healthy', ready: true }));
+    handlers = createHealthHandlers(checker);
+  });
+
+  it('POST /drainz → readyz flips to 503 with draining:true', async () => {
+    // Before drain: ready
+    const pre = createMockRes();
+    await handlers.readyz(createMockReq('GET', '/readyz'), pre);
+    expect(pre._status).toBe(200);
+
+    await handlers.drainz(createMockReq('POST', '/drainz'), createMockRes());
+
+    const post = createMockRes();
+    await handlers.readyz(createMockReq('GET', '/readyz'), post);
+    expect(post._status).toBe(503);
+    const body = JSON.parse(post._body);
+    expect(body.draining).toBe(true);
+    expect(body.ready).toBe(false);
+    // Components still report ready:true — draining is a server-level flag
+    expect(body.components[0].ready).toBe(true);
+  });
+
+  it('healthz stays 200 while draining (liveness unaffected)', async () => {
+    await handlers.drainz(createMockReq('POST', '/drainz'), createMockRes());
+    const res = createMockRes();
+    await handlers.healthz(createMockReq('GET', '/healthz'), res);
+    expect(res._status).toBe(200);
+    expect(JSON.parse(res._body).status).toBe('healthy');
+  });
+
+  it('DELETE /drainz → readyz recovers to 200', async () => {
+    await handlers.drainz(createMockReq('POST', '/drainz'), createMockRes());
+    const mid = createMockRes();
+    await handlers.readyz(createMockReq('GET', '/readyz'), mid);
+    expect(mid._status).toBe(503);
+
+    await handlers.drainz(createMockReq('DELETE', '/drainz'), createMockRes());
+
+    const post = createMockRes();
+    await handlers.readyz(createMockReq('GET', '/readyz'), post);
+    expect(post._status).toBe(200);
+    expect(JSON.parse(post._body).draining).toBe(false);
+  });
+
+  it('drain is idempotent: repeated POST stays draining, repeated DELETE stays clear', async () => {
+    await handlers.drainz(createMockReq('POST', '/drainz'), createMockRes());
+    const res2 = createMockRes();
+    await handlers.drainz(createMockReq('POST', '/drainz'), res2);
+    expect(res2._status).toBe(200);
+    expect(checker.isDraining).toBe(true);
+
+    await handlers.drainz(createMockReq('DELETE', '/drainz'), createMockRes());
+    const res4 = createMockRes();
+    await handlers.drainz(createMockReq('DELETE', '/drainz'), res4);
+    expect(res4._status).toBe(200);
+    expect(checker.isDraining).toBe(false);
+  });
+});
