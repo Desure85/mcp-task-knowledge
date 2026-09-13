@@ -82,6 +82,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 | [Docker & Deployment](docs/deployment/docker.md) | Docker images, compose, GHCR, Kubernetes |
 | [API Reference](docs/api-reference.md) | All 100 MCP tools with schemas |
 | [Architecture](docs/architecture.md) | System design, ADRs, data flow |
+| [Privacy](docs/privacy.md) | Local-first data manifest, egress points, PII masking |
 | [Integration Guides](docs/getting-started/integrations.md) | Claude, Cursor, Windsurf, VS Code, OpenCode |
 
 ## Features
