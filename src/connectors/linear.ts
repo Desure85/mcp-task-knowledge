@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
 const LINEAR_API = 'https://api.linear.app/graphql';
@@ -70,7 +71,7 @@ export class LinearConnector implements Connector {
   }
 
   async init(ctx: ConnectorContext): Promise<void> {
-    this.apiKey = (ctx.config['apiKey'] as string | undefined) ?? process.env.LINEAR_API_KEY ?? undefined;
+    this.apiKey = await resolveCredential(ctx, 'apiKey', 'LINEAR_API_KEY');
 
     ctx.registerTool('linear_list_issues', {
       title: 'Linear: List Issues',

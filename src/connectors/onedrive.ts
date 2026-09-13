@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
 const GRAPH_API = 'https://graph.microsoft.com/v1.0';
@@ -57,7 +58,7 @@ export class OneDriveConnector implements Connector {
   }
 
   async init(ctx: ConnectorContext): Promise<void> {
-    this.accessToken = (ctx.config['accessToken'] as string | undefined) ?? process.env.ONEDRIVE_ACCESS_TOKEN ?? undefined;
+    this.accessToken = await resolveCredential(ctx, 'accessToken', 'ONEDRIVE_ACCESS_TOKEN');
 
     ctx.registerTool('onedrive_list_files', {
       title: 'OneDrive: List Files',

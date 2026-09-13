@@ -6,9 +6,17 @@
  * MCP tools, provides a health check, and manages its own lifecycle.
  */
 
+import type { SecretManager } from '../core/secret-manager.js';
+
 export interface ConnectorContext {
   /** Connector-specific configuration (from env or config file). */
   config: Record<string, unknown>;
+  /**
+   * Optional SecretManager for credential resolution (TR-26).
+   * When present, connectors resolve secrets via `secrets.get(ENV_NAME)`
+   * before falling back to `process.env`. Absent in tests/embedded contexts.
+   */
+  secrets?: SecretManager;
   /** Register an MCP tool. */
   registerTool: (name: string, schema: {
     title?: string;

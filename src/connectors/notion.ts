@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
 const NOTION_API = 'https://api.notion.com/v1';
@@ -85,7 +86,7 @@ export class NotionConnector implements Connector {
   }
 
   async init(ctx: ConnectorContext): Promise<void> {
-    this.apiKey = (ctx.config['apiKey'] as string | undefined) ?? process.env.NOTION_API_KEY ?? undefined;
+    this.apiKey = await resolveCredential(ctx, 'apiKey', 'NOTION_API_KEY');
 
     ctx.registerTool('notion_search_pages', {
       title: 'Notion: Search Pages',
