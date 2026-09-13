@@ -919,7 +919,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | TR-05 | Docker: non-root + hardening | medium | done | — | Dockerfile: 0 `USER`-директив = root-контейнер. Добавить non-root user, read-only fs где можно, ревизия .dockerignore, trivy-скан образа в CI |
 | TR-06 | Supply chain базовый комплект | medium | done | — | Нет dependabot/renovate, `npm audit` не в CI. Добавить: dependabot.yml (npm+actions, weekly), `npm audit --omit=dev` gate, SHA-pinning для actions, политика minimumReleaseAge для новых deps |
-| TR-07 | Privacy-декларация + PII-scrubbing | medium | pending | — | Local-first манифест: честный список того, что уходит наружу (embeddings API, JWKS-fetch, коннекторы). Memory extraction — опция маскировать PII в фактах о пользователях. Selling point для agent-memory продукта |
+| TR-07 | Privacy-декларация + PII-scrubbing | medium | in_progress | — | Local-first манифест: честный список того, что уходит наружу (embeddings API, JWKS-fetch, коннекторы). Memory extraction — опция маскировать PII в фактах о пользователях. Selling point для agent-memory продукта |
 | TR-08 | Reliability: деградация и partial failure | medium | pending | — | Недокументировано/нетестировано: поведение при downed-коннекторе (hang vs fail-fast), retry/backoff, partial-failure семантика batch-tools, drain endpoint под нагрузкой. Сначала контракт, потом тесты |
 | TR-09 | Perf-ёмкость: бюджеты и пределы | low | pending | — | benchmarks/ не подключены к CI (0 hits в workflows). Регрессионные бюджеты, макс. датасет до деградации, memory ceiling. Задокументировать пределы |
 
