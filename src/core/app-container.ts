@@ -45,6 +45,7 @@ import { registerHelpers } from '../register/helpers.js';
 import { registerCatalogTools } from '../register/catalog.js';
 import { registerResources } from '../register/resources.js';
 import { registerPromptsTools } from '../register/prompts.js';
+import { registerMcpPrompts } from '../register/mcp-prompts.js';
 import { registerObsidianTools } from '../register/obsidian.js';
 import { registerProjectTools } from '../register/project.js';
 import { registerBulkTools } from '../register/bulk.js';
@@ -97,8 +98,8 @@ export type AppState =
   | 'stopped'
   | 'error';
 
-/** Callback that receives the ServerContext to register tools/resources. */
-export type RegisterCallback = (ctx: ServerContext) => void;
+/** Callback that receives the ServerContext to register tools/resources. May be async. */
+export type RegisterCallback = (ctx: ServerContext) => void | Promise<void>;
 
 /** Options for AppContainer construction. */
 export interface AppContainerOptions {
@@ -148,11 +149,15 @@ export interface AppContainerOptions {
  * Order matters — helpers first, then tools, then resources, then aliases/introspection.
  * Extracted from the old main() so AppContainer stays decoupled from individual modules.
  */
-export function defaultRegistration(ctx: ServerContext): void {
+export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerHelpers(ctx);
   registerCatalogTools(ctx);
   registerResources(ctx);
   registerPromptsTools(ctx);
+  // SPEC-03: expose the prompt library via native MCP prompts (prompts/list,
+  // prompts/get) so client UIs render them. Snapshot at startup — new prompts
+  // appear after a restart (listChanged is SPEC-04).
+  await registerMcpPrompts(ctx);
   registerObsidianTools(ctx);
   registerProjectTools(ctx);
   registerBulkTools(ctx);
@@ -378,7 +383,7 @@ export class AppContainer {
 
       // 4. Register tools and resources
       const registerFn = this.opts.registerTools ?? defaultRegistration;
-      registerFn(this.ctx);
+      await registerFn(this.ctx);
 
       // 4.1 Connectors: register all built-in connectors and init enabled ones
       const connectorRegistry = new ConnectorRegistry();
