@@ -953,7 +953,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| SPEC-03 | MCP prompts surface | medium | pending | — | `registerPrompt` — 0 вызовов: prompts только как tools, `prompts/list` → -32601, в UI клиентов пусто. Выставить prompt-library через registerPrompt, решить маппинг с prompts_*-tools |
+| SPEC-03 | MCP prompts surface | medium | in_progress | — | `registerPrompt` — 0 вызовов: prompts только как tools, `prompts/list` → -32601, в UI клиентов пусто. Выставить prompt-library через registerPrompt, решить маппинг с prompts_*-tools |
 | SPEC-04 | `listChanged` notifications | medium | pending | SPEC-02 | 0 `sendToolListChanged`/`sendResourceListChanged`: клиент кэширует список навсегда, хотя registry динамический (connectors, TOOLS_ENABLED). Эмитить при register/unregister и смене флагов |
 | SPEC-05 | `completion/complete` | low | pending | — | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
 | SPEC-06 | `resources/subscribe` + `resources/updated` | medium | pending | SPEC-02 | Event-bus уже есть → мост: подписка на uri → `notifications/resources/updated` при изменении |
@@ -1088,7 +1088,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 10 | 0 | 0 | 0 | 0 |
-| **Итого** | **292** | **65** | **0** | **222** | **0** | **1** |
+| **Итого** | **292** | **64** | **1** | **222** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
