@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -30,9 +31,9 @@ async function githubFetch(path: string, token: string): Promise<unknown> {
 
 export function createGitHubConnector(config: Record<string, unknown>): Connector {
   const cfg = config as GitHubConfig;
-  const token = cfg.token ?? process.env.GITHUB_TOKEN ?? '';
   const owner = cfg.owner ?? process.env.GITHUB_OWNER ?? '';
   const repo = cfg.repo ?? process.env.GITHUB_REPO ?? '';
+  let token = cfg.token ?? '';
 
   return {
     id: 'github',
@@ -40,6 +41,7 @@ export function createGitHubConnector(config: Record<string, unknown>): Connecto
     version: '1.0.0',
 
     async init(ctx: ConnectorContext) {
+      token = (await resolveCredential(ctx, 'token', 'GITHUB_TOKEN')) ?? cfg.token ?? '';
       if (!token) throw new Error('GITHUB_TOKEN required');
 
       ctx.registerTool('github_issue_list', {

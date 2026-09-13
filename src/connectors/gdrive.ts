@@ -8,6 +8,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
@@ -60,7 +61,7 @@ export class GDriveConnector implements Connector {
   }
 
   async init(ctx: ConnectorContext): Promise<void> {
-    this.accessToken = (ctx.config['accessToken'] as string | undefined) ?? process.env.GDRIVE_ACCESS_TOKEN ?? undefined;
+    this.accessToken = await resolveCredential(ctx, 'accessToken', 'GDRIVE_ACCESS_TOKEN');
     this.apiKey = ctx.config['apiKey'] as string | undefined;
     this.refreshToken = ctx.config['refreshToken'] as string | undefined;
     this.clientId = ctx.config['clientId'] as string | undefined;

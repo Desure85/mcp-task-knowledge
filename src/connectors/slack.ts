@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 
 const SLACK_API = 'https://slack.com/api';
 
@@ -32,8 +33,8 @@ async function slackFetch(path: string, token: string, body?: Record<string, unk
 
 export function createSlackConnector(config: Record<string, unknown>): Connector {
   const cfg = config as SlackConfig;
-  const token = cfg.token ?? process.env.SLACK_BOT_TOKEN ?? '';
   const defaultChannel = cfg.defaultChannel ?? process.env.SLACK_DEFAULT_CHANNEL ?? '';
+  let token = cfg.token ?? '';
 
   return {
     id: 'slack',
@@ -41,6 +42,7 @@ export function createSlackConnector(config: Record<string, unknown>): Connector
     version: '1.0.0',
 
     async init(ctx: ConnectorContext) {
+      token = (await resolveCredential(ctx, 'token', 'SLACK_BOT_TOKEN')) ?? cfg.token ?? '';
       if (!token) throw new Error('SLACK_BOT_TOKEN required');
 
       ctx.registerTool('slack_post', {

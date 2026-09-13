@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 
 export interface JiraConfig {
   token?: string;
@@ -30,10 +31,10 @@ async function jiraFetch(path: string, host: string, token: string, email?: stri
 
 export function createJiraConnector(config: Record<string, unknown>): Connector {
   const cfg = config as JiraConfig;
-  const token = cfg.token ?? process.env.JIRA_TOKEN ?? '';
   const host = cfg.host ?? process.env.JIRA_HOST ?? '';
   const email = cfg.email ?? process.env.JIRA_EMAIL ?? '';
   const project = cfg.project ?? process.env.JIRA_PROJECT ?? '';
+  let token = cfg.token ?? '';
 
   return {
     id: 'jira',
@@ -41,6 +42,7 @@ export function createJiraConnector(config: Record<string, unknown>): Connector 
     version: '1.0.0',
 
     async init(ctx: ConnectorContext) {
+      token = (await resolveCredential(ctx, 'token', 'JIRA_TOKEN')) ?? cfg.token ?? '';
       if (!token || !host) throw new Error('JIRA_TOKEN and JIRA_HOST required');
 
       ctx.registerTool('jira_issue_list', {

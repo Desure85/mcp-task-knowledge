@@ -60,6 +60,16 @@ Connectors are configured via env vars or JSON config:
 }
 ```
 
+## Credential Resolution
+
+Each connector resolves its API credential in this order (first non-empty wins):
+
+1. **Connector config** — `config.token` / `config.apiKey` / `config.accessToken` from JSON config or factory arg.
+2. **SecretManager** — `ctx.secrets.get(ENV_NAME)` via the configured `SECRET_BACKEND` (`env` default, `file` = AES-256-GCM encrypted store, `docker` = `/run/secrets/`).
+3. **Environment variable** — direct `process.env[ENV_NAME]` fallback (kept for tests and embedded contexts without a SecretManager).
+
+Relevant env vars: `SECRET_BACKEND` (`env`|`file`|`docker`|`vault`), `SECRET_MASTER_KEY` (file backend), `SECRET_FILE_PATH`, `DOCKER_SECRETS_DIR`.
+
 ## Health Checks
 
 Each connector provides a health check:

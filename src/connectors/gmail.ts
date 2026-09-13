@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1';
@@ -73,7 +74,7 @@ export class GmailConnector implements Connector {
   }
 
   async init(ctx: ConnectorContext): Promise<void> {
-    this.accessToken = (ctx.config['accessToken'] as string | undefined) ?? process.env.GMAIL_ACCESS_TOKEN ?? undefined;
+    this.accessToken = await resolveCredential(ctx, 'accessToken', 'GMAIL_ACCESS_TOKEN');
 
     ctx.registerTool('gmail_list_messages', {
       title: 'Gmail: List Messages',

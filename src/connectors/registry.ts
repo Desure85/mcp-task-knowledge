@@ -7,6 +7,7 @@
  */
 
 import { childLogger } from '../core/logger.js';
+import type { SecretManager } from '../core/secret-manager.js';
 import type { Connector, ConnectorContext, ConnectorHealth, ConnectorRegistration } from './types.js';
 
 const log = childLogger('connectors');
@@ -42,6 +43,7 @@ export class ConnectorRegistry {
   async initAll(
     configs: Record<string, Record<string, unknown>>,
     registerTool: ConnectorContext['registerTool'],
+    secrets?: SecretManager,
   ): Promise<{ initialized: string[]; skipped: string[]; errors: Array<{ id: string; error: string }> }> {
     const initialized: string[] = [];
     const skipped: string[] = [];
@@ -58,7 +60,7 @@ export class ConnectorRegistry {
 
       try {
         const connector = reg.factory(config);
-        const ctx: ConnectorContext = { config, registerTool };
+        const ctx: ConnectorContext = { config, registerTool, ...(secrets ? { secrets } : {}) };
         await connector.init(ctx);
         this.instances.set(id, connector);
         initialized.push(id);

@@ -80,6 +80,7 @@ import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
 import { ConnectorRegistry, defaultConnectorRegistrations } from '../connectors/index.js';
+import { createSecretManager } from './secret-manager.js';
 import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
 import { PROMPTS_DIR, getCurrentProject, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { checkSchemaVersion, SchemaVersionError } from '../services/schema-version.js';
@@ -395,6 +396,7 @@ export class AppContainer {
       const isReadOp = (n: string) => /(^|_)(list|get|search|find|info|status|fetch|read)(_|$)/i.test(n);
       const toolResEnabled = isToolResourcesEnabled();
 
+      const connectorSecrets = createSecretManager();
       const connectorResult = await connectorRegistry.initAll(
         connectorConfigs,
         (name, schema, handler) => {
@@ -424,6 +426,7 @@ export class AppContainer {
             try { this.ctx!.registerToolAsResource(name); } catch {}
           }
         },
+        connectorSecrets,
       );
       this.ctx.connectorRegistry = connectorRegistry;
       if (connectorResult.initialized.length > 0) {
