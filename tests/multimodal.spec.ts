@@ -9,7 +9,7 @@ import {
   detectModality,
   registerExtractor,
   type MultimodalInput,
-  type _ExtractedChunk,
+  type ExtractedChunk,
 } from '../src/memory/multimodal.js';
 
 describe('detectModality', () => {

@@ -78,11 +78,12 @@ describe('DX-23: MCP protocol conformance (inspector)', () => {
     try {
       // Call a non-existent tool — should get a proper error, not a crash
       try {
-        await srv.client.callTool({ name: 'nonexistent_tool_xyz', arguments: {} });
-        // If it doesn't throw, check the envelope
-        fail('should have thrown or returned error envelope');
+        const res = await srv.client.callTool({ name: 'nonexistent_tool_xyz', arguments: {} });
+        // Did not throw → must be a well-formed error envelope
+        const env = JSON.parse((res?.content as any)?.[0]?.text ?? '{}');
+        expect(env.ok).toBe(false);
       } catch (e) {
-        // Expected: JSON-RPC error response
+        // Threw → JSON-RPC error response is also valid
         expect(e).toBeTruthy();
       }
     } finally {

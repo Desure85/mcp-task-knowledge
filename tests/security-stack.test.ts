@@ -194,7 +194,7 @@ describe('AUD-07: SecurityStack in wrapToolHandler', () => {
   });
 
   it('auth-protection: locked identifier → denied before handler', async () => {
-    const authProtection = new AuthProtection({ maxAttempts: 2, windowMs: 60_000, lockoutMs: 60_000 });
+    const authProtection = new AuthProtection({ maxAttempts: 2, windowMs: 60_000, maxLockoutMs: 60_000 });
     authProtection.recordFailure('sess-1');
     authProtection.recordFailure('sess-1');
     const stack = new SecurityStack({ authProtection });
@@ -206,7 +206,7 @@ describe('AUD-07: SecurityStack in wrapToolHandler', () => {
   });
 
   it('auth-protection: failed mcp.authenticate records failure', async () => {
-    const authProtection = new AuthProtection({ maxAttempts: 2, windowMs: 60_000, lockoutMs: 60_000 });
+    const authProtection = new AuthProtection({ maxAttempts: 2, windowMs: 60_000, maxLockoutMs: 60_000 });
     const stack = new SecurityStack({ authProtection });
     const failing = wrapToolHandler(
       'mcp.authenticate',

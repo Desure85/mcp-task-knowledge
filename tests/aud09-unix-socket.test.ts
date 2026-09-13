@@ -119,7 +119,7 @@ describe('AUD-09 unix socket security', () => {
         (process.env.MCP_UNIX_REQUIRE_AUTH ?? '').toLowerCase(),
       );
       const auth = new AuthManager({
-        requireAuth: undefined ?? unixRequireAuth,
+        requireAuth: unixRequireAuth,
         transport: 'unix',
       });
       expect(auth.isAuthRequired()).toBe(true);
@@ -141,7 +141,7 @@ describe('AUD-09 unix socket security', () => {
         (process.env.MCP_UNIX_REQUIRE_AUTH ?? '').toLowerCase(),
       );
       const auth = new AuthManager({
-        requireAuth: undefined ?? unixRequireAuth,
+        requireAuth: unixRequireAuth,
         transport: 'unix',
       });
       expect(auth.isAuthRequired()).toBe(false);
@@ -161,7 +161,7 @@ describe('AUD-09 unix socket security', () => {
         (process.env.MCP_UNIX_REQUIRE_AUTH ?? '').toLowerCase(),
       );
       const auth = new AuthManager({
-        requireAuth: false ?? unixRequireAuth,
+        requireAuth: false,
         transport: 'unix',
       });
       expect(auth.isAuthRequired()).toBe(false);
