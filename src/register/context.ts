@@ -3,7 +3,7 @@
  * Все runtime-состояние, доступное инструментам и ресурсам, проходит через этот интерфейс.
  */
 
-import type { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer, ResourceTemplate, RegisteredTool, RegisteredResource, RegisteredResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolRegistry } from '../registry/tool-registry.js';
 import type { ServerConfig, CatalogConfig } from '../config.js';
 import type { ServiceCatalogProvider } from '../catalog/provider.js';
@@ -37,6 +37,22 @@ export interface ServerContext {
 
   /** Typed tool registry with versioning, ETag, and pagination. */
   toolRegistry: ToolRegistry;
+  /**
+   * SPEC-04: SDK-level handles for every registered tool, keyed by tool name.
+   * Populated by the registerTool/tool() wrappers in setup.ts so
+   * tools_unregister can call RegisteredTool.remove() — deleting from
+   * toolRegistry alone hides the tool from tools_list but leaves it in the
+   * SDK's native tools/list and callable via tools/call.
+   * Optional: absent only in lightweight test mocks.
+   */
+  registeredToolHandles?: Map<string, RegisteredTool>;
+  /**
+   * SPEC-04: SDK-level handles for registered resources, keyed by resource
+   * name (e.g. `tool_<name>` for tool-as-resource wrappers). Used to remove
+   * tool:// resources when a tool is unregistered while TOOL_RES_ENABLED.
+   * Optional: absent only in lightweight test mocks.
+   */
+  registeredResourceHandles?: Map<string, RegisteredResource | RegisteredResourceTemplate>;
   resourceRegistry: Array<{
     id: string;
     uri: string;

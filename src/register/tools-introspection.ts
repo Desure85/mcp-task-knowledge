@@ -289,6 +289,12 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
           description: description ?? `Hot-registered tool (DX-001), handler: ${handlerKind}`,
           inputSchema: Object.fromEntries(Object.entries(inputSchema ?? {}).map(([k, v]) => [k, z.any().describe(String(v))])),
         }, handler as never);
+        // SPEC-04: the tool surface changed — notify connected clients so they
+        // re-fetch tools/list. No-op when no transport is connected.
+        ctx.server.sendToolListChanged();
+        // The registerTool wrapper also exposed a tool:// resource when
+        // TOOL_RES_ENABLED — that surface changed too.
+        if (ctx.TOOL_RES_ENABLED) ctx.server.sendResourceListChanged();
         return ok({ name, registered: true });
       } catch (e) {
         return err(`register failed: ${(e as Error).message}`);
@@ -309,6 +315,23 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
       try {
         const removed = ctx.toolRegistry.delete(name);
         if (!removed) return err(`tool not found: ${name}`);
+        // SPEC-04: drop the SDK-level registration too — deleting only from
+        // toolRegistry hid the tool from tools_list but left it in the
+        // native tools/list and callable via tools/call.
+        const handle = ctx.registeredToolHandles?.get(name);
+        if (handle) {
+          try { handle.remove(); } catch {}
+          ctx.registeredToolHandles!.delete(name);
+        }
+        ctx.toolNames.delete(name);
+        // Remove the tool:// resource wrapper if it was exposed.
+        const resHandle = ctx.registeredResourceHandles?.get(`tool_${name}`);
+        if (resHandle) {
+          try { resHandle.remove(); } catch {}
+          ctx.registeredResourceHandles!.delete(`tool_${name}`);
+        }
+        ctx.server.sendToolListChanged();
+        if (ctx.TOOL_RES_ENABLED) ctx.server.sendResourceListChanged();
         return ok({ name, removed: true });
       } catch (e) {
         return err(`unregister failed: ${(e as Error).message}`);

@@ -179,6 +179,25 @@ SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 | `tools_register` | Hot-register a new tool at runtime |
 | `tools_unregister` | Unregister a tool at runtime |
 
+### `listChanged` notifications (SPEC-04)
+
+The tool surface is dynamic, so the server emits MCP `list_changed`
+notifications when it mutates:
+
+- `tools_register` / `tools_unregister` → `notifications/tools/list_changed`
+- connector initialization at boot → `notifications/tools/list_changed`
+  (no-op on stdio where the client connects after init; relevant on HTTP/TCP
+  where a client may already be attached)
+- when `MCP_TOOL_RESOURCES_ENABLED` is on (default), each tool also appears as
+  a `tool://<name>` resource → `notifications/resources/list_changed` is
+  emitted alongside
+
+`tools_unregister` removes the SDK-level registration too — the tool
+disappears from the native `tools/list` and is no longer callable, not just
+hidden from `tools_list`. Prompts stay a startup snapshot: the advertised
+`prompts.listChanged` flag is set by the SDK but no
+`notifications/prompts/list_changed` is ever emitted.
+
 ## Connectors (20+ tools)
 
 | Tool | Description |
