@@ -441,6 +441,12 @@ export class AppContainer {
       this.ctx.connectorRegistry = connectorRegistry;
       if (connectorResult.initialized.length > 0) {
         this.log.info({ connectors: connectorResult.initialized }, 'connectors initialized');
+        // SPEC-04: connector init added tools (and tool:// resources under
+        // TOOL_RES_ENABLED) to the surface. On stdio the client connects
+        // after init so this is a harmless no-op; on HTTP/TCP a client may
+        // already be attached — notify so it re-fetches the list.
+        this.ctx.server.sendToolListChanged();
+        if (toolResEnabled) this.ctx.server.sendResourceListChanged();
       }
       if (connectorResult.errors.length > 0) {
         this.log.warn({ errors: connectorResult.errors }, 'connector init errors');

@@ -954,7 +954,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | SPEC-03 | MCP prompts surface | medium | done | — | `registerPrompt` — 0 вызовов: prompts только как tools, `prompts/list` → -32601, в UI клиентов пусто. Реализовано: src/register/mcp-prompts.ts — каталог → registerPrompt (name=id, argsSchema из variables), template рендер {{var}}, sentinel для пустой библиотеки (prompts/list отвечает [] вместо -32601); wired в app-container. Тесты: mcp-prompts.spec.ts (8) + tests/e2e-full/mcp-prompts.test.ts (2) |
-| SPEC-04 | `listChanged` notifications | medium | in_progress | SPEC-02 | 0 `sendToolListChanged`/`sendResourceListChanged`: клиент кэширует список навсегда, хотя registry динамический (connectors, TOOLS_ENABLED). Эмитить при register/unregister и смене флагов |
+| SPEC-04 | `listChanged` notifications | medium | done | SPEC-02 | Реализовано: SERVER_CAPS tools.listChanged=true, resources.listChanged=TOOL_RES_ENABLED; sendToolListChanged/sendResourceListChanged в tools_register/tools_unregister и после connector init; tools_unregister теперь вызывает RegisteredTool.remove() (SDK-level unregister — раньше тулза оставалась в native tools/list и callable); handles tracked в ctx.registeredToolHandles/registeredResourceHandles. SDK сам force-ставит listChanged=true на всех поверхностях с handlers — advertised prompts.listChanged=true, но эмиссии нет (startup snapshot). Тесты: tests/e2e-full/listchanged.test.ts (3) |
 | SPEC-05 | `completion/complete` | low | pending | — | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
 | SPEC-06 | `resources/subscribe` + `resources/updated` | medium | pending | SPEC-02 | Event-bus уже есть → мост: подписка на uri → `notifications/resources/updated` при изменении |
 | SPEC-07 | `progressToken` gating | low | pending | — | `streaming.ts` шлёт progress без проверки токена; спека — только если клиент прислал `progressToken` в `_meta` |
@@ -1087,8 +1087,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
-| MCP spec compliance (P) | 10 | 10 | 0 | 0 | 0 | 0 |
-| **Итого** | **292** | **63** | **1** | **223** | **0** | **1** |
+| MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
+| **Итого** | **292** | **63** | **0** | **224** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O

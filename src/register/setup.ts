@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RegisteredTool, RegisteredResource, RegisteredResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { loadConfig, loadCatalogConfig, isToolsEnabled, isToolResourcesEnabled, isToolResourcesExecEnabled } from "../config.js";
 import type { ServerConfig, CatalogConfig } from "../config.js";
 import { createServiceCatalogProvider } from "../catalog/provider.js";
@@ -38,11 +39,21 @@ export async function createServerContext(): Promise<ServerContext> {
   // MCP spec-compliant capability flags. Server handles:
   //   tools/list + tools/call, resources/list + resources/read + resources/templates/list,
   //   prompts/list + prompts/get, completion/complete.
-  // No resources/subscribe, no */list_changed notifications, no logging/setLevel —
-  // so subscribe/listChanged are declared false (SPEC-02).
+  // SPEC-04: tools change at runtime (tools_register/tools_unregister hot
+  // registration, connector init) → tools.listChanged = true and the server
+  // emits notifications/tools/list_changed. Tool-as-resource wrappers
+  // (TOOL_RES_ENABLED) are added/removed alongside → resources.listChanged
+  // tracks that flag. Prompts are a startup snapshot (SPEC-03) and
+  // resources/subscribe is unimplemented → both stay false (honesty rule:
+  // declare only what the server actually emits).
+  // Caveat: the SDK's registerCapabilities() force-sets listChanged=true on
+  // every surface whose handlers are registered, so the advertised value is
+  // true for prompts too — these flags document emission intent, not the
+  // final wire value.
+  const TOOL_RES_ENABLED_CAPS = isToolResourcesEnabled();
   const SERVER_CAPS = {
-    resources: { subscribe: false, listChanged: false },
-    tools: { listChanged: false },
+    resources: { subscribe: false, listChanged: TOOL_RES_ENABLED_CAPS },
+    tools: { listChanged: true },
     prompts: { listChanged: false },
     completion: {},
   } as const;
@@ -69,7 +80,7 @@ export async function createServerContext(): Promise<ServerContext> {
   const catalogProvider: ServiceCatalogProvider = createServiceCatalogProvider(catalogCfg);
 
   const TOOLS_ENABLED = isToolsEnabled();
-  const TOOL_RES_ENABLED = isToolResourcesEnabled();
+  const TOOL_RES_ENABLED = TOOL_RES_ENABLED_CAPS;
   const TOOL_RES_EXEC = isToolResourcesExecEnabled();
 
   if (SHOW_STARTUP) {
@@ -122,6 +133,8 @@ export async function createServerContext(): Promise<ServerContext> {
   const toolRegistry = new ToolRegistry();
   const resourceRegistry: Array<{ id: string; uri: string; kind: 'static' | 'template'; title?: string; description?: string; mimeType?: string }> = [];
   const toolNames = new Set<string>();
+  const registeredToolHandles = new Map<string, RegisteredTool>();
+  const registeredResourceHandles = new Map<string, RegisteredResource | RegisteredResourceTemplate>();
   const STRICT_TOOL_DEDUP = process.env.MCP_STRICT_TOOL_DEDUP === '1';
 
   function extractTemplateString(x: unknown): string | undefined {
@@ -233,7 +246,7 @@ export async function createServerContext(): Promise<ServerContext> {
   function registerToolAsResource(name: string) {
     const baseUri = `tool://${encodeURIComponent(name)}`;
     try {
-      server.registerResource(
+      const handle = server.registerResource(
         `tool_${name}`,
         baseUri,
         {
@@ -260,6 +273,7 @@ export async function createServerContext(): Promise<ServerContext> {
           return { contents: [{ uri: href, text: JSON.stringify({ error: 'invalid tool resource path', examples: [`${baseUri}`, `${baseUri}/schema`] }, null, 2), mimeType: 'application/json' }] };
         }
       );
+      registeredResourceHandles.set(`tool_${name}`, handle);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (typeof msg === 'string' && msg.includes('already registered')) {
@@ -309,6 +323,7 @@ export async function createServerContext(): Promise<ServerContext> {
       try {
         const res = orig.call(server, name, def, gated);
         toolNames.add(name);
+        if (res) registeredToolHandles.set(name, res as RegisteredTool);
         try {
           toolRegistry.set(name, {
             title: def?.title as string | undefined,
@@ -348,7 +363,9 @@ export async function createServerContext(): Promise<ServerContext> {
         if (typeof last === 'function') {
           rest[rest.length - 1] = gateHandler(name, last);
         }
-        return orig.call(server, name, ...rest);
+        const res = orig.call(server, name, ...rest);
+        if (res) registeredToolHandles.set(name, res as RegisteredTool);
+        return res;
       };
     })(rawServer.tool.bind(server));
   }
@@ -362,6 +379,8 @@ export async function createServerContext(): Promise<ServerContext> {
     vectorInitAttempted,
     ensureVectorAdapter,
     toolRegistry,
+    registeredToolHandles,
+    registeredResourceHandles,
     resourceRegistry,
     toolNames,
     STRICT_TOOL_DEDUP,
