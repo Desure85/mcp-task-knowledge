@@ -4,6 +4,7 @@ import { loadConfig, resolveProject, getCurrentProject, setCurrentProject } from
 import { listProjects, getProjectDetail, createProject, deleteProject, updateProjectMeta, PROJECT_ID_RE } from '../projects.js';
 import { ok, err } from '../utils/respond.js';
 import { currentSessionId } from '../core/request-context.js';
+import { scheduleProjectIndex } from '../search/warmup.js';
 
 // PH-004: per-session current project. When the caller has a live session
 // (http/tcp), project_set_current writes into session metadata instead of the
@@ -57,6 +58,7 @@ export function registerProjectTools(ctx: ServerContext): void {
     },
     async ({ project }: { project: string }) => {
       const sid = currentSessionId();
+      scheduleProjectIndex(project);
       if (sid && ctx.sessionManager?.has(sid)) {
         ctx.sessionManager.updateMetadata(sid, { currentProject: project });
         return ok({ project, scope: 'session' });

@@ -1,4 +1,4 @@
-import { type VectorSearchAdapter } from './index.js';
+import { type VectorSearchAdapter, type VectorWarmupOptions, type VectorWarmupResult } from './index.js';
 import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
@@ -423,6 +423,55 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       log.warn('ONNX adapter init failed: %s', e instanceof Error ? e.message : String(e));
       this.ready = false;
     }
+  }
+
+  /**
+   * Encode and cache documents without scoring a query. Same cache keys as
+   * search(), so a later search hits the cache instead of encoding in-request.
+   */
+  async warmup(items: Array<{ id: string; text: string }>, opts?: VectorWarmupOptions): Promise<VectorWarmupResult> {
+    const startedAt = Date.now();
+    const empty: VectorWarmupResult = { total: items.length, encoded: 0, cached: 0, elapsedMs: 0, budgetExceeded: false };
+    if (!this.ready) return empty;
+
+    const budgetMs = Math.max(0, opts?.budgetMs ?? 0);
+    const cfg = loadConfig();
+    const batchSize = Math.max(1, Number(cfg.embeddings.batchSize ?? 16));
+    const cache = this.cache;
+
+    let cached = 0;
+    const misses: Array<{ id: string; text: string; hash: string }> = [];
+    for (const item of items) {
+      if (!cache) {
+        misses.push({ id: item.id, text: item.text, hash: '' });
+        continue;
+      }
+      const hash = cache.textHash(`${this.cacheSalt}|${this.docPrefix}${item.text}`);
+      const vec = await cache.get(item.id, hash);
+      if (vec) {
+        cached += 1;
+        continue;
+      }
+      misses.push({ id: item.id, text: item.text, hash });
+    }
+
+    let encoded = 0;
+    let budgetExceeded = false;
+    for (let i = 0; i < misses.length; i += batchSize) {
+      if (budgetMs > 0 && Date.now() - startedAt > budgetMs) {
+        budgetExceeded = true;
+        break;
+      }
+      const slice = misses.slice(i, i + batchSize);
+      const vecs = await this.encodeBatch(slice.map((m) => this.docPrefix + m.text));
+      for (let j = 0; j < slice.length; j++) {
+        const vec = vecs[j];
+        if (cache && slice[j].hash) await cache.set(slice[j].id, slice[j].hash, vec);
+        encoded += 1;
+      }
+    }
+
+    return { total: items.length, encoded, cached, elapsedMs: Date.now() - startedAt, budgetExceeded };
   }
 
   async search(query: string, items: Array<{ id: string; text: string; item: T }>, opts?: { limit?: number }): Promise<SearchResult<T>[]> {

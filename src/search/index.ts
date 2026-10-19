@@ -1,9 +1,27 @@
 import type { KnowledgeDoc, Task, SearchResult } from '../types.js';
 import { bm25Search } from './bm25.js';
 
+export interface VectorWarmupOptions {
+  /** Stop starting new batches after this many milliseconds. 0 = no limit. */
+  budgetMs?: number;
+}
+
+export interface VectorWarmupResult {
+  total: number;
+  encoded: number;
+  cached: number;
+  elapsedMs: number;
+  budgetExceeded: boolean;
+}
+
 export interface VectorSearchAdapter<T> {
   // Optional adapter; if provided, used alongside BM25 and merged
   search(query: string, items: Array<{ id: string; text: string; item: T }>, opts?: { limit?: number }): Promise<SearchResult<T>[]>;
+  /**
+   * Encode documents ahead of time so the first search after a write does not pay
+   * for indexing. Optional: adapters without it fall back to search-based warming.
+   */
+  warmup?(items: Array<{ id: string; text: string }>, opts?: VectorWarmupOptions): Promise<VectorWarmupResult>;
 }
 
 export async function searchBM25Only<T>(query: string, items: Array<{ id: string; text: string; item: T }>, limit = 20) {

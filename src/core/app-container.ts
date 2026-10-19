@@ -36,6 +36,7 @@ import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { currentSessionId } from './request-context.js';
 import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR, getFileConfig } from '../config.js';
+import { startWarmup } from '../search/warmup.js';
 import path from 'node:path';
 import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
@@ -642,6 +643,10 @@ export class AppContainer {
         { tools: this.ctx.toolNames.size, transport: this.opts.transportType },
         'app initialized',
       );
+
+      // KE-2: index knowledge off the request path. Deliberately not awaited —
+      // boot stays lazy (DX-22) and the first search finds a populated cache.
+      startWarmup(this.ctx).catch((err) => this.log.warn({ err }, 'warmup failed to start'));
 
       // Register health check components (SCALE-001)
       const ctx = this.ctx;

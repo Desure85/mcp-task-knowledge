@@ -96,12 +96,9 @@ export async function createServerContext(): Promise<ServerContext> {
 
   let vectorAdapter: VectorSearchAdapter<unknown> | undefined;
   let vectorInitAttempted = false;
+  let vectorInitInFlight: Promise<VectorSearchAdapter<unknown> | undefined> | undefined;
 
-  async function ensureVectorAdapter(): Promise<VectorSearchAdapter<unknown> | undefined> {
-    if (vectorAdapter) return vectorAdapter;
-    if (vectorInitAttempted) return undefined;
-    vectorInitAttempted = true;
-
+  async function initVectorAdapter(): Promise<VectorSearchAdapter<unknown> | undefined> {
     try {
       const mode = cfg.embeddings.mode;
       if (mode === 'none') {
@@ -128,6 +125,22 @@ export async function createServerContext(): Promise<ServerContext> {
       log.error({ err: e }, 'vector adapter init failed');
       return undefined;
     }
+  }
+
+  /**
+   * Concurrent callers share one init promise: the background warmup starts the
+   * adapter while the first search may arrive, and a search that saw "attempted"
+   * without the shared promise would silently lose its vector channel.
+   */
+  function ensureVectorAdapter(): Promise<VectorSearchAdapter<unknown> | undefined> {
+    if (vectorAdapter) return Promise.resolve(vectorAdapter);
+    if (vectorInitInFlight) return vectorInitInFlight;
+    if (vectorInitAttempted) return Promise.resolve(undefined);
+    vectorInitAttempted = true;
+    vectorInitInFlight = initVectorAdapter().finally(() => {
+      vectorInitInFlight = undefined;
+    });
+    return vectorInitInFlight;
   }
 
   const toolRegistry = new ToolRegistry();

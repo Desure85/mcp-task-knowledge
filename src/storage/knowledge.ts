@@ -6,6 +6,7 @@ import { KNOWLEDGE_DIR } from '../config.js';
 import { ensureDir, pathExists, readText, resolveUnder, writeText } from '../fs.js';
 import type { KnowledgeDoc, KnowledgeDocMeta } from '../types.js';
 import { promises as fsp } from 'node:fs';
+import { emitKnowledgeChanged } from './knowledge-events.js';
 
 function fileFor(project: string, id: string) {
   return resolveUnder(KNOWLEDGE_DIR, project, `${id}.md`);
@@ -56,6 +57,7 @@ export async function createDoc(input: {
   const p = fileFor(input.project, id);
   await ensureDir(path.dirname(p));
   await writeText(p, body);
+  emitKnowledgeChanged(input.project, 'created', id);
   return { ...data, content: input.content };
 }
 
@@ -154,6 +156,7 @@ export async function updateDoc(project: string, id: string, patch: Partial<Omit
   const body = matter.stringify(content, cleanMeta(updatedMeta) as any);
   const p = fileFor(project, id);
   await writeText(p, body);
+  emitKnowledgeChanged(project, 'updated', id);
   return { ...updatedMeta, content };
 }
 
@@ -173,6 +176,7 @@ export async function deleteDocPermanent(project: string, id: string): Promise<b
   const p = fileFor(project, id);
   if (!(await pathExists(p))) return false;
   await fsp.unlink(p);
+  emitKnowledgeChanged(project, 'deleted', id);
   return true;
 }
 

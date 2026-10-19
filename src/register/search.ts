@@ -6,6 +6,7 @@ import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
 import { ok} from '../utils/respond.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
+import { getWarmupStatus } from '../search/warmup.js';
 
 /** Record vector adapter failures on the process-wide availability tracker. */
 function trackVectorError(): (err: unknown) => void {
@@ -113,6 +114,7 @@ export function registerSearchTools(ctx: ServerContext): void {
         vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.dim && c.embeddings.mode !== 'none'),
         adapterInitAttempted: ctx.vectorInitAttempted,
         adapterReady: Boolean(ctx.vectorAdapter),
+        warmup: getWarmupStatus(),
       };
       return ok(payload);
     }
