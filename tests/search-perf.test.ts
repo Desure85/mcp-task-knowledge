@@ -26,7 +26,7 @@ function makeCorpus(size: number, words = 200, needle = 'needle'): Doc[] {
     let seed = (i * 2654435761) >>> 0; // unsigned 32-bit
     for (let t = 0; t < 50; t++) {
       seed = ((seed * 1103515245 + 12345) >>> 0) % 2 ** 31;
-      parts.push(vocab[seed % vocab.length]);
+      parts.push(vocab[Math.floor(seed / 65536) % vocab.length]);
     }
     if (i % 3 === 0) parts.push(needle);
     docs.push({ id: `doc-${i}`, text: parts.join(' '), item: { n: i } });
