@@ -105,10 +105,10 @@ Add to `opencode.json`:
     }
   }
 }
+```
 
 > OpenCode uses `environment` (not `env`) and a single `command` array that contains
 > both the binary and its arguments.
-```
 
 ### OpenCode Plugins
 
