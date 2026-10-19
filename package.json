@@ -62,7 +62,8 @@
     "benchmark": "node scripts/dev-cli.mjs benchmark",
     "lint": "eslint src tests scripts --max-warnings=980",
     "lint:fix": "eslint src tests scripts --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\""
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\"",
+    "memory:verify": "node scripts/verify-memory.mjs"
   },
   "keywords": [
     "mcp",
