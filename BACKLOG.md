@@ -782,7 +782,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | PH-015a | CORS в http-transport | high | done | — | `MCP_CORS_ORIGIN` env (list/`*`), OPTIONS-preflight 204, `Access-Control-Expose-Headers: mcp-session-id`, foreign origin → 403. e2e в http-sessions.test.ts |
 | PH-015b | api-client → SDK StreamableHTTP | high | done | PH-015a | `web-ui/lib/api-client.ts` переписан на `Client` + `StreamableHTTPClientTransport`: initialize → mcp-session-id reuse → опциональный `mcp.authenticate` (env `NEXT_PUBLIC_MCP_TOKEN` или runtime `setAuthToken` через sessionStorage). Singleton per tab, retry после failed connect |
 | PH-015c | Полный MCP-стек в GUI | high | done | PH-015b | + `/projects` (list/create/set-current session-scoped), `/system` (sessions live, embeddings, tools catalog + auth token UI), tasks DAG (critical path/topo order/edges), knowledge edit-update fix (bulk_update вместо дубля create) + trash, prompts page на shared client + каталог (version/status/domain) + A/B (variants_stats + bandit_next), analytics через `dashboard_stats` с fallback, tool-имена/аргументы выверены по register-сигнатурам |
-| PH-015d | web-ui тесты + CI | medium | review | PH-015b | vitest в web-ui: 35 тестов (18 realtime helpers + 14 api-client mock-SDK + 3 live env-gated `MCP_LIVE_URL`/`MCP_LIVE_JWT_SECRET` против реального сервера — проверены в docker). Workflow `web-ui.yml`: build server → web-ui typecheck → unit → live vs spawned `dist/index.js` http+JWT → next build |
+| PH-015d | web-ui тесты + CI | medium | done | PH-015b | vitest в web-ui: 35 тестов (18 realtime helpers + 14 api-client mock-SDK + 3 live env-gated `MCP_LIVE_URL`/`MCP_LIVE_JWT_SECRET` против реального сервера — проверены в docker). Workflow `web-ui.yml`: build server → web-ui typecheck → unit → live vs spawned `dist/index.js` http+JWT → next build |
 
 ---
 
@@ -863,7 +863,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| DX-13 | `briefing` tool — контекст одним вызовом | medium | review | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрано из listTasks/listDocs/isTaskBlocked. Реализовано в src/register/briefing.ts, 11 тестов green |
+| DX-13 | `briefing` tool — контекст одним вызовом | medium | done | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрано из listTasks/listDocs/isTaskBlocked. Реализовано в src/register/briefing.ts, 11 тестов green |
 | DX-14 | Seed workflow-промптов в поставку | medium | pending | — | Prompts-library пуста. Шипить 5-7 готовых (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`) — видимая ценность через `prompts/list` сразу + учит агента паттернам |
 | DX-12 | `agent_bootstrap` tool — самоинтеграция агента | medium | pending | — | Tool возвращает готовый блок инструкций для AGENTS.md/system prompt («всегда передавай project, контракт ok/error, ключевые tools»). Design review до регистрации |
 | DX-15 | `server_capabilities` manifest | low | pending | — | Какие домены включены/выключены env-флагами, версия, лимиты — агент не гадает и не ловит `tool not found` на выключенных фичах. Design review до регистрации |
@@ -874,7 +874,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | DX-16 | `admin_backup`/`admin_restore` — tar.gz DATA_DIR | high | pending | — | Tool + CLI-обёртка; `dev-cli export` умеет 80% — зашипить в bin, завернуть в tool. Ответ на «где мой бэкап» и «как переехать на другую машину» |
 | DX-17 | `doctor --data` — скан целостности DATA_DIR | medium | done | DX-11 | Все `*.json`/`*.md`: битый JSON, missing required fields, knowledge-сироты без проекта. Read-only отчёт + `--fix` для тривиального |
-| DX-18 | Schema-version манифест + миграции | medium | review | — | `DATA_DIR/.schema-version`; при смене формата task JSON / frontmatter — миграция при старте или явная ошибка. Иначе апгрейд пакета молча криво читает старые данные |
+| DX-18 | Schema-version манифест + миграции | medium | done | — | `DATA_DIR/.schema-version`; при смене формата task JSON / frontmatter — миграция при старте или явная ошибка. Иначе апгрейд пакета молча криво читает старые данные |
 | DX-19 | Auto-backup перед деструктивными операциями | medium | done | DX-16 | `project_purge`, bulk-ops, GC event-log → снапшот в `DATA_DIR/.backups/` перед выполнением. Copy дёшево, «oops» превращается в откат |
 
 ### Фаза 4 — Дистрибуция без Node.js
@@ -883,7 +883,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | pending | — | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». **PoC (2026-09-12): `bun build --compile` работает** — 676 modules/250ms/100MB, initialize OK. Найдено: better-sqlite3 падает в $bunfs (bindings), но он мёртвый код → замена bun:sqlite (FTS5 OK); onnxruntime: .node инлайнится, libonnxruntime.so.1 — нет (нужен LD_LIBRARY_PATH или копия .so рядом). Вывод: для EMBEDDINGS_MODE=none single-binary реален |
 | DX-21 | Homebrew formula / Scoop manifest | low | pending | DX-20 | Если бинарь получился — генератор формулы в release CI |
-| DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | review | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс. **Done (2026-09-12):** TTFB median ~407-420ms (было ~483-540ms). Lazy: onnxruntime-node/web + @xenova/transformers (vector.ts, уже были), prom-client→initMetrics async (54ms), jose→JwtValidator/createTestToken (59ms), ws→realtime.js (36ms). Eager остаётся: MCP SDK, zod, fast-glob, gray-matter, pino — все <20ms. Regression guard: tests/cold-start.test.ts (median of 3, hard-fail <2000ms, логирует факт) |
+| DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | done | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс. **Done (2026-09-12):** TTFB median ~407-420ms (было ~483-540ms). Lazy: onnxruntime-node/web + @xenova/transformers (vector.ts, уже были), prom-client→initMetrics async (54ms), jose→JwtValidator/createTestToken (59ms), ws→realtime.js (36ms). Eager остаётся: MCP SDK, zod, fast-glob, gray-matter, pino — все <20ms. Regression guard: tests/cold-start.test.ts (median of 3, hard-fail <2000ms, логирует факт) |
 | DX-27 | Публикация в official MCP registry | medium | pending | DX-10 | `server.json` + publish в `modelcontextprotocol/servers` → установка из UI клиента без конфиг-файлов вообще. Высшая форма DX |
 
 ### Фаза 5 — Доверие и проверяемость
@@ -891,7 +891,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | DX-23 | MCP Inspector в CI | medium | done | — | Автоматизировать `npx @modelcontextprotocol/inspector`: handshake, tools/list, протокольные ошибки. Ловит «наши тесты зелёные, но не по спеке» |
-| DX-24 | Executable docs | medium | review | — | Скрипт прогоняет каждый bash/json-сниппет README/getting-started против реального пакета. README с враньём убивает первое впечатление |
+| DX-24 | Executable docs | medium | done | — | Скрипт прогоняет каждый bash/json-сниппет README/getting-started против реального пакета. README с враньём убивает первое впечатление |
 | DX-25 | Клиентская compat-матрица | low | pending | — | Таблица «Claude Desktop ✓ / Cursor ✓ / Windsurf ?» + дата последней ручной проверки, обновляется при релизе |
 | DX-28 | Contributor DX | low | pending | — | CONTRIBUTING.md, PR/issue-шаблоны, актуализация docs/architecture.md (после WIRE-находок может расходиться с кодом), опционально devcontainer |
 
@@ -946,8 +946,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| SPEC-01 | Cancel-propagation: реальный AbortSignal на запрос | high | pending | — | `notifications/cancelled` не может прервать работу: транспорты фабрикуют `new AbortController().signal` (stream-transport.ts:~389, http аналогично). Привязать AbortController к requestId, cancelled → abort |
-| SPEC-02 | Capabilities по спеке | high | pending | — | `SERVER_CAPS = {resources:{list,read}, tools:{call}}` (setup.ts:38) — нестандартная форма; спека ждёт `{subscribe,listChanged}`-флаги. Декларировать только реально обрабатываемое |
+| SPEC-01 | Cancel-propagation: реальный AbortSignal на запрос | high | done | — | Реализовано 1c9b542: pendingRequests Map keyed `${sessionId}:${requestId}` в stream+http transport, notifications/cancelled → controller.abort(reason), signal прокинут в handler extra. Тесты: tests/cancel-propagation.test.ts (218 строк) |
+| SPEC-02 | Capabilities по спеке | high | done | — | Реализовано 8b94047 + уточнено SPEC-03/04: SERVER_CAPS = spec-форма {resources:{subscribe,listChanged}, tools:{listChanged}, prompts:{listChanged}, completion:{}}; флаги отражают реальную эмиссию |
 
 ### Фаза 2 — Непокрытая поверхность
 
@@ -1088,7 +1088,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
-| **Итого** | **292** | **63** | **0** | **224** | **0** | **1** |
+| **Итого** | **292** | **61** | **0** | **230** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
