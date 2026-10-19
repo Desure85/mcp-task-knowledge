@@ -150,15 +150,34 @@ const REPO_ROOT = path.resolve(MODULE_DIR, '..');
 
 /**
  * Locations probed for the ONNX encoder when EMBEDDINGS_MODEL_PATH is not set.
- * Set EMBEDDINGS_AUTODETECT=0 to keep resolution fully explicit (tests do this).
+ * Set EMBEDDINGS_AUTODETECT=0 to keep resolution explicit (tests do this).
+ *
+ * Order is quality order, measured with scripts/field-eval.mjs: EmbeddingGemma-2
+ * (74% gold top-1) beats LaBSE (67%) and is far better outside RU/EN, so the
+ * bundles written by `scripts/fetch-model.mjs` win over a legacy encoder.onnx.
  */
 export function modelCandidates(): string[] {
-  return [
-    '/app/models/encoder.onnx',
-    path.join(REPO_ROOT, 'models', 'encoder.onnx'),
-    path.join(DATA_DIR, 'models', 'encoder.onnx'),
-    path.join(os.homedir(), '.local', 'share', 'mcp-task-knowledge', 'models', 'encoder.onnx'),
+  const bundles = (base: string) => [
+    path.join(base, 'gemma-q4', 'onnx', 'model_q4.onnx'),
+    path.join(base, 'gemma2-q4', 'onnx', 'model_q4.onnx'),
+    path.join(base, 'berta-int8', 'model.onnx'),
+    path.join(base, 'labse-int8', 'encoder.onnx'),
+    path.join(base, 'encoder.onnx'),
   ];
+  return [
+    ...bundles('/app/models'),
+    ...bundles(path.join(REPO_ROOT, 'models')),
+    ...bundles(path.join(DATA_DIR, 'models')),
+    ...bundles(path.join(os.homedir(), '.local', 'share', 'mcp-task-knowledge', 'models')),
+  ];
+}
+
+/** Instruction prefixes the model was trained with; applied when the user sets none. */
+export function defaultPrefixesFor(modelPath: string | undefined): { queryPrefix?: string; docPrefix?: string } {
+  if (modelPath && /embeddinggemma|gemma/i.test(modelPath)) {
+    return { queryPrefix: 'task: search result | query:', docPrefix: 'title: none | text:' };
+  }
+  return {};
 }
 
 // Support for separate task and knowledge directories via environment variables
@@ -302,10 +321,14 @@ export function loadConfig(): ServerConfig {
           .map((name) => path.join(modelDir, name))
           .find((candidate) => fs.existsSync(candidate));
         const meta = metaFile ? JSON.parse(fs.readFileSync(metaFile, 'utf8')) : undefined;
-        const hidden = Number(meta?.hidden_size ?? meta?.hiddenSize);
+        const textCfg = meta?.text_config ?? {};
+        const hidden = Number(meta?.hidden_size ?? meta?.hiddenSize ?? textCfg.hidden_size);
+        // An encoder may project to a different width than its backbone reports
+        // (EmbeddingGemma: text_config 512 → 768-wide sentence embeddings), so this
+        // value is only a hint; the adapter replaces it with the real vector length.
         if (!Number.isNaN(hidden)) dimVal = hidden;
         if (maxLen == null) {
-          const maxp = Number(meta?.max_position_embeddings ?? meta?.maxLen);
+          const maxp = Number(meta?.max_position_embeddings ?? meta?.maxLen ?? textCfg.max_position_embeddings);
           if (!Number.isNaN(maxp)) maxLen = Math.min(512, Math.max(16, maxp));
         }
       } catch (e) {
@@ -329,8 +352,8 @@ export function loadConfig(): ServerConfig {
       persist: persist ?? true,
       batchSize,
       maxLen,
-      queryPrefix,
-      docPrefix,
+      queryPrefix: queryPrefix || defaultPrefixesFor(modelPath).queryPrefix || '',
+      docPrefix: docPrefix || defaultPrefixesFor(modelPath).docPrefix || '',
     },
     obsidian: { vaultRoot },
   };
@@ -339,7 +362,6 @@ export function loadConfig(): ServerConfig {
   if (cfg.embeddings.mode !== 'none') {
     const missing: string[] = [];
     if (!cfg.embeddings.modelPath) missing.push('EMBEDDINGS_MODEL_PATH');
-    if (typeof cfg.embeddings.dim !== 'number' || Number.isNaN(cfg.embeddings.dim)) missing.push('EMBEDDINGS_DIM');
     if (!cfg.embeddings.cacheDir) missing.push('EMBEDDINGS_CACHE_DIR');
     if (missing.length > 0) {
       if (modeFromFile) {

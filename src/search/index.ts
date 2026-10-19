@@ -33,10 +33,12 @@ const RRF_K = 60;
 
 /**
  * Share of the query's maximum achievable BM25 score below which a lexical hit is
- * treated as noise once the vector channel is active. A long document matching one
- * incidental token scores far below this while a real term match scores well above.
+ * treated as noise once the vector channel is active. 0.05 keeps a guard against
+ * incidental single-token matches while still letting weak-but-real lexical hits
+ * into the fusion: at 0.15 a correctly ranked RU hit (privacy query → Privacy doc,
+ * BM25 rank 2, confidence 0.06) was dropped and fell from rank 1 to rank 4.
  */
-const DEFAULT_LEXICAL_CONFIDENCE_FLOOR = 0.15;
+const DEFAULT_LEXICAL_CONFIDENCE_FLOOR = 0.05;
 
 function lexicalConfidenceFloor(): number {
   const raw = Number(process.env.BM25_MIN_CONFIDENCE ?? DEFAULT_LEXICAL_CONFIDENCE_FLOOR);

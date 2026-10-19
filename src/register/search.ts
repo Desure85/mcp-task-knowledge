@@ -111,7 +111,7 @@ export function registerSearchTools(ctx: ServerContext): void {
         modelPath: c.embeddings.modelPath ?? null,
         dim: c.embeddings.dim ?? null,
         cacheDir: c.embeddings.cacheDir || null,
-        vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.dim && c.embeddings.mode !== 'none'),
+        vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.mode !== "none"),
         adapterInitAttempted: ctx.vectorInitAttempted,
         adapterReady: Boolean(ctx.vectorAdapter),
         warmup: getWarmupStatus(),

@@ -176,7 +176,16 @@ BM25-only mode and says so in the log.
 | `cointegrated/LaBSE-en-ru` | 515 MB | EN + RU | legacy baseline, GPU-safe |
 
 The model file is auto-detected in `/app/models`, `<repo>/models`, `DATA_DIR/models` and
-`~/.local/share/mcp-task-knowledge/models`; set `EMBEDDINGS_AUTODETECT=0` to keep resolution explicit.
+`~/.local/share/mcp-task-knowledge/models`, preferring an EmbeddingGemma bundle over BERTA
+and a legacy `encoder.onnx` (LaBSE) — measured on the field/label sets with
+`scripts/field-eval.mjs`: 74% vs 67% gold top-1, and 47–78% vs 47–57% per language outside
+RU/EN. Set `EMBEDDINGS_AUTODETECT=0` to keep resolution explicit.
+
+Instruction prefixes for EmbeddingGemma are applied automatically when
+`EMBEDDINGS_QUERY_PREFIX` / `EMBEDDINGS_DOC_PREFIX` are not set, so an auto-detected model
+does not silently run without the prefixes it was trained with. `EMBEDDINGS_DIM` is optional:
+an encoder may project to a different width than its backbone config reports
+(EmbeddingGemma: 512 → 768), so the adapter uses the real output width.
 
 ```bash
 EMBEDDINGS_MODE=onnx-cpu
@@ -201,7 +210,7 @@ and automatically falls back to CPU with a warning instead of leaving search wit
 BM25 ignores stops words (built-in EN/RU list plus `DATA_DIR/stopwords.txt` and `BM25_STOPWORDS`),
 splits camelCase/snake_case identifiers, and drops query terms whose IDF is below
 `BM25_MIN_IDF_RATIO` (default `0.2`) of the strongest term. Lexical hits below
-`BM25_MIN_CONFIDENCE` (default `0.15`) of the query's maximum achievable BM25 score do not participate
+`BM25_MIN_CONFIDENCE` (default `0.05`) of the query's maximum achievable BM25 score do not participate
 in fusion. Both channels are merged with Reciprocal Rank Fusion, so a document found only by the
 semantic channel can outrank a weak lexical match.
 

@@ -406,16 +406,19 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // Smoke test the chosen backend: some GPU/driver combinations fail on specific
       // ops (cuDNN ReduceL2 on Pascal, for instance). Degrade to CPU instead of
       // leaving the server without a vector channel.
+      let warmupVector: Float32Array | undefined;
       try {
-        await this.encodeText('warmup');
+        warmupVector = await this.encodeText('warmup');
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         const usedGpu = JSON.stringify(createOpts.executionProviders ?? []).includes('cuda');
         if (!usedGpu) throw e;
         log.warn('GPU inference failed (%s); falling back to CPU', message.slice(0, 200));
         this.session = await ort.InferenceSession.create(modelSource, { ...createOpts, executionProviders: ['cpu'] });
-        await this.encodeText('warmup');
+        warmupVector = await this.encodeText('warmup');
       }
+      // The real output width wins over any config hint (see config.ts).
+      if (warmupVector?.length) this.dim = warmupVector.length;
       // Initialize embeddings cache
       this.cache = new EmbeddingsCache(this.dim);
       this.ready = true;
@@ -534,8 +537,8 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
 export async function getVectorAdapter<T>(): Promise<VectorSearchAdapter<T> | undefined> {
   const cfg = loadConfig();
   if (cfg.embeddings.mode === 'none') return undefined;
-  if (!cfg.embeddings.dim || !cfg.embeddings.modelPath) return undefined;
-  const adapter = new OnnxVectorAdapter<T>(cfg.embeddings.dim);
+  if (!cfg.embeddings.modelPath) return undefined;
+  const adapter = new OnnxVectorAdapter<T>(cfg.embeddings.dim ?? 0);
   await adapter.init();
   if ((adapter as unknown as { ready: boolean }).ready) return adapter;
   return undefined;
