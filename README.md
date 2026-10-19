@@ -118,6 +118,48 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 - Connectors: GitHub, Jira, Slack, Google Drive, Gmail, Notion, OneDrive, Linear, Web Crawler
 - Framework adapters: LangGraph, AutoGen, CrewAI, LangChain
 
+## Embeddings & search tuning
+
+The vector channel is optional: without a model the server runs BM25-only and stays fully functional.
+
+### Model choices (ONNX, CPU-friendly)
+
+| Model | Size | Languages | Notes |
+|---|---:|---|---|
+| `google/embeddinggemma-2` (q4 ONNX) | 198 MB | 100+ | best on mixed RU/EN + code; exposes `sentence_embedding`, needs `image/audio/video_features` inputs fed empty |
+| `sergeyzh/BERTA` (int8) | 124 MB | RU + EN | fastest RU-first option, mean pooling |
+| `cointegrated/LaBSE-en-ru` | 515 MB | EN + RU | legacy baseline, GPU-safe |
+
+The model file is auto-detected in `/app/models`, `<repo>/models`, `DATA_DIR/models` and
+`~/.local/share/mcp-task-knowledge/models`; set `EMBEDDINGS_AUTODETECT=0` to keep resolution explicit.
+
+```bash
+EMBEDDINGS_MODE=onnx-cpu
+EMBEDDINGS_MODEL_PATH=/path/to/model.onnx
+EMBEDDINGS_DIM=768
+EMBEDDINGS_QUERY_PREFIX="task: search result | query:"
+EMBEDDINGS_DOC_PREFIX="title: none | text:"
+```
+
+`EMBEDDINGS_QUERY_PREFIX` / `EMBEDDINGS_DOC_PREFIX` are for models trained with instruction
+prefixes (Gemma, BERTA, E5); one trailing space is added automatically. Switching the model file
+invalidates the vector cache by itself (keys include the model identity).
+
+### GPU
+
+`EMBEDDINGS_MODE=onnx-gpu` uses onnxruntime-node's CUDA provider. Some GPU/driver combinations fail
+on specific ops (known case: cuDNN `ReduceL2` on Pascal cards). The adapter runs a warm-up inference
+and automatically falls back to CPU with a warning instead of leaving search without vectors.
+
+### Lexical channel
+
+BM25 ignores stops words (built-in EN/RU list plus `DATA_DIR/stopwords.txt` and `BM25_STOPWORDS`),
+splits camelCase/snake_case identifiers, and drops query terms whose IDF is below
+`BM25_MIN_IDF_RATIO` (default `0.2`) of the strongest term. Lexical hits below
+`BM25_MIN_CONFIDENCE` (default `0.15`) of the query's maximum achievable BM25 score do not participate
+in fusion. Both channels are merged with Reciprocal Rank Fusion, so a document found only by the
+semantic channel can outrank a weak lexical match.
+
 ## Stats
 
 | Metric | Value |

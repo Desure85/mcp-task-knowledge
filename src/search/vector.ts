@@ -3,7 +3,7 @@ import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
 import { childLogger } from '../core/logger.js';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { InferenceSession, TensorConstructor, SessionCreateOptions, ExecutionProviderConfig } from 'onnxruntime-web';
 import type { XenovaTokenizer, XenovaEnv, TokenizerOutput, TokenizerEncodeOptions } from '@xenova/transformers';
 
@@ -58,6 +58,9 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
   private encodeBatch!: (texts: string[]) => Promise<Float32Array[]>;
   private dim: number;
   private maxLen = 256;
+  private queryPrefix = '';
+  private docPrefix = '';
+  private cacheSalt = '';
   private session!: InferenceSession;
   private tokenizer!: XenovaTokenizer;
   private tokenizerKind: 'hf-tokenizers' | 'xenova' | undefined;
@@ -99,7 +102,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       const fs = await import('node:fs');
       const DEBUG = (process.env.DEBUG_VECTOR === '1' || process.env.DEBUG_VECTOR === 'true');
       // Use @xenova/transformers (pure JS) with local FS support
-      const xenova = await import('@xenova/transformers').catch((): null => null) as { env: XenovaEnv; AutoTokenizer: { from_pretrained(modelPath: string, options?: Record<string, unknown>): Promise<XenovaTokenizer> } } | null;
+      const xenova = await import('@huggingface/transformers').catch((): null => null) as { env: XenovaEnv; AutoTokenizer: { from_pretrained(modelPath: string, options?: Record<string, unknown>): Promise<XenovaTokenizer> } } | null;
       if (!xenova) {
         log.warn('@xenova/transformers not available. Disabling vector adapter');
         this.ready = false;
@@ -110,11 +113,31 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       if (cfg.embeddings.maxLen && cfg.embeddings.maxLen > 0) {
         this.maxLen = cfg.embeddings.maxLen;
       }
+      // Instruction prefixes (e.g. search_query / search_document) must keep exactly
+      // one trailing space so the tokenizer sees the same separator as in training.
+      const withSpace = (prefix?: string) => {
+        const trimmed = (prefix ?? '').trim();
+        return trimmed ? `${trimmed} ` : '';
+      };
+      this.queryPrefix = withSpace(cfg.embeddings.queryPrefix);
+      this.docPrefix = withSpace(cfg.embeddings.docPrefix);
+      // Cache entries are keyed by text hash, so the model identity must be part of
+      // the key: otherwise switching models silently reuses vectors of the old one.
+      const configuredModel = cfg.embeddings.modelPath ?? '';
+      try {
+        const modelStat = fs.statSync(configuredModel);
+        this.cacheSalt = `${basename(configuredModel)}:${modelStat.size}`;
+      } catch {
+        this.cacheSalt = basename(configuredModel || 'model');
+      }
 
       // Infer maxLen and dim from metadata if present
       try {
-        const metaPath = join(cfg.embeddings.modelPath ? dirname(cfg.embeddings.modelPath) : '/app/models', 'metadata.json');
-        if (fs.existsSync(metaPath)) {
+        const modelDir = cfg.embeddings.modelPath ? dirname(cfg.embeddings.modelPath) : '/app/models';
+        const metaPath = ['metadata.json', 'config.json']
+          .map((name) => join(modelDir, name))
+          .find((candidate) => fs.existsSync(candidate));
+        if (metaPath) {
           const raw = await fsp.readFile(metaPath, 'utf8');
           const meta = JSON.parse(raw);
           const hidden = Number(meta?.hidden_size ?? meta?.hiddenSize);
@@ -241,7 +264,11 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         try { env.useFS = true; } catch {}
         try { env.allowLocalModels = true; } catch {}
         try { env.allowRemoteModels = false; } catch {}
-        try { env.localModelPath = dirname(dirname(cfg.embeddings.modelPath)); } catch {}
+        // xenova resolves a model id as <localModelPath>/<id>, so point localModelPath at
+        // the parent of the model directory and use that directory's name as the id.
+        // This keeps any model folder (models/, models/berta-int8/, ...) loadable.
+        const modelDir = dirname(cfg.embeddings.modelPath);
+        try { env.localModelPath = dirname(modelDir); } catch {}
         try { env.HF_ENDPOINT = ''; } catch {}
         if (DEBUG) {
           log.debug('xenova env: %j', {
@@ -253,22 +280,20 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
           });
         }
 
-        // Prefer repo-like local IDs so xenova resolves under env.localModelPath
-        // CWD is /app, so 'models' should resolve to /app/models
-        const candidates = ['models'];
-
+        // Two common layouts: the tokenizer sits next to the .onnx file, or one level
+        // up (e.g. models/<name>/onnx/model.onnx with the tokenizer in models/<name>/).
+        const dirs = Array.from(new Set([modelDir, dirname(modelDir)]));
         let lastErr: unknown = undefined;
-        for (const p of candidates) {
+        for (const dir of dirs) {
           try {
-            this.tokenizer = await AutoTokenizer.from_pretrained(p, { local_files_only: true });
-            log.info('Tokenizer ready (@xenova) from %s', p);
+            env.localModelPath = dirname(dir);
+            this.tokenizer = await AutoTokenizer.from_pretrained(basename(dir), { local_files_only: true });
+            log.info('Tokenizer ready (@huggingface/transformers) from %s', dir);
             lastErr = undefined;
             break;
           } catch (e: unknown) {
             lastErr = e;
-            if (DEBUG) {
-              log.debug('Tokenizer load attempt failed for %s: %s', p, e instanceof Error ? e.message : String(e));
-            }
+            if (DEBUG) log.debug('Tokenizer load attempt failed for %s: %s', dir, e instanceof Error ? e.message : String(e));
           }
         }
 
@@ -283,73 +308,70 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // Build batched encoder
       const encodeBatch = async (texts: string[]): Promise<Float32Array[]> => {
         if (!texts.length) return [];
-        // Prepare ids/masks depending on tokenizer kind
-        let batch = texts.length;
-        const seqLen = this.maxLen;
-        // Prepare int64 inputs (BigInt64Array) as required by ORT for BERT-like models
-        const inputIds = new BigInt64Array(batch * seqLen);
-        const attnMask = new BigInt64Array(batch * seqLen);
-        const tokenType = new BigInt64Array(batch * seqLen); // zeros
 
+        const encoded: Array<{ ids: number[]; mask: number[] }> = [];
         if (this.tokenizerKind === 'hf-tokenizers') {
           const hfTokenizer = this.tokenizer as unknown as { encodeBatch(texts: string[]): Promise<Array<{ ids: number[]; attention_mask: number[] }>> };
           const enc = await hfTokenizer.encodeBatch(texts);
-          batch = enc.length;
-          for (let b = 0; b < batch; b++) {
-            const ids: number[] = enc[b].ids.slice(0, seqLen);
-            const mask: number[] = Array(ids.length).fill(1);
-            while (ids.length < seqLen) ids.push(0);
-            while (mask.length < seqLen) mask.push(0);
-            const offset = b * seqLen;
-            for (let t = 0; t < seqLen; t++) {
-              inputIds[offset + t] = BigInt(ids[t]);
-              attnMask[offset + t] = BigInt(mask[t]);
-              tokenType[offset + t] = 0n;
-            }
+          for (const item of enc) {
+            const ids = item.ids.slice(0, this.maxLen);
+            encoded.push({ ids, mask: Array(ids.length).fill(1) });
           }
         } else {
-          // xenova: encode one-by-one
-          for (let b = 0; b < batch; b++) {
-            const raw = texts[b];
+          for (const raw of texts) {
             const text = typeof raw === 'string' ? raw : String(raw ?? '');
-            if (process.env.DEBUG_VECTOR && typeof raw !== 'string') {
-              log.debug({ type: typeof raw, value: raw }, 'non-string text passed to tokenizer');
-            }
-            // Prefer the call form: tokenizer(text, options)
-            const encodeOpts: TokenizerEncodeOptions = { add_special_tokens: true };
-            const out: TokenizerOutput = await this.tokenizer(text, encodeOpts);
-            if (!out?.input_ids || !out?.attention_mask) {
-              if (process.env.DEBUG_VECTOR) {
-                log.debug({ keys: out ? Object.keys(out) : [] }, 'tokenizer output missing fields');
-              }
-            }
-            const ids: number[] = toNumberArray(out.input_ids).slice(0, seqLen);
-            const mask: number[] = toNumberArray(out.attention_mask).slice(0, seqLen);
-            if (process.env.DEBUG_VECTOR) {
-              if (ids.some((v) => Number.isNaN(v))) log.debug('ids contain NaN after normalization');
-              if (mask.some((v) => Number.isNaN(v))) log.debug('mask contain NaN after normalization');
-            }
-            while (ids.length < seqLen) ids.push(0);
-            while (mask.length < seqLen) mask.push(0);
-            const offset = b * seqLen;
-            for (let t = 0; t < seqLen; t++) {
-              inputIds[offset + t] = BigInt(ids[t]);
-              attnMask[offset + t] = BigInt(mask[t]);
-              tokenType[offset + t] = 0n;
-            }
+            const out: TokenizerOutput = await this.tokenizer(text, { add_special_tokens: true } as TokenizerEncodeOptions);
+            const ids = toNumberArray(out.input_ids).slice(0, this.maxLen);
+            const mask = toNumberArray(out.attention_mask).slice(0, this.maxLen);
+            encoded.push({ ids, mask });
+          }
+        }
+
+        // Pad to the longest sequence in the batch, not to maxLen: a short query then
+        // costs its own length instead of the full window, which dominates CPU latency.
+        const batch = encoded.length;
+        const seqLen = Math.max(1, encoded.reduce((max, item) => Math.max(max, item.ids.length), 0));
+        const inputIds = new BigInt64Array(batch * seqLen);
+        const attnMask = new BigInt64Array(batch * seqLen);
+        const tokenType = new BigInt64Array(batch * seqLen);
+        for (let b = 0; b < batch; b++) {
+          const offset = b * seqLen;
+          for (let t = 0; t < seqLen; t++) {
+            inputIds[offset + t] = BigInt(encoded[b].ids[t] ?? 0);
+            attnMask[offset + t] = BigInt(encoded[b].mask[t] ?? 0);
           }
         }
 
         const feeds: Record<string, import('onnxruntime-web').Tensor> = {};
         const ortTensor = (dtype: string, data: ArrayLike<unknown> | ArrayBuffer, dims: number[]) => new this.ortTensorCtor(dtype, data, dims);
         const inputNames: string[] = this.session.inputNames ?? ['input_ids', 'attention_mask', 'token_type_ids'];
-        // Map common names
         if (inputNames.includes('input_ids')) feeds['input_ids'] = ortTensor('int64', inputIds, [batch, seqLen]);
         if (inputNames.includes('attention_mask')) feeds['attention_mask'] = ortTensor('int64', attnMask, [batch, seqLen]);
         if (inputNames.includes('token_type_ids')) feeds['token_type_ids'] = ortTensor('int64', tokenType, [batch, seqLen]);
+        // Multimodal encoders (EmbeddingGemma and friends) require the unused modality inputs.
+        for (const modality of ['image_features', 'video_features', 'audio_features']) {
+          if (inputNames.includes(modality)) feeds[modality] = ortTensor('float32', new Float32Array(0), [0, 512]);
+        }
 
         const out = await this.session.run(feeds);
-        // Pick first output
+
+        // Encoders that pool internally return a ready normalized sentence embedding.
+        const embedded = out['sentence_embedding'];
+        if (embedded) {
+          const [B, H] = embedded.dims as [number, number];
+          const data = embedded.data as Float32Array;
+          const result: Float32Array[] = [];
+          for (let b = 0; b < B; b++) {
+            const vec = data.slice(b * H, (b + 1) * H);
+            let norm = 0;
+            for (let h = 0; h < H; h++) norm += vec[h] * vec[h];
+            norm = Math.sqrt(norm) || 1;
+            for (let h = 0; h < H; h++) vec[h] /= norm;
+            result.push(vec);
+          }
+          return result;
+        }
+
         const outName = this.session.outputNames?.[0] ?? Object.keys(out)[0];
         const tensor = out[outName];
         const data: Float32Array = tensor.data as Float32Array; // shape [B, S, H]
@@ -380,6 +402,20 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
 
       this.encodeBatch = encodeBatch;
       this.encodeText = async (text: string) => (await encodeBatch([text]))[0];
+
+      // Smoke test the chosen backend: some GPU/driver combinations fail on specific
+      // ops (cuDNN ReduceL2 on Pascal, for instance). Degrade to CPU instead of
+      // leaving the server without a vector channel.
+      try {
+        await this.encodeText('warmup');
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        const usedGpu = JSON.stringify(createOpts.executionProviders ?? []).includes('cuda');
+        if (!usedGpu) throw e;
+        log.warn('GPU inference failed (%s); falling back to CPU', message.slice(0, 200));
+        this.session = await ort.InferenceSession.create(modelSource, { ...createOpts, executionProviders: ['cpu'] });
+        await this.encodeText('warmup');
+      }
       // Initialize embeddings cache
       this.cache = new EmbeddingsCache(this.dim);
       this.ready = true;
@@ -392,7 +428,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
   async search(query: string, items: Array<{ id: string; text: string; item: T }>, opts?: { limit?: number }): Promise<SearchResult<T>[]> {
     if (!this.ready) return [];
     try {
-      const q = await this.encodeText(query);
+      const q = await this.encodeText(this.queryPrefix + query);
       const scored: Array<SearchResult<T>> = [];
       const cfg = loadConfig();
       const batchSize = Math.max(1, Number(cfg.embeddings.batchSize ?? 16));
@@ -403,7 +439,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       const misses: { id: string; text: string; item: T; hash: string }[] = [];
       for (const it of items) {
         if (cache) {
-          const h = cache.textHash(it.text);
+          const h = cache.textHash(`${this.cacheSalt}|${this.docPrefix}${it.text}`);
           const v = await cache.get(it.id, h);
           if (v) {
             vecById.set(it.id, v);
@@ -419,7 +455,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // Encode misses in batches and populate cache
       for (let i = 0; i < misses.length; i += batchSize) {
         const slice = misses.slice(i, i + batchSize);
-        const vecs = await this.encodeBatch(slice.map(s => s.text));
+        const vecs = await this.encodeBatch(slice.map(s => this.docPrefix + s.text));
         for (let j = 0; j < slice.length; j++) {
           const id = slice[j].id;
           const v = vecs[j];

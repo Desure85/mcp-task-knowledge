@@ -50,6 +50,8 @@ export interface FileConfig {
     persist?: boolean;
     batchSize?: number;
     maxLen?: number;
+    queryPrefix?: string;
+    docPrefix?: string;
   };
   obsidian?: {
     vaultRoot?: string;
@@ -258,6 +260,8 @@ export interface ServerConfig {
     persist?: boolean;
     batchSize?: number;   // размер батча для encode
     maxLen?: number;      // макс длина токенов
+    queryPrefix?: string; // префикс запроса (например, "search_query")
+    docPrefix?: string;   // префикс документа (например, "search_document")
   };
   obsidian: {
     vaultRoot: string;    // корень vault'а
@@ -280,6 +284,8 @@ export function loadConfig(): ServerConfig {
   let persist = (fileConfig?.embeddings?.persist as boolean | undefined) ?? (process.env.EMBEDDINGS_PERSIST ? ['1','true','yes'].includes(String(process.env.EMBEDDINGS_PERSIST).toLowerCase()) : undefined);
   let batchSize = (fileConfig?.embeddings?.batchSize as number | undefined) ?? (process.env.EMBEDDINGS_BATCH_SIZE ? Number(process.env.EMBEDDINGS_BATCH_SIZE) : undefined);
   let maxLen = (fileConfig?.embeddings?.maxLen as number | undefined) ?? (process.env.EMBEDDINGS_MAX_LEN ? Number(process.env.EMBEDDINGS_MAX_LEN) : undefined);
+  const queryPrefix = (fileConfig?.embeddings?.queryPrefix as string | undefined) ?? process.env.EMBEDDINGS_QUERY_PREFIX ?? '';
+  const docPrefix = (fileConfig?.embeddings?.docPrefix as string | undefined) ?? process.env.EMBEDDINGS_DOC_PREFIX ?? '';
 
   // Defaults for ONNX modes so that a local checkout works without env variables
   if ((mode === 'onnx-cpu' || mode === 'onnx-gpu')) {
@@ -291,8 +297,11 @@ export function loadConfig(): ServerConfig {
     }
     if (modelPath && dimVal == null) {
       try {
-        const metaPath = path.join(path.dirname(modelPath), 'metadata.json');
-        const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : undefined;
+        const modelDir = path.dirname(modelPath);
+        const metaFile = ['metadata.json', 'config.json']
+          .map((name) => path.join(modelDir, name))
+          .find((candidate) => fs.existsSync(candidate));
+        const meta = metaFile ? JSON.parse(fs.readFileSync(metaFile, 'utf8')) : undefined;
         const hidden = Number(meta?.hidden_size ?? meta?.hiddenSize);
         if (!Number.isNaN(hidden)) dimVal = hidden;
         if (maxLen == null) {
@@ -320,6 +329,8 @@ export function loadConfig(): ServerConfig {
       persist: persist ?? true,
       batchSize,
       maxLen,
+      queryPrefix,
+      docPrefix,
     },
     obsidian: { vaultRoot },
   };
