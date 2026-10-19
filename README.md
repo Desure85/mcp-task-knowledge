@@ -23,16 +23,44 @@ Works with Claude Desktop, Cursor, Claude Code, Windsurf, VS Code, OpenCode, and
 
 ## Quick Start
 
-```bash
-npm install -g mcp-task-knowledge
-mcp-task-knowledge
-```
+`DATA_DIR` is required and must be a writable directory: all tasks, knowledge docs,
+prompts and the vector cache live there as plain files.
 
-Or via npx:
+### From source
 
 ```bash
-npx mcp-task-knowledge
+git clone https://github.com/Desure85/mcp-task-knowledge.git
+cd mcp-task-knowledge
+npm install
+npm run build
+
+# optional — enables the vector channel; without it the server runs BM25-only
+node scripts/fetch-model.mjs gemma-q4
+
+DATA_DIR="$HOME/.mcp-task-knowledge" node dist/index.js
 ```
+
+The model downloader knows two presets (`node scripts/fetch-model.mjs` lists them):
+
+| Preset | Size | Languages | When |
+|---|---:|---|---|
+| `gemma-q4` | 198 MB | 100+ | recommended: RU/EN/code mix |
+| `labse-int8` | ~120 MB | 100+ | legacy baseline |
+
+The server finds a model placed in `~/.local/share/mcp-task-knowledge/models`,
+`$DATA_DIR/models`, `<repo>/models` or `/app/models` without any env variables.
+
+### Docker
+
+```bash
+docker run -i --rm -v /data:/data ghcr.io/desure85/mcp-task-knowledge:cpu-cat-latest
+```
+
+Images are published as `bm25-*`, `cpu-*` and `gpu-*` variants; the `-cat` suffix means
+"catalog enabled".
+
+> **npm:** the package is not published yet, so `npm install -g mcp-task-knowledge` and
+> `npx mcp-task-knowledge` fail until a `v*` tag is pushed (see *Releasing* below).
 
 ### Releasing (maintainers)
 
@@ -56,8 +84,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "mcp-task-knowledge": {
-      "command": "npx",
-      "args": ["mcp-task-knowledge"]
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
+      "env": {
+        "DATA_DIR": "/absolute/path/to/data",
+        "EMBEDDINGS_MODEL_PATH": "/absolute/path/to/models/gemma-q4/onnx/model_q4.onnx",
+        "EMBEDDINGS_DIM": "768",
+        "EMBEDDINGS_QUERY_PREFIX": "task: search result | query:",
+        "EMBEDDINGS_DOC_PREFIX": "title: none | text:"
+      }
     }
   }
 }
@@ -121,6 +156,16 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 ## Embeddings & search tuning
 
 The vector channel is optional: without a model the server runs BM25-only and stays fully functional.
+
+### Getting a model
+
+```bash
+node scripts/fetch-model.mjs gemma-q4          # into ~/.local/share/mcp-task-knowledge/models
+node scripts/fetch-model.mjs gemma-q4 --dir /srv/models
+```
+
+The script prints the exact environment block to paste. Without a model the server starts in
+BM25-only mode and says so in the log.
 
 ### Model choices (ONNX, CPU-friendly)
 
