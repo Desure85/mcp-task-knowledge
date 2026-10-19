@@ -5,7 +5,7 @@ Guide for connecting `mcp-task-knowledge` to [Claude Code](https://claude.ai/cla
 ## Prerequisites
 
 - Node.js 18+
-- `mcp-task-knowledge` installed globally: `npm install -g mcp-task-knowledge`
+- Server built from source: `npm install && npm run build` (npm package is not published yet)
 
 ## Configuration
 
@@ -17,7 +17,8 @@ Add the MCP server to Claude Code's global settings:
 {
   "mcpServers": {
     "task-knowledge": {
-      "command": "mcp-task-knowledge",
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
       "env": {
         "DATA_DIR": "~/.mcp-task-knowledge",
         "CURRENT_PROJECT": "default"
@@ -37,7 +38,8 @@ For project-specific configuration, create `.claude/settings.json` in your proje
 {
   "mcpServers": {
     "task-knowledge": {
-      "command": "mcp-task-knowledge",
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
       "env": {
         "DATA_DIR": ".claude-data",
         "CURRENT_PROJECT": "my-project"
@@ -180,7 +182,8 @@ chmod 700 ~/.mcp-task-knowledge
 {
   "mcpServers": {
     "task-knowledge": {
-      "command": "mcp-task-knowledge",
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
       "env": {
         "DATA_DIR": "~/.mcp-task-knowledge",
         "LOG_LEVEL": "debug"

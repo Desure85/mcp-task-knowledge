@@ -2,18 +2,18 @@
 
 ## Installation
 
-### npm (global)
+### From source (recommended)
 
 ```bash
-npm install -g mcp-task-knowledge
-mcp-task-knowledge
+git clone https://github.com/Desure85/mcp-task-knowledge.git
+cd mcp-task-knowledge
+npm install
+npm run build
+DATA_DIR="$HOME/.mcp-task-knowledge" node dist/index.js
 ```
 
-### npx (no install)
-
-```bash
-npx mcp-task-knowledge
-```
+> The npm package is not published yet: `npm install -g mcp-task-knowledge` and
+> `npx mcp-task-knowledge` fail until a `v*` tag is pushed.
 
 ### Docker
 

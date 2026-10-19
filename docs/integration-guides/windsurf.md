@@ -6,7 +6,7 @@ Guide for connecting `mcp-task-knowledge` to [Windsurf](https://codeium.com/wind
 
 - Windsurf IDE (latest version recommended)
 - Node.js 18+
-- `mcp-task-knowledge` installed globally: `npm install -g mcp-task-knowledge`
+- Server built from source: `npm install && npm run build`
 
 ## Configuration
 
@@ -19,7 +19,7 @@ Guide for connecting `mcp-task-knowledge` to [Windsurf](https://codeium.com/wind
 
 **Server name:** `task-knowledge`
 
-**Command:** `mcp-task-knowledge`
+**Command:** `node /absolute/path/to/mcp-task-knowledge/dist/index.js`
 
 **Environment variables:**
 
@@ -40,7 +40,8 @@ Create `.windsurf/mcp.json` in your project root:
 {
   "mcpServers": {
     "task-knowledge": {
-      "command": "mcp-task-knowledge",
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
       "env": {
         "DATA_DIR": ".windsurf-data",
         "CURRENT_PROJECT": "my-project"
@@ -192,7 +193,8 @@ Windsurf sometimes respawns MCP servers. If the connection is unstable:
 {
   "mcpServers": {
     "task-knowledge": {
-      "command": "mcp-task-knowledge",
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
       "env": {
         "DATA_DIR": "~/.mcp-task-knowledge",
         "LOG_LEVEL": "debug"
@@ -232,7 +234,8 @@ Or configure via JSON:
 {
   "mcpServers": {
     "task-knowledge": {
-      "command": "mcp-task-knowledge",
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-task-knowledge/dist/index.js"],
       "env": {
         "DATA_DIR": "~/.mcp-task-knowledge",
         "EMBEDDINGS_MODE": "onnx-cpu"
