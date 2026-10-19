@@ -28,7 +28,7 @@ export function registerSearchTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const tasks = await listTasks({ project: prj });
       const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
-      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: ctx.vectorAdapter, onVectorError: trackVectorError() });
+      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: await ctx.ensureVectorAdapter(), onVectorError: trackVectorError() });
       return ok(results);
     }
   );
@@ -50,7 +50,7 @@ export function registerSearchTools(ctx: ServerContext): void {
       const docs = await Promise.all(metas.map((m) => readDoc(m.project || prj, m.id)));
       const valid = docs.filter(Boolean) as NonNullable<typeof docs[number]>[];
       const items = valid.map((d) => ({ id: d.id, text: buildTextForDoc(d), item: d }));
-      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: ctx.vectorAdapter, onVectorError: trackVectorError() });
+      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: await ctx.ensureVectorAdapter(), onVectorError: trackVectorError() });
       return ok(results);
     }
   );
@@ -107,9 +107,12 @@ export function registerSearchTools(ctx: ServerContext): void {
       const payload = {
         mode: c.embeddings.mode,
         hasModelPath: Boolean(c.embeddings.modelPath),
+        modelPath: c.embeddings.modelPath ?? null,
         dim: c.embeddings.dim ?? null,
         cacheDir: c.embeddings.cacheDir || null,
         vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.dim && c.embeddings.mode !== 'none'),
+        adapterInitAttempted: ctx.vectorInitAttempted,
+        adapterReady: Boolean(ctx.vectorAdapter),
       };
       return ok(payload);
     }

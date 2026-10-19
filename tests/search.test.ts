@@ -47,7 +47,7 @@ describe('search module', () => {
 
     it('ranks relevant results higher', async () => {
       const items = [
-        { id: '1', text: 'machine learning algorithms', item: { id: '1' } },
+        { id: '1', text: 'machine learning algorithms and machine learning models', item: { id: '1' } },
         { id: '2', text: 'simple test case', item: { id: '2' } },
         { id: '3', text: 'machine learning is great', item: { id: '3' } }
       ];
@@ -80,7 +80,9 @@ describe('search module', () => {
 
       const results = await hybridSearch('query', items, { vectorAdapter: mockAdapter });
       expect(results.length).toBe(2);
-      expect(results[0].score).toBe(0.9); // Vector result should win
+      expect(results[0].id).toBe('1');
+      expect(results[0].vectorScore).toBe(0.9);
+      expect(results[0].score).toBe(1);
     });
 
     it('handles vector adapter errors gracefully', async () => {

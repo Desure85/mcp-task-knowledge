@@ -10,6 +10,13 @@ export interface CacheEntryMeta {
   file?: string;
 }
 
+function isZeroVector(vec: Float32Array): boolean {
+  for (let i = 0; i < vec.length; i++) {
+    if (vec[i] !== 0) return false;
+  }
+  return true;
+}
+
 export class EmbeddingsCache {
   private maxBytes: number;
   private usedBytes = 0;
@@ -40,7 +47,7 @@ export class EmbeddingsCache {
   async get(id: string, expectedHash: string): Promise<Float32Array | undefined> {
     const k = this.key(id);
     const hit = this.lru.get(k);
-    if (hit && hit.meta.hash === expectedHash) {
+    if (hit && hit.meta.hash === expectedHash && !isZeroVector(hit.vec)) {
       // refresh LRU
       this.lru.delete(k);
       this.lru.set(k, hit);
@@ -57,6 +64,7 @@ export class EmbeddingsCache {
         if (meta.hash !== expectedHash || meta.dims !== this.dims) return undefined;
         const buf = await fsp.readFile(file);
         const vec = new Float32Array(new Uint8Array(buf).buffer);
+        if (isZeroVector(vec)) return undefined;
         this.putToMemory(id, expectedHash, vec, file);
         return vec;
       } catch {}
@@ -65,6 +73,7 @@ export class EmbeddingsCache {
   }
 
   async set(id: string, hash: string, vec: Float32Array): Promise<void> {
+    if (isZeroVector(vec)) return;
     const file = (this.persist && this.dir) ? path.join(this.dir, `${id}.bin`) : undefined;
     if (file) {
       try {

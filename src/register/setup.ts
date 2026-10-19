@@ -375,8 +375,11 @@ export async function createServerContext(): Promise<ServerContext> {
     cfg,
     catalogCfg,
     catalogProvider,
-    vectorAdapter,
-    vectorInitAttempted,
+    // Getters keep the context in sync with the lazy init above: the adapter is
+    // assigned only on the first ensureVectorAdapter() call, so a plain property
+    // would stay undefined forever.
+    get vectorAdapter() { return vectorAdapter; },
+    get vectorInitAttempted() { return vectorInitAttempted; },
     ensureVectorAdapter,
     toolRegistry,
     registeredToolHandles,

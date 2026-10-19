@@ -3,6 +3,7 @@ import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
 import { childLogger } from '../core/logger.js';
+import { dirname, join } from 'node:path';
 import type { InferenceSession, TensorConstructor, SessionCreateOptions, ExecutionProviderConfig } from 'onnxruntime-web';
 import type { XenovaTokenizer, XenovaEnv, TokenizerOutput, TokenizerEncodeOptions } from '@xenova/transformers';
 
@@ -40,9 +41,13 @@ function toNumberArray(arr: ArrayLike<number | bigint> | { data?: ArrayLike<numb
   }
   // Regular array (may contain bigint/objects)
   if (Array.isArray(arr)) return arr.map((v: number | bigint) => Number((v as unknown as { valueOf(): number | bigint })?.valueOf?.() ?? v));
-  // Object with 'data' field
-  if (typeof arr === 'object' && arr !== null && 'data' in (arr as Record<string, unknown>)) {
-    return toNumberArray((arr as { data: ArrayLike<number | bigint> }).data);
+  // Object with 'data' field; transformers.js Tensors expose data as cpuData
+  // (onnxruntime-common >= 1.16 defines `data` as a prototype getter, which its
+  // Object.assign-based wrapper does not copy over).
+  if (typeof arr === 'object' && arr !== null) {
+    const holder = arr as { data?: ArrayLike<number | bigint>; cpuData?: ArrayLike<number | bigint> };
+    const raw = holder.data ?? holder.cpuData;
+    if (raw !== undefined) return toNumberArray(raw);
   }
   return [];
 }
@@ -71,19 +76,20 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       return;
     }
     try {
-      // Select ORT backend dynamically: GPU -> onnxruntime-node (CUDA), else -> onnxruntime-web (WASM)
+      // Native ORT is preferred for cpu too: onnxruntime-web cannot read external-data
+      // models ("encoder.onnx.data") — it fails with `Module.MountedFiles is not available`.
+      // WASM stays as a last-resort fallback when the native binding is unavailable.
       const MODE = (process.env.EMBEDDINGS_MODE || '').toLowerCase();
       const useGpu = MODE === 'onnx-gpu' || MODE === 'gpu' || MODE === 'cuda';
-      // Use onnxruntime-node for GPU, otherwise onnxruntime-web (WASM) for CPU
       type OrtModule = { InferenceSession: { create(model: ArrayBuffer | Uint8Array | string, options?: SessionCreateOptions): Promise<InferenceSession> }; Tensor: TensorConstructor; env?: XenovaEnv };
-      let ortModule: OrtModule | null = null;
-      if (useGpu) {
-        ortModule = await import('onnxruntime-node').catch((): null => null) as OrtModule | null;
-      } else {
+      let ortModule: OrtModule | null = await import('onnxruntime-node').catch((): null => null) as OrtModule | null;
+      const useNativeOrt = Boolean(ortModule);
+      if (!ortModule) {
+        log.warn('onnxruntime-node not available; falling back to onnxruntime-web (WASM)');
         ortModule = await import('onnxruntime-web').catch((): null => null) as OrtModule | null;
       }
       if (!ortModule) {
-        log.warn('onnxruntime-web not installed; disabling vector adapter');
+        log.warn('no ORT backend installed; disabling vector adapter');
         this.ready = false;
         return;
       }
@@ -107,7 +113,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
 
       // Infer maxLen and dim from metadata if present
       try {
-        const metaPath = '/app/models/metadata.json';
+        const metaPath = join(cfg.embeddings.modelPath ? dirname(cfg.embeddings.modelPath) : '/app/models', 'metadata.json');
         if (fs.existsSync(metaPath)) {
           const raw = await fsp.readFile(metaPath, 'utf8');
           const meta = JSON.parse(raw);
@@ -130,9 +136,9 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       // - For onnxruntime-web (WASM) pass the model bytes.
       const createOpts: SessionCreateOptions = {};
       let modelSource: ArrayBuffer | Uint8Array | string;
-      if (useGpu && ort.InferenceSession) {
+      if (useNativeOrt && ort.InferenceSession) {
         if (DEBUG) {
-          log.debug('init: useGpu=true, InferenceSession available');
+          log.debug('init: using onnxruntime-node, useGpu=%s', useGpu);
           log.debug('modelPath=%s', cfg.embeddings.modelPath);
           log.debug('LD_LIBRARY_PATH=%s', process.env.LD_LIBRARY_PATH);
         }
@@ -143,7 +149,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
           .split(',')
           .map((s: string) => s.trim().toLowerCase())
           .filter(Boolean);
-        const epOrder = envEps.length ? envEps : ['cuda', 'cpu'];
+        const epOrder = envEps.length ? envEps : useGpu ? ['cuda', 'cpu'] : ['cpu'];
         if (DEBUG) {
           log.debug('EP order = %s', epOrder.join(','));
         }
@@ -218,7 +224,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         modelSource = await fsp.readFile(cfg.embeddings.modelPath);
         this.session = await ort.InferenceSession.create(modelSource, createOpts);
       }
-      if (useGpu) {
+      if (useNativeOrt) {
         try {
           const providers = (this.session as unknown as Record<string, unknown>)?.executionProvider ?? ortModule?.env;
           log.info('ORT backend: onnxruntime-node with providers %j', providers || ['CUDAExecutionProvider','CPUExecutionProvider']);
@@ -235,7 +241,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         try { env.useFS = true; } catch {}
         try { env.allowLocalModels = true; } catch {}
         try { env.allowRemoteModels = false; } catch {}
-        try { env.localModelPath = '/app'; } catch {}
+        try { env.localModelPath = dirname(dirname(cfg.embeddings.modelPath)); } catch {}
         try { env.HF_ENDPOINT = ''; } catch {}
         if (DEBUG) {
           log.debug('xenova env: %j', {

@@ -1,5 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { childLogger } from './core/logger.js';
 
 const log = childLogger('config');
@@ -141,6 +143,22 @@ if (!DATA_DIR_RESOLVED) {
 }
 export const DATA_DIR = DATA_DIR_RESOLVED;
 
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(MODULE_DIR, '..');
+
+/**
+ * Locations probed for the ONNX encoder when EMBEDDINGS_MODEL_PATH is not set.
+ * Set EMBEDDINGS_AUTODETECT=0 to keep resolution fully explicit (tests do this).
+ */
+export function modelCandidates(): string[] {
+  return [
+    '/app/models/encoder.onnx',
+    path.join(REPO_ROOT, 'models', 'encoder.onnx'),
+    path.join(DATA_DIR, 'models', 'encoder.onnx'),
+    path.join(os.homedir(), '.local', 'share', 'mcp-task-knowledge', 'models', 'encoder.onnx'),
+  ];
+}
+
 // Support for separate task and knowledge directories via environment variables
 const MCP_TASK_DIR_ENV = process.env.MCP_TASK_DIR;
 const MCP_KNOWLEDGE_DIR_ENV = process.env.MCP_KNOWLEDGE_DIR;
@@ -263,34 +281,33 @@ export function loadConfig(): ServerConfig {
   let batchSize = (fileConfig?.embeddings?.batchSize as number | undefined) ?? (process.env.EMBEDDINGS_BATCH_SIZE ? Number(process.env.EMBEDDINGS_BATCH_SIZE) : undefined);
   let maxLen = (fileConfig?.embeddings?.maxLen as number | undefined) ?? (process.env.EMBEDDINGS_MAX_LEN ? Number(process.env.EMBEDDINGS_MAX_LEN) : undefined);
 
-  // Defaults for ONNX modes to avoid manual paths in container
+  // Defaults for ONNX modes so that a local checkout works without env variables
   if ((mode === 'onnx-cpu' || mode === 'onnx-gpu')) {
-    const defaultModel = '/app/models/encoder.onnx';
-    try {
-      if (!modelPath && fs.existsSync(defaultModel)) {
-        modelPath = defaultModel;
-      }
-      if (dimVal == null) {
-        const metaPath = '/app/models/metadata.json';
-        if (fs.existsSync(metaPath)) {
-          const metaRaw = fs.readFileSync(metaPath, 'utf8');
-          const meta = JSON.parse(metaRaw);
-          const hidden = Number(meta?.hidden_size ?? meta?.hiddenSize);
-          if (!Number.isNaN(hidden)) dimVal = hidden;
-          if (maxLen == null) {
-            const maxp = Number(meta?.max_position_embeddings ?? meta?.maxLen);
-            if (!Number.isNaN(maxp)) maxLen = Math.min(512, Math.max(16, maxp));
-          }
-        }
-      }
-      if (!cacheDir) {
-        cacheDir = EMBEDDINGS_DIR;
-      }
-      if (batchSize == null || !(batchSize > 0)) batchSize = 16;
-      if (maxLen == null || !(maxLen > 0)) maxLen = 256;
-    } catch (e) {
-      log.warn({ err: e }, 'Failed to resolve ONNX defaults');
+    if (!modelPath && process.env.EMBEDDINGS_AUTODETECT !== '0') {
+      const candidates = modelCandidates();
+      modelPath = candidates.find((candidate) => fs.existsSync(candidate));
+      if (modelPath) log.info('embeddings: auto-detected ONNX model at %s', modelPath);
+      else log.warn('embeddings: ONNX model not found; looked in %s', candidates.join(', '));
     }
+    if (modelPath && dimVal == null) {
+      try {
+        const metaPath = path.join(path.dirname(modelPath), 'metadata.json');
+        const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : undefined;
+        const hidden = Number(meta?.hidden_size ?? meta?.hiddenSize);
+        if (!Number.isNaN(hidden)) dimVal = hidden;
+        if (maxLen == null) {
+          const maxp = Number(meta?.max_position_embeddings ?? meta?.maxLen);
+          if (!Number.isNaN(maxp)) maxLen = Math.min(512, Math.max(16, maxp));
+        }
+      } catch (e) {
+        log.warn({ err: e }, 'Failed to read model metadata');
+      }
+    }
+    if (!cacheDir) {
+      cacheDir = EMBEDDINGS_DIR;
+    }
+    if (batchSize == null || !(batchSize > 0)) batchSize = 16;
+    if (maxLen == null || !(maxLen > 0)) maxLen = 256;
   }
 
   const cfg: ServerConfig = {

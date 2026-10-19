@@ -128,6 +128,10 @@ export interface QuestionResult {
   retrievedKeywords: string[];
   correct: boolean;
   score: number;
+  /** Keyword coverage of the top-1 / top-5 / top-10 results, each in 0..1. */
+  coverageAt1: number;
+  coverageAt5: number;
+  coverageAt10: number;
   latencyMs: number;
   topResult?: string;
 }
@@ -516,6 +520,16 @@ export async function runBenchmark(
       .join(' ')
       .toLowerCase();
 
+    const coverageAt = (k: number): number => {
+      const text = searchResults
+        .slice(0, k)
+        .map((r) => `${r.title ?? ''} ${r.content}`)
+        .join(' ')
+        .toLowerCase();
+      const found = question.expectedKeywords.filter((kw) => text.includes(kw.toLowerCase()));
+      return question.expectedKeywords.length > 0 ? found.length / question.expectedKeywords.length : 0;
+    };
+
     const retrievedKeywords = question.expectedKeywords.filter((kw) =>
       retrievedText.includes(kw.toLowerCase()),
     );
@@ -530,6 +544,9 @@ export async function runBenchmark(
       retrievedKeywords,
       correct,
       score,
+      coverageAt1: coverageAt(1),
+      coverageAt5: coverageAt(5),
+      coverageAt10: coverageAt(10),
       latencyMs,
       topResult: searchResults[0]?.content?.substring(0, 200),
     });
@@ -538,9 +555,13 @@ export async function runBenchmark(
   // Compute metrics
   const total = results.length;
   const correct = results.filter((r) => r.correct).length;
-  const recallAt1 = results.filter((r) => r.score >= 0.5).length / total;
-  const recallAt5 = results.filter((r) => r.score >= 0.3).length / total;
-  const recallAt10 = results.filter((r) => r.score >= 0.2).length / total;
+  // recall@K = share of questions whose top-K results cover at least half of the
+  // expected keywords. Scoring by the overall top-10 coverage instead makes all
+  // three numbers identical and hides ranking quality.
+  const COVERAGE_THRESHOLD = 0.5;
+  const recallAt1 = results.filter((r) => r.coverageAt1 >= COVERAGE_THRESHOLD).length / total;
+  const recallAt5 = results.filter((r) => r.coverageAt5 >= COVERAGE_THRESHOLD).length / total;
+  const recallAt10 = results.filter((r) => r.coverageAt10 >= COVERAGE_THRESHOLD).length / total;
   const precision = correct / total;
   const f1 = precision + recallAt1 > 0 ? (2 * precision * recallAt1) / (precision + recallAt1) : 0;
 

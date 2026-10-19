@@ -50,10 +50,10 @@ export function createLogger(): Logger {
      
     const pinoPretty = require('pino-pretty');
     stream = pinoPretty.default
-      ? pinoPretty.default({ colorize: true, translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname' })
-      : pinoPretty({ colorize: true, translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname' });
+      ? pinoPretty.default({ colorize: true, translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname', destination: 2 })
+      : pinoPretty({ colorize: true, translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname', destination: 2 });
   } else {
-    stream = pino.destination({ level, sync: false });
+    stream = pino.destination({ dest: 2, level, sync: false });
   }
 
   _root = pino(

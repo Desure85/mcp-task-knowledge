@@ -10,6 +10,56 @@ export async function searchBM25Only<T>(query: string, items: Array<{ id: string
   return bm25Search(items, query, { limit });
 }
 
+/** Standard RRF constant; keeps rank differences meaningful across channels. */
+const RRF_K = 60;
+
+/**
+ * Share of the query's maximum achievable BM25 score below which a lexical hit is
+ * treated as noise once the vector channel is active. A long document matching one
+ * incidental token scores far below this while a real term match scores well above.
+ */
+const DEFAULT_LEXICAL_CONFIDENCE_FLOOR = 0.15;
+
+function lexicalConfidenceFloor(): number {
+  const raw = Number(process.env.BM25_MIN_CONFIDENCE ?? DEFAULT_LEXICAL_CONFIDENCE_FLOOR);
+  return Number.isFinite(raw) ? raw : DEFAULT_LEXICAL_CONFIDENCE_FLOOR;
+}
+
+/**
+ * Fuse lexical and semantic rankings by rank, not by raw score: BM25 is unbounded
+ * and cosine is bounded to [-1, 1], so max-merging them makes BM25 dominate.
+ * A document found only by the vector channel can therefore outrank a weak BM25 hit.
+ */
+export function fuseRankings<T>(
+  lexical: SearchResult<T>[],
+  semantic: SearchResult<T>[],
+  limit: number
+): SearchResult<T>[] {
+  const fused = new Map<string, { base: SearchResult<T>; rrf: number; bm25Score?: number; vectorScore?: number }>();
+  const addChannel = (list: SearchResult<T>[], channel: 'bm25' | 'vector') => {
+    list.forEach((r, index) => {
+      const entry = fused.get(r.id) ?? { base: r, rrf: 0 };
+      entry.rrf += 1 / (RRF_K + index + 1);
+      if (channel === 'bm25') entry.bm25Score = r.score;
+      else entry.vectorScore = r.score;
+      fused.set(r.id, entry);
+    });
+  };
+  addChannel(lexical, 'bm25');
+  addChannel(semantic.filter((r) => r.score > 0), 'vector');
+
+  const ranked = Array.from(fused.values())
+    .sort((a, b) => b.rrf - a.rrf)
+    .slice(0, limit);
+  const best = ranked[0]?.rrf ?? 0;
+  return ranked.map(({ base, rrf, bm25Score, vectorScore }) => ({
+    ...base,
+    score: best > 0 ? rrf / best : 0,
+    bm25Score,
+    vectorScore,
+  }));
+}
+
 export async function hybridSearch<T>(
   query: string,
   items: Array<{ id: string; text: string; item: T }>,
@@ -21,20 +71,18 @@ export async function hybridSearch<T>(
   }
 ): Promise<SearchResult<T>[]> {
   const limit = options?.limit ?? 20;
-  const bm25 = bm25Search(items, query, { limit });
-  if (!options?.vectorAdapter) return bm25;
+  if (!options?.vectorAdapter) return bm25Search(items, query, { limit });
+
+  const poolSize = Math.min(Math.max(items.length, 1), Math.max(limit * 4, 50));
+  const bm25 = bm25Search(items, query, { limit: poolSize });
   try {
-    const vec = await options.vectorAdapter.search(query, items, { limit });
-    // Merge by id with score max
-    const map = new Map<string, SearchResult<T>>();
-    for (const r of [...bm25, ...vec]) {
-      const existing = map.get(r.id);
-      if (!existing || r.score > existing.score) map.set(r.id, r);
-    }
-    return Array.from(map.values()).sort((a, b) => b.score - a.score).slice(0, limit);
+    const vec = await options.vectorAdapter.search(query, items, { limit: poolSize });
+    const floor = lexicalConfidenceFloor();
+    const lexical = floor > 0 ? bm25.filter((r) => (r.bm25Confidence ?? 1) >= floor) : bm25;
+    return fuseRankings(lexical, vec, limit);
   } catch (err) {
     options.onVectorError?.(err);
-    return bm25;
+    return bm25.slice(0, limit);
   }
 }
 

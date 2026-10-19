@@ -129,5 +129,8 @@
   },
   "lint-staged": {
     "*.md": "markdownlint --fix"
+  },
+  "overrides": {
+    "onnxruntime-node": "1.20.0"
   }
 }

@@ -14,4 +14,6 @@ const tmpDir = path.join(process.cwd(), '.tmp-vitest');
 fs.mkdirSync(tmpDir, { recursive: true });
 
 process.env.DATA_DIR = tmpDir;
+// Tests must not pick up a model from the developer's home directory.
+process.env.EMBEDDINGS_AUTODETECT = '0';
 process.env.OBSIDIAN_VAULT_ROOT = path.join(tmpDir, 'vault');

@@ -1,11 +1,12 @@
 import type { SearchResult } from '../types.js';
+import { isStopword } from './stopwords.js';
 
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-zA-Z0-9а-яА-ЯёЁ\s]/g, ' ')
     .split(/\s+/)
-    .filter(Boolean);
+    .filter((token) => !isStopword(token));
 }
 
 export function bm25Search<T>(
@@ -32,6 +33,12 @@ export function bm25Search<T>(
   }
 
   const qTokens = Array.from(new Set(tokenize(query)));
+  if (qTokens.length === 0) return [];
+  const idfOf = (token: string): number => {
+    const n_q = df.get(token) ?? 0.5;
+    return Math.log(1 + (N - n_q + 0.5) / (n_q + 0.5));
+  };
+  const maxPossible = qTokens.reduce((sum, token) => sum + idfOf(token) * (k1 + 1), 0);
   const results: Array<SearchResult<T>> = [];
 
   for (const d of docs) {
@@ -43,13 +50,15 @@ export function bm25Search<T>(
     for (const q of qTokens) {
       const f = tf.get(q) ?? 0;
       if (f === 0) continue;
-      const n_q = df.get(q) ?? 0.5;
-      const idf = Math.log(1 + (N - n_q + 0.5) / (n_q + 0.5));
+      const idf = idfOf(q);
       const denom = f + k1 * (1 - b + (b * dl) / avgdl);
       score += idf * ((f * (k1 + 1)) / denom);
     }
 
-    if (score > 0) results.push({ id: d.id, score, item: d.item });
+    if (score > 0) {
+      const confidence = maxPossible > 0 ? score / maxPossible : 0;
+      results.push({ id: d.id, score, item: d.item, bm25Confidence: confidence });
+    }
   }
 
   results.sort((a, b) => b.score - a.score);
