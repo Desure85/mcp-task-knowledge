@@ -12,8 +12,18 @@ function minIdfRatio(): number {
   return Number.isFinite(raw) && raw >= 0 ? raw : 0.2;
 }
 
+const IDENTIFIER_BOUNDARY = /([a-z0-9])([A-Z])|([A-Z]+)([A-Z][a-z])/g;
+
+/** Splits camelCase and acronym runs so `getUserProfile` matches `get_user_profile`. */
+function splitIdentifiers(text: string): string {
+  if (!/[A-Z]/.test(text)) return text;
+  return text.replace(IDENTIFIER_BOUNDARY, (_m, lower, upper, acronym, word) =>
+    lower ? `${lower} ${upper}` : `${acronym} ${word}`,
+  );
+}
+
 function tokenize(text: string): string[] {
-  return text
+  return splitIdentifiers(text)
     .toLowerCase()
     .replace(/[^a-zA-Z0-9а-яА-ЯёЁ\s]/g, ' ')
     .split(/\s+/)
