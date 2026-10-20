@@ -2,6 +2,7 @@ import { type VectorSearchAdapter, type VectorWarmupOptions, type VectorWarmupRe
 import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
+import { TtlLruCache } from './cache.js';
 import { childLogger } from '../core/logger.js';
 import { basename, dirname, join } from 'node:path';
 import type { InferenceSession, TensorConstructor, SessionCreateOptions, ExecutionProviderConfig } from 'onnxruntime-web';
@@ -61,6 +62,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
   private queryPrefix = '';
   private docPrefix = '';
   private cacheSalt = '';
+  private queryCache = new TtlLruCache<string, Float32Array>(200, 10 * 60_000);
   private session!: InferenceSession;
   private tokenizer!: XenovaTokenizer;
   private tokenizerKind: 'hf-tokenizers' | 'xenova' | undefined;
@@ -480,7 +482,12 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
   async search(query: string, items: Array<{ id: string; text: string; item: T }>, opts?: { limit?: number }): Promise<SearchResult<T>[]> {
     if (!this.ready) return [];
     try {
-      const q = await this.encodeText(this.queryPrefix + query);
+      const queryKey = `${this.cacheSalt}|${this.queryPrefix}${query}`;
+      let q = this.queryCache.get(queryKey);
+      if (!q) {
+        q = await this.encodeText(this.queryPrefix + query);
+        this.queryCache.set(queryKey, q);
+      }
       const scored: Array<SearchResult<T>> = [];
       const cfg = loadConfig();
       const batchSize = Math.max(1, Number(cfg.embeddings.batchSize ?? 16));
