@@ -53,6 +53,7 @@ let host: WarmupHost | undefined;
 let deps: WarmupDeps = defaultDeps;
 let unsubscribe: (() => void) | undefined;
 let started = false;
+let disabled = false;
 let defaultBudgetMs = DEFAULT_BUDGET_MS;
 
 const statuses = new Map<string, WarmupStatus>();
@@ -160,7 +161,7 @@ function schedule(project: string, delayMs: number): void {
 
 /** Re-index a project in the background. Coalesces bursts (bulk imports, debounce). */
 export function scheduleProjectIndex(project: string, opts?: { delayMs?: number }): void {
-  if (!started) return;
+  if (!started || disabled) return;
   schedule(project, opts?.delayMs ?? DEFAULT_DEBOUNCE_MS);
 }
 
@@ -186,10 +187,12 @@ export async function startWarmup(
   const projects = opts?.projects ?? (await resolveProjects());
 
   if (process.env.EMBEDDINGS_WARMUP === '0') {
+    disabled = true;
     for (const project of projects) setStatus(project, { state: 'disabled', reason: 'EMBEDDINGS_WARMUP=0' });
     return;
   }
   if (loadConfig().embeddings.mode === 'none') {
+    disabled = true;
     for (const project of projects) setStatus(project, { state: 'disabled', reason: 'EMBEDDINGS_MODE=none' });
     return;
   }
@@ -210,6 +213,7 @@ export function resetWarmupForTests(): void {
   unsubscribe = undefined;
   host = undefined;
   started = false;
+  disabled = false;
   deps = defaultDeps;
   defaultBudgetMs = DEFAULT_BUDGET_MS;
 }

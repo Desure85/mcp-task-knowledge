@@ -127,7 +127,7 @@ function makeGit(repo, maxCalls) {
   return { git, calls: () => calls };
 }
 
-function buildRepoIndex(repo, git, budgetMs, startedAt) {
+function buildRepoIndex(repo, git) {
   const files = git(['ls-files']).split('\n').filter(Boolean);
   const fileSet = new Set(files);
   const suffixIndex = buildSuffixIndex(files);
@@ -135,10 +135,6 @@ function buildRepoIndex(repo, git, budgetMs, startedAt) {
   const lineCount = (rel) => {
     if (lineCounts.has(rel)) return lineCounts.get(rel);
     let count = 0;
-    if (Date.now() - startedAt > budgetMs) {
-      lineCounts.set(rel, 0);
-      return 0;
-    }
     try {
       count = fs.readFileSync(path.join(repo, rel), 'utf8').split('\n').length;
     } catch {
@@ -274,7 +270,7 @@ async function main() {
   const startedAt = Date.now();
 
   const { git } = makeGit(REPO, MAX_GIT_CALLS);
-  const index = buildRepoIndex(REPO, git, BUDGET_MS, startedAt);
+  const index = buildRepoIndex(REPO, git);
   const mergedBranches = git(['branch', '--merged', 'HEAD']).split('\n').map((l) => l.replace(/^[* ]+/, '').trim()).filter(Boolean);
 
   const child = spawn(process.execPath, [SERVER], {

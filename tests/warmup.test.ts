@@ -129,6 +129,15 @@ describe('background knowledge warmup', () => {
     expect(getWarmupStatus()[0]).toMatchObject({ state: 'disabled', reason: 'EMBEDDINGS_WARMUP=0' });
   });
 
+  it('ignores knowledge writes while disabled', async () => {
+    process.env.EMBEDDINGS_MODE = 'none';
+    const { host, deps, calls } = makeHost();
+    await startWarmup(host, { projects: ['p1'], deps, delayMs: 0 });
+    emitKnowledgeChanged('p1', 'updated', 'doc');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toHaveLength(0);
+  });
+
   it('records an error status when the adapter fails', async () => {
     const host = {
       ensureVectorAdapter: async () => {
