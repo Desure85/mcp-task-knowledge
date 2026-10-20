@@ -1,8 +1,75 @@
 /**
- * web-ui/app/globals.css — Global styles (UI-001)
+ * web-ui/app/globals.css — Design tokens + base layer (UI-007)
+ *
+ * Tailwind v4 owns the palette; the tokens below are the project's single
+ * source of truth for surface, line, accent and radius so no component has
+ * to invent a raw hex value. Neutral greys come from Tailwind's palette.
  */
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, -apple-system, sans-serif; }
-a { color: inherit; text-decoration: none; }
-button { cursor: pointer; }
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  /* Single accent — indigo-600 and its supporting shades. */
+  --color-accent: oklch(0.511 0.262 276.966);
+  --color-accent-hover: oklch(0.457 0.24 277.023);
+  --color-accent-soft: oklch(0.962 0.018 272.314);
+  --color-accent-ring: oklch(0.785 0.115 274.713);
+
+  /* Surfaces. */
+  --color-canvas: oklch(0.985 0 0);
+  --color-surface: #ffffff;
+  --color-line: oklch(0.922 0 0);
+
+  --radius-card: 0.75rem;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: oklch(0.205 0 0);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-accent-hover);
+  }
+}
+
+@layer utilities {
+  /* Horizontal nav strip on small screens: scroll, never show a scrollbar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

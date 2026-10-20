@@ -32,7 +32,7 @@ export function resolveMcpApiUrl(): string {
 
 const TOKEN_STORAGE_KEY = 'mcp.auth.token';
 
-function resolveToken(): string | undefined {
+export function resolveToken(): string | undefined {
   const envToken = process.env.NEXT_PUBLIC_MCP_TOKEN;
   if (envToken && envToken.trim().length > 0) return envToken;
   if (typeof window !== 'undefined') {
