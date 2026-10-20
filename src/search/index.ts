@@ -101,6 +101,15 @@ export function extractAnchors(query: string): string[] {
   return Array.from(new Set(found));
 }
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** True when the query consists of anchors only ("DEV-7158", "a/b.php:12"). */
+export function isAnchorOnlyQuery(query: string, anchors: string[]): boolean {
+  if (!anchors.length) return false;
+  const stripped = anchors.reduce((acc, anchor) => acc.replace(new RegExp(escapeRegExp(anchor), 'gi'), ' '), query);
+  return !/[a-zа-яё0-9]/i.test(stripped);
+}
+
 function exactMatches<T>(
   items: Array<{ id: string; text: string; item: T }>,
   anchors: string[]
@@ -137,7 +146,11 @@ export async function hybridSearch<T>(
     const fused = fuseRankings(lexical, vec, poolSize);
     // A verbatim hit outranks everything: if the query names a file, symbol or ticket,
     // the document containing that exact string is what the caller asked for.
-    const exact = exactMatches(items, extractAnchors(query));
+    const anchors = extractAnchors(query);
+    const exact = exactMatches(items, anchors);
+    // A bare identifier is a lookup, not a topic: if the base does not contain it,
+    // returning semantic neighbours is noise ("DEV-7158" -> unrelated tickets).
+    if (isAnchorOnlyQuery(query, anchors) && exact.length === 0) return [];
     if (!exact.length) return fused.slice(0, limit);
     const exactIds = new Set(exact.map((hit) => hit.id));
     const promoted = exact.map((hit) => {

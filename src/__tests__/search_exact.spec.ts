@@ -51,3 +51,20 @@ describe('verbatim channel', () => {
     expect(results.find((r) => r.id === 'cluster')?.exactMatches).toBeUndefined();
   });
 });
+
+describe('anchor-only lookup', () => {
+  it('returns nothing when a bare ticket id is absent from the base', async () => {
+    const results = await hybridSearch('DEV-7158', docs, { limit: 5, vectorAdapter: adapter });
+    expect(results).toEqual([]);
+  });
+
+  it('still finds a bare ticket id that exists', async () => {
+    const results = await hybridSearch('DEV-7613', docs, { limit: 5, vectorAdapter: adapter });
+    expect(results[0].id).toBe('ticket');
+  });
+
+  it('does not suppress results when the query has extra words', async () => {
+    const results = await hybridSearch('what happened in DEV-7158', docs, { limit: 5, vectorAdapter: adapter });
+    expect(results.length).toBeGreaterThan(0);
+  });
+});
