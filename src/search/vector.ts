@@ -5,10 +5,39 @@ import { EmbeddingsCache } from './emb_cache.js';
 import { TtlLruCache } from './cache.js';
 import { childLogger } from '../core/logger.js';
 import { basename, dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import type { InferenceSession, TensorConstructor, SessionCreateOptions, ExecutionProviderConfig } from 'onnxruntime-web';
 import type { XenovaTokenizer, XenovaEnv, TokenizerOutput, TokenizerEncodeOptions } from '@xenova/transformers';
 
 const log = childLogger('vector');
+
+export type PoolingMode = 'model' | 'cls' | 'mean';
+
+/**
+ * Sentence-transformers pooling config, read from `<model>/1_Pooling/config.json`
+ * (Granite and friends ship CLS pooling; a mean-pooled vector would be wrong for them).
+ */
+export function readPoolingConfig(modelPath: string | undefined): { cls?: boolean; mean?: boolean } | undefined {
+  if (!modelPath) return undefined;
+  for (const dir of [dirname(modelPath), dirname(dirname(modelPath))]) {
+    const configPath = join(dir, '1_Pooling', 'config.json');
+    try {
+      if (!existsSync(configPath)) continue;
+      const config = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+      return { cls: Boolean(config.pooling_mode_cls_token), mean: Boolean(config.pooling_mode_mean_tokens) };
+    } catch {}
+  }
+  return undefined;
+}
+
+/** Env override wins; otherwise the model's own pooling config decides. */
+export function resolvePooling(envValue: string | undefined, config?: { cls?: boolean; mean?: boolean }): PoolingMode {
+  const raw = (envValue ?? '').trim().toLowerCase();
+  if (raw === 'cls' || raw === 'mean' || raw === 'model') return raw;
+  if (config?.cls) return 'cls';
+  if (config?.mean) return 'mean';
+  return 'model';
+}
 
 // Cosine similarity for Float32Array vectors
 function cosine(a: Float32Array, b: Float32Array): number {
@@ -62,6 +91,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
   private queryPrefix = '';
   private docPrefix = '';
   private cacheSalt = '';
+  private pooling: PoolingMode = 'model';
   private queryCache = new TtlLruCache<string, Float32Array>(200, 10 * 60_000);
   private session!: InferenceSession;
   private tokenizer!: XenovaTokenizer;
@@ -123,6 +153,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
       };
       this.queryPrefix = withSpace(cfg.embeddings.queryPrefix);
       this.docPrefix = withSpace(cfg.embeddings.docPrefix);
+      this.pooling = resolvePooling(process.env.EMBEDDINGS_POOLING, readPoolingConfig(cfg.embeddings.modelPath));
       // Cache entries are keyed by text hash, so the model identity must be part of
       // the key: otherwise switching models silently reuses vectors of the old one.
       const configuredModel = cfg.embeddings.modelPath ?? '';
@@ -358,7 +389,7 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         const out = await this.session.run(feeds);
 
         // Encoders that pool internally return a ready normalized sentence embedding.
-        const embedded = out['sentence_embedding'];
+        const embedded = this.pooling === 'model' ? out['sentence_embedding'] : undefined;
         if (embedded) {
           const [B, H] = embedded.dims as [number, number];
           const data = embedded.data as Float32Array;
@@ -380,21 +411,30 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
         const [B, S, H] = tensor.dims as [number, number, number];
         const result: Float32Array[] = [];
 
-        // Mean pooling with attention mask, then L2 normalize
         for (let b = 0; b < B; b++) {
           const vec = new Float32Array(H);
-          let count = 0;
           const maskOffset = b * S;
-          for (let s = 0; s < S; s++) {
-            const m = Number(attnMask[maskOffset + s]);
-            if (m === 0) continue;
-            count += 1;
-            const base = (b * S + s) * H;
-            for (let h = 0; h < H; h++) vec[h] += data[base + h];
+          if (this.pooling === 'cls') {
+            const first = (() => {
+              for (let s = 0; s < S; s++) if (Number(attnMask[maskOffset + s]) !== 0) return s;
+              return 0;
+            })();
+            const base = (b * S + first) * H;
+            for (let h = 0; h < H; h++) vec[h] = data[base + h];
+          } else {
+            let count = 0;
+            for (let s = 0; s < S; s++) {
+              const m = Number(attnMask[maskOffset + s]);
+              if (m === 0) continue;
+              count += 1;
+              const base = (b * S + s) * H;
+              for (let h = 0; h < H; h++) vec[h] += data[base + h];
+            }
+            const denom = count > 0 ? count : 1;
+            for (let h = 0; h < H; h++) vec[h] /= denom;
           }
-          const denom = count > 0 ? count : 1;
           let norm = 0;
-          for (let h = 0; h < H; h++) { vec[h] /= denom; norm += vec[h] * vec[h]; }
+          for (let h = 0; h < H; h++) norm += vec[h] * vec[h];
           norm = Math.sqrt(norm) || 1;
           for (let h = 0; h < H; h++) vec[h] /= norm;
           result.push(vec);

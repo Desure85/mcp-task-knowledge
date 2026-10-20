@@ -199,6 +199,10 @@ EMBEDDINGS_DOC_PREFIX="title: none | text:"
 prefixes (Gemma, BERTA, E5); one trailing space is added automatically. Switching the model file
 invalidates the vector cache by itself (keys include the model identity).
 
+Pooling is read from the model's `1_Pooling/config.json` when present (Granite ships CLS
+pooling; models with a `sentence_embedding` output use it, others fall back to masked mean).
+Force it with `EMBEDDINGS_POOLING=cls|mean|model` if a model ships no pooling config.
+
 ### GPU
 
 `EMBEDDINGS_MODE=onnx-gpu` uses onnxruntime-node's CUDA provider. Some GPU/driver combinations fail

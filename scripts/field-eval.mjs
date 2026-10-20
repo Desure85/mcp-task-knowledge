@@ -55,7 +55,7 @@ const cosine = (a, b) => {
   return s;
 };
 
-async function makeEncoder({ dir, onnx, maxLen, qPrefix = '', dPrefix = '' }) {
+async function makeEncoder({ dir, onnx, maxLen, qPrefix = '', dPrefix = '', pooling = 'mean' }) {
   const tok = await AutoTokenizer.from_pretrained(dir);
   const session = await ort.InferenceSession.create(onnx);
   const multimodal = session.inputNames.includes('image_features');
@@ -79,6 +79,13 @@ async function makeEncoder({ dir, onnx, maxLen, qPrefix = '', dPrefix = '' }) {
     const [, S, H] = t.dims;
     const d = t.data;
     const vec = new Float32Array(H);
+    if (pooling === 'cls') {
+      let first = 0;
+      while (first < S && !mask[first]) first++;
+      const base = Math.min(first, S - 1) * H;
+      for (let h = 0; h < H; h++) vec[h] = d[base + h];
+      return normalize(vec);
+    }
     let cnt = 0;
     for (let i = 0; i < S; i++) {
       if (!mask[i]) continue;
@@ -172,6 +179,8 @@ async function main() {
   const settings = {
     labse: ['LaBSE', { dir: MODELS, onnx: `${MODELS}/encoder.onnx`, maxLen: 256 }],
     gemma: ['Gemma q4', { dir: `${MODELS}/gemma2-q4`, onnx: `${MODELS}/gemma2-q4/onnx/model_q4.onnx`, maxLen: 512, qPrefix: 'task: search result | query: ', dPrefix: 'title: none | text: ' }],
+    granite: ['Granite 311M multilingual R2 (q8)', { dir: `${MODELS}/granite-311m`, onnx: `${MODELS}/granite-311m/onnx/model_quint8_avx2.onnx`, maxLen: 512, pooling: 'cls' }],
+    'granite-fp32': ['Granite 311M multilingual R2 (fp32)', { dir: `${MODELS}/granite-311m`, onnx: `${MODELS}/granite-311m/onnx/model.onnx`, maxLen: 512, pooling: 'cls' }],
   };
   const report = { gold: gold.length, goldEvaluated: gold.filter((f) => f.group !== 'unclear').length, multilingual: multi.length, models: {} };
   for (const name of MODELS_ARG.split(',').map((s) => s.trim()).filter(Boolean)) {

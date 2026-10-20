@@ -52,20 +52,33 @@ const GOLD = arg('gold', '/tmp/field-eval-data/gold_fields.json');
 const LABELS = arg('labels', '/tmp/field-eval-data/multilingual_labels.json');
 const LIMIT = Number(arg('limit', '0')) || 0;
 
+const MODEL = arg('model', 'gemma'); // gemma | granite | auto
 const GEMMA = path.join(os.homedir(), '.local/share/mcp-task-knowledge/models/gemma2-q4/onnx/model_q4.onnx');
+const GRANITE = path.join(os.homedir(), '.local/share/mcp-task-knowledge/models/granite-311m/onnx/model_quint8_avx2.onnx');
 const GEMMA_ENV = {
   EMBEDDINGS_MODEL_PATH: GEMMA,
   EMBEDDINGS_DIM: '768',
   EMBEDDINGS_QUERY_PREFIX: 'task: search result | query:',
   EMBEDDINGS_DOC_PREFIX: 'title: none | text:',
 };
+const GRANITE_ENV = {
+  EMBEDDINGS_MODEL_PATH: GRANITE,
+  EMBEDDINGS_DIM: '768',
+  EMBEDDINGS_MAX_LEN: arg('max-len', '512'),
+};
+
+function modelEnv() {
+  if (MODEL === 'granite') return GRANITE_ENV;
+  if (MODEL === 'auto') return { EMBEDDINGS_AUTODETECT: '1' };
+  return GEMMA_ENV;
+}
 
 function embeddingsEnv(mode) {
   if (mode === 'none') return { EMBEDDINGS_MODE: 'none' };
   if (mode === 'auto') return { EMBEDDINGS_MODE: 'onnx-cpu', EMBEDDINGS_AUTODETECT: '1' };
   return {
     EMBEDDINGS_MODE: mode === 'gpu' ? 'onnx-gpu' : 'onnx-cpu',
-    ...GEMMA_ENV,
+    ...modelEnv(),
     EMBEDDINGS_BATCH_SIZE: arg('batch', '16'),
   };
 }
@@ -211,6 +224,7 @@ async function runRetrieval() {
     rows.push({ query: q.query, lang: q.lang, expect: q.expect, rank: finalRank, top1: res[0]?.item?.title ?? null });
   }
   const summary = {
+    model: MODEL,
     mode: EMB_MODE,
     docs: items.length,
     queries: n,
@@ -300,7 +314,7 @@ async function runLabels() {
     }
     perLang[lang] = { n, top1, top1Pct: pct(top1, n), top3Pct: pct(top3, n) };
   }
-  const summary = { mode: adapter ? EMB_MODE : 'none', channel, entries: labels.length, indexRows: items.length, perLang };
+  const summary = { model: MODEL, mode: adapter ? EMB_MODE : 'none', channel, entries: labels.length, indexRows: items.length, perLang };
   console.log(JSON.stringify(summary, null, 2));
   return summary;
 }
@@ -406,6 +420,7 @@ async function runLatency() {
   child.kill('SIGTERM');
 
   const summary = {
+    model: MODEL,
     mode: EMB_MODE,
     docs: (await loadItems()).length,
     initMs,
@@ -479,6 +494,7 @@ async function runIngest() {
   child.kill('SIGTERM');
 
   const summary = {
+    model: MODEL,
     mode: EMB_MODE,
     docsBefore: before,
     docsAfter: after?.total ?? null,
@@ -510,7 +526,7 @@ async function runComponent() {
   const tQ = Date.now();
   await adapter.search(q, items, { limit: 5 });
   const warmQueryMs = Date.now() - tQ;
-  const summary = { mode: EMB_MODE, adapter: true, docs: items.length, initMs, indexMs, warmQueryMs, rssMB: Number((process.memoryUsage().rss / 1048576).toFixed(1)) };
+  const summary = { model: MODEL, mode: EMB_MODE, adapter: true, docs: items.length, initMs, indexMs, warmQueryMs, rssMB: Number((process.memoryUsage().rss / 1048576).toFixed(1)) };
   console.log(JSON.stringify(summary, null, 2));
 }
 

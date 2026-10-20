@@ -226,3 +226,43 @@ store was not mutated.
    is not a trust signal — it is a pointer to which facts need a human look.
 5. **Dataset gap.** `multilingual_labels.json` has empty values for every `pl` entry, so
    Polish is not measured at all.
+
+## Addendum — Granite Embedding 311M Multilingual R2 (evaluated 2026-10-20)
+
+UltraBERT (dmis-lab, 2026-10-14) was checked first and rejected without a benchmark:
+its model card declares **English only** (text and code), so it cannot serve the RU half
+of the base. `ibm-granite/granite-embedding-311m-multilingual-r2` is the relevant
+candidate instead: 200+ languages, Apache 2.0, ONNX weights, 768d, 32K context,
+**CLS pooling**, no instruction prefixes.
+
+Same 146-chunk fixture and 18 queries; Gemma was re-measured on the rebuilt fixture first
+(88.9 / 94.4 / 0.926 — identical to the numbers above), so the comparison is same-day
+and same-data. Granite used the quint8 AVX2 ONNX export (298 MB).
+
+| Metric (146 docs, CPU) | Gemma q4 (256) | Granite q8 (256) | Granite q8 (512) |
+|---|---:|---:|---:|
+| hit@1 | **88.9%** | 83.3% | 83.3% |
+| hit@3 | **94.4%** | 88.9% | 88.9% |
+| MRR | **0.926** | 0.869 | 0.869 |
+| RU hit@1 | **66.7%** | 50.0% | 66.7% |
+| EN / code hit@1 | 100 / **100%** | 100 / 100% | 100 / 83.3% |
+| Indexing 146 docs | 40.2 s | 46.8 s | 108.0 s |
+| First search after warmup | **100 ms** | 135 ms | — |
+| Warm query | 74–102 ms | **36–91 ms** | 49 ms |
+| RSS | 1,582 MB | **1,066 MB** | 1,504 MB |
+
+Verdict: **Granite stays out of the defaults.** At the same 256-token window it is 1.5×
+lighter in RAM and faster per query, but loses 5.6 pp hit@1 and 16.7 pp on RU; restoring
+RU parity requires the 512-token window, which costs 2.5× the indexing time and still
+loses overall. It remains a documented fallback for Apache-2.0-only deployments and for
+RAM-constrained hosts.
+
+To make this measurable at all, the adapter learned **CLS pooling**: the mode is
+auto-detected from the model's `1_Pooling/config.json` (Granite ships
+`pooling_mode_cls_token: true`) and can be forced with `EMBEDDINGS_POOLING=cls|mean|model`.
+Without it every Granite vector would have been mean-pooled — silently wrong.
+
+Reproducibility caveat: the gold-field and multilingual-label fixtures used earlier in
+this report lived under `/tmp` and were lost when it was cleaned. `scripts/field-eval.mjs`
+takes `--gold` / `--labels`, so the judge is fine, but the gate cannot be re-run until the
+sets are rebuilt and committed — tracked as KE-06.

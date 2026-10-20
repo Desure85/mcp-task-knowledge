@@ -1059,6 +1059,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | KE-02 | Индексация вне пути пользователя | high | done | KE-01 | `src/search/warmup.ts`: фоновый per-project warmup с debounce и бюджетом (180 с, `EMBEDDINGS_WARMUP=0` off), `adapter.warmup()`, инкрементальный reindex по событиям storage, `project_set_current` прогревает проект, статус в `embeddings_status`; `ensureVectorAdapter` делит init-promise. Первый поиск после прогрева 100 мс (было 40427), ingest→indexed 453 мс |
 | KE-03 | Качество RU/EN+код без регресса RU | high | done | KE-01 | Авто-детект Gemma вместо LaBSE (gold 58/78 vs 52/78), авто-префиксы Gemma, реальный выходной dim (768, не text_config 512) — иначе авто-конфиг молча падал в BM25-only; лексический floor 0.15→0.05. Docs hit@1 88.9% (RU 66.7% vs 50), MRR 0.926. Отклонено: RRF_K, maxLen 512, чанкинг 1000/100, mean pooling |
 | KE-04 | verify-memory: живость анкоров | medium | done | — | `scripts/verify-memory.mjs` + `npm run memory:verify`: git-индекс (ls-files/suffix-map/line counts), статусы verified/pending-merge/stale/no-anchor в теги, ветки тикета по префиксу, strong/weak анкоры против ложных stale, бюджеты `--limit`/`--budget-ms`. 120 фактов: 27/2/0/91 за 6.7 с |
+| KE-06 | Долговечные фикстуры field-eval в репо | high | pending | KE-01 | gold_fields.json и multilingual_labels.json жили в /tmp и были потеряны при очистке — гейт не воспроизводится. Пересобрать build-скриптами из ALB (`common/messages`, Bitrix24 field defs), положить в `scripts/fixtures/field-eval/`, перебазировать Gemma и Granite на новых сетах, обновить отчёт |
+| KE-07 | Оценка Granite Embedding 311M Multilingual R2 | medium | done | KE-03 | Проверен как замена Gemma (UltraBERT отклонён без бенча — English-only). quint8 ONNX, CLS pooling, тот же docs-сет: hit@1 83.3% против 88.9% у Gemma, RU 50% против 66.7% (при 512 — паритет по RU, но индексация 108 с и общий hit@1 всё равно ниже). RSS ниже (1066 против 1582 MB), запросы быстрее. Вердикт: дефолт не меняем; добавлена поддержка CLS-pooling (авто из 1_Pooling/config.json + EMBEDDINGS_POOLING) |
 | KE-05 | Языковой top-1 вне RU/EN ≥ 80% на полном сете | medium | done | KE-03 | Полный сет 2024 записей: ru 83.6, en 83.6, de 82.2, es 82.7, fr 81.5, pt 81.8, tr 82.0 (top-3 92.9–96.0). Срезы вводят в заблуждение: 200 записей → tr 73%, 120 → все 73–78%. Гейт регрессии гонять на полном сете (~35 мин CPU) или на достаточно крупной страте. Raw: docs/benchmarks/kb-hardening-field-eval-full.json |
 
 ---
@@ -1104,8 +1106,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
-| KB hardening (Q) | 5 | 0 | 0 | 5 | 0 | 0 |
-| **Итого** | **297** | **61** | **0** | **235** | **0** | **1** |
+| KB hardening (Q) | 7 | 1 | 0 | 6 | 0 | 0 |
+| **Итого** | **299** | **62** | **0** | **236** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
