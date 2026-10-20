@@ -1047,11 +1047,27 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап Q — Knowledge-base hardening: доверенный источник (2026-10-20)
+
+> Фиксированные сеты и замеры до/после: `docs/benchmarks/kb-hardening-2026-10-20.md`,
+> harness `scripts/kb-bench.mjs` + `scripts/field-eval.mjs`. Правило: сначала измеряем
+> на том же сете, потом меняем; отклонённые по замерам гипотезы записаны в отчёте.
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| KE-01 | Baseline: фиксированные сеты + latency/RSS/индексация | high | done | — | 146 чанков docs, 18 RU/EN/code запросов, 99 полей (78 evaluated), 2024×8 labels. Baseline: hybrid hit@1 83.3%/MRR 0.884, gold 58/78, первый поиск 40.4 с, индексация 39.2 с, RSS 1580 MB |
+| KE-02 | Индексация вне пути пользователя | high | done | KE-01 | `src/search/warmup.ts`: фоновый per-project warmup с debounce и бюджетом (180 с, `EMBEDDINGS_WARMUP=0` off), `adapter.warmup()`, инкрементальный reindex по событиям storage, `project_set_current` прогревает проект, статус в `embeddings_status`; `ensureVectorAdapter` делит init-promise. Первый поиск после прогрева 100 мс (было 40427), ingest→indexed 453 мс |
+| KE-03 | Качество RU/EN+код без регресса RU | high | done | KE-01 | Авто-детект Gemma вместо LaBSE (gold 58/78 vs 52/78), авто-префиксы Gemma, реальный выходной dim (768, не text_config 512) — иначе авто-конфиг молча падал в BM25-only; лексический floor 0.15→0.05. Docs hit@1 88.9% (RU 66.7% vs 50), MRR 0.926. Отклонено: RRF_K, maxLen 512, чанкинг 1000/100, mean pooling |
+| KE-04 | verify-memory: живость анкоров | medium | done | — | `scripts/verify-memory.mjs` + `npm run memory:verify`: git-индекс (ls-files/suffix-map/line counts), статусы verified/pending-merge/stale/no-anchor в теги, ветки тикета по префиксу, strong/weak анкоры против ложных stale, бюджеты `--limit`/`--budget-ms`. 120 фактов: 27/2/0/91 за 6.7 с |
+| KE-05 | Языковой top-1 вне RU/EN ≥ 80% на полном сете | medium | done | KE-03 | Полный сет 2024 записей: ru 83.6, en 83.6, de 82.2, es 82.7, fr 81.5, pt 81.8, tr 82.0 (top-3 92.9–96.0). Срезы вводят в заблуждение: 200 записей → tr 73%, 120 → все 73–78%. Гейт регрессии гонять на полном сете (~35 мин CPU) или на достаточно крупной страте. Raw: docs/benchmarks/kb-hardening-field-eval-full.json |
+
+---
+
 ## Статистика бэклога
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-09-11 (Этапы M/N/O/P: 18 аудит + 20 DX + 13 Trust + 10 spec-compliance)
+**Последнее обновление:** 2026-10-20 (Этап Q: KB hardening — 5 done)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -1088,7 +1104,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
-| **Итого** | **292** | **61** | **0** | **230** | **0** | **1** |
+| KB hardening (Q) | 5 | 0 | 0 | 5 | 0 | 0 |
+| **Итого** | **297** | **61** | **0** | **235** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O

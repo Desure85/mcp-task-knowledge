@@ -1,0 +1,20 @@
+[
+  { "query": "как устроен жизненный цикл запроса от клиента до ответа", "lang": "ru", "expect": ["docs/architecture.md"] },
+  { "query": "что остаётся локально, а какой сетевой egress включается только явно", "lang": "ru", "expect": ["docs/privacy.md"] },
+  { "query": "поднять сервер в продакшене через docker compose", "lang": "ru", "expect": ["docs/quickstart-production.md"] },
+  { "query": "какие переменные окружения включают векторный поиск и эмбеддинги", "lang": "ru", "expect": ["docs/getting-started/configuration.md"] },
+  { "query": "что происходит когда коннектор падает: ретраи и circuit breaker", "lang": "ru", "expect": ["docs/reliability.md"] },
+  { "query": "как выгрузить проект в Obsidian vault", "lang": "ru", "expect": ["docs/memory-browser.md"] },
+  { "query": "atomic json writes with temp file and rename", "lang": "en", "expect": ["docs/adr/0002-atomic-json-writes.md"] },
+  { "query": "middleware onError contract swallow by returning instead of throwing", "lang": "en", "expect": ["docs/adr/0001-middleware-onerror-contract.md"] },
+  { "query": "process-wide singleton registry for service availability", "lang": "en", "expect": ["docs/adr/0003-service-availability-singleton.md"] },
+  { "query": "LAN relay discovery with UDP multicast instead of mDNS", "lang": "en", "expect": ["docs/adr/0004-relay-udp-multicast-discovery.md"] },
+  { "query": "coverage threshold applies only to src with justified excludes", "lang": "en", "expect": ["docs/adr/0005-coverage-threshold-scope.md"] },
+  { "query": "bidirectional Claude Code plugin converter compatibility", "lang": "en", "expect": ["docs/adr/0006-claude-code-plugin-compat.md"] },
+  { "query": "mcp1_search_knowledge_two_stage", "lang": "code", "expect": ["docs/features/tools.md", "docs/api-reference.md"] },
+  { "query": "threeWayMerge LWW tiebreaker", "lang": "code", "expect": ["docs/audits/AUD-18-data-path-audit.md"] },
+  { "query": "tool:// resource wrapper schema", "lang": "code", "expect": ["docs/features/tools.md"] },
+  { "query": "MCP_TRANSPORT=http shared server many clients", "lang": "code", "expect": ["docs/getting-started/integrations.md"] },
+  { "query": "non-atomic JSON stores lost-update RMW races", "lang": "code", "expect": ["docs/audits/AUD-18-data-path-audit.md"] },
+  { "query": "TR-01 prompt injection via stored content", "lang": "code", "expect": ["docs/audits/TR-01-prompt-injection-audit.md"] }
+]

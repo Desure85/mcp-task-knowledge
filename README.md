@@ -205,6 +205,23 @@ invalidates the vector cache by itself (keys include the model identity).
 on specific ops (known case: cuDNN `ReduceL2` on Pascal cards). The adapter runs a warm-up inference
 and automatically falls back to CPU with a warning instead of leaving search without vectors.
 
+### Background indexing
+
+Knowledge docs are indexed in the background, not inside the first search: startup warms
+the current project, knowledge writes trigger a debounced re-index, and
+`project_set_current` warms the project it switches to. After warmup the first
+`search_knowledge` is a normal query (~100 ms for 146 docs on CPU) instead of a full
+indexing pass (~40 s).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `EMBEDDINGS_WARMUP` | on | `0` disables background indexing |
+| `EMBEDDINGS_WARMUP_BUDGET_MS` | `180000` | max warmup time per project; `0` = unlimited |
+| `EMBEDDINGS_WARMUP_PROJECTS` | `current` | `all` warms every project |
+
+Progress is visible in `embeddings_status.warmup` (`state`, `indexed`, `total`, `reason`).
+When the budget runs out, the remainder is indexed on demand by the next search.
+
 ### Lexical channel
 
 BM25 ignores stops words (built-in EN/RU list plus `DATA_DIR/stopwords.txt` and `BM25_STOPWORDS`),

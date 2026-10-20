@@ -1,0 +1,67 @@
+{
+  "gold": 99,
+  "goldEvaluated": 78,
+  "multilingual": 2024,
+  "models": {
+    "gemma": {
+      "label": "Gemma q4",
+      "gold": {
+        "n": 78,
+        "top1": 58,
+        "top1Pct": 74.4,
+        "top3": 68,
+        "top3Pct": 87.2
+      },
+      "perLang": {
+        "ru": {
+          "n": 2020,
+          "top1": 1689,
+          "top1Pct": 83.6,
+          "top3Pct": 94.8
+        },
+        "en": {
+          "n": 2009,
+          "top1": 1679,
+          "top1Pct": 83.6,
+          "top3Pct": 96
+        },
+        "de": {
+          "n": 2011,
+          "top1": 1654,
+          "top1Pct": 82.2,
+          "top3Pct": 93
+        },
+        "es": {
+          "n": 2018,
+          "top1": 1668,
+          "top1Pct": 82.7,
+          "top3Pct": 94.8
+        },
+        "fr": {
+          "n": 1841,
+          "top1": 1501,
+          "top1Pct": 81.5,
+          "top3Pct": 93.2
+        },
+        "pl": {
+          "n": 0,
+          "top1": 0,
+          "top1Pct": 0,
+          "top3Pct": 0
+        },
+        "pt": {
+          "n": 2018,
+          "top1": 1651,
+          "top1Pct": 81.8,
+          "top3Pct": 93.9
+        },
+        "tr": {
+          "n": 2017,
+          "top1": 1654,
+          "top1Pct": 82,
+          "top3Pct": 92.9
+        }
+      }
+    }
+  }
+}

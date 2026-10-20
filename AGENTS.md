@@ -411,11 +411,21 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-09-12
-**Session ID:** S-20260912-dx22
-**Текущая feature-ветка:** feat/dx-22-cold-start (→ master)
-**Текущий этап:** Этап N — DX/Onboarding. Сделано: DX-22 cold-start stdio lazy-load. TTFB median ~407-420ms (было ~483-540ms, цель <500ms). Конвертированы в lazy: prom-client→`initMetrics()` async (54ms), jose→`JwtValidator`/`createTestToken` (59ms), ws→`realtime.js` (36ms). Уже были lazy: onnxruntime-node/web + @xenova/transformers (vector.ts). Regression guard: `tests/cold-start.test.ts` (median of 3, hard-fail <2000ms).
-**Статус:** DX-22 → review; 233 files / 2750 tests green; tsc clean; stdio boot smoke OK; heavy loads at startup: 0
+**Дата последнего обновления:** 2026-10-20
+**Session ID:** ses_ea99b2472ffeIU0Jd5H493qwWg (LoopX: mcp-kb-hardening)
+**Текущая ветка:** master (→ origin/master)
+**Текущий этап:** Этап Q — Knowledge-base hardening. Baseline и после — на одних сетах (146 чанков docs, 18 RU/EN/code запросов, 99 полей, 2024×8 labels), harness в `scripts/kb-bench.mjs` + `scripts/field-eval.mjs`, отчёт `docs/benchmarks/kb-hardening-2026-10-20.md`.
+**Статус:** KE-01..05 done. Полный сет 2024: языковой top-1 81.5–83.6% (все языки ≥80%, tr 82.0), gold 58/78. 2941 тест green, test:types clean, cold-start 384ms.
+
+### Сессия ses_ea99b2472ffeIU0Jd5H493qwWg (Этап Q — KB hardening, 2026-10-20)
+
+- Индексация выведена из запроса: `src/search/warmup.ts` (фоновый per-project прогрев, debounce, бюджет 180 с, `EMBEDDINGS_WARMUP=0` off) + `adapter.warmup()` + инкрементальный reindex по событиям `storage/knowledge-events.ts` + `project_set_current` прогревает проект. Первый `search_knowledge` после прогрева: 100 мс вместо 40 427 мс; ingest → indexed 453 мс.
+- `ensureVectorAdapter` теперь делит один init-promise: поиск во время фонового прогрева не теряет vector-канал (иначе видел `vectorInitAttempted=true` без адаптера).
+- **Найденные баги дефолтов:** авто-детект выбирал LaBSE `encoder.onnx` вместо Gemma (gold 52/78 vs 58/78, вне RU/EN 47–57% vs 69–78%); Gemma не получала instruction-префиксы; dim не выводился, т.к. `hidden_size` лежит в `text_config` (512), а реальный выход 768 — авто-конфиг молча падал в `EMBEDDINGS_MODE=none`. Всё трое исправлено, `EMBEDDINGS_DIM` стал опциональным (адаптер берёт длину реального вектора).
+- Лексический floor по умолчанию 0.15 → 0.05: floor выбрасывал реальный RU-хит (confidence 0.06), docs hit@1 83.3% → 88.9%, RU 50% → 66.7%.
+- Отклонено по замерам: RRF_K 5..60 (порядок не меняется), maxLen 512 (+0.005 MRR, 2.1× индексация, +1 ГБ RSS), чанкинг 1000/100 (та же точность при +64% чанков), mean-pooling (= sentence_embedding).
+- `scripts/verify-memory.mjs` (`npm run memory:verify`): статусы verified/pending-merge/stale/no-anchor в теги, strong/weak анкоры (имена файлов в прозе и `/tmp/*` не делают факт stale), ветки тикета по префиксу, бюджеты `--limit`/`--budget-ms`. 120 фактов agent-memory против ALB: 27/2/0/91 за 6.7 с.
+- Честный гэп: 40 с прогрева на 146 доках CPU; при базе больше бюджета остаток индексируется по требованию (первый поиск после частичного прогрева может быть медленным). CUDA-библиотек в песочнице нет — проверен только CPU-fallback.
 
 ### Сессия S-20260911-msec (Этап M фаза 1)
 
