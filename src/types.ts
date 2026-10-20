@@ -57,6 +57,8 @@ export interface SearchResult<T> {
   bm25Score?: number;
   /** BM25 score as a share of the query's maximum achievable score (0..1). */
   bm25Confidence?: number;
+  /** Number of verbatim anchors (paths, symbols, ticket ids) found in the text. */
+  exactMatches?: number;
   /** Raw cosine similarity when the item came from the vector channel. */
   vectorScore?: number;
 }

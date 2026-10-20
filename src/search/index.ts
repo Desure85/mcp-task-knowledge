@@ -80,6 +80,41 @@ export function fuseRankings<T>(
   }));
 }
 
+
+/**
+ * Verbatim anchors that tokenized BM25 cannot resolve: a path or `Class::method`
+ * disintegrates into ubiquitous tokens (`common`, `php`, `messages`), so the
+ * anchor stops discriminating. These are matched as substrings instead.
+ */
+const ANCHOR_PATTERNS = [
+  /[\w./-]+\.(?:php|md|json|ya?ml|ts|tsx|js|mjs|sh|sql|xml|twig)(?::\d+(?:-\d+)?)?/g,
+  /\b[A-Z][A-Za-z0-9_]+::[a-zA-Z_][a-zA-Z0-9_]*\b/g,
+  /\b(?:DEV|BT|AUD|FRONT)-\d+\b/g,
+  /!\d{2,}\b/g,
+];
+
+export function extractAnchors(query: string): string[] {
+  const found: string[] = [];
+  for (const pattern of ANCHOR_PATTERNS) {
+    for (const match of query.matchAll(pattern)) found.push(match[0].toLowerCase());
+  }
+  return Array.from(new Set(found));
+}
+
+function exactMatches<T>(
+  items: Array<{ id: string; text: string; item: T }>,
+  anchors: string[]
+): SearchResult<T>[] {
+  if (!anchors.length) return [];
+  const hits: SearchResult<T>[] = [];
+  for (const it of items) {
+    const text = it.text.toLowerCase();
+    const matched = anchors.filter((anchor) => text.includes(anchor)).length;
+    if (matched > 0) hits.push({ id: it.id, score: matched, item: it.item, exactMatches: matched });
+  }
+  return hits.sort((a, b) => b.score - a.score);
+}
+
 export async function hybridSearch<T>(
   query: string,
   items: Array<{ id: string; text: string; item: T }>,
@@ -99,7 +134,17 @@ export async function hybridSearch<T>(
     const vec = await options.vectorAdapter.search(query, items, { limit: poolSize });
     const floor = lexicalConfidenceFloor();
     const lexical = floor > 0 ? bm25.filter((r) => (r.bm25Confidence ?? 1) >= floor) : bm25;
-    return fuseRankings(lexical, vec, limit);
+    const fused = fuseRankings(lexical, vec, poolSize);
+    // A verbatim hit outranks everything: if the query names a file, symbol or ticket,
+    // the document containing that exact string is what the caller asked for.
+    const exact = exactMatches(items, extractAnchors(query));
+    if (!exact.length) return fused.slice(0, limit);
+    const exactIds = new Set(exact.map((hit) => hit.id));
+    const promoted = exact.map((hit) => {
+      const base = fused.find((r) => r.id === hit.id);
+      return { ...(base ?? hit), score: 1, exactMatches: hit.exactMatches };
+    });
+    return [...promoted, ...fused.filter((r) => !exactIds.has(r.id))].slice(0, limit);
   } catch (err) {
     options.onVectorError?.(err);
     return bm25.slice(0, limit);
