@@ -77,4 +77,10 @@ describe('renderMarkdown — XSS hardening (TR-02)', () => {
     expect(html).toContain('&#39;');
     expect(html).not.toContain("it's");
   });
+
+  it('returns empty output for undefined/null instead of crashing (F-01, UI-13)', () => {
+    expect(renderMarkdown(undefined)).toBe('');
+    expect(renderMarkdown(null)).toBe('');
+    expect(renderMarkdown('')).toBe('');
+  });
 });
