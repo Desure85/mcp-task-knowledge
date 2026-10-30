@@ -195,3 +195,49 @@ export function IconAlert(props: IconProps) {
     </Svg>
   );
 }
+
+export function IconEye(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.1 12a11.8 11.8 0 0 1 19.8 0 11.8 11.8 0 0 1-19.8 0Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function IconEyeOff(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M10.7 5.1A10.9 10.9 0 0 1 12 5c4.5 0 8.3 2.7 9.9 6.4a11.6 11.6 0 0 1-3.2 4" />
+      <path d="M6.6 6.6A11.6 11.6 0 0 0 2.1 11.4 11.8 11.8 0 0 0 12 18c1.4 0 2.7-.3 3.9-.8" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  );
+}
+
+export function IconLogout(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+    </Svg>
+  );
+}
+
+export function IconChevronDown(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
+  );
+}
+
+export function IconSpinner(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M21 12a9 9 0 1 1-6.2-8.6" />
+    </Svg>
+  );
+}

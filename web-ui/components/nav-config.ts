@@ -9,6 +9,7 @@ import type { ComponentType } from 'react';
 import {
   IconAnalytics,
   IconGraph,
+  IconLock,
   IconKnowledge,
   IconMemory,
   IconProjects,
@@ -57,6 +58,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/projects', label: 'Projects', description: 'Multi-project isolation, current-project scope', icon: IconProjects },
       { href: '/system', label: 'System', description: 'Live sessions, embeddings status, tools catalog', icon: IconSystem },
+      { href: '/access', label: 'Access', description: 'Your session, agent setup links and tokens', icon: IconLock },
     ],
   },
 ];
@@ -74,6 +76,7 @@ const PAGE_META: Record<string, PageMeta> = {
   '/memory': { title: 'Memory', subtitle: 'Facts, profiles and layers' },
   '/projects': { title: 'Projects', subtitle: 'Isolation and current scope' },
   '/system': { title: 'System', subtitle: 'Sessions, embeddings and tools' },
+  '/access': { title: 'Access', subtitle: 'Session, setup links and tokens' },
 };
 
 export function pageMetaFor(pathname: string): PageMeta {

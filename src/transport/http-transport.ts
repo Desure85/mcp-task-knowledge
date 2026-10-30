@@ -27,6 +27,7 @@ import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/au
 import { buildSetupMarkdown } from '../core/setup-link.js';
 import { getCurrentProject } from '../config.js';
 import { createTlsContext, type TlsContext } from './tls.js';
+import { createLoginHandler, isLoginPath } from './login-route.js';
 
 const log = childLogger('transport:http');
 
@@ -216,8 +217,11 @@ export class HttpTransportAdapter implements TransportAdapter {
 
     // Server info for per-session lifecycle servers.
     const rawServer = ctx.server as unknown as Record<string, unknown>;
-    const implementation = (rawServer?.server as Record<string, unknown> | undefined)
-      ?._implementation as { name: string; version: string } | undefined;
+    // The SDK keeps this in `_serverInfo`; `_implementation` is the legacy name.
+    const inner = rawServer?.server as Record<string, unknown> | undefined;
+    const implementation = (inner?._serverInfo ?? inner?._implementation) as
+      | { name: string; version: string }
+      | undefined;
     this.serverInfo = {
       name: implementation?.name ?? 'mcp-task-knowledge',
       version: implementation?.version ?? '0.0.0',
@@ -234,6 +238,9 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     const apiHandler = createOpenAPIHandler(ctx);
+    // Username/password login for the browser UI. Sessionless by design:
+    // it only issues a JWT, the existing MCP auth gate still guards tools.
+    const loginHandler = createLoginHandler();
 
     // Create health handlers if a HealthChecker is provided
     if (this.healthChecker) {
@@ -280,6 +287,13 @@ export class HttpTransportAdapter implements TransportAdapter {
       // GET /.well-known/mcp-setup/<otp> — public one-time reveal.
       if (req.method === 'GET' && url.startsWith('/.well-known/mcp-setup/')) {
         await this.handleRedeemSetupLink(req, res, url);
+        return;
+      }
+
+      // POST /auth/login — username/password login, no MCP session required.
+      // Routed before the JSON-RPC dispatch so it works with a bare browser.
+      if (isLoginPath(url)) {
+        await loginHandler(req, res);
         return;
       }
 

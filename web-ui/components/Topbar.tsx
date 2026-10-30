@@ -8,8 +8,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { api, hasAuthToken } from '@/lib/api-client';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { api, clearAuthToken, hasAuthToken, hasStoredAuthToken } from '@/lib/api-client';
 import { connectionBadgeClass, connectionBadgeLabel } from '@/lib/realtime';
 import { pageMetaFor } from './nav-config';
 import { useLiveStatus } from './live-status';
@@ -17,11 +18,13 @@ import { IconLock, IconProjects } from './icons';
 
 export function Topbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const meta = pageMetaFor(pathname);
   const live = useLiveStatus();
 
   const [project, setProject] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState(false);
+  const [canSignOut, setCanSignOut] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -41,7 +44,8 @@ export function Topbar() {
 
   useEffect(() => {
     setHasToken(hasAuthToken());
-  }, []);
+    setCanSignOut(hasStoredAuthToken());
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-4 backdrop-blur sm:px-6">
@@ -74,13 +78,26 @@ export function Topbar() {
           </span>
         )}
 
-        <span
-          title={hasToken ? 'API token is set for this session' : 'No API token set'}
-          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-500"
+        <Link
+          href="/access"
+          title={hasToken ? 'Signed in — manage access and tokens' : 'No API token set'}
+          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-500 hover:bg-neutral-50"
         >
           <IconLock className="h-3 w-3" />
           {hasToken ? 'Auth' : 'No auth'}
-        </span>
+        </Link>
+        {canSignOut && (
+          <button
+            type="button"
+            onClick={() => {
+              clearAuthToken();
+              router.replace('/login');
+            }}
+            className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50"
+          >
+            Sign out
+          </button>
+        )}
       </div>
     </header>
   );

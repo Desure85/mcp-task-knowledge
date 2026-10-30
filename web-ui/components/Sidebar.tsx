@@ -9,6 +9,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { BrandMark } from './BrandMark';
 import { NAV_SECTIONS } from './nav-config';
 
 function isActive(pathname: string, href: string) {

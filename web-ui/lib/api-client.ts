@@ -13,6 +13,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { AUTH_EXPIRED_EVENT, isAuthRequiredError } from './auth';
 
 interface McpEnvelope<T> {
   ok: boolean;
@@ -30,15 +31,39 @@ export function resolveMcpApiUrl(): string {
   return raw;
 }
 
+function stripTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+/**
+ * Resolve POST /auth/login. Password login lives on the same origin as the
+ * MCP transport, so the base is the MCP URL minus `/mcp`:
+ *   http://host:3001/mcp  → http://host:3001/auth/login
+ *   /api/mcp (default)    → /api/auth/login (proxied by next.config.ts)
+ * NEXT_PUBLIC_MCP_AUTH_URL overrides the base; a value already ending in
+ * `/auth` is accepted as-is so both env shapes work.
+ */
+export function resolveAuthEndpoint(path: '/login'): string {
+  const explicit = process.env.NEXT_PUBLIC_MCP_AUTH_URL?.trim();
+  if (explicit) {
+    const base = stripTrailingSlashes(explicit);
+    return `${base.endsWith('/auth') ? base : `${base}/auth`}${path}`;
+  }
+  const base = stripTrailingSlashes(resolveMcpApiUrl().replace(/\/mcp\/?$/, ''));
+  return `${base}/auth${path}`;
+}
+
 const TOKEN_STORAGE_KEY = 'mcp.auth.token';
 
 export function resolveToken(): string | undefined {
-  const envToken = process.env.NEXT_PUBLIC_MCP_TOKEN;
-  if (envToken && envToken.trim().length > 0) return envToken;
+  // A token obtained via login/manual entry wins over the build-time env token,
+  // otherwise a stale NEXT_PUBLIC_MCP_TOKEN would silently override every login.
   if (typeof window !== 'undefined') {
     const stored = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
     if (stored && stored.trim().length > 0) return stored;
   }
+  const envToken = process.env.NEXT_PUBLIC_MCP_TOKEN;
+  if (envToken && envToken.trim().length > 0) return envToken;
   return undefined;
 }
 
@@ -61,6 +86,97 @@ export function clearAuthToken(): void {
 
 export function hasAuthToken(): boolean {
   return resolveToken() !== undefined;
+}
+
+/** True only when the token came from login/manual entry, not NEXT_PUBLIC_MCP_TOKEN. */
+export function hasStoredAuthToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  const stored = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  return Boolean(stored && stored.trim().length > 0);
+}
+
+export interface AuthUser {
+  id: string;
+  roles: string[];
+}
+
+export interface LoginResult {
+  token: string;
+  expiresIn: number;
+  user: AuthUser;
+}
+
+export class AuthError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(message: string, code: string, status: number) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+interface LoginSuccessBody {
+  ok: true;
+  token: string;
+  expiresIn?: number;
+  user?: AuthUser;
+}
+
+interface LoginErrorBody {
+  ok: false;
+  error?: { code?: string; message?: string };
+}
+
+const AUTH_ERROR_FALLBACK: Record<string, string> = {
+  INVALID_CREDENTIALS: 'Invalid username or password.',
+  RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
+  LOGIN_DISABLED: 'Login is not configured on this server.',
+};
+
+async function loginRequest(username: string, password: string): Promise<LoginResult> {
+  let response: Response;
+  try {
+    response = await fetch(resolveAuthEndpoint('/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ username, password }),
+      cache: 'no-store',
+      credentials: 'omit',
+    });
+  } catch {
+    throw new AuthError('Cannot reach the server. Check that the MCP server is running.', 'NETWORK', 0);
+  }
+
+  let body: LoginSuccessBody | LoginErrorBody;
+  try {
+    body = (await response.json()) as LoginSuccessBody | LoginErrorBody;
+  } catch {
+    throw new AuthError('The server returned an unexpected response.', 'BAD_RESPONSE', response.status);
+  }
+
+  if (!response.ok || body.ok !== true) {
+    const code = body.ok === false ? body.error?.code : undefined;
+    const serverMessage = body.ok === false ? body.error?.message : undefined;
+    const message =
+      serverMessage?.trim() ||
+      (code ? AUTH_ERROR_FALLBACK[code] : undefined) ||
+      `Sign-in failed (HTTP ${response.status}).`;
+    throw new AuthError(message, code || 'UNKNOWN', response.status);
+  }
+
+  if (typeof body.token !== 'string' || body.token.length === 0) {
+    throw new AuthError('The server returned an unexpected response.', 'BAD_RESPONSE', response.status);
+  }
+
+  setAuthToken(body.token);
+  return {
+    token: body.token,
+    expiresIn: body.expiresIn ?? 0,
+    user: body.user ?? { id: username, roles: [] },
+  };
 }
 
 let clientPromise: Promise<Client> | null = null;
@@ -105,12 +221,28 @@ function parseEnvelope<T>(result: unknown): McpEnvelope<T> {
   }
 }
 
+/**
+ * A rejected token must not leave the UI in a half-working state: drop the
+ * stored token and tell the shell to send the user back to /login.
+ */
+function handleAuthFailure(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  resetClient();
+  if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+
 export async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
-  const client = await getClient();
-  const result = await client.callTool({ name, arguments: args });
-  const env = parseEnvelope<T>(result);
-  if (!env.ok) throw new Error(env.error?.message ?? `Tool ${name} failed`);
-  return env.data as T;
+  try {
+    const client = await getClient();
+    const result = await client.callTool({ name, arguments: args });
+    const env = parseEnvelope<T>(result);
+    if (!env.ok) throw new Error(env.error?.message ?? `Tool ${name} failed`);
+    return env.data as T;
+  } catch (e) {
+    if (isAuthRequiredError(e)) handleAuthFailure();
+    throw e;
+  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -127,6 +259,14 @@ export interface Task {
   links?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SetupLink {
+  url: string;
+  expiresAt: string;
+  otp: string;
+  project: string;
+  role: string;
 }
 
 export interface KnowledgeDoc {
@@ -357,6 +497,21 @@ export interface PromptCatalog {
 // ─── API methods ──────────────────────────────────────────────────
 
 export const api = {
+  // Auth (POST /auth/login on the MCP HTTP server)
+  auth: {
+    /** Exchanges credentials for a JWT and stores it via setAuthToken(). */
+    login: (username: string, password: string) => loginRequest(username, password),
+    /** Drops the JWT for this tab and resets the MCP client. */
+    logout: () => clearAuthToken(),
+  },
+
+  // Admin (requires the admin role on the server)
+  admin: {
+    /** One-time setup link that reveals a scoped agent token (DX-29). */
+    setupLink: (args: { project?: string; role?: string; ttlMs?: number; baseUrl?: string }) =>
+      callTool<SetupLink>('admin_setup_link', args),
+  },
+
   // Tasks
   tasks: {
     list: (project?: string) => callTool<Task[]>('tasks_list', { project }),

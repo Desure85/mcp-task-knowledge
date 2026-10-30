@@ -107,6 +107,73 @@ export function generateOpenAPISpec(ctx: ServerContext): Record<string, any> {
     },
   };
 
+  paths['/auth/login'] = {
+    post: {
+      operationId: 'login',
+      summary: 'Log in with username and password',
+      description: 'Exchanges MCP_LOGIN_USER / MCP_LOGIN_PASSWORD for a signed HS256 JWT. Disabled (503) when the credentials or JWT_SECRET are not configured.',
+      tags: ['Auth'],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['username', 'password'],
+              properties: {
+                username: { type: 'string', description: 'Configured login username' },
+                password: { type: 'string', description: 'Configured login password' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Login succeeded — signed JWT returned',
+          headers: {
+            'Cache-Control': { schema: { type: 'string', example: 'no-store' } },
+          },
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  ok: { type: 'boolean', example: true },
+                  token: { type: 'string', description: 'HS256 JWT (sub=username, roles=["admin"])' },
+                  expiresIn: { type: 'integer', example: 2592000 },
+                  user: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      roles: { type: 'array', items: { type: 'string' } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid credentials payload',
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        '401': {
+          description: 'Invalid username or password',
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        '429': {
+          description: 'Too many failed attempts — retry after the window passes',
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+        '503': {
+          description: 'Login is not configured (MCP_LOGIN_USER/MCP_LOGIN_PASSWORD/JWT_SECRET missing)',
+          content: { 'application/json': { schema: { type: 'object' } } },
+        },
+      },
+    },
+  };
+
   return {
     openapi: '3.0.3',
     info: {
@@ -140,6 +207,7 @@ export function generateOpenAPISpec(ctx: ServerContext): Record<string, any> {
       { name: 'Catalog', description: 'Service catalog query and management' },
       { name: 'Introspection', description: 'Tool discovery and batch execution' },
       { name: 'Meta', description: 'API meta-information and documentation' },
+      { name: 'Auth', description: 'Username/password login and JWT issuance' },
     ],
     paths,
   };
@@ -230,6 +298,10 @@ export function createOpenAPIHandler(ctx: ServerContext) {
   <div class="tool">
     <div class="tool-name">POST /api/tools/{toolName}</div>
     <div class="tool-desc">Execute any MCP tool by name. Body = tool input parameters (JSON).</div>
+  </div>
+  <div class="tool">
+    <div class="tool-name">POST /auth/login</div>
+    <div class="tool-desc">Log in with username and password; returns a signed JWT (disabled unless MCP_LOGIN_USER/MCP_LOGIN_PASSWORD and JWT_SECRET are set).</div>
   </div>
   <h2>Categories</h2>
   <div class="tool"><span class="tag">Tasks</span> tasks_list, tasks_create, tasks_update, tasks_close, tasks_tree, tasks_add_subtask, tasks_get_subtree, tasks_get_children</div>
