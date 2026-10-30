@@ -12,6 +12,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
+import net from 'node:net';
 import crypto from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import WebSocket from 'ws';
@@ -33,7 +34,17 @@ function mintJwt(opts: { sub?: string; roles?: string[]; ttlSec?: number } = {})
   return `${header}.${payload}.${sig}`;
 }
 
-let portCounter = 4700;
+/** OS-assigned free port — fixed counters collide with other e2e files running in parallel. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address() as net.AddressInfo;
+      srv.close(() => resolve(port));
+    });
+  });
+}
 const children: ChildProcess[] = [];
 
 async function waitReady(child: ChildProcess, port: number): Promise<void> {
@@ -58,7 +69,7 @@ async function startServer(name: string, extraEnv: Record<string, string> = {}) 
   const dir = path.join(TMP, name);
   await fsp.rm(dir, { recursive: true, force: true });
   await fsp.mkdir(path.join(dir, 'store'), { recursive: true });
-  const port = ++portCounter;
+  const port = await freePort();
   const child = spawn('node', ['dist/index.js'], {
     env: {
       ...process.env,
@@ -136,7 +147,78 @@ function wsOutcome(port: number, token: string | null): Promise<{ closeCode?: nu
   });
 }
 
+async function postLogin(port: number, body: unknown) {
+  const res = await fetch(`http://127.0.0.1:${port}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
+}
+
+describe('admin login → token → setup link (live)', () => {
+  const LOGIN = { MCP_LOGIN_USER: 'admin', MCP_LOGIN_PASSWORD: 'correct horse battery' };
+
+  it('login is fail-closed (503) when MCP_LOGIN_* is not configured', async () => {
+    const { port } = await startServer('login-off');
+    const r = await postLogin(port, { username: 'admin', password: 'x' });
+    expect(r.status).toBe(503);
+    expect(r.json.token).toBeUndefined();
+  }, 60000);
+
+  it('bad credentials → 401 without a token; good credentials → admin JWT that the MCP gate accepts', async () => {
+    const { port } = await startServer('login-on', LOGIN);
+    const bad = await postLogin(port, { username: 'admin', password: 'nope' });
+    expect(bad.status).toBe(401);
+    expect(bad.json.token).toBeUndefined();
+
+    const good = await postLogin(port, { username: 'admin', password: LOGIN.MCP_LOGIN_PASSWORD });
+    expect(good.status).toBe(200);
+    expect(typeof good.json.token).toBe('string');
+
+    const sid = await openSession(port, good.json.token);
+    const sessions = await call(port, sid, 'session_list');
+    expect(sessions.ok, 'login token carries the admin role').toBe(true);
+  }, 60000);
+
+  it('brute force: repeated failures from one IP end in 429, even with the right password afterwards', async () => {
+    const { port } = await startServer('login-bf', LOGIN);
+    let last = 0;
+    for (let i = 0; i < 12; i++) last = (await postLogin(port, { username: 'admin', password: `bad-${i}` })).status;
+    expect(last).toBe(429);
+    const right = await postLogin(port, { username: 'admin', password: LOGIN.MCP_LOGIN_PASSWORD });
+    expect(right.status).toBe(429);
+  }, 60000);
+
+  it('setup link is single-use and its token is scoped to the requested role, not admin', async () => {
+    const { port } = await startServer('setup-link', LOGIN);
+    const login = await postLogin(port, { username: 'admin', password: LOGIN.MCP_LOGIN_PASSWORD });
+    const sid = await openSession(port, login.json.token);
+    const made = await call(port, sid, 'admin_setup_link', { role: 'agent', baseUrl: `http://127.0.0.1:${port}` });
+    expect(made.ok, JSON.stringify(made.raw)).toBe(true);
+    const url = JSON.parse(made.raw.result.content[0].text).data.url as string;
+    const first = await fetch(url);
+    expect(first.status).toBe(200);
+    const doc = await first.text();
+    expect((await fetch(url)).status).toBe(410);
+    const agentToken = doc.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/)?.[0];
+    expect(agentToken).toBeTruthy();
+    const agentSid = await openSession(port, agentToken!);
+    expect((await call(port, agentSid, 'session_list')).ok, 'agent token must not be admin').toBe(false);
+  }, 60000);
+});
+
 describe('AUD high-severity live probes', () => {
+  it('initialize advertises the real server version, not 0.0.0', async () => {
+    const { port } = await startServer('version');
+    const init = await rpc(port, {
+      jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'probe', version: '0' } },
+    });
+    const pkg = JSON.parse(await fsp.readFile(path.join(ROOT, 'package.json'), 'utf-8')) as { version: string };
+    expect(init.json?.result?.serverInfo?.version).toBe(pkg.version);
+  }, 60000);
+
   it('AUD-06: /ws rejects no/invalid token and accepts a valid one', async () => {
     const { port } = await startServer('ws');
     const none = await wsOutcome(port, null);

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 /** Create a directory (and parents) if missing — idempotent. */
 export async function ensureDir(dir: string) {
@@ -14,12 +15,21 @@ export async function readJson<T>(filePath: string): Promise<T> {
 }
 
 /**
+ * Unique sibling tmp path. `pid + Date.now()` alone collides when two writers
+ * target the same file within one millisecond: the second rename then fails
+ * with ENOENT because the first already moved the shared tmp file.
+ */
+function tmpPathFor(filePath: string): string {
+  return `${filePath}.${process.pid}.${Date.now()}.${randomBytes(4).toString('hex')}.tmp`;
+}
+
+/**
  * Atomically write a JSON file (tmp + rename) so a crash/ENOSPC mid-write
  * never corrupts the existing file (Q-013). Cleans the tmp file on failure.
  */
 export async function writeJson(filePath: string, data: unknown) {
   await ensureDir(path.dirname(filePath));
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tmpPath = tmpPathFor(filePath);
   try {
     await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
     await fs.rename(tmpPath, filePath);
@@ -27,6 +37,29 @@ export async function writeJson(filePath: string, data: unknown) {
     // Clean up the tmp file so a failed write leaves no debris
     await fs.rm(tmpPath, { force: true }).catch(() => {});
     throw err;
+  }
+}
+
+const fileLocks = new Map<string, Promise<void>>();
+
+/**
+ * Serialize async read-modify-write cycles per key (AUD-18c). Without it two
+ * concurrent updates both read the same snapshot and the later write silently
+ * drops the earlier change. In-process only: several server processes sharing
+ * one DATA_DIR are not coordinated.
+ */
+export async function withFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = fileLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const mine = new Promise<void>((resolve) => { release = resolve; });
+  const tail = prev.then(() => mine);
+  fileLocks.set(key, tail);
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (fileLocks.get(key) === tail) fileLocks.delete(key);
   }
 }
 
@@ -51,7 +84,7 @@ export async function readText(filePath: string): Promise<string> {
  */
 export async function writeText(filePath: string, content: string) {
   await ensureDir(path.dirname(filePath));
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tmpPath = tmpPathFor(filePath);
   try {
     await fs.writeFile(tmpPath, content, 'utf-8');
     await fs.rename(tmpPath, filePath);
@@ -64,7 +97,7 @@ export async function writeText(filePath: string, content: string) {
 /** Synchronous variant of the atomic write for stores that persist inline (AUD-18b). */
 export function writeFileAtomicSync(filePath: string, content: string) {
   fsSync.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tmpPath = tmpPathFor(filePath);
   try {
     fsSync.writeFileSync(tmpPath, content, 'utf-8');
     fsSync.renameSync(tmpPath, filePath);
