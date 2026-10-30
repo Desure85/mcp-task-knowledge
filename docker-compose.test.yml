@@ -1,6 +1,6 @@
 services:
   tester:
-    image: node:20-bullseye
+    image: node:24-bullseye
     working_dir: /app
     volumes:
       - ./:/app

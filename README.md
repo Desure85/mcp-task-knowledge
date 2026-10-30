@@ -245,7 +245,7 @@ semantic channel can outrank a weak lexical match.
 | Tasks done (BACKLOG) | 181/182 |
 | OpenCode plugins | 7 |
 | Connectors | 9 |
-| Languages | TypeScript, Node.js 20 |
+| Languages | TypeScript, Node.js 24 |
 
 ## License
 

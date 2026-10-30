@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for mcp-task-knowledge Web UI (UI-007, PH-015)
 
 # ─── Builder ──────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 COPY web-ui/package.json web-ui/package-lock.json* ./
@@ -11,7 +11,7 @@ COPY web-ui/ ./
 RUN npm run build
 
 # ─── Runtime ──────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production

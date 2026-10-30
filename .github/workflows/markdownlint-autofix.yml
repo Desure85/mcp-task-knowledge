@@ -18,15 +18,15 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }} # only same-repo PRs (cannot push to forks)
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npm ci
@@ -50,14 +50,14 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
     steps:
       - name: Checkout PR branch (fork)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npm ci

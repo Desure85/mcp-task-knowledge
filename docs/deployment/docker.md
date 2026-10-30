@@ -120,7 +120,7 @@ docker build -t mcp-task-knowledge .
 docker build --target runtime-onnx-cpu -t mcp-task-knowledge:onnx-cpu .
 docker build --target runtime-onnx-gpu -t mcp-task-knowledge:onnx-gpu .
 # Холодная сборка с нуля требует предсобранных GHCR-баз
-# (mcp-node:20-bullseye и др.); без кеша используйте
+# (mcp-node:24-bullseye и др.); без кеша используйте
 # docker compose --profile prod up (pull готового образа).
 ```
 

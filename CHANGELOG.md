@@ -24,6 +24,8 @@
 
 ### Changed
 
+- Node.js 24: `engines.node >=22.0.0`, `.nvmrc=24`; CI primary Node 24, compat-матрица 22.x/24.x; Docker-образы и compose на `node:24-bullseye|alpine` (`mcp-node:24-*`)
+- GitHub Actions: checkout v7, setup-node v7, upload-artifact v7, docker/login-action 4.6.0, setup-buildx-action 4.3.0, build-push-action 7.3.0, setup-qemu-action 4.3.0 (Node 24 runtime; используемые inputs не изменились)
 - Централизованная обработка ошибок (TD-010): ErrorCategory/ToolError/ErrorHandler
 - Graceful degradation (TD-011): ServiceAvailability + circuit breaker в core
 - Атомарная запись JSON (Q-013): tmp + rename, ENOSPC-safe

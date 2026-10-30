@@ -9,8 +9,8 @@ ARG BASE_MODELS_IMAGE_CAT=mcp-base-onnx-cat:latest
 ARG BASE_DEPS_IMAGE_CAT=mcp-base-bm25-cat:latest
 ARG BASE_GPU_IMAGE_CAT=mcp-base-onnx-gpu-cat:latest
 # Toolchain bases (to avoid docker.io pulls in app builds)
-ARG BASE_NODE_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-node:20-bullseye
-ARG BASE_NODE_ALPINE_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-node:20-alpine
+ARG BASE_NODE_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-node:24-bullseye
+ARG BASE_NODE_ALPINE_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-node:24-alpine
 ARG BASE_PY_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-python:3.11-slim
 ARG BASE_CUDA_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
@@ -168,7 +168,7 @@ USER mcp
 CMD ["node", "dist/index.js"]
 
 # ---------- base with models for onnx-cpu ----------
-FROM node:20-bullseye AS base-onnx-cpu-with-models
+FROM node:24-bullseye AS base-onnx-cpu-with-models
 RUN groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologin mcp \
  && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
@@ -237,13 +237,13 @@ RUN groupadd -r -g 1001 mcp && useradd -r -g mcp -u 1001 -d /app -s /sbin/nologi
  && mkdir -p /data && chown -R mcp:mcp /data
 WORKDIR /app
 
-# Install Node.js 20.x (NodeSource)
+# Install Node.js 24.x (NodeSource)
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl gnupg unzip \
   && mkdir -p /etc/apt/keyrings \
   && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
+  && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends nodejs \
   && apt-get purge -y gnupg \
@@ -345,8 +345,8 @@ USER mcp
 # ---------- proxy stages to bake toolchain bases into GHCR ----------
 # These are used by the base workflow to publish GHCR images that mirror
 # upstream docker.io images, so app builds never contact docker.io directly.
-FROM docker.io/library/node:20-bullseye AS proxy-node20-bullseye
-FROM docker.io/library/node:20-alpine AS proxy-node20-alpine
+FROM docker.io/library/node:24-bullseye AS proxy-node24-bullseye
+FROM docker.io/library/node:24-alpine AS proxy-node24-alpine
 FROM docker.io/library/python:3.11-slim AS proxy-python311-slim
 FROM docker.io/nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS proxy-cuda-12-4-1
 LABEL org.opencontainers.image.description="Proxy of nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 for GHCR; no extra packages installed"

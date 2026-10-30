@@ -4,7 +4,7 @@ Guide for connecting `mcp-task-knowledge` to [Claude Code](https://claude.ai/cla
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22+
 - Server built from source: `npm install && npm run build` (npm package is not published yet)
 
 ## Configuration
