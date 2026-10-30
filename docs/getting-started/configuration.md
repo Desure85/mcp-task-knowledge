@@ -25,6 +25,13 @@
 | `BM25_K1` | `1.2` | BM25 k1 parameter |
 | `BM25_B` | `0.75` | BM25 b parameter |
 
+### Where data lives
+
+Everything — tasks, knowledge, prompts **and agent memory** (`$DATA_DIR/memory/`: temporal graph, profiles,
+layers) — is stored under `DATA_DIR`. Mount that one directory as a volume in Docker and back it up as a unit.
+Older versions kept memory in `~/.local/share/mcp-task-knowledge/`; copy `temporal-graph.json`, `profiles/` and
+`layers.json` into `$DATA_DIR/memory/` to carry it over.
+
 ### Auth & Security
 
 | Variable | Default | Description |

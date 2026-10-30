@@ -36,6 +36,12 @@ setup links: an agent opens the link once and receives the server URL plus a tok
 role and project you chose (default role `agent`, 15 min link lifetime). If agents connect from
 another machine, set `NEXT_PUBLIC_MCP_PUBLIC_URL` (or fill the field on the page) to the address they can reach.
 
+### Realtime (live updates)
+
+`next start` proxies HTTP but **not WebSocket upgrades**, so the browser must reach the MCP server's `/ws`
+directly. Set it at build time, e.g. `NEXT_PUBLIC_MCP_WS_URL=ws://localhost:3001/ws`. Without it the top bar
+shows **Offline** after a few failed attempts and pages fall back to polling.
+
 ## Pages
 
 - `/` — Home (overview + links)

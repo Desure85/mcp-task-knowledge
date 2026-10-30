@@ -54,6 +54,28 @@ export function resolveAuthEndpoint(path: '/login'): string {
 }
 
 const TOKEN_STORAGE_KEY = 'mcp.auth.token';
+const PROJECT_STORAGE_KEY = 'mcp.project';
+
+/** The project the user last picked; survives reloads (the MCP session itself does not). */
+export function getSavedProject(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const v = window.localStorage.getItem(PROJECT_STORAGE_KEY);
+    return v && v.trim() ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveProject(project: string | undefined): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (project) window.localStorage.setItem(PROJECT_STORAGE_KEY, project);
+    else window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+  } catch {
+    /* storage blocked — selection just won't persist */
+  }
+}
 
 export function resolveToken(): string | undefined {
   // A token obtained via login/manual entry wins over the build-time env token,
@@ -197,6 +219,13 @@ async function getClient(): Promise<Client> {
         const res = await client.callTool({ name: 'mcp.authenticate', arguments: { token } });
         const env = parseEnvelope(res);
         if (!env.ok) throw new Error(`mcp.authenticate failed: ${env.error?.message ?? 'unknown'}`);
+      }
+      // "Current project" is per MCP session and every page load opens a new one —
+      // re-apply the user's last choice, or they land on an empty default project.
+      const saved = getSavedProject();
+      if (saved) {
+        const res = await client.callTool({ name: 'project_set_current', arguments: { project: saved } });
+        if (!parseEnvelope(res).ok) saveProject(undefined); // project no longer exists
       }
       return client;
     })();
@@ -564,7 +593,11 @@ export const api = {
   projects: {
     list: () => callTool<{ projects: ProjectInfo[]; current: string }>('project_list', {}),
     getCurrent: () => callTool<{ project: string; scope?: string }>('project_get_current', {}),
-    setCurrent: (project: string) => callTool<{ project: string; scope?: string }>('project_set_current', { project }),
+    setCurrent: async (project: string) => {
+      const res = await callTool<{ project: string; scope?: string }>('project_set_current', { project });
+      saveProject(project);
+      return res;
+    },
     create: (id: string, description?: string) => callTool<unknown>('project_create', { id, description }),
     update: (project: string, description: string) => callTool<unknown>('project_update', { project, description }),
     info: (project: string) => callTool<unknown>('project_info', { project }),

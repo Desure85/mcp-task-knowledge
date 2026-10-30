@@ -55,6 +55,12 @@ function errResult(message: string) {
 }
 const okAll = () => mocks.impl = () => okResult({});
 const dispatched: string[] = [];
+const localStore = new Map<string, string>();
+const localStorageStub = {
+  getItem: (k: string) => localStore.get(k) ?? null,
+  setItem: (k: string, v: string) => void localStore.set(k, v),
+  removeItem: (k: string) => void localStore.delete(k),
+};
 
 // Minimal window/sessionStorage stub for token tests.
 const store = new Map<string, string>();
@@ -68,11 +74,13 @@ beforeEach(() => {
   mocks.reset();
   store.clear();
   dispatched.length = 0;
+  localStore.clear();
   delete process.env.NEXT_PUBLIC_MCP_TOKEN;
   process.env.NEXT_PUBLIC_MCP_API_URL = 'http://localhost:3001/mcp';
   (globalThis as { window?: unknown }).window = {
     location: { origin: 'http://localhost:3000', href: 'http://localhost:3000/' },
     sessionStorage: sessionStorageStub,
+    localStorage: localStorageStub,
     dispatchEvent: (e: { type: string }) => { dispatched.push(e.type); return true; },
   };
   resetClient();
@@ -202,6 +210,27 @@ describe('auth token', () => {
     await api.tasks.list();
     const auth = mocks.calls.find((c) => c.name === 'mcp.authenticate');
     expect((auth?.arguments as { token: string }).token).toBe('login-token');
+  });
+});
+
+describe('project selection survives reloads', () => {
+  it('setCurrent persists, and the next session re-applies it', async () => {
+    okAll();
+    await api.projects.setCurrent('demo');
+    expect(localStore.get('mcp.project')).toBe('demo');
+    resetClient();
+    mocks.calls.length = 0;
+    await api.tasks.list();
+    const set = mocks.calls.find((c) => c.name === 'project_set_current');
+    expect(set?.arguments).toEqual({ project: 'demo' });
+    expect(callNames().indexOf('project_set_current')).toBeLessThan(callNames().indexOf('tasks_list'));
+  });
+
+  it('a saved project that no longer exists is forgotten, not retried forever', async () => {
+    localStore.set('mcp.project', 'gone');
+    mocks.impl = (req) => (req.name === 'project_set_current' ? errResult('not found') : okResult({}));
+    await api.tasks.list();
+    expect(localStore.has('mcp.project')).toBe(false);
   });
 });
 
