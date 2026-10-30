@@ -13,7 +13,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { api, type KnowledgeDoc } from '@/lib/api-client';
+import { api, type KnowledgeDoc, type KnowledgeListItem } from '@/lib/api-client';
+import { normalizeKnowledgeItems } from '@/lib/knowledge';
 import {
   useRealtime,
   applyKnowledgeEvent,
@@ -23,13 +24,20 @@ import {
 import { renderMarkdown } from '@/lib/markdown';
 
 export default function KnowledgePage() {
-  const [docs, setDocs] = useState<KnowledgeDoc[]>([]);
+  const [docs, setDocs] = useState<KnowledgeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<KnowledgeListItem[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchNonce, setSearchNonce] = useState(0);
   const [filterTag, setFilterTag] = useState('');
   const [filterType, setFilterType] = useState('');
   const [selectedDoc, setSelectedDoc] = useState<KnowledgeDoc | null>(null);
+  const [pendingDoc, setPendingDoc] = useState<KnowledgeListItem | null>(null);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -49,7 +57,7 @@ export default function KnowledgePage() {
     try {
       setLoading(true);
       const data = await api.knowledge.list();
-      setDocs(Array.isArray(data) ? data : []);
+      setDocs(normalizeKnowledgeItems(data));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -61,8 +69,42 @@ export default function KnowledgePage() {
     void loadDocs();
   }, [loadDocs]);
 
+  // F-02: search runs on the server (`search_knowledge`), never over the
+  // list payload — list items carry no `content` to lowercase.
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults(null);
+      setSearchLoading(false);
+      setSearchError(null);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError(null);
+    const timer = setTimeout(() => {
+      api.search.knowledge(query, undefined, 100)
+        .then((results) => {
+          if (!cancelled) setSearchResults(normalizeKnowledgeItems(results.map((r) => r.item)));
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setSearchError((e as Error).message);
+            setSearchResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, searchNonce]);
+
   async function saveDoc() {
-    if (!editTitle.trim()) return;
+    if (!editTitle.trim() || docLoading) return;
     try {
       const tags = editTags.split(',').map((t) => t.trim()).filter(Boolean);
       if (selectedDoc) {
@@ -94,7 +136,7 @@ export default function KnowledgePage() {
     }
   }
 
-  async function trashDoc(doc: KnowledgeDoc) {
+  async function trashDoc(doc: KnowledgeListItem) {
     if (!window.confirm(`Move "${doc.title}" to trash?`)) return;
     try {
       const res = await api.knowledge.bulkTrash('mcp', [doc.id]);
@@ -108,17 +150,37 @@ export default function KnowledgePage() {
     }
   }
 
-  function startEdit(doc: KnowledgeDoc) {
-    setSelectedDoc(doc);
+  // F-01: the list item has no `content`. Open the editor immediately with a
+  // loading state, then fetch the full document with `knowledge_get`.
+  async function startEdit(item: KnowledgeListItem) {
+    setPendingDoc(item);
+    setSelectedDoc(null);
     setEditMode(true);
-    setEditTitle(doc.title);
-    setEditContent(doc.content);
-    setEditTags((doc.tags ?? []).join(', '));
-    setEditType(doc.type ?? 'note');
+    setDocLoading(true);
+    setDocError(null);
+    setEditTitle(item.title);
+    setEditContent('');
+    setEditTags((item.tags ?? []).join(', '));
+    setEditType(item.type ?? 'note');
+    try {
+      const full = await api.knowledge.get(item.project ?? 'mcp', item.id);
+      setSelectedDoc(full);
+      setEditTitle(full.title ?? item.title);
+      setEditContent(full.content ?? '');
+      setEditTags((full.tags ?? []).join(', '));
+      setEditType(full.type ?? 'note');
+    } catch (e) {
+      setDocError((e as Error).message);
+    } finally {
+      setDocLoading(false);
+    }
   }
 
   function startCreate() {
     setSelectedDoc(null);
+    setPendingDoc(null);
+    setDocLoading(false);
+    setDocError(null);
     setEditMode(true);
     setShowCreate(true);
     setEditTitle('');
@@ -131,6 +193,9 @@ export default function KnowledgePage() {
     setEditMode(false);
     setShowCreate(false);
     setSelectedDoc(null);
+    setPendingDoc(null);
+    setDocLoading(false);
+    setDocError(null);
     setEditTitle('');
     setEditContent('');
     setEditTags('');
@@ -145,8 +210,9 @@ export default function KnowledgePage() {
     [docs],
   );
 
-  const filtered = docs.filter((d) => {
-    if (searchQuery && !d.title.toLowerCase().includes(searchQuery.toLowerCase()) && !d.content.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  const searchActive = searchQuery.trim().length > 0;
+  const baseDocs = searchActive ? (searchResults ?? []) : docs;
+  const filtered = baseDocs.filter((d) => {
     if (filterTag && !(d.tags ?? []).includes(filterTag)) return false;
     if (filterType && d.type !== filterType) return false;
     return true;
@@ -181,6 +247,13 @@ export default function KnowledgePage() {
         </div>
       )}
 
+      {searchError && (
+        <div className="mb-4 p-3 bg-amber-50 text-amber-800 rounded-lg flex justify-between items-center">
+          <span>Search failed: {searchError}</span>
+          <button onClick={() => setSearchNonce((n) => n + 1)} className="text-amber-700 underline">Retry</button>
+        </div>
+      )}
+
       {!editMode && (
         <div className="mb-4 flex gap-3 flex-wrap">
           <input
@@ -202,9 +275,25 @@ export default function KnowledgePage() {
       )}
 
       {editMode ? (
+        docLoading ? (
+          <div className="p-6 border rounded-lg text-gray-500">Loading document…</div>
+        ) : docError ? (
+          <div className="p-6 border border-red-200 rounded-lg">
+            <p className="text-red-700 mb-3">Could not load this document: {docError}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { if (pendingDoc) void startEdit(pendingDoc); }}
+                className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg"
+              >
+                Retry
+              </button>
+              <button onClick={cancelEdit} className="px-3 py-1 text-sm border rounded-lg">Cancel</button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{selectedDoc ? 'Edit Document' : 'New Document'}</h2>
+            <h2 className="text-lg font-semibold">{pendingDoc || selectedDoc ? 'Edit Document' : 'New Document'}</h2>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowPreview(!showPreview)}
@@ -264,10 +353,25 @@ export default function KnowledgePage() {
             )}
           </div>
         </div>
+        )
       ) : loading ? (
         <p className="text-gray-500">Loading...</p>
+      ) : searchLoading ? (
+        <p className="text-gray-500">Searching…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-gray-500">No documents found.</p>
+        <div className="py-12 text-center">
+          <p className="text-gray-500">
+            {searchActive ? `Nothing found for “${searchQuery.trim()}”.` : 'No documents found.'}
+          </p>
+          {searchActive && (
+            <button
+              onClick={() => { setSearchQuery(''); setFilterTag(''); setFilterType(''); }}
+              className="mt-3 px-3 py-1 text-sm border rounded-lg hover:bg-gray-50"
+            >
+              Clear search
+            </button>
+          )}
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -290,15 +394,19 @@ export default function KnowledgePage() {
                     ))}
                   </div>
                 )}
-                <p className="text-sm text-gray-600 line-clamp-3">{doc.content?.slice(0, 300)}</p>
+                {doc.snippet && (
+                  <p className="text-sm text-gray-600 line-clamp-3">{doc.snippet}</p>
+                )}
                 <p className="text-xs text-gray-400 mt-2">
                   {new Date(doc.updatedAt).toLocaleDateString()}
                 </p>
               </div>
             ))}
           </div>
-          {docs.length > 0 && (
-            <p className="mt-4 text-sm text-gray-500">Showing {filtered.length} of {docs.length} documents</p>
+          {baseDocs.length > 0 && (
+            <p className="mt-4 text-sm text-gray-500">
+              Showing {filtered.length} of {baseDocs.length} {searchActive ? 'search results' : 'documents'}
+            </p>
           )}
         </>
       )}

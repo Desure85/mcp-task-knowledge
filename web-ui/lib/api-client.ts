@@ -298,20 +298,33 @@ export interface SetupLink {
   role: string;
 }
 
-export interface KnowledgeDoc {
+/**
+ * List item from `knowledge_list` — frontmatter only. The server deliberately
+ * omits `content`; fetch the full document with `knowledge.get(id)` before
+ * rendering the editor/preview (UI-13, F-01).
+ */
+export interface KnowledgeListItem {
   id: string;
   title: string;
-  content: string;
   tags?: string[];
   type?: string;
+  source?: string;
+  parentId?: string;
+  project?: string;
   createdAt: string;
   updatedAt: string;
+  /** Relevant excerpt when the item came from `search_knowledge`. */
+  snippet?: string;
 }
 
-export interface SearchResult {
+export interface KnowledgeDoc extends KnowledgeListItem {
+  content: string;
+}
+
+export interface SearchResult<T = unknown> {
   id: string;
   score: number;
-  item: unknown;
+  item: T;
 }
 
 export interface ProjectInfo {
@@ -580,7 +593,7 @@ export const api = {
 
   // Knowledge (single create/update are bulk-only server-side)
   knowledge: {
-    list: (project?: string) => callTool<KnowledgeDoc[]>('knowledge_list', { project }),
+    list: (project?: string) => callTool<KnowledgeListItem[]>('knowledge_list', { project }),
     get: (project: string, id: string) => callTool<KnowledgeDoc>('knowledge_get', { project, id }),
     bulkCreate: (project: string, items: Array<{ title: string; content: string; tags?: string[]; type?: string }>) =>
       callTool<{ created: KnowledgeDoc[] }>('knowledge_bulk_create', { project, items }),
@@ -604,7 +617,7 @@ export const api = {
     tasks: (query: string, project?: string, limit?: number) =>
       callTool<SearchResult[]>('search_tasks', { query, project, limit }),
     knowledge: (query: string, project?: string, limit?: number) =>
-      callTool<SearchResult[]>('search_knowledge', { query, project, limit }),
+      callTool<SearchResult<KnowledgeListItem>[]>('search_knowledge', { query, project, limit }),
   },
 
   // Projects
