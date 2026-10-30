@@ -87,6 +87,36 @@ maybe('api-client vs live MCP server', () => {
     expect(ours!.sessionId).toBeTruthy();
   });
 
+  it('knowledge create → list → get keeps list content-free and returns the full doc', async () => {
+    const { api } = await import('./api-client');
+    const token = `ui13${Date.now()}`;
+    const title = `UI13 live ${token}`;
+    const created = await api.knowledge.bulkCreate('mcp', [
+      { title, content: `# ${title}\n\nUnique body token ${token}.`, tags: ['ui13-live'] },
+    ]);
+    const id = created.created[0]?.id;
+    expect(id).toBeTruthy();
+
+    try {
+      const list = await api.knowledge.list('mcp');
+      const item = list.find((d) => d.id === id);
+      expect(item, 'created doc is listed').toBeTruthy();
+      expect(item).not.toHaveProperty('content');
+
+      const full = await api.knowledge.get('mcp', id!);
+      expect(full.content).toContain(token);
+
+      const hits = await api.search.knowledge(token, 'mcp', 10);
+      expect(hits.some((h) => h.id === id), 'server search finds the document').toBe(true);
+      expect(hits[0]?.item).not.toHaveProperty('content');
+
+      const miss = await api.search.knowledge('zzzqxjw' + token, 'mcp', 10);
+      expect(miss).toEqual([]);
+    } finally {
+      await api.knowledge.bulkTrash('mcp', [id!]);
+    }
+  }, 30_000);
+
   it('task CRUD + project scoping roundtrip', async () => {
     const { api } = await import('./api-client');
     const suffix = `live-${Date.now()}`;

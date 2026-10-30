@@ -51,7 +51,9 @@ function isExternalUrl(url: string): boolean {
   return /^https?:\/\//i.test(url.trim());
 }
 
-export function renderMarkdown(md: string): string {
+export function renderMarkdown(md: string | null | undefined): string {
+  // The preview must never crash on a missing/partial document (F-01, UI-13).
+  if (typeof md !== 'string' || md.length === 0) return '';
   return escapeHtml(md)
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')

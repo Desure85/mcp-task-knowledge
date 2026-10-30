@@ -36,6 +36,7 @@
 
 ### Fixed
 
+- `/knowledge` P0 (UI-13, F-01/F-02): list items are typed without `content` and normalized, a document opens via `knowledge_get` with loading/error states, search uses server `search_knowledge` with an empty state, `renderMarkdown` tolerates `undefined`; route and global error boundaries offer Retry / Overview
 - Flaky-тесты: fake timers в session-manager/rate-limiter/token-manager (TD-013), jwt nbf детерминизм, SQLite таймауты (P1)
 - 61 strict-ошибка в тестах (Q-012): полный type-check через tsconfig.test.json
 - `-0` edge case в JSON-RPC фаззинге (Q-008)
