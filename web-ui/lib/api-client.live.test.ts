@@ -39,14 +39,41 @@ maybe('api-client vs live MCP server', () => {
     }
   });
 
+  /** Page through the whole catalog so the assertion never depends on page size. */
+  async function listAllToolNames(api: typeof import('./api-client').api): Promise<{ names: string[]; total: number }> {
+    const names: string[] = [];
+    const PAGE_SIZE = 40; // deliberately smaller than the catalog to exercise pagination
+    let offset = 0;
+    let total = 0;
+
+    for (let guard = 0; guard < 100; guard++) {
+      const page = await api.system.toolsList(undefined, PAGE_SIZE, offset);
+      const batch = page?.data ?? [];
+      const pagination = page?.pagination as { total?: number; hasMore?: boolean } | undefined;
+      total = pagination?.total ?? page?.total ?? total;
+      names.push(...batch.map((t) => t.name));
+
+      const hasMore = pagination?.hasMore ?? batch.length === PAGE_SIZE;
+      if (!hasMore || batch.length === 0) break;
+      offset += batch.length;
+    }
+
+    return { names, total };
+  }
+
   it('initialize + tools_list works end-to-end', async () => {
     const { api, resetClient } = await import('./api-client');
     resetClient();
-    const tools = await api.system.toolsList(undefined, 100);
-    const names = (tools?.data ?? []).map((t) => t.name);
-    expect(names).toContain('tasks_create');
-    expect(names).toContain('session_list');
-    expect(tools?.pagination?.total).toBeGreaterThan(50);
+    const { names, total } = await listAllToolNames(api);
+
+    // Every page was collected: no fixed page-size assumption.
+    expect(total).toBeGreaterThan(50);
+    expect(names.length).toBe(total);
+    expect(new Set(names).size).toBe(names.length);
+
+    for (const tool of ['tasks_create', 'tasks_claim', 'tasks_renew', 'tasks_release', 'session_list']) {
+      expect(names).toContain(tool);
+    }
   });
 
   it('this browser session appears in session_list', async () => {
