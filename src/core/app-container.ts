@@ -77,7 +77,7 @@ import { AuthProtection } from './auth-protection.js';
 import { AuditLogger } from '../audit/logger.js';
 import { SetupLinkStore } from './setup-link.js';
 import { SecurityStack, isSecurityStackEnabled } from './security-stack.js';
-import { resolveEgressMode } from './egress-scanner.js';
+import { isEgressDisabled, resolveEgressMode } from './egress-scanner.js';
 import { getClusterManager, type ClusterManager } from './cluster.js';
 import { HealthChecker } from '../health/index.js';
 import { ServiceAvailabilityRegistry, getServiceAvailabilityRegistry } from './graceful-degradation.js';
@@ -564,13 +564,13 @@ export class AppContainer {
           acl,
           auditLogger,
           authProtection: this.authProtection ?? new AuthProtection(),
-          // Content-mutating stages are opt-in: a knowledge base stores arbitrary markdown and
+          // Content-MUTATING stages are opt-in (egress 'annotate' never mutates, so it is on): a knowledge base stores arbitrary markdown and
           // code, and the sanitizer rewrote frontmatter while the egress 'warn' annotation
           // prefixed tool output so it no longer parsed as JSON. Rate-limit, audit and
           // auth-lockout (non-mutating) are on by default.
           sanitizer: sanitizerMode ? { mode: sanitizerMode } : undefined,
           authManager: this.authManager,
-          egress: process.env.SECURITY_EGRESS_MODE ? resolveEgressMode() : undefined,
+          egress: isEgressDisabled() ? undefined : resolveEgressMode(),
         });
         this.addCleanup(() => auditLogger.close());
         this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (disable with SECURITY_STACK=0)');
