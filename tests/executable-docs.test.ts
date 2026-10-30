@@ -28,16 +28,31 @@ async function runScript(extraArgs: string[] = []): Promise<{ code: number; stdo
   }
 }
 
+/** Diagnostics for truncated/missing output — CI-only failures were blind without this. */
+function diag(r: { code: number; stdout: string; stderr: string }): string {
+  return [
+    `code=${r.code}`,
+    `stdout.length=${r.stdout.length}`,
+    `--- stdout tail (300) ---`,
+    r.stdout.slice(-300),
+    `--- stderr ---`,
+    r.stderr,
+  ].join('\n');
+}
+
 describe('executable-docs (DX-24)', () => {
   it('exits 0 on the real repo docs', async () => {
     const r = await runScript();
-    expect(r.code).toBe(0);
-    expect(r.stdout).toMatch(/\d+ passed, 0 failed, \d+ skipped/);
+    expect(r.code, diag(r)).toBe(0);
+    expect(r.stdout, diag(r)).toMatch(/\d+ passed, 0 failed, \d+ skipped/);
+    // The summary must be the LAST line: a truncated pipe loses exactly this tail.
+    const lastLine = r.stdout.trimEnd().split('\n').pop() ?? '';
+    expect(lastLine, diag(r)).toMatch(/^\d+ passed, 0 failed, \d+ skipped$/);
   }, 90_000);
 
   it('validates JSON blocks from README and integrations', async () => {
     const r = await runScript();
-    expect(r.code).toBe(0);
+    expect(r.code, diag(r)).toBe(0);
     // README has a ```json mcpServers block
     expect(r.stdout).toMatch(/PASS README\.md:\d+ \[json\]/);
     // integrations.md has several ```json blocks
@@ -46,7 +61,7 @@ describe('executable-docs (DX-24)', () => {
 
   it('honours skip markers and no-run-marker default for bash', async () => {
     const r = await runScript();
-    expect(r.code).toBe(0);
+    expect(r.code, diag(r)).toBe(0);
     // docker/npm-install blocks are skipped (no run marker)
     expect(r.stdout).toMatch(/SKIP README\.md:\d+ \[bash\] \(no-run-marker\)/);
     // pseudo-code TS blocks carry doc-test: skip
@@ -58,8 +73,8 @@ describe('executable-docs (DX-24)', () => {
     try {
       await fs.writeFile(path.join(tmp, 'README.md'), '# x\n\n```json\n{ broken\n```\n');
       const r = await runScript(['--root', tmp]);
-      expect(r.code).toBe(1);
-      expect(r.stdout).toMatch(/FAIL README\.md:\d+ \[json\]/);
+      expect(r.code, diag(r)).toBe(1);
+      expect(r.stdout, diag(r)).toMatch(/FAIL README\.md:\d+ \[json\]/);
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }
@@ -74,8 +89,8 @@ describe('executable-docs (DX-24)', () => {
         '# x\n\n<!-- doc-test: run -->\n```bash\necho hi > marker.txt\n```\n'
       );
       const r = await runScript(['--root', tmp]);
-      expect(r.code).toBe(0);
-      expect(r.stdout).toMatch(/PASS README\.md:\d+ \[bash\]/);
+      expect(r.code, diag(r)).toBe(0);
+      expect(r.stdout, diag(r)).toMatch(/PASS README\.md:\d+ \[bash\]/);
       // marker.txt must NOT leak into the scanned root
       await expect(fs.access(path.join(tmp, 'marker.txt'))).rejects.toThrow();
     } finally {
