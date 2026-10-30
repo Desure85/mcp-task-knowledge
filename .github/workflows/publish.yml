@@ -60,6 +60,8 @@ jobs:
           fi
 
       - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: npm ci --registry=https://registry.npmjs.org/
 
       - name: Build (publish config)

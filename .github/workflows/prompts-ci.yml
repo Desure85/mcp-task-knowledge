@@ -33,7 +33,17 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: npm ci
+
+      - name: Verify ONNX CUDA providers were skipped
+        run: |
+          if find node_modules/onnxruntime-node/bin -name 'libonnxruntime_providers_cuda.so' -print -quit | grep -q .; then
+            echo "CUDA provider binaries found — ONNXRUNTIME_NODE_INSTALL=skip did not take effect" >&2
+            exit 1
+          fi
+          echo "ONNX CUDA providers absent (ONNXRUNTIME_NODE_INSTALL=skip) — OK"
 
       - name: Build
         run: npm run build

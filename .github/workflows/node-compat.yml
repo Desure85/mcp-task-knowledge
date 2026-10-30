@@ -23,6 +23,15 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - run: npm ci --no-audit --no-fund
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
+      - name: Verify ONNX CUDA providers were skipped
+        run: |
+          if find node_modules/onnxruntime-node/bin -name 'libonnxruntime_providers_cuda.so' -print -quit | grep -q .; then
+            echo "CUDA provider binaries found — ONNXRUNTIME_NODE_INSTALL=skip did not take effect" >&2
+            exit 1
+          fi
+          echo "ONNX CUDA providers absent (ONNXRUNTIME_NODE_INSTALL=skip) — OK"
       - name: TypeScript build
         run: npm run build
       - name: Representative tests (auth gate + request scope + projects e2e)

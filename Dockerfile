@@ -18,6 +18,11 @@ ARG BASE_CUDA_IMAGE=ghcr.io/OWNER_PLACEHOLDER/mcp-cuda:12.4.1-cudnn-runtime-ubun
 FROM ${BASE_NODE_IMAGE} AS deps
 WORKDIR /app
 COPY .npmrc package.json package-lock.json ./
+# DX-32: CPU images do not need the CUDA provider binaries from nuget.org.
+# `npm ci` below currently runs with --ignore-scripts, but keep the guard so a
+# future install change cannot silently reintroduce the nuget.org download.
+ARG ONNXRUNTIME_INSTALL=skip
+ENV ONNXRUNTIME_NODE_INSTALL=${ONNXRUNTIME_INSTALL}
 # Use configurable npm registry (default: npmjs). Can be overridden via --build-arg NPM_REGISTRY...
 ARG NPM_REGISTRY=https://registry.npmjs.org/
 # Export both to environment so shell and npm see consistent value
@@ -252,6 +257,8 @@ RUN apt-get update \
 ENV NODE_ENV=production
 ENV EMBEDDINGS_MODE=onnx-gpu
 ENV ONNXRUNTIME_NODE_EXECUTION_PROVIDERS=cuda,cpu
+# GPU images must install the CUDA providers (the CPU deps stage skips them).
+ENV ONNXRUNTIME_NODE_INSTALL=cuda12
 
 # App files
 COPY --chown=mcp:mcp package.json ./

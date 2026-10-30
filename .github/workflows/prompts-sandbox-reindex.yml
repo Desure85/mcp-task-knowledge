@@ -22,6 +22,8 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: npm ci
 
       - name: Build

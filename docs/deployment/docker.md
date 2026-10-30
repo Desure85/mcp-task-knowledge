@@ -124,6 +124,8 @@ docker build --target runtime-onnx-gpu -t mcp-task-knowledge:onnx-gpu .
 # docker compose --profile prod up (pull готового образа).
 ```
 
+> CPU-сборки ставят зависимости без CUDA-провайдеров onnxruntime-node (`ONNXRUNTIME_NODE_INSTALL=skip`); GPU-образы (`runtime-onnx-gpu*`) используют `cuda12` и сохраняют CUDA-библиотеки.
+
 ### With embedded service-catalog
 
 ```bash
