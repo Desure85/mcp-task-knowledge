@@ -24,6 +24,7 @@
 
 ### Changed
 
+- Security: WebSocket auth no longer puts the JWT in the URL. `POST /auth/ws-ticket` exchanges a Bearer JWT for a single-use 30 s ticket; `/ws` accepts only `?ticket=` (legacy `?token=` rejected), tickets are bound to `sub`/`jti` and die on JWT revocation; the web UI fetches a fresh ticket per connect/reconnect
 - Node.js 24: `engines.node >=22.0.0`, `.nvmrc=24`; CI primary Node 24, compat-матрица 22.x/24.x; Docker-образы и compose на `node:24-bullseye|alpine` (`mcp-node:24-*`)
 - GitHub Actions: checkout v7, setup-node v7, upload-artifact v7, docker/login-action 4.6.0, setup-buildx-action 4.3.0, build-push-action 7.3.0, setup-qemu-action 4.3.0 (Node 24 runtime; используемые inputs не изменились)
 - Централизованная обработка ошибок (TD-010): ErrorCategory/ToolError/ErrorHandler
