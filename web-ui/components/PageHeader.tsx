@@ -15,10 +15,10 @@ export function PageHeader({ title, description, actions, className }: PageHeade
   return (
     <div className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between ${className ?? ''}`}>
       <div className="min-w-0">
-        <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-neutral-900">
+        <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">
           {title}
         </h2>
-        {description && <p className="mt-1 text-[13px] text-neutral-500">{description}</p>}
+        {description && <p className="mt-1 text-[13px] text-muted">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>

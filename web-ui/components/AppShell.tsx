@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <>
       <Sidebar />
-      <div className="lg:pl-[248px]">
+      <div className="lg:pl-[var(--spacing-nav)]">
         <Topbar />
         <MobileNav />
         <main className="px-4 py-6 sm:px-6 lg:px-8">
@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {gate === 'ready' ? (
               children
             ) : (
-              <p role="status" className="py-24 text-center text-[13px] text-neutral-500">
+              <p role="status" className="py-24 text-center text-[13px] text-muted">
                 Checking session…
               </p>
             )}

@@ -1,29 +1,271 @@
 /**
- * web-ui/app/globals.css — Design tokens + base layer (UI-007)
+ * web-ui/app/globals.css — Design system foundation (UI-10).
  *
- * Tailwind v4 owns the palette; the tokens below are the project's single
- * source of truth for surface, line, accent and radius so no component has
- * to invent a raw hex value. Neutral greys come from Tailwind's palette.
+ * Single source of truth for the admin design system:
+ *   - geometry/typography/density from direction A (Registry), shared by all
+ *     palettes;
+ *   - colour is split into two independent axes: `data-mode`
+ *     (light | dark) and `data-theme` (indigo | petrol | copper);
+ *   - every colour a component may use is a semantic token here — no
+ *     bg-blue-600 / text-gray-500 / raw hex in new components.
+ *
+ * The six `[data-theme][data-mode]` blocks are parsed by
+ * `lib/theme.contrast.test.ts`; keep every colour as a 6-digit hex so the
+ * WCAG check can read it. Existing token names (`accent`, `canvas`, `surface`,
+ * `line`, `accent-hover`, `accent-soft`, `accent-ring`) are preserved so pages
+ * written before UI-10 keep working.
  */
 
 @import "tailwindcss";
 
+/* ── Base geometry, type and density (direction A, shared) ────────── */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Single accent — indigo-600 and its supporting shades. */
-  --color-accent: oklch(0.511 0.262 276.966);
-  --color-accent-hover: oklch(0.457 0.24 277.023);
-  --color-accent-soft: oklch(0.962 0.018 272.314);
-  --color-accent-ring: oklch(0.785 0.115 274.713);
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-24: 24px;
 
-  /* Surfaces. */
-  --color-canvas: oklch(0.985 0 0);
-  --color-surface: #ffffff;
-  --color-line: oklch(0.922 0 0);
+  --radius-control: 3px;
+  --radius-card: 4px;
 
-  --radius-card: 0.75rem;
+  --spacing-row: 32px;
+  --spacing-topbar: 48px;
+  --spacing-nav: 236px;
+}
+
+/* ── Indigo (Workbench) — default palette ─────────────────────────── */
+:root,
+[data-theme="indigo"][data-mode="light"] {
+  color-scheme: light;
+  --canvas: #fbfbfc;
+  --surface: #ffffff;
+  --surface-2: #f2f3f6;
+  --line: #e4e6eb;
+  --line-strong: #878d9b;
+  --ink: #14171c;
+  --muted: #5a6270;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef0fe;
+  --on-accent: #ffffff;
+  --st-todo: #5a6270;
+  --st-doing: #4f46e5;
+  --st-review: #7c3aed;
+  --st-blocked: #b42318;
+  --st-done: #0e7a5f;
+  --st-archive: #6b7280;
+  --ty-bug: #b42318;
+  --ty-feature: #7c3aed;
+  --ty-task: #4b5563;
+  --pr-high: #b42318;
+  --pr-med: #b45309;
+  --pr-low: #6b7280;
+  --danger: #b42318;
+  --success: #0e7a5f;
+  --warning: #b45309;
+  --focus: #4f46e5;
+  --shadow-pop: 0 8px 24px rgb(20 23 28 / 0.14);
+}
+
+[data-theme="indigo"][data-mode="dark"] {
+  color-scheme: dark;
+  --canvas: #101216;
+  --surface: #171a20;
+  --surface-2: #1e222a;
+  --line: #262b34;
+  --line-strong: #5c6474;
+  --ink: #e9ebf0;
+  --muted: #98a0b0;
+  --accent: #8b87ff;
+  --accent-hover: #a5a2ff;
+  --accent-soft: #1e2033;
+  --on-accent: #0e0f1a;
+  --st-todo: #98a0b0;
+  --st-doing: #8b87ff;
+  --st-review: #c4a7ff;
+  --st-blocked: #f08a80;
+  --st-done: #4fd1a5;
+  --st-archive: #8b93a0;
+  --ty-bug: #f08a80;
+  --ty-feature: #c4a7ff;
+  --ty-task: #a7aeb9;
+  --pr-high: #f08a80;
+  --pr-med: #e0a45a;
+  --pr-low: #8b93a0;
+  --danger: #f08a80;
+  --success: #4fd1a5;
+  --warning: #e0a45a;
+  --focus: #8b87ff;
+  --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
+}
+
+/* ── Petrol (Registry) ─────────────────────────────────────────────── */
+[data-theme="petrol"][data-mode="light"] {
+  color-scheme: light;
+  --canvas: #f5f5f2;
+  --surface: #ffffff;
+  --surface-2: #efefea;
+  --line: #d5d7d1;
+  --line-strong: #898d86;
+  --ink: #15171a;
+  --muted: #5b616b;
+  --accent: #0e6b66;
+  --accent-hover: #0a504c;
+  --accent-soft: #e3f1ef;
+  --on-accent: #ffffff;
+  --st-todo: #5b616b;
+  --st-doing: #b45309;
+  --st-review: #6d28d9;
+  --st-blocked: #a3211b;
+  --st-done: #157347;
+  --st-archive: #6b7280;
+  --ty-bug: #a3211b;
+  --ty-feature: #6d28d9;
+  --ty-task: #3f4753;
+  --pr-high: #a3211b;
+  --pr-med: #b45309;
+  --pr-low: #6b7280;
+  --danger: #a3211b;
+  --success: #157347;
+  --warning: #b45309;
+  --focus: #0e6b66;
+  --shadow-pop: 0 8px 24px rgb(16 18 22 / 0.14);
+}
+
+[data-theme="petrol"][data-mode="dark"] {
+  color-scheme: dark;
+  --canvas: #121417;
+  --surface: #191c21;
+  --surface-2: #20242a;
+  --line: #2b3037;
+  --line-strong: #5f656d;
+  --ink: #e9ebee;
+  --muted: #a3a9b3;
+  --accent: #5ed3c6;
+  --accent-hover: #7ee0d5;
+  --accent-soft: #12312f;
+  --on-accent: #0c1211;
+  --st-todo: #98a1ac;
+  --st-doing: #e0a45a;
+  --st-review: #b49bf5;
+  --st-blocked: #f08a80;
+  --st-done: #6dcf9a;
+  --st-archive: #8b93a0;
+  --ty-bug: #f08a80;
+  --ty-feature: #b49bf5;
+  --ty-task: #a7aeb9;
+  --pr-high: #f08a80;
+  --pr-med: #e0a45a;
+  --pr-low: #8b93a0;
+  --danger: #f08a80;
+  --success: #6dcf9a;
+  --warning: #e0a45a;
+  --focus: #5ed3c6;
+  --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
+}
+
+/* ── Copper (Night Desk) ───────────────────────────────────────────── */
+[data-theme="copper"][data-mode="light"] {
+  color-scheme: light;
+  --canvas: #f3f4f7;
+  --surface: #ffffff;
+  --surface-2: #eaeef1;
+  --line: #dde0e7;
+  --line-strong: #878b98;
+  --ink: #12151c;
+  --muted: #59606e;
+  --accent: #a9551b;
+  --accent-hover: #8f4716;
+  --accent-soft: #f7e8dc;
+  --on-accent: #ffffff;
+  --st-todo: #59606e;
+  --st-doing: #a9551b;
+  --st-review: #6d28d9;
+  --st-blocked: #b42318;
+  --st-done: #0e7a5f;
+  --st-archive: #6b7280;
+  --ty-bug: #b42318;
+  --ty-feature: #6d28d9;
+  --ty-task: #4b5563;
+  --pr-high: #b42318;
+  --pr-med: #a9551b;
+  --pr-low: #6b7280;
+  --danger: #b42318;
+  --success: #0e7a5f;
+  --warning: #a9551b;
+  --focus: #a9551b;
+  --shadow-pop: 0 12px 32px rgb(18 21 28 / 0.16);
+}
+
+[data-theme="copper"][data-mode="dark"] {
+  color-scheme: dark;
+  --canvas: #0f1115;
+  --surface: #161922;
+  --surface-2: #1c2029;
+  --line: #2a3040;
+  --line-strong: #5b6474;
+  --ink: #e8ebf2;
+  --muted: #9aa3b4;
+  --accent: #e7a46b;
+  --accent-hover: #f0b57f;
+  --accent-soft: #33241a;
+  --on-accent: #201406;
+  --st-todo: #8c94a6;
+  --st-doing: #e7a46b;
+  --st-review: #a78bfa;
+  --st-blocked: #f07a7a;
+  --st-done: #57c79b;
+  --st-archive: #8c94a6;
+  --ty-bug: #f07a7a;
+  --ty-feature: #a78bfa;
+  --ty-task: #8c94a6;
+  --pr-high: #f07a7a;
+  --pr-med: #e7a46b;
+  --pr-low: #8c94a6;
+  --danger: #f07a7a;
+  --success: #57c79b;
+  --warning: #e7a46b;
+  --focus: #e7a46b;
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.55);
+}
+
+/* Tailwind v4 utilities bound to the runtime tokens. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ring: var(--focus);
+  --color-on-accent: var(--on-accent);
+  --color-focus-ring: var(--focus);
+  --color-st-todo: var(--st-todo);
+  --color-st-doing: var(--st-doing);
+  --color-st-review: var(--st-review);
+  --color-st-blocked: var(--st-blocked);
+  --color-st-done: var(--st-done);
+  --color-st-archive: var(--st-archive);
+  --color-ty-bug: var(--ty-bug);
+  --color-ty-feature: var(--ty-feature);
+  --color-ty-task: var(--ty-task);
+  --color-pr-high: var(--pr-high);
+  --color-pr-med: var(--pr-med);
+  --color-pr-low: var(--pr-low);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --shadow-pop: var(--shadow-pop);
 }
 
 @layer base {
@@ -39,9 +281,9 @@
 
   body {
     background-color: var(--color-canvas);
-    color: oklch(0.205 0 0);
+    color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -58,12 +300,16 @@
 
   ::selection {
     background-color: var(--color-accent-soft);
-    color: var(--color-accent-hover);
+    color: var(--color-accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
   }
 }
 
 @layer utilities {
-  /* Horizontal nav strip on small screens: scroll, never show a scrollbar. */
   .no-scrollbar {
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -71,5 +317,10 @@
 
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Numbers align in tables and metric tiles. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
 }
