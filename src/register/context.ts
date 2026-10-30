@@ -131,6 +131,8 @@ export interface ServerContext {
   tokenManager?: TokenManager;
   /** Revoke a JWT by id until its exp (set when a JwtValidator backs auth). Used by POST /auth/logout. */
   revokeJwt?: (jti: string, exp?: number) => void;
+  /** Whether a JWT id is revoked (set when a JwtValidator backs auth). Used to reject WS tickets after logout. */
+  isJwtRevoked?: (jti: string) => boolean;
 
   /** One-time setup-link store (DX-29). Set by AppContainer after auth init. */
   setupLinkStore?: SetupLinkStore;

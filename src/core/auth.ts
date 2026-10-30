@@ -304,8 +304,8 @@ export class AuthManager {
   /**
    * Validate a token without marking any session (AUD-15).
    *
-   * Used by paths that only need an allow/deny verdict — e.g. the realtime
-   * WebSocket tokenValidator. authenticate() would leave a phantom
+   * Used by paths that only need an allow/deny verdict — e.g. issuing a
+   * one-time WebSocket ticket (POST /auth/ws-ticket). authenticate() would leave a phantom
    * 'ws:<token>' entry in authenticatedSessions that no close path revokes.
    * Does NOT touch authProtection: callers without a stable client identity
    * must not consume/record failure budget on a shared key.

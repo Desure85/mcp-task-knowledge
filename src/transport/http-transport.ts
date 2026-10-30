@@ -26,6 +26,8 @@ import type { HealthChecker } from '../health/index.js';
 import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
 import { buildSetupMarkdown } from '../core/setup-link.js';
 import { getCurrentProject } from '../config.js';
+import { WsTicketStore } from '../core/ws-ticket.js';
+import { createWsTicketHandler, isWsTicketPath } from './ws-ticket-route.js';
 import { createTlsContext, type TlsContext } from './tls.js';
 import { createLoginHandler, createLogoutHandler, isLoginPath, isLogoutPath } from './login-route.js';
 
@@ -149,6 +151,7 @@ export class HttpTransportAdapter implements TransportAdapter {
   private _connected = false;
   private healthHandlers?: ReturnType<typeof createHealthHandlers>;
   private serverCtx?: ServerContext;
+  private wsTickets?: WsTicketStore;
   private tlsContext?: TlsContext;
   /** Live SDK transports keyed by mcp-session-id (one transport per session). */
   private sessions = new Map<string, SdkHttpTransport>();
@@ -205,6 +208,14 @@ export class HttpTransportAdapter implements TransportAdapter {
     }
 
     this.serverCtx = ctx;
+    // UI-22: single-use tickets for WS auth (JWT stays in the Authorization header).
+    this.wsTickets = new WsTicketStore({
+      isRevoked: (jti) => this.serverCtx?.isJwtRevoked?.(jti) ?? false,
+    });
+    const wsTicketHandler = createWsTicketHandler({
+      getAuth: () => this.serverCtx?.authManager,
+      store: this.wsTickets,
+    });
     // AUD-17: TLS is opt-in via TLS_CERT_PATH/TLS_KEY_PATH (see tls.ts).
     // When enabled the adapter serves HTTPS; otherwise plain HTTP.
     this.tlsContext = createTlsContext();
@@ -301,6 +312,11 @@ export class HttpTransportAdapter implements TransportAdapter {
         await logoutHandler(req, res);
         return;
       }
+      // UI-22: POST /auth/ws-ticket — Bearer JWT → one-time WS ticket.
+      if (isWsTicketPath(url)) {
+        await wsTicketHandler(req, res);
+        return;
+      }
 
       // MCP protocol requests — routed by mcp-session-id to that session's
       // transport; a sessionless initialize creates a new one (PH-002b).
@@ -383,19 +399,12 @@ export class HttpTransportAdapter implements TransportAdapter {
 
     if (process.env.MCP_REALTIME !== '0') {
       const auth = this.serverCtx?.authManager;
-      const tokenValidator = auth?.isAuthRequired()
-        ? async (token: string | null): Promise<boolean> => {
-            if (!token) return false;
-            // AUD-15: validateToken, not authenticate — the WS path only needs
-            // an allow/deny verdict. authenticate() would mark a phantom
-            // 'ws:<token>' session in authenticatedSessions that no close
-            // path ever revokes (unbounded growth).
-            return (await auth.validateToken(token)) !== null;
-          }
-        : undefined;
+      // UI-22: when auth is required the upgrade accepts only a one-time ticket
+      // (issued by POST /auth/ws-ticket); JWT-in-query is no longer accepted.
+      const ticketStore = auth?.isAuthRequired() ? this.wsTickets : undefined;
       // DX-22: ws (~36ms) only needed when realtime is enabled on http transport.
       const { getRealtimeServer } = await import('./realtime.js');
-      getRealtimeServer().attach(this.httpServer, '/ws', { tokenValidator });
+      getRealtimeServer().attach(this.httpServer, '/ws', { ticketStore });
       log.info('Realtime WS: /ws');
     }
 
@@ -704,6 +713,8 @@ export class HttpTransportAdapter implements TransportAdapter {
     } finally {
       this._connected = false;
       this.httpServer = undefined;
+      this.wsTickets?.clear();
+      this.wsTickets = undefined;
       this.serverCtx = undefined;
       this.tlsContext?.dispose();
       this.tlsContext = undefined;

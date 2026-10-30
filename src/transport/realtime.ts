@@ -10,6 +10,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import type { WsTicketStore } from '../core/ws-ticket.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('transport:realtime');
 
 export interface RealtimeEvent {
   type: 'task.created' | 'task.updated' | 'task.closed' | 'task.deleted'
@@ -41,12 +45,12 @@ export interface ClientInfo {
 
 export interface RealtimeAttachOptions {
   /**
-   * AUD-06: token validator for the WS handshake.
-   * Receives the `?token=` query param; return truthy/AuthResult to accept,
-   * falsy to reject (client gets ws.close(4001, 'unauthorized')).
-   * If not provided, all connections are accepted (backwards-compatible).
+   * UI-22: one-time ticket store for the WS handshake.
+   * When set, every upgrade must present `?ticket=<single-use ticket>`; the
+   * old `?token=<jwt>` form is ignored and rejected. If not provided, all
+   * connections are accepted (open realtime, backwards-compatible).
    */
-  tokenValidator?: (token: string | null) => boolean | Promise<boolean>;
+  ticketStore?: WsTicketStore;
 }
 
 export class RealtimeServer extends EventEmitter {
@@ -65,30 +69,21 @@ export class RealtimeServer extends EventEmitter {
 
     this.wss.on('connection', (ws, req) => {
       const url = new URL(req.url ?? '', 'http://localhost');
-      const token = url.searchParams.get('token');
+      const ticketStore = opts?.ticketStore;
 
-      const finish = (allowed: boolean): void => {
-        if (!allowed) {
-          ws.close(4001, 'unauthorized');
-          return;
-        }
+      if (!ticketStore) {
         this.handleConnection(ws, url);
-      };
-
-      if (opts?.tokenValidator) {
-        try {
-          const verdict = opts.tokenValidator(token);
-          if (verdict instanceof Promise) {
-            verdict.then(finish).catch(() => finish(false));
-          } else {
-            finish(verdict);
-          }
-        } catch {
-          finish(false);
-        }
-      } else {
-        finish(true);
+        return;
       }
+
+      const result = ticketStore.redeem(url.searchParams.get('ticket'));
+      if (!result.ok) {
+        // Never log the ticket or the query string — reason and remote only.
+        log.warn({ reason: result.reason, remote: req.socket.remoteAddress }, 'ws handshake rejected');
+        ws.close(4001, 'unauthorized');
+        return;
+      }
+      this.handleConnection(ws, url, result.userId);
     });
 
     this.heartbeatInterval = setInterval(() => {
@@ -106,10 +101,12 @@ export class RealtimeServer extends EventEmitter {
     }, this.heartbeatMs);
   }
 
-  private handleConnection(ws: WebSocket, url: URL): void {
+  private handleConnection(ws: WebSocket, url: URL, authenticatedUserId?: string): void {
     const clientId = `client_${createHash('sha256').update(Date.now() + Math.random().toString()).digest('hex').substring(0, 12)}`;
     const project = url.searchParams.get('project') ?? undefined;
-    const userId = url.searchParams.get('userId') ?? undefined;
+    // Authenticated connections take identity from the ticket, never from a
+    // client-supplied query param (spoofable); open mode keeps the old behaviour.
+    const userId = authenticatedUserId ?? url.searchParams.get('userId') ?? undefined;
 
     const info: ClientInfo = {
       id: clientId,
