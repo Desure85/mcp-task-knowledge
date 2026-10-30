@@ -805,10 +805,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| AUD-04 | Session hijack через session_list | high | pending | AUD-07 (admin-роль) | `session_list` отдаёт все живые session id любому аутентифицированному (register/session.ts:100); подстановка чужого `mcp-session-id` в header = имперсонация (http-transport.ts:164). Фикс: session_list/info — только своя сессия или admin-роль; биндинг session→remote при authenticate |
-| AUD-05 | Expiry реально прекращает доступ | high | pending | — | `prune()` удаляет только запись SessionManager: SDK-транспорт в `adapter.sessions` жив + `authenticatedSessions` не чистится → TTL/idle/token-exp мёртвы, «закрытая» сессия работает дальше. Фикс: onClose → transport.close() + `authManager.revokeSession(id)`; гейт проверяет `sm.has(sessionId)` |
-| AUD-06 | WS realtime: auth + фильтры | high | pending | — | `/ws` без auth (realtime.ts:46); клиентский `broadcast` принимает произвольные eventType/data → инъекция событий всем; клиент без project получает события всех проектов (фильтр :141). Фикс: токен при handshake, whitelist клиентских типов, no-subscription = no-events |
-| AUD-07 | Завайрить security-стек | high | pending | — | Мёртвые модули (0 call sites): AuthProtection (SEC-005), InputSanitizer (SEC-006), ACLEngine (ACL-002/003, `ctx.acl` не создаётся), audit middleware (SEC-001), rule enforcement (RL-005), logging middleware (MW-003), RateLimiter.consume (S-003). Единая точка в wrapToolHandler/dispatch: protection.check → rateLimit.consume → acl.evaluate → audit. Каждая фича — e2e «реально срабатывает» |
+| AUD-04 | Session hijack через session_list | high | done | AUD-07 (admin-роль) | `session_list` отдаёт все живые session id любому аутентифицированному (register/session.ts:100); подстановка чужого `mcp-session-id` в header = имперсонация (http-transport.ts:164). Фикс: session_list/info — только своя сессия или admin-роль; биндинг session→remote при authenticate **Проверено живым сервером (S-20261030-prodaudit, tests/e2e-full/aud-high-security.test.ts).** |
+| AUD-05 | Expiry реально прекращает доступ | high | done | — | `prune()` удаляет только запись SessionManager: SDK-транспорт в `adapter.sessions` жив + `authenticatedSessions` не чистится → TTL/idle/token-exp мёртвы, «закрытая» сессия работает дальше. Фикс: onClose → transport.close() + `authManager.revokeSession(id)`; гейт проверяет `sm.has(sessionId)` **Проверено живым сервером (S-20261030-prodaudit, tests/e2e-full/aud-high-security.test.ts).** |
+| AUD-06 | WS realtime: auth + фильтры | high | done | — | `/ws` без auth (realtime.ts:46); клиентский `broadcast` принимает произвольные eventType/data → инъекция событий всем; клиент без project получает события всех проектов (фильтр :141). Фикс: токен при handshake, whitelist клиентских типов, no-subscription = no-events **Проверено живым сервером (S-20261030-prodaudit, tests/e2e-full/aud-high-security.test.ts).** |
+| AUD-07 | Завайрить security-стек | high | done | — | Мёртвые модули (0 call sites): AuthProtection (SEC-005), InputSanitizer (SEC-006), ACLEngine (ACL-002/003, `ctx.acl` не создаётся), audit middleware (SEC-001), rule enforcement (RL-005), logging middleware (MW-003), RateLimiter.consume (S-003). Единая точка в wrapToolHandler/dispatch: protection.check → rateLimit.consume → acl.evaluate → audit. Каждая фича — e2e «реально срабатывает» **Проверено живым сервером (S-20261030-prodaudit, tests/e2e-full/aud-high-security.test.ts).** |
 
 ### Фаза 3 — Medium
 
@@ -1107,7 +1107,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
 | KB hardening (Q) | 7 | 1 | 0 | 6 | 0 | 0 |
-| **Итого** | **299** | **59** | **0** | **239** | **0** | **1** |
+| **Итого** | **299** | **55** | **0** | **243** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
