@@ -43,7 +43,7 @@ function stripTrailingSlashes(value: string): string {
  * NEXT_PUBLIC_MCP_AUTH_URL overrides the base; a value already ending in
  * `/auth` is accepted as-is so both env shapes work.
  */
-export function resolveAuthEndpoint(path: '/login' | '/logout'): string {
+export function resolveAuthEndpoint(path: '/login' | '/logout' | '/ws-ticket'): string {
   const explicit = process.env.NEXT_PUBLIC_MCP_AUTH_URL?.trim();
   if (explicit) {
     const base = stripTrailingSlashes(explicit);

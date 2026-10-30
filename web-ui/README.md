@@ -41,7 +41,11 @@ another machine, set `NEXT_PUBLIC_MCP_PUBLIC_URL` (or fill the field on the page
 
 `next start` proxies HTTP but **not WebSocket upgrades**, so the browser must reach the MCP server's `/ws`
 directly. Set it at build time, e.g. `NEXT_PUBLIC_MCP_WS_URL=ws://localhost:3001/ws`. Without it the top bar
-shows **Offline** after a few failed attempts and pages fall back to polling.
+shows **Offline** after a few failed attempts and pages keep working without live updates.
+
+When the server requires auth, the client exchanges the stored JWT for a single-use ticket
+(`POST /auth/ws-ticket`, JWT in the `Authorization` header) and upgrades with `?ticket=…`. The JWT is never
+placed in the WebSocket URL, so it cannot leak into proxy/server access logs or browser console errors.
 
 ## Pages
 

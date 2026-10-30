@@ -8,7 +8,7 @@
  *           IP (from SessionManager session metadata), not sessionId —
  *           a fresh initialize must not reset the failure counter.
  *   AUD-15  authenticatedSessions cleanup — revokeSession fires on
- *           session close (onClose callback), and the WS tokenValidator
+ *           session close (onClose callback), and the WS ticket path
  *           path no longer leaks phantom 'ws:*' entries.
  */
 
@@ -261,12 +261,19 @@ describe('AUD-15: revokeSession on session close', () => {
         await new Promise((r) => setTimeout(r, 10));
       }
       const port = server.address()!.port;
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=ws-token`);
+      // UI-22: the JWT stays in the header; the socket URL carries a one-time ticket.
+      const ticketRes = await fetch(`http://127.0.0.1:${port}/auth/ws-ticket`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ws-token' },
+      });
+      expect(ticketRes.status).toBe(200);
+      const { ticket } = (await ticketRes.json()) as { ticket: string };
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?ticket=${encodeURIComponent(ticket)}`);
       await new Promise<void>((resolve, reject) => {
         ws.on('open', () => resolve());
         ws.on('error', reject);
       });
-      // The WS validator only needs a verdict. authenticate() would have added
+      // Ticket validation only needs a verdict. authenticate() would have added
       // a phantom 'ws:<token>' entry that no close path ever revokes.
       expect(auth.authenticatedCount).toBe(0);
       expect(auth.getAuthenticatedSessionIds().size).toBe(0);

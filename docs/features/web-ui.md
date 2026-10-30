@@ -72,7 +72,8 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 
 ### Realtime (UI-005 + MR-012)
 
-- WebSocket server at `/ws`
+- WebSocket server at `/ws`, authenticated by a one-time ticket
+  (`POST /auth/ws-ticket` with a Bearer JWT → upgrade with `?ticket=`); the JWT is never put in the URL
 - Live updates for task/knowledge changes
 - Presence indicators
 - Project-scoped broadcasting
