@@ -44,7 +44,6 @@ import { ok, err } from '../utils/respond.js';
 import { join } from 'node:path';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { homedir } from 'node:os';
 
 // PH-007: session scope inheritance — memory written by an authenticated
 // session inherits scope.userId (stamped by mcp.authenticate) unless the
@@ -67,7 +66,7 @@ function getExtractor(): MemoryExtractor {
 let temporalGraph: TemporalGraph | null = null;
 function getTemporalGraph(): TemporalGraph {
   if (!temporalGraph) {
-    const storagePath = join(homedir(), '.local', 'share', 'mcp-task-knowledge', 'temporal-graph.json');
+    const storagePath = join(DATA_DIR, 'memory', 'temporal-graph.json');
     temporalGraph = new TemporalGraph({ storagePath });
   }
   return temporalGraph;
@@ -77,7 +76,7 @@ function getTemporalGraph(): TemporalGraph {
 let profileMgr: ProfileManager | null = null;
 function getProfileManager(): ProfileManager {
   if (!profileMgr) {
-    const storagePath = join(homedir(), '.local', 'share', 'mcp-task-knowledge', 'profiles');
+    const storagePath = join(DATA_DIR, 'memory', 'profiles');
     profileMgr = new ProfileManager({ storagePath });
   }
   return profileMgr;
@@ -153,7 +152,7 @@ function getForgettingManager(): ForgettingManager {
 let layeredMemory: LayeredMemory | null = null;
 function getLayeredMemory(): LayeredMemory {
   if (!layeredMemory) {
-    const storagePath = join(homedir(), '.local', 'share', 'mcp-task-knowledge', 'layers.json');
+    const storagePath = join(DATA_DIR, 'memory', 'layers.json');
     layeredMemory = new LayeredMemory({ storagePath });
   }
   return layeredMemory;

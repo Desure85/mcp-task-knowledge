@@ -208,6 +208,23 @@ describe('admin login → token → setup link (live)', () => {
   }, 60000);
 });
 
+describe('memory persistence lives under DATA_DIR', () => {
+  it('writes temporal/profile/layer stores into DATA_DIR/memory and nothing into $HOME', async () => {
+    const fakeHome = path.join(TMP, 'fake-home');
+    await fsp.rm(fakeHome, { recursive: true, force: true });
+    await fsp.mkdir(fakeHome, { recursive: true });
+    const { port, dir } = await startServer('memory-dir', { HOME: fakeHome });
+    const sid = await openSession(port, mintJwt({ roles: ['admin'] }));
+    const add = await call(port, sid, 'memory_temporal_add', { statement: 'Persistence lives in DATA_DIR' });
+    expect(add.ok, JSON.stringify(add.raw)).toBe(true);
+    await new Promise((r) => setTimeout(r, 300));
+    const inData = await fsp.stat(path.join(dir, 'store', 'memory', 'temporal-graph.json')).then(() => true, () => false);
+    expect(inData, 'temporal-graph.json must be under DATA_DIR/memory').toBe(true);
+    const leaked = await fsp.stat(path.join(fakeHome, '.local')).then(() => true, () => false);
+    expect(leaked, 'nothing may be written under $HOME/.local').toBe(false);
+  }, 60000);
+});
+
 describe('AUD high-severity live probes', () => {
   it('initialize advertises the real server version, not 0.0.0', async () => {
     const { port } = await startServer('version');

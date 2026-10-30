@@ -23,6 +23,7 @@ export function Topbar() {
   const live = useLiveStatus();
 
   const [project, setProject] = useState<string | null>(null);
+  const [projects, setProjects] = useState<string[]>([]);
   const [hasToken, setHasToken] = useState(false);
   const [canSignOut, setCanSignOut] = useState(false);
 
@@ -32,7 +33,9 @@ export function Topbar() {
     api.projects
       .list()
       .then((data) => {
-        if (alive) setProject(data.current ?? null);
+        if (!alive) return;
+        setProject(data.current ?? null);
+        setProjects((data.projects ?? []).map((p) => p.id));
       })
       .catch(() => {
         if (alive) setProject(null);
@@ -57,13 +60,28 @@ export function Topbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <span className="hidden items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600 sm:inline-flex">
+        <label className="hidden items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600 sm:inline-flex">
           <IconProjects className="h-3.5 w-3.5 text-neutral-400" />
           <span className="text-neutral-400">Project</span>
-          <span className="max-w-[140px] truncate font-medium text-neutral-700">
-            {project ?? '—'}
-          </span>
-        </span>
+          <select
+            aria-label="Current project"
+            value={project ?? ''}
+            disabled={projects.length === 0}
+            onChange={async (e) => {
+              await api.projects.setCurrent(e.target.value);
+              // Pages load their data client-side once; a reload re-fetches everything in the new scope.
+              window.location.reload();
+            }}
+            className="max-w-[140px] cursor-pointer truncate bg-transparent font-medium text-neutral-700 outline-none"
+          >
+            {project && !projects.includes(project) && <option value={project}>{project}</option>}
+            {projects.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {live.status && (
           <span

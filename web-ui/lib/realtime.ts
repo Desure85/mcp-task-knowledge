@@ -119,6 +119,9 @@ export function defaultRealtimeUrl(): string {
 
 // ─── Backoff (pure helper — unit-testable) ──────────────────────────
 
+/** Consecutive failed connects after which the UI reports "Offline". */
+export const OFFLINE_AFTER_ATTEMPTS = 3;
+
 /** Exponential backoff with cap: 1s, 2s, 4s, … capped at `maxMs`. */
 export function backoffDelay(attempt: number, baseMs = 1000, maxMs = 30_000): number {
   const delay = baseMs * 2 ** Math.max(0, attempt);
@@ -204,7 +207,11 @@ export class RealtimeClient {
       return;
     }
     this.manualClose = false;
-    this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
+    // Once retries have failed OFFLINE_AFTER times keep saying so instead of flickering
+    // back to "Connecting…" on every attempt (we still keep retrying in the background).
+    if (this.attempt < OFFLINE_AFTER_ATTEMPTS) {
+      this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
+    }
     let ws: WebSocket;
     try {
       const url = this.buildUrl();
@@ -329,7 +336,7 @@ export class RealtimeClient {
 
   private scheduleReconnect(): void {
     if (this.manualClose) return;
-    this.setStatus('reconnecting');
+    this.setStatus(this.attempt >= OFFLINE_AFTER_ATTEMPTS ? 'unavailable' : 'reconnecting');
     const delay = backoffDelay(this.attempt);
     this.attempt += 1;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
