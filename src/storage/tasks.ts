@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { TASKS_DIR } from '../config.js';
-import { ensureDir, pathExists, readJson, resolveUnder, writeJson } from '../fs.js';
+import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson } from '../fs.js';
 import type { Task, Priority, Status, TaskTreeNode } from '../types.js';
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
@@ -157,6 +157,10 @@ export async function readTask(project: string, id: string): Promise<Task | null
 }
 
 export async function updateTask(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {
+  return withFileLock(`task:${project}/${id}`, () => updateTaskUnlocked(project, id, patch));
+}
+
+async function updateTaskUnlocked(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {
   const existing = await getTask(project, id);
   if (!existing) return null;
 

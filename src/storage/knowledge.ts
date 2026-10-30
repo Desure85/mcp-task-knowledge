@@ -3,7 +3,7 @@ import fg from 'fast-glob';
 import matter from 'gray-matter';
 import { randomUUID } from 'node:crypto';
 import { KNOWLEDGE_DIR } from '../config.js';
-import { ensureDir, pathExists, readText, resolveUnder, writeText } from '../fs.js';
+import { ensureDir, pathExists, readText, resolveUnder, withFileLock, writeText } from '../fs.js';
 import type { KnowledgeDoc, KnowledgeDocMeta } from '../types.js';
 import { promises as fsp } from 'node:fs';
 import { emitKnowledgeChanged } from './knowledge-events.js';
@@ -122,6 +122,10 @@ export async function readDoc(project: string, id: string): Promise<KnowledgeDoc
 }
 
 export async function updateDoc(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {
+  return withFileLock(`doc:${project}/${id}`, () => updateDocUnlocked(project, id, patch));
+}
+
+async function updateDocUnlocked(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {
   const existing = await readDoc(project, id);
   if (!existing) return null;
   // Monotonic updatedAt: bump by 1ms when the new timestamp would equal the old

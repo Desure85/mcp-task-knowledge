@@ -18,8 +18,8 @@
  *   const context = mgr.buildContextBlock('alice', 500); // ~500 tokens
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import { resolveUnder, writeFileAtomicSync } from '../fs.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('user-profile');
@@ -93,13 +93,15 @@ export class ProfileManager {
 
   /** File path for a user's profile. */
   private fileFor(userId: string): string {
-    return join(this.storageDir, `${userId}.json`);
+    // AUD-18a: userId is client-supplied; resolveUnder rejects '..', separators and control chars.
+    // Throws PathValidationError — callers must not swallow it.
+    return resolveUnder(this.storageDir, `${userId}.json`);
   }
 
   /** Load a profile from disk. */
   private load(userId: string): UserProfile | null {
+    const p = this.fileFor(userId);
     try {
-      const p = this.fileFor(userId);
       if (existsSync(p)) {
         return JSON.parse(readFileSync(p, 'utf-8'));
       }
@@ -111,10 +113,9 @@ export class ProfileManager {
 
   /** Save a profile to disk. */
   private save(profile: UserProfile): void {
+    const p = this.fileFor(profile.userId);
     try {
-      const p = this.fileFor(profile.userId);
-      mkdirSync(dirname(p), { recursive: true });
-      writeFileSync(p, JSON.stringify(profile, null, 2));
+      writeFileAtomicSync(p, JSON.stringify(profile, null, 2));
     } catch (e) {
       log.error({ error: e, userId: profile.userId }, 'failed to save profile');
     }
@@ -264,7 +265,6 @@ export class ProfileManager {
     const p = this.fileFor(userId);
     if (!existsSync(p)) return false;
     try {
-      const { unlinkSync } = require('node:fs');
       unlinkSync(p);
       return true;
     } catch {

@@ -2,12 +2,14 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **100**
+Всего инструментов: **118**
 
 ## Инструменты
 
 | Инструмент | Описание |
 |------------|-----------|
+| `admin_setup_link` | Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transpor |
+| `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
 | `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
 | `cluster_nodes` | List all known cluster nodes with status and heartbeat info. |
 | `cluster_status` | Cluster membership overview: self node ID, total/active node counts, session affinity and shard coun |
@@ -22,7 +24,7 @@
 | `graph_visualize` | Render the entity-graph as a self-contained interactive HTML page (SVG + JS, zero dependencies). See |
 | `knowledge_bulk_archive` | Archive many knowledge docs |
 | `knowledge_bulk_create` | Create many knowledge docs at once (optionally hierarchical via parentId) |
-| `knowledge_bulk_delete_permanent` | Permanently delete many knowledge docs (use with caution) |
+| `knowledge_bulk_delete_permanent` | Permanently delete many knowledge docs (use with caution). Requires confirm=true unless the client s |
 | `knowledge_bulk_restore` | Restore many knowledge docs from archive/trash |
 | `knowledge_bulk_trash` | Move many knowledge docs to trash |
 | `knowledge_bulk_update` | Update fields of many knowledge docs at once |
@@ -35,13 +37,19 @@
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge documents metadata |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
+| `mcp.authenticate` | Authenticate this session with a token. Required before calling any other tool on http/tcp transport |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
+| `memory_async_cancel` | Cancel a pending or processing async memory job. Completed/failed jobs cannot be cancelled. |
+| `memory_async_status` | Poll an async memory job by ID. Returns state (pending/processing/completed/failed/cancelled), progr |
+| `memory_async_submit` | Submit a long-running memory operation for background execution. Returns immediately with a jobId —  |
+| `memory_benchmark_run` | Run the agent-memory benchmark harness (LOCOMO, LongMemEval, BEAM, DMR) against an ephemeral in-memo |
 | `memory_check_conflicts` | Detect contradictions between a new fact and existing facts. Uses negation patterns, entity overlap, |
 | `memory_context_assemble` | Smart context assembly with RRF fusion. Combines knowledge base (BM25+vector), temporal graph facts, |
 | `memory_dream` | Run sleep-time memory refinement: dedup similar facts, merge related ones, promote conversation→sess |
 | `memory_entity_search` | Search memory facts by entity matching. Extracts entities from query (capitalized words, CamelCase,  |
 | `memory_evolve` | Check a newly added fact against existing memories for semantic overlap. Links related facts, merges |
 | `memory_extract` | Extract structured facts from a conversation/session transcript. Facts are categorized (preference,  |
+| `memory_extract_async` | Non-blocking variant of memory_extract for long-running extraction (large transcripts). Returns imme |
 | `memory_facts_list` | List extracted memory facts from the knowledge base. Filters by type=memory_fact. Supports tag filte |
 | `memory_facts_search` | Full-text search across extracted memory facts. Uses existing search_knowledge under the hood, filte |
 | `memory_framework_adapter` | Describe how to use this server as a memory provider from an external framework (LangGraph, AutoGen, |
@@ -65,11 +73,11 @@
 | `obsidian_import_project` | Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy deletes existing content  |
 | `project_create` | Create a new project with optional description. Creates task and knowledge directories automatically |
 | `project_delete` | Delete a project and all its data. Requires force=true if project has tasks or knowledge entries. |
-| `project_get_current` | Return the name of the current project context |
+| `project_get_current` | Return the name of the current project context (session-scoped on multi-client transports) |
 | `project_info` | Get detailed information about a project: task stats by status/priority, knowledge stats by type, re |
 | `project_list` | List all available projects with task and knowledge counts, descriptions, and creation dates. |
 | `project_purge` | Enumerate and permanently delete ALL tasks and/or knowledge in the project. Requires confirm=true un |
-| `project_set_current` | Change the current project context used when project is omitted |
+| `project_set_current` | Change the current project context used when project is omitted (per-session on http/tcp, global on  |
 | `project_update` | Update project metadata (description). |
 | `prompts_ab_report` | Aggregate A/B metrics and passive feedback for all prompt keys |
 | `prompts_bandit_next` | Pick next variant for a prompt using epsilon-greedy over aggregates |
@@ -108,6 +116,68 @@
 | `tasks_get_deps` | Get the dependency graph for a specific task: what it depends on and what depends on it. |
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
 | `tasks_list` | List tasks with optional filters |
+| `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
+| `tasks_tree` | List tasks as a hierarchical tree (by parentId) |
+| `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
+| `tool_help` | Short help for a tool with an example call |
+| `tool_schema` | Return metadata and example payload for a tool name |
+| `tools_batch` | Execute multiple tools in parallel (Promise.all). Returns aggregated results. Unlike tools_run (sequ |
+| `tools_list` | Return list of canonical tool names with metadata. Supports pagination, search filtering, ETag-based |
+| `tools_register` | Hot-register a new tool at runtime without restarting the server. The handler is defined as a JSON e |
+| `tools_run` | Execute one or many tools by name with params via RPC. |
+| `tools_unregister` | Hot-remove a tool at runtime (DX-001). Experimental. |
+
+## admin_setup_link
+
+**Create Setup Link**
+
+Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transport, a scoped access token, and self-config instructions for an AI agent. Requires admin role. The link can be redeemed exactly once via GET /.well-known/mcp-setup/<otp>.
+
+**Параметры:**
+
+- `project`
+- `role`
+- `ttlMs`
+- `baseUrl`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_setup_link",
+  "arguments": {
+    "project": "mcp",
+    "role": "example",
+    "ttlMs": "example",
+    "baseUrl": "example"
+  }
+}
+```
+
+## briefing
+
+**Session Briefing**
+
+Get session-start context in one call: current project, open tasks sorted by priority, recently updated knowledge docs, and blockers (blocked tasks + tasks with unmet dependencies). Use instead of separate tasks_list + knowledge_list + dashboard_stats calls.
+
+**Параметры:**
+
+- `project`
+- `maxTasks`
+- `maxDocs`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "briefing",
+  "arguments": {
+    "project": "mcp",
+    "maxTasks": "example",
+    "maxDocs": "example"
+  }
+}
+```
 
 ## cluster_assign
 
@@ -399,12 +469,13 @@ Create many knowledge docs at once (optionally hierarchical via parentId)
 
 **Bulk Delete Knowledge Docs Permanently**
 
-Permanently delete many knowledge docs (use with caution)
+Permanently delete many knowledge docs (use with caution). Requires confirm=true unless the client supports elicitation.
 
 **Параметры:**
 
 - `project`
 - `ids`
+- `confirm`
 
 **Пример вызова:**
 
@@ -415,7 +486,8 @@ Permanently delete many knowledge docs (use with caution)
     "project": "mcp",
     "ids": [
       "00000000-0000-0000-0000-000000000000"
-    ]
+    ],
+    "confirm": true
   }
 }
 ```
@@ -756,6 +828,27 @@ List knowledge documents as a hierarchical tree (by parentId)
 }
 ```
 
+## mcp.authenticate
+
+**Authenticate**
+
+Authenticate this session with a token. Required before calling any other tool on http/tcp transports. Returns the authenticated userId and roles.
+
+**Параметры:**
+
+- `token`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "mcp.authenticate",
+  "arguments": {
+    "token": "example"
+  }
+}
+```
+
 ## mcp1_search_knowledge_two_stage
 
 **Search Knowledge (Two-Stage)**
@@ -783,6 +876,100 @@ Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid withi
     "chunkSize": 1000,
     "chunkOverlap": 200,
     "limit": 10
+  }
+}
+```
+
+## memory_async_cancel
+
+**Cancel Async Job**
+
+Cancel a pending or processing async memory job. Completed/failed jobs cannot be cancelled.
+
+**Параметры:**
+
+- `jobId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_async_cancel",
+  "arguments": {
+    "jobId": "example"
+  }
+}
+```
+
+## memory_async_status
+
+**Async Job Status**
+
+Poll an async memory job by ID. Returns state (pending/processing/completed/failed/cancelled), progress 0..1, result output on completion, or error on failure.
+
+**Параметры:**
+
+- `jobId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_async_status",
+  "arguments": {
+    "jobId": "example"
+  }
+}
+```
+
+## memory_async_submit
+
+**Submit Async Memory Job**
+
+Submit a long-running memory operation for background execution. Returns immediately with a jobId — poll memory_async_status for the result or receive it via webhookUrl on completion. Operations: extract (NEXT-002 transcript→facts; input {transcript, maxFacts?, minConfidence?, scope?, project?, persist?}), search (input {query, project?, limit?}), bulk_import (input {project?, documents: [{title, content, tags?}]}), evolve (NEXT-003; input {factId}), dream (NEXT-006; input {}). Status lifecycle: pending (queued) → processing (running) → completed | failed | cancelled.
+
+**Параметры:**
+
+- `type`
+- `input`
+- `webhookUrl`
+- `metadata`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_async_submit",
+  "arguments": {
+    "type": "note",
+    "input": "example",
+    "webhookUrl": "example",
+    "metadata": "example"
+  }
+}
+```
+
+## memory_benchmark_run
+
+**Run Memory Benchmarks**
+
+Run the agent-memory benchmark harness (LOCOMO, LongMemEval, BEAM, DMR) against an ephemeral in-memory adapter and return structured scores. Synchronous and bounded by design: at most 4 suites × maxQuestions questions, in-memory retrieval, finishes in milliseconds — safe for CI. For real-instance runs against a live server use `npm run benchmark` (NEXT2-007 CLI). For long/async jobs use the WIRE-008 async processors when available.
+
+**Параметры:**
+
+- `suite`
+- `maxQuestions`
+- `includeDetails`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_benchmark_run",
+  "arguments": {
+    "suite": "example",
+    "maxQuestions": "example",
+    "includeDetails": "example"
   }
 }
 ```
@@ -943,6 +1130,47 @@ Extract structured facts from a conversation/session transcript. Facts are categ
     "maxFacts": "example",
     "minConfidence": "example",
     "persist": "example"
+  }
+}
+```
+
+## memory_extract_async
+
+**Extract Memory Facts (Async)**
+
+Non-blocking variant of memory_extract for long-running extraction (large transcripts). Returns immediately with a jobId — poll memory_async_status for the result or receive it via webhookUrl on completion. Same params as memory_extract plus webhookUrl/metadata.
+
+**Параметры:**
+
+- `transcript`
+- `project`
+- `userId`
+- `agentId`
+- `appId`
+- `runId`
+- `maxFacts`
+- `minConfidence`
+- `persist`
+- `webhookUrl`
+- `metadata`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_extract_async",
+  "arguments": {
+    "transcript": "example",
+    "project": "mcp",
+    "userId": "example",
+    "agentId": "example",
+    "appId": "example",
+    "runId": "example",
+    "maxFacts": "example",
+    "minConfidence": "example",
+    "persist": "example",
+    "webhookUrl": "example",
+    "metadata": "example"
   }
 }
 ```
@@ -1289,6 +1517,7 @@ Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally
 - `validFrom`
 - `supersedesFactId`
 - `invalidationReason`
+- `scope`
 
 **Пример вызова:**
 
@@ -1305,7 +1534,8 @@ Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally
     "entities": "example",
     "validFrom": "example",
     "supersedesFactId": "example",
-    "invalidationReason": "example"
+    "invalidationReason": "example",
+    "scope": "example"
   }
 }
 ```
@@ -1598,7 +1828,7 @@ Delete a project and all its data. Requires force=true if project has tasks or k
 
 **Get Current Project**
 
-Return the name of the current project context
+Return the name of the current project context (session-scoped on multi-client transports)
 
 **Пример вызова:**
 
@@ -1694,7 +1924,7 @@ Enumerate and permanently delete ALL tasks and/or knowledge in the project. Requ
 
 **Set Current Project**
 
-Change the current project context used when project is omitted
+Change the current project context used when project is omitted (per-session on http/tcp, global on stdio)
 
 **Параметры:**
 
@@ -2138,6 +2368,8 @@ BM25 (and optional vector) search over knowledge docs
 - `project`
 - `query`
 - `limit`
+- `offset`
+- `snippet`
 
 **Пример вызова:**
 
@@ -2147,7 +2379,9 @@ BM25 (and optional vector) search over knowledge docs
   "arguments": {
     "project": "mcp",
     "query": "example",
-    "limit": 10
+    "limit": 10,
+    "offset": "example",
+    "snippet": "example"
   }
 }
 ```
@@ -2522,6 +2756,7 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
 - `tags`
 - `links`
 - `parentId`
+- `dependsOn`
 
 **Пример вызова:**
 
@@ -2540,7 +2775,8 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
     "links": [
       "https://example.com"
     ],
-    "parentId": null
+    "parentId": null,
+    "dependsOn": "example"
   }
 }
 ```
@@ -2685,6 +2921,268 @@ List tasks with optional filters
     "status": "pending",
     "tag": "example",
     "includeArchived": false
+  }
+}
+```
+
+## tasks_set_deps
+
+**Set Task Dependencies**
+
+Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are automatically marked as "blocked".
+
+**Параметры:**
+
+- `project`
+- `id`
+- `dependsOn`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_set_deps",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "dependsOn": "example"
+  }
+}
+```
+
+## tasks_tree
+
+**List Tasks Tree**
+
+List tasks as a hierarchical tree (by parentId)
+
+**Параметры:**
+
+- `project`
+- `status`
+- `tag`
+- `includeArchived`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_tree",
+  "arguments": {
+    "project": "mcp",
+    "status": "pending",
+    "tag": "example",
+    "includeArchived": false
+  }
+}
+```
+
+## tasks_update
+
+**Update Task**
+
+Update a single task by id. Can change any field except id, project, createdAt. Setting parentId moves the task in the hierarchy (cycle and depth protected). Set parentId to null to detach from parent (make root).
+
+**Параметры:**
+
+- `project`
+- `id`
+- `title`
+- `description`
+- `priority`
+- `status`
+- `tags`
+- `links`
+- `parentId`
+- `dependsOn`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_update",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "title": "Example Title",
+    "description": "Example Description",
+    "priority": "medium",
+    "status": "pending",
+    "tags": [
+      "example"
+    ],
+    "links": [
+      "https://example.com"
+    ],
+    "parentId": null,
+    "dependsOn": "example"
+  }
+}
+```
+
+## tool_help
+
+**Tool Help**
+
+Short help for a tool with an example call
+
+**Параметры:**
+
+- `name`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tool_help",
+  "arguments": {
+    "name": "example"
+  }
+}
+```
+
+## tool_schema
+
+**Tool Schema**
+
+Return metadata and example payload for a tool name
+
+**Параметры:**
+
+- `name`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tool_schema",
+  "arguments": {
+    "name": "example"
+  }
+}
+```
+
+## tools_batch
+
+**Tools Batch (Parallel)**
+
+Execute multiple tools in parallel (Promise.all). Returns aggregated results. Unlike tools_run (sequential), all calls fire simultaneously. Use for independent read operations (e.g., tasks_list + knowledge_list + search).
+
+**Параметры:**
+
+- `items`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tools_batch",
+  "arguments": {
+    "items": "example"
+  }
+}
+```
+
+## tools_list
+
+**List Registered Tools**
+
+Return list of canonical tool names with metadata. Supports pagination, search filtering, ETag-based cache validation.
+
+**Параметры:**
+
+- `offset`
+- `limit`
+- `search`
+- `ifNoneMatch`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tools_list",
+  "arguments": {
+    "offset": "example",
+    "limit": 10,
+    "search": "example",
+    "ifNoneMatch": "example"
+  }
+}
+```
+
+## tools_register
+
+**Register Tool**
+
+Hot-register a new tool at runtime without restarting the server. The handler is defined as a JSON expression: for a simple echo tool use `handler: "echo"` (returns { input }). Experimental (DX-001).
+
+**Параметры:**
+
+- `name`
+- `title`
+- `description`
+- `inputSchema`
+- `handlerKind`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tools_register",
+  "arguments": {
+    "name": "example",
+    "title": "Example Title",
+    "description": "Example Description",
+    "inputSchema": "example",
+    "handlerKind": "example"
+  }
+}
+```
+
+## tools_run
+
+**Tools Run (Bulk)**
+
+Execute one or many tools by name with params via RPC.
+
+**Параметры:**
+
+- `name`
+- `params`
+- `items`
+- `stopOnError`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tools_run",
+  "arguments": {
+    "name": "example",
+    "params": "example",
+    "items": "example",
+    "stopOnError": "example"
+  }
+}
+```
+
+## tools_unregister
+
+**Unregister Tool**
+
+Hot-remove a tool at runtime (DX-001). Experimental.
+
+**Параметры:**
+
+- `name`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tools_unregister",
+  "arguments": {
+    "name": "example"
   }
 }
 ```

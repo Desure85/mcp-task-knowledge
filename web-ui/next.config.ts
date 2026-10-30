@@ -6,6 +6,9 @@ const config: NextConfig = {
     const mcpUrl = process.env.MCP_API_URL || 'http://localhost:3001';
     return [
       { source: '/api/mcp/:path*', destination: `${mcpUrl}/:path*` },
+      // Password login shares the MCP origin; the relative default
+      // (/api/mcp) would otherwise resolve against the Next server.
+      { source: '/api/auth/:path*', destination: `${mcpUrl}/auth/:path*` },
     ];
   },
 };

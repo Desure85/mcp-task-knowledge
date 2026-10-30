@@ -29,7 +29,10 @@
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JWT_SECRET` | — | JWT signing secret |
+| `JWT_SECRET` | — | JWT signing secret (required for web-UI login and setup links) |
+| `MCP_LOGIN_USER` | — | Username for the web-UI sign-in (`POST /auth/login`). Login is disabled (503) unless both user and password are set |
+| `MCP_LOGIN_PASSWORD` | — | Password for the web-UI sign-in. Use a long random value; 10 failed attempts per 5 min from one IP lock that IP out (429) |
+| `SECURITY_STACK` | off | `1` enables rate-limit, input sanitizer, ACL, audit log (`DATA_DIR/audit.log`) and auth-lockout on every tool call. Recommended for any network-exposed server |
 | `JWT_ISSUER` | `mcp-task-knowledge` | JWT issuer |
 | `JWT_AUDIENCE` | `mcp-clients` | JWT audience |
 | `TOKEN_TTL_MS` | `3600000` | Access token TTL (1h) |

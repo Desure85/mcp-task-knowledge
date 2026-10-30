@@ -29,6 +29,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { resolveToken } from './api-client';
 
 // ─── Event types (mirror of server RealtimeEvent + control frames) ──
 
@@ -294,6 +295,11 @@ export class RealtimeClient {
     const url = new URL(this.url, typeof window !== 'undefined' ? window.location.href : 'http://localhost');
     if (!url.searchParams.get('project') && this.project) url.searchParams.set('project', this.project);
     if (!url.searchParams.get('userId') && this.userId) url.searchParams.set('userId', this.userId);
+    // WS upgrade is auth-gated and reads the JWT from ?token= (silent close otherwise).
+    if (!url.searchParams.get('token')) {
+      const token = resolveToken();
+      if (token) url.searchParams.set('token', token);
+    }
     return url.toString();
   }
 

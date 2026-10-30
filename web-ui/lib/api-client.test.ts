@@ -54,6 +54,7 @@ function errResult(message: string) {
   return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: { message } }) }], isError: true };
 }
 const okAll = () => mocks.impl = () => okResult({});
+const dispatched: string[] = [];
 
 // Minimal window/sessionStorage stub for token tests.
 const store = new Map<string, string>();
@@ -66,11 +67,13 @@ const sessionStorageStub = {
 beforeEach(() => {
   mocks.reset();
   store.clear();
+  dispatched.length = 0;
   delete process.env.NEXT_PUBLIC_MCP_TOKEN;
   process.env.NEXT_PUBLIC_MCP_API_URL = 'http://localhost:3001/mcp';
   (globalThis as { window?: unknown }).window = {
     location: { origin: 'http://localhost:3000', href: 'http://localhost:3000/' },
     sessionStorage: sessionStorageStub,
+    dispatchEvent: (e: { type: string }) => { dispatched.push(e.type); return true; },
   };
   resetClient();
 });
@@ -174,6 +177,31 @@ describe('auth token', () => {
     setAuthToken('bad-jwt');
     mocks.impl = () => errResult('invalid token');
     await expect(api.tasks.list()).rejects.toThrow('mcp.authenticate failed: invalid token');
+  });
+
+  it('a rejected token is dropped and mcp:auth-expired fires (UI returns to /login)', async () => {
+    setAuthToken('stale-jwt');
+    mocks.impl = () => errResult('token expired');
+    await expect(api.tasks.list()).rejects.toThrow();
+    expect(store.has('mcp.auth.token')).toBe(false);
+    expect(dispatched).toContain('mcp:auth-expired');
+  });
+
+  it('an ordinary tool failure keeps the token and does not fire the event', async () => {
+    setAuthToken('good-jwt');
+    mocks.impl = (req) => (req.name === 'mcp.authenticate' ? okResult({}) : errResult('task not found'));
+    await expect(api.tasks.list()).rejects.toThrow('task not found');
+    expect(store.get('mcp.auth.token')).toBe('good-jwt');
+    expect(dispatched).toEqual([]);
+  });
+
+  it('a token from login wins over NEXT_PUBLIC_MCP_TOKEN', async () => {
+    process.env.NEXT_PUBLIC_MCP_TOKEN = 'env-token';
+    setAuthToken('login-token');
+    okAll();
+    await api.tasks.list();
+    const auth = mocks.calls.find((c) => c.name === 'mcp.authenticate');
+    expect((auth?.arguments as { token: string }).token).toBe('login-token');
   });
 });
 

@@ -236,4 +236,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 101 tools + 6 resources
+## Total: 116 tools by default (118 with catalog + dynamic tools enabled) + 6 resources
