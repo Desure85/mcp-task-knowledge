@@ -94,7 +94,13 @@ export const EGRESS_PATTERNS: readonly EgressPattern[] = [
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type EgressMode = 'warn' | 'redact' | 'block';
+/**
+ * - annotate (default): output text is untouched; the caller appends a separate warning block, so
+ *   JSON payloads stay parseable while an LLM still sees that the content is untrusted.
+ * - warn: prefixes the text with a warning (breaks JSON parsing of the output).
+ * - redact: rewrites matches. block: replaces the whole result with an error.
+ */
+export type EgressMode = 'annotate' | 'warn' | 'redact' | 'block';
 
 export interface EgressFinding {
   /** Pattern name from EGRESS_PATTERNS. */
@@ -152,6 +158,10 @@ export class EgressScanner {
       'egress scanner: injection patterns detected in tool output',
     );
 
+    if (this.mode === 'annotate') {
+      return { clean: text, findings };
+    }
+
     if (this.mode === 'redact') {
       let clean = text;
       for (const { re } of EGRESS_PATTERNS) {
@@ -174,11 +184,16 @@ export class EgressScanner {
 
 // ─── Env wiring ─────────────────────────────────────────────────────
 
-/** Parse SECURITY_EGRESS_MODE into a known mode; default 'warn'. */
+/** Parse SECURITY_EGRESS_MODE into a known mode; default 'annotate'. */
 export function resolveEgressMode(env: NodeJS.ProcessEnv = process.env): EgressMode {
-  const v = (env.SECURITY_EGRESS_MODE ?? 'warn').toLowerCase();
-  if (v === 'redact' || v === 'block') return v;
-  return 'warn';
+  const v = (env.SECURITY_EGRESS_MODE ?? 'annotate').toLowerCase();
+  if (v === 'redact' || v === 'block' || v === 'warn') return v;
+  return 'annotate';
+}
+
+/** SECURITY_EGRESS_MODE=off|0|false disables output screening entirely. */
+export function isEgressDisabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return ['off', '0', 'false', 'no'].includes((env.SECURITY_EGRESS_MODE ?? '').trim().toLowerCase());
 }
 
 /**

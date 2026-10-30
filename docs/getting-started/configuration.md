@@ -41,7 +41,7 @@ Older versions kept memory in `~/.local/share/mcp-task-knowledge/`; copy `tempor
 | `MCP_LOGIN_PASSWORD` | — | Password for the web-UI sign-in. Use a long random value; 10 failed attempts per 5 min from one IP lock that IP out (429) |
 | `SECURITY_STACK` | on | Per-call rate-limit, audit log (`DATA_DIR/audit.log`), auth lockout, optional ACL. Set `0`/`false`/`off` to disable (e.g. for local benchmarks) |
 | `SECURITY_SANITIZER_MODE` | off | `sanitize` or `reject` enables the input sanitizer. Off by default: it rewrites markdown/frontmatter, which a knowledge base must store verbatim |
-| `SECURITY_EGRESS_MODE` | off | `warn`, `redact` or `block` enables prompt-injection screening of tool output. `warn` prefixes the text, so output stops being pure JSON — enable only for clients that tolerate it |
+| `SECURITY_EGRESS_MODE` | `annotate` | Screens tool output for stored prompt-injection text. `annotate` leaves the data untouched and appends a separate `⚠️ [UNTRUSTED CONTENT]` block (JSON stays parseable); `redact` rewrites matches, `block` returns an error, `warn` prefixes the text (breaks JSON); `off` disables |
 | `JWT_ISSUER` | `mcp-task-knowledge` | JWT issuer |
 | `JWT_AUDIENCE` | `mcp-clients` | JWT audience |
 | `TOKEN_TTL_MS` | `3600000` | Access token TTL (1h) |

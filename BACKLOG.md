@@ -908,7 +908,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| TR-01 | Аудит: indirect prompt injection через stored content | high | pending | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки |
+| TR-01 | Аудит: indirect prompt injection через stored content | high | done | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки **Закрыто (S-20261030-prodaudit): Аудит выполнен: docs/audits/TR-01-prompt-injection-audit.md; мер — TR-14/17 (закрыты), TR-16 открыт.** |
 | TR-02 | Аудит Web UI | high | done | 724059a | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
 | TR-03 | Аудит коннекторов и lifecycle кредов | medium | done | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации. Отчёт: docs/audit/TR-03-connectors.md → TR-26..32 |
 | TR-04 | Аудит качества тестов («тесты, которые врут») | high | pending | — | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Тот же паттерн «done ≠ работает», но для тестов. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает |
@@ -966,10 +966,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | SPEC-09 | Protocol-version conformance e2e | medium | pending | DX-23 | Зафиксировать negotiated `protocolVersion` в e2e; Inspector-гейт частично покроет |
 | SPEC-10 | SDK upgrade policy | low | pending | — | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
-| TR-14 | Egress prompt-injection scanner в ToolMiddleware.after() | high | pending | TR-01 | Сканировать output всех tools на паттерны: "ignore previous", role markers, zero-width, base64 payload >50 chars. Отдельный Sanitizer-instance на egress. |
+| TR-14 | Egress prompt-injection scanner в ToolMiddleware.after() | high | done | TR-01 | Сканировать output всех tools на паттерны: "ignore previous", role markers, zero-width, base64 payload >50 chars. Отдельный Sanitizer-instance на egress. **Закрыто (S-20261030-prodaudit): Egress-скан включён по умолчанию в режиме annotate (данные нетронуты, предупреждение отдельным блоком; SECURITY_EGRESS_MODE=off выключает). Живой e2e в aud-high-security.test.ts.** |
 | TR-15 | tools_run/tools_batch — пропускает auth-gate+SecurityStack | critical | done | TR-01 | Закрыто вместе с AUD-10: registry хранит gated handler (wrapToolHandler) → auth/ACL/audit/egress-scan применяются на dispatch через tools_run/tools_batch. Тесты: tests/aud10-tools-run-gate.test.ts |
 | TR-16 | Trust/provenance metadata на stored docs | medium | pending | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external. |
-| TR-17 | XML/context escaping в memory_context_assemble | high | pending | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. |
+| TR-17 | XML/context escaping в memory_context_assemble | high | done | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. **Закрыто (S-20261030-prodaudit): Экранирование в buildBlock уже было (escapeXmlText/Attr), тест tests/context-assembly.spec.ts «TR-17».** |
 | DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | pending | AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
 | AUD-18a | Path traversal userId в ProfileManager | critical | done | AUD-18 | memory/user-profile.ts:95 join(storageDir, userId+'.json') без resolveUnder — arbitrary read/write **Закрыто (S-20261030-prodaudit): userId → resolveUnder в ProfileManager (get/update/delete); заодно `require` в ESM ломал deleteProfile.** |
 | AUD-18b | Non-atomic JSON stores в memory/sync | critical | done | AUD-18 | TemporalGraph/EntityGraph/ProfileManager пишут writeFileSync без tmp+rename — crash = silent data loss **Закрыто (S-20261030-prodaudit): writeFileAtomicSync (tmp+rename) в user-profile/temporal-graph/entity-graph/event-log.** |
@@ -1107,7 +1107,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
 | KB hardening (Q) | 7 | 1 | 0 | 6 | 0 | 0 |
-| **Итого** | **299** | **55** | **0** | **243** | **0** | **1** |
+| **Итого** | **299** | **52** | **0** | **246** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
