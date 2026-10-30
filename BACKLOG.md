@@ -1119,11 +1119,30 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+## Этап U — Удобство для агентов (2026-10-30)
+
+> Ставка: несколько агентов (Claude Code, OpenCode) работают с одним сервером одновременно; цена токенов и
+> «двойная работа» важнее числа инструментов. Приоритеты: P0 = high, P1 = medium.
+> Не дублирует: подписки/вебхуки — T-04, манифест возможностей — DX-15, trust-метки — TR-16 (done).
+> Опора: `briefing` (src/register/briefing.ts), optimistic-lock MU-02, git-история MU-03, `withFileLock`
+> (src/fs.ts), `SessionManager.prune` (src/core/session-manager.ts), `memory:verify` (scripts/verify-memory.mjs).
+> Порядок: U-01 → U-03/U-04; U-02 — после MU-03 (до неё допустим `updatedAt`-фильтр); U-05 независим.
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| U-01 | Claim/lease задачи: два агента не берут одну работу | high | pending | MU-01, MU-02 | Агент «берёт» задачу на TTL и продлевает heartbeat'ом. Поля задачи `claim: {bySessionId, byUserId, client, claimedAt, heartbeatAt, expiresAt}` — координационные: `renew` не двигает content-version MU-02, иначе heartbeat рождает ложный `CONFLICT` у чужих правок. Инструменты `tasks_claim({id, ttlSec})`, `tasks_renew`, `tasks_release`; `tasks_list`/`briefing` показывают владельца и срок. Просроченный lease снимается лениво при чтении и свипом (паттерн `SessionManager.prune`). Второй агент получает `{ok:false, code:'TASK_CLAIMED', holder, expiresAt}`; повторный claim своей задачи продлевает. MU-02 не дублируем (версии — его зона), MU-01 нужен, чтобы lease не ломался двумя серверами на одном `DATA_DIR`. DoD: `npm test -- tests/task-claim.test.ts` |
+| U-02 | Дельта «что изменилось с момента T» | medium | pending | MU-03 (мягко) | Инструмент `changes_since({since, project?, types?, includeDeleted?, limit?})` → `{items:[{kind,id,title,change,updatedAt}], nextSince}` по задачам, докам и фактам памяти. Источники до MU-03: `updatedAt` задач (`src/storage/tasks.ts`) и доков (`src/storage/knowledge.ts`), `recordedAt`/`validTo` графа фактов (`src/memory/temporal-graph.ts`), persisted `memory_fact`-доки, события знаний (`src/storage/knowledge-events.ts`). `nextSince` — серверное время начала запроса, не клиентское T: иначе расхождение часов даёт пропуски. После MU-03 удаления/переименования берутся из git-истории; до неё `includeDeleted` отдаёт `trashed/archived` как `change:'removed'`, а физические удаления не видны — это ограничение писать в описании инструмента. Дополняет `briefing` (снимок топ-N), не заменяет его. DoD: `npm test -- tests/changes-since.test.ts` |
+| U-03 | Evidence при закрытии задачи | medium | pending | — | У задачи `evidence?: {commitSha?, ciUrl?, checkOutput?, note?, at, byUserId?, bySessionId?}`; `tasks_close` принимает `evidence` и валидирует: sha `^[0-9a-f]{7,40}$`, `ciUrl` только https, `checkOutput` ≤ 4 КБ. Настройка проекта `requireEvidence` — в `DATA_DIR/projects/<id>.json` (`readProjectMetadata`/`updateProjectMeta`, src/projects.ts; сейчас пишет только `description` — расширить схему). При включённой настройке закрытие без evidence → `{ok:false, code:'EVIDENCE_REQUIRED', hint:'pass commitSha, ciUrl or checkOutput'}`; evidence видно в `tasks_get` и (после MU-03) в истории. DoD: `npm test -- tests/task-evidence.test.ts` |
+| U-04 | Экономия токенов в ответах | medium | pending | — | (1) `fields: string[]` на read-инструментах (`tasks_list`/`tasks_get`/`knowledge_list`/`knowledge_get`/`memory_facts_*`) — единый пост-фильтр, а не правка каждого обработчика; (2) `compact: true` — выкинуть null/пустые массивы и длинные текстовые поля, если не запрошены явно; (3) жёсткий `maxBytes` с `{items, nextCursor, truncated}` и стабильным порядком `(updatedAt desc, id)`, курсор — opaque base64; (4) ошибки `{ok:false, error:{code, message, hint, retryable}}` с кодами из `ErrorCategory`/`ToolError` (src/core/error-handler.ts) — сейчас `err()` (src/utils/respond.ts) отдаёт только message. Контракт BREAKING, клиентов нет. DoD: `npm test -- tests/response-economy.test.ts` |
+| U-05 | Инструмент `memory_verify` (не только CLI) | medium | pending | KE-04 | Проверка актуальности факта по анкорам до того, как на него опереться. Логика уже есть в `scripts/verify-memory.mjs` (`npm run memory:verify`, package.json): статусы verified/pending-merge/stale/no-anchor, strong/weak анкоры, git-индекс, бюджеты `--limit`/`--budget-ms`. Вынести чистую часть в модуль (напр. `src/memory/verify.ts`) и переиспользовать скриптом и инструментом, чтобы вердикты не разъезжались. Вход `{factIds?, project?, budgetMs?, write?}`; выход по факту `{status, anchors:[{path,line,reason}], checkedAt}`; `write` обновляет теги только по явному запросу. DoD: `npm test -- tests/memory-verify-tool.test.ts` + паритет с `npm run memory:verify -- --limit 5` на одном `DATA_DIR` |
+
+---
+
 ## Статистика бэклога
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-10-30 (Этапы R, S, T: целостность/история, трекер уровня YouTrack, командная работа и вики — 19 pending; INT-002 исправлен, INT-007/008)
+**Последнее обновление:** 2026-10-30 (Этапы R, S, T: целостность/история, трекер уровня YouTrack, командная работа и вики — 19 pending; INT-002 исправлен, INT-007/008. Добавлен этап U «Удобство для агентов» — 5 pending)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -1164,7 +1183,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Multi-user integrity (R) | 8 | 8 | 0 | 0 | 0 | 0 |
 | YouTrack-level tracker (S) | 5 | 5 | 0 | 0 | 0 | 0 |
 | Team work and wiki (T) | 6 | 6 | 0 | 0 | 0 | 0 |
-| **Итого** | **320** | **66** | **0** | **253** | **0** | **1** |
+| Agent convenience (U) | 5 | 5 | 0 | 0 | 0 | 0 |
+| **Итого** | **325** | **71** | **0** | **253** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
