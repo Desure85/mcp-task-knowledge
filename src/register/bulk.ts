@@ -111,6 +111,7 @@ export function registerBulkTools(ctx: ServerContext): void {
               source: z.string().optional(),
               parentId: z.string().nullable().optional(),
               type: z.string().optional(),
+              trustLevel: z.enum(['system', 'user', 'external']).optional(),
             })
           )
           .min(1)
@@ -307,6 +308,7 @@ export function registerBulkTools(ctx: ServerContext): void {
               source: z.string().optional(),
               parentId: z.string().optional(),
               type: z.string().optional(),
+              trustLevel: z.enum(['system', 'user', 'external']).optional(),
             })
           )
           .min(1)

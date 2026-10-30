@@ -40,6 +40,7 @@ function postJson(
   port: number,
   body: string,
   headers: Record<string, string> = {},
+  localAddress?: string,
 ): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = httpRequest(
@@ -48,6 +49,7 @@ function postJson(
         port,
         path: '/',
         method: 'POST',
+        ...(localAddress ? { localAddress } : {}),
         headers: {
           'content-type': 'application/json',
           accept: 'application/json, text/event-stream',
@@ -87,7 +89,7 @@ describe('AUD-14: per-request remote attribution', () => {
     await sm?.closeAll().catch(() => undefined);
   });
 
-  it('attributes the correct remote to each of two parallel initialize sessions', async () => {
+  it('binds each session to the remote of its own initialize request', async () => {
     sm = new SessionManager();
     adapter = new HttpTransportAdapter(0, '127.0.0.1');
     ctx = createMockServerContext({ sessionManager: sm });
@@ -95,21 +97,21 @@ describe('AUD-14: per-request remote attribution', () => {
     await new Promise((r) => setTimeout(r, 50));
     const port = portOf(adapter);
 
-    // Two parallel initialize POSTs — with the old FIFO queue, whichever
-    // onsessioninitialized ran first consumed remotes in arrival order, so
-    // a reordering misattributed IPs. Now remote is bound per-request.
-    const [r1, r2] = await Promise.all([postJson(port, INIT_BODY), postJson(port, INIT_BODY)]);
+    // Two loopback source addresses (127.0.0.0/8 is all-local on Linux) so the
+    // remotes are distinguishable. Under the old shared FIFO queue parallel
+    // initialize POSTs could consume each other's remote; now the remote is
+    // bound to the request that actually created the session.
+    const [r1, r2] = await Promise.all([
+      postJson(port, INIT_BODY, {}, '127.0.0.1'),
+      postJson(port, INIT_BODY, {}, '127.0.0.2'),
+    ]);
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(200);
 
     const sessions = sm.getAll();
     expect(sessions.length).toBe(2);
-    for (const s of sessions) {
-      // Both came from loopback — the point is each session got *a* remote
-      // from its own request, not a shifted/duplicated/missing one.
-      expect(s.remote).toBeTruthy();
-      expect(typeof s.remote).toBe('string');
-    }
+    const remotes = sessions.map((s) => s.remote).sort();
+    expect(remotes).toEqual(['127.0.0.1', '127.0.0.2']);
   });
 
   it('does not leak remote state when initialize fails', async () => {
@@ -120,19 +122,20 @@ describe('AUD-14: per-request remote attribution', () => {
     await new Promise((r) => setTimeout(r, 50));
     const port = portOf(adapter);
 
-    // Malformed initialize (missing params) — SDK rejects, onsessioninitialized
-    // never fires. Old code left the pushed remote in the queue forever.
+    // Malformed initialize (missing params) from 127.0.0.2 — SDK rejects it,
+    // onsessioninitialized never fires. The old code pushed the remote onto a
+    // shared queue BEFORE handling and never removed it, so the NEXT session
+    // inherited this failed request's remote.
     const bad = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize' });
-    await postJson(port, bad);
-    await postJson(port, bad);
+    await postJson(port, bad, {}, '127.0.0.2').catch(() => undefined);
+    await postJson(port, bad, {}, '127.0.0.2').catch(() => undefined);
 
-    // A subsequent valid init must still get its own remote — proves no
-    // stale queue entries are consumed.
-    const ok = await postJson(port, INIT_BODY);
+    // A subsequent valid init from a DIFFERENT address must get its own remote.
+    const ok = await postJson(port, INIT_BODY, {}, '127.0.0.1');
     expect(ok.status).toBe(200);
     const sessions = sm.getAll();
     expect(sessions.length).toBe(1);
-    expect(sessions[0].remote).toBeTruthy();
+    expect(sessions[0].remote).toBe('127.0.0.1');
   });
 });
 
@@ -168,8 +171,10 @@ describe('AUD-16: JWT blacklist hardening', () => {
   it('evicts earliest-exp entry first when over capacity (not FIFO)', () => {
     const now = Math.floor(Date.now() / 1000);
     const v = makeValidator({ maxBlacklistSize: 2 });
+    // Insertion order deliberately differs from expiry order: long-lived goes
+    // in first so a FIFO eviction would drop the LATEST-expiring entry.
+    v.revokeByJti('long-lived', now + 86400);  // inserted first, expires last
     v.revokeByJti('short-lived', now + 60);    // expires soon
-    v.revokeByJti('long-lived', now + 86400);  // expires in a day
     v.revokeByJti('mid-lived', now + 3600);    // over capacity → evict earliest exp
     expect(v.isRevoked('short-lived')).toBe(false); // evicted (earliest exp)
     expect(v.isRevoked('long-lived')).toBe(true);

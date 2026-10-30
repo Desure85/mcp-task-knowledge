@@ -17,6 +17,10 @@ import { AuthManager, AuthError, InvalidTokenError, createStaticValidator } from
 import { AuthProtection } from '../src/core/auth-protection.js';
 import { SessionManager } from '../src/core/session-manager.js';
 import { wrapToolHandler } from '../src/core/auth-gate.js';
+import { HttpTransportAdapter } from '../src/transport/http-transport.js';
+import { createMockServerContext } from './helpers.js';
+import { WebSocket } from 'ws';
+import type { AddressInfo } from 'node:net';
 
 const okResult = () => ({ content: [{ type: 'text' as const, text: '{"ok":true}' }] });
 
@@ -235,5 +239,43 @@ describe('AUD-15: revokeSession on session close', () => {
     const bad = await auth.validateToken('nope');
     expect(bad).toBeNull();
     expect(auth.authenticatedCount).toBe(0);
+  });
+
+  it('real /ws handshake goes through validateToken — no phantom session (transport wiring)', async () => {
+    const prevRealtime = process.env.MCP_REALTIME;
+    process.env.MCP_REALTIME = '1';
+    const sm = new SessionManager({ maxSessions: 100 });
+    const auth = new AuthManager({
+      requireAuth: true,
+      transport: 'http',
+      tokenValidator: createStaticValidator({ 'ws-token': { userId: 'u1' } }),
+      sessionManager: sm,
+    });
+    const ctx = createMockServerContext({ sessionManager: sm, authManager: auth });
+    const adapter = new HttpTransportAdapter(0, '127.0.0.1');
+    try {
+      await adapter.connect(ctx);
+      const server = (adapter as unknown as { httpServer: { address(): AddressInfo | null } }).httpServer;
+      const deadline = Date.now() + 2000;
+      while (!server.address() && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      const port = server.address()!.port;
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=ws-token`);
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', () => resolve());
+        ws.on('error', reject);
+      });
+      // The WS validator only needs a verdict. authenticate() would have added
+      // a phantom 'ws:<token>' entry that no close path ever revokes.
+      expect(auth.authenticatedCount).toBe(0);
+      expect(auth.getAuthenticatedSessionIds().size).toBe(0);
+      ws.close();
+    } finally {
+      await adapter.close().catch(() => undefined);
+      await sm.closeAll().catch(() => undefined);
+      if (prevRealtime === undefined) delete process.env.MCP_REALTIME;
+      else process.env.MCP_REALTIME = prevRealtime;
+    }
   });
 });

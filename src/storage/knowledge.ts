@@ -4,7 +4,7 @@ import matter from 'gray-matter';
 import { randomUUID } from 'node:crypto';
 import { KNOWLEDGE_DIR } from '../config.js';
 import { ensureDir, pathExists, readText, resolveUnder, withFileLock, writeText } from '../fs.js';
-import type { KnowledgeDoc, KnowledgeDocMeta } from '../types.js';
+import type { KnowledgeDoc, KnowledgeDocMeta, TrustLevel } from '../types.js';
 import { promises as fsp } from 'node:fs';
 import { emitKnowledgeChanged } from './knowledge-events.js';
 
@@ -37,6 +37,7 @@ export async function createDoc(input: {
   source?: string;
   parentId?: string;
   type?: string;
+  trustLevel?: TrustLevel;
 }): Promise<KnowledgeDoc> {
   const id = randomUUID();
   const now = new Date().toISOString();
@@ -50,6 +51,7 @@ export async function createDoc(input: {
     source: input.source,
     parentId: input.parentId,
     type: input.type,
+    trustLevel: input.trustLevel ?? 'user',
     archived: false,
     trashed: false,
   };

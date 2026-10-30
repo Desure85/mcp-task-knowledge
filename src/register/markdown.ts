@@ -13,6 +13,7 @@ import {
 import { ensureDir, pathExists, readText, writeText } from '../fs.js';
 
 import { ok, err } from '../utils/respond.js';
+import type { TrustLevel } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -31,17 +32,23 @@ function slugify(title: string): string {
 }
 
 /** Build a markdown file string from doc metadata + content */
-function docToMarkdown(doc: { title: string; content: string; tags?: string[]; type?: string; source?: string; parentId?: string }): string {
+function docToMarkdown(doc: { title: string; content: string; tags?: string[]; type?: string; source?: string; parentId?: string; trustLevel?: TrustLevel }): string {
   const fm: Record<string, unknown> = { title: doc.title };
   if (doc.tags?.length) fm.tags = doc.tags;
   if (doc.type) fm.type = doc.type;
   if (doc.source) fm.source = doc.source;
   if (doc.parentId) fm.parentId = doc.parentId;
+  if (doc.trustLevel) fm.trustLevel = doc.trustLevel;
   return matter.stringify(doc.content, fm);
 }
 
+/** Normalize a frontmatter value to a known trust level. */
+function parseTrustLevel(value: unknown): TrustLevel | undefined {
+  return value === 'system' || value === 'user' || value === 'external' ? value : undefined;
+}
+
 /** Parse a markdown string with optional frontmatter into structured fields */
-function parseMarkdown(raw: string): { title: string; content: string; tags: string[]; type?: string; source?: string; parentId?: string } {
+function parseMarkdown(raw: string): { title: string; content: string; tags: string[]; type?: string; source?: string; parentId?: string; trustLevel?: TrustLevel } {
   const fm = matter(raw);
   const data = fm.data as Record<string, unknown>;
   const title = (data.title as string) || 'Untitled';
@@ -50,7 +57,8 @@ function parseMarkdown(raw: string): { title: string; content: string; tags: str
   const type = typeof data.type === 'string' ? data.type : undefined;
   const source = typeof data.source === 'string' ? data.source : undefined;
   const parentId = typeof data.parentId === 'string' ? data.parentId : undefined;
-  return { title, content, tags, type, source, parentId };
+  const trustLevel = parseTrustLevel(data.trustLevel) ?? parseTrustLevel(data.trust_level);
+  return { title, content, tags, type, source, parentId, trustLevel };
 }
 
 const SEPARATOR = '\n\n---\n\n';
@@ -239,10 +247,12 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         excludePaths: z.array(z.string()).optional(),
         tag: z.string().optional(),
         type: z.string().optional(),
+        trustLevel: z.enum(['system', 'user', 'external']).optional()
+          .describe("Provenance for imported docs (default: per-file frontmatter, else 'user'; files from outside sources should be 'external')"),
         dryRun: z.boolean().default(false).optional(),
       },
     },
-    async ({ project, inputDir, strategy, includePaths, excludePaths, tag, type, dryRun }) => {
+    async ({ project, inputDir, strategy, includePaths, excludePaths, tag, type, trustLevel, dryRun }) => {
       const prj = resolveProject(project);
 
       // Validate input dir
@@ -297,6 +307,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         type?: string;
         source?: string;
         parentId?: string;
+        trustLevel?: TrustLevel;
         action: 'create' | 'update' | 'skip';
         existingId?: string;
       }> = [];
@@ -306,6 +317,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         const parsed = parseMarkdown(raw);
         const mergedTags = [...new Set([...parsed.tags, ...(tag ? [tag] : [])])];
         const mergedType = parsed.type || type;
+        const mergedTrust = trustLevel ?? parsed.trustLevel ?? 'user';
 
         const existingId = titleToId.get(parsed.title.toLowerCase());
 
@@ -325,6 +337,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
           type: mergedType,
           source: parsed.source,
           parentId: parsed.parentId,
+          trustLevel: mergedTrust,
           action,
           existingId,
         });
@@ -372,6 +385,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
             tags: plan.tags,
             type: plan.type,
             source: plan.source,
+            trustLevel: plan.trustLevel,
           });
           if (updated) {
             results.push({ file: plan.file, title: plan.title, action: 'update', id: updated.id });
@@ -385,6 +399,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
             type: plan.type,
             source: plan.source,
             parentId: plan.parentId,
+            trustLevel: plan.trustLevel,
           });
           results.push({ file: plan.file, title: plan.title, action: 'create', id: created.id });
         }
@@ -427,9 +442,11 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         type: z.string().optional(),
         source: z.string().optional(),
         parentId: z.string().optional(),
+        trustLevel: z.enum(['system', 'user', 'external']).optional()
+          .describe("Provenance (default: frontmatter, else 'user'; use 'external' for content from outside sources)"),
       },
     },
-    async ({ project, markdown, title, tags, type, source, parentId }) => {
+    async ({ project, markdown, title, tags, type, source, parentId, trustLevel }) => {
       const prj = resolveProject(project);
       const parsed = parseMarkdown(markdown);
 
@@ -439,6 +456,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
       const docType = type || parsed.type;
       const docSource = source || parsed.source;
       const docParentId = parentId || parsed.parentId;
+      const docTrustLevel: TrustLevel = trustLevel ?? parsed.trustLevel ?? 'user';
 
       // Merge tags if both parsed and explicit are provided
       const mergedTags = tags && parsed.tags.length > 0
@@ -453,12 +471,14 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         type: docType,
         source: docSource,
         parentId: docParentId,
+        trustLevel: docTrustLevel,
       });
 
       return ok({
         id: created.id,
         title: created.title,
         project: created.project,
+        trustLevel: created.trustLevel,
       });
     }
   );
@@ -500,6 +520,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         if ((doc as any).type) full.type = (doc as any).type;
         if (doc.source) full.source = doc.source;
         if ((doc as any).parentId) full.parentId = (doc as any).parentId;
+        if (doc.trustLevel) full.trustLevel = doc.trustLevel;
         if (doc.archived) full.archived = doc.archived;
         if (doc.trashed) full.trashed = doc.trashed;
         const md = matter.stringify(doc.content, full);

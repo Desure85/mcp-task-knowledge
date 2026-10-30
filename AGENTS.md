@@ -411,11 +411,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-10-20
-**Session ID:** ses_ea99b2472ffeIU0Jd5H493qwWg (LoopX: mcp-kb-hardening)
-**Текущая ветка:** master (→ origin/master)
-**Текущий этап:** Этап Q — Knowledge-base hardening. Baseline и после — на одних сетах (146 чанков docs, 18 RU/EN/code запросов, 99 полей, 2024×8 labels), harness в `scripts/kb-bench.mjs` + `scripts/field-eval.mjs`, отчёт `docs/benchmarks/kb-hardening-2026-10-20.md`.
-**Статус:** KE-01..05 done. Полный сет 2024: языковой top-1 81.5–83.6% (все языки ≥80%, tr 82.0), gold 58/78. 2941 тест green, test:types clean, cold-start 384ms.
+**Дата последнего обновления:** 2026-10-30
+**Session ID:** ses_e72dfcc40ffezuSMVsJt9RRyXI (остаток аудита: AUD-11..16 + TR-16)
+**Текущая ветка:** fix/remaining-audit-aud11-16-tr16 (worktree `/home/dm/work/mcp-tk-remaudit`, от origin/master 75f56a1)
+**Текущий этап:** Этап M/TR — закрытие остатка request-path аудита (AUD-11..16) и trust/provenance (TR-16).
+**Статус:** AUD-11..16 → done (код был реализован в 6505d0d/05aedbd, проверено откатом каждого фикса); TR-16 реализован. `build`, `test:types`, `lint:md`, `backlog:check`, `npm test` (258 файлов / 3012 тестов) — green.
+
+### Сессия ses_e72dfcc40ffezuSMVsJt9RRyXI (остаток аудита AUD-11..16 + TR-16, 2026-10-30)
+
+- AUD-11..16 в BACKLOG числились `pending`, хотя код фиксов и тесты уже были в master. Для каждого пункта сделан revert-check (откат именно фикса → тест падает): AUD-11 (4 теста), AUD-12 (2), AUD-13 (4), AUD-14 (leak после failed init), AUD-15 (phantom WS-сессия), AUD-16 (eviction и persist по отдельности). Статусы → done со ссылками на тесты.
+- **Вакуумные тесты найдены и исправлены** (тест зелёный без фикса = ложное покрытие): AUD-14 проверял только `remote` truthy — FIFO-очередь его проходила; переписан на два loopback-IP (`127.0.0.1`/`127.0.0.2`) + сценарий «failed init с чужого IP → следующий init не наследует remote». AUD-15 тестировал `validateToken()` на собственной проводке; добавлен реальный `/ws` handshake через `HttpTransportAdapter` с проверкой `authenticatedCount === 0`. AUD-16 тест «not FIFO» имел порядок вставки == порядку exp; переставлен (long-lived вставляется первым).
+- TR-16: `trustLevel` (`system`|`user`|`external`) в frontmatter knowledge-доков и memory-фактов (createDoc, import_single/import_markdown, bulk_create/update, extraction, temporal graph, async bulk_import). Egress: для `external` дополнительно применяются `EXTERNAL_PATTERNS` (active HTML, `javascript:`/`data:text/html`, fetch/curl, beacon-image); annotate-блок помечается `[EXTERNAL UNTRUSTED CONTENT]`, исходный JSON-блок не меняется. Тесты: `tests/tr16-trust-level.test.ts` (15).
+- Решение владельца требуется: несколько админов (хранилище пользователей, хеши, UI) — НЕ реализовано, только предложение в отчёте сессии.
 
 ### Сессия S-20261030-prodaudit (аудит production-readiness, ветка audit/prod-readiness)
 
