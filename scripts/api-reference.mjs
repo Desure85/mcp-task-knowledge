@@ -29,10 +29,17 @@ async function main() {
   await client.connect(transport);
 
   // tools_list returns { ok, data: { data: [...], pagination } }
-  const listRes = await client.callTool({ name: 'tools_list', arguments: { offset: 0, limit: 100 } });
-  const listEnv = JSON.parse(listRes?.content?.[0]?.text ?? '{}');
-  const raw = listEnv.data?.data ?? listEnv.data ?? [];
-  const tools = Array.isArray(raw) ? raw : [];
+  // Page through the whole list: a single capped call silently dropped tools past the limit.
+  const PAGE = 100;
+  const tools = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const listRes = await client.callTool({ name: 'tools_list', arguments: { offset, limit: PAGE } });
+    const listEnv = JSON.parse(listRes?.content?.[0]?.text ?? '{}');
+    const raw = listEnv.data?.data ?? listEnv.data ?? [];
+    const page = Array.isArray(raw) ? raw : [];
+    tools.push(...page);
+    if (page.length < PAGE) break;
+  }
 
   const lines = [
     '# API Reference',

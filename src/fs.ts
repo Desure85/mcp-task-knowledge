@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 
 /** Create a directory (and parents) if missing — idempotent. */
@@ -44,10 +45,33 @@ export async function readText(filePath: string): Promise<string> {
   return fs.readFile(filePath, 'utf-8');
 }
 
-/** Write a UTF-8 text file (creates parent dirs). */
+/**
+ * Write a UTF-8 text file atomically (tmp + rename, creates parent dirs) so a
+ * crash mid-write never leaves a truncated knowledge doc (AUD-18f).
+ */
 export async function writeText(filePath: string, content: string) {
   await ensureDir(path.dirname(filePath));
-  await fs.writeFile(filePath, content, 'utf-8');
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tmpPath, content, 'utf-8');
+    await fs.rename(tmpPath, filePath);
+  } catch (err) {
+    await fs.rm(tmpPath, { force: true }).catch(() => {});
+    throw err;
+  }
+}
+
+/** Synchronous variant of the atomic write for stores that persist inline (AUD-18b). */
+export function writeFileAtomicSync(filePath: string, content: string) {
+  fsSync.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fsSync.writeFileSync(tmpPath, content, 'utf-8');
+    fsSync.renameSync(tmpPath, filePath);
+  } catch (err) {
+    try { fsSync.rmSync(tmpPath, { force: true }); } catch { /* best effort */ }
+    throw err;
+  }
 }
 
 // ── Path traversal guards (AUD-03) ──────────────────────────────────
