@@ -48,7 +48,7 @@ Health endpoints, load balancer with sticky sessions, cluster state sync, tool s
 
 ### Stage 11: Integrations ✅
 
-Connector framework, GitHub, Jira/YouTrack, Slack/Discord, REST wrappers, gRPC wrappers, Google Drive, Gmail, Notion, OneDrive, Linear, Web Crawler.
+Connector framework, GitHub, Jira (read-only; YouTrack planned), Slack/Discord, REST wrappers, gRPC wrappers, Google Drive, Gmail, Notion, OneDrive, Linear, Web Crawler.
 
 ### Stage 12: Smart Features ✅
 
