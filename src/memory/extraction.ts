@@ -275,6 +275,7 @@ export class MemoryExtractor {
           source: { ...source, snippet },
           extractedAt: now,
           valid: true,
+          trustLevel: input.trustLevel ?? 'user',
           entities,
           validFrom: now,
         };
@@ -302,6 +303,7 @@ export class MemoryExtractor {
             tags: [...fact.tags, `category:${fact.category}`, `confidence:${fact.confidence.toFixed(2)}`, 'memory-fact'],
             type: 'memory_fact',
             source: `extraction:${fact.source.type}`,
+            trustLevel: fact.trustLevel ?? 'user',
           });
           docIds.push(doc.id);
           persistedCount++;

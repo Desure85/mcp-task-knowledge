@@ -5,6 +5,8 @@
  * MemoryScope: multi-tenancy dimensions for memory scoping (NEXT-010 forward-compat).
  */
 
+import type { TrustLevel } from '../types.js';
+
 /** Memory scope dimensions (Mem0-compatible: user/agent/app/run). */
 export interface MemoryScope {
   /** User ID — whose memory this is (e.g. "user-alice"). */
@@ -37,6 +39,8 @@ export interface ExtractedFact {
   extractedAt: string;
   /** Whether this fact is currently valid (temporal invalidation, NEXT-001). */
   valid: boolean;
+  /** Provenance (TR-16). Default 'user' — set 'external' for untrusted sources. */
+  trustLevel?: TrustLevel;
   /** ID of the fact that supersedes this one (if invalidated). */
   supersededBy?: string;
   /** Entities mentioned in the fact (for entity-linking retrieval, NEXT-008). */
@@ -83,6 +87,8 @@ export interface ExtractionInput {
   minConfidence?: number;
   /** Whether to persist facts to knowledge base immediately. */
   persist?: boolean;
+  /** Provenance stamped on extracted + persisted facts (TR-16). Default 'user'. */
+  trustLevel?: TrustLevel;
 }
 
 /** Result of memory extraction. */

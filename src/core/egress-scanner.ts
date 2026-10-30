@@ -22,6 +22,7 @@
  */
 
 import { childLogger } from './logger.js';
+import type { TrustLevel } from '../types.js';
 
 const log = childLogger('egress-scanner');
 
@@ -92,6 +93,35 @@ export const EGRESS_PATTERNS: readonly EgressPattern[] = [
   },
 ];
 
+/**
+ * Additional patterns applied ONLY to content with trustLevel='external'
+ * (TR-16). External content is what the user did not author — web pages,
+ * connector payloads, third-party exports — so active/URL-borne payloads
+ * that are merely noise in first-party docs become actionable here.
+ */
+export const EXTERNAL_PATTERNS: readonly EgressPattern[] = [
+  // Active HTML that executes if a renderer is naive (web UI, markdown preview).
+  {
+    name: 'html-active-content',
+    re: /<\s*(?:script|iframe|object|embed|form|meta\s+http-equiv)\b[^>]*>/gi,
+  },
+  // Script-scheme URLs and inline HTML data payloads.
+  {
+    name: 'js-or-data-url',
+    re: /\b(?:javascript|vbscript)\s*:|\bdata:text\/html/gi,
+  },
+  // Exfiltration-shaped instructions: tell the model to fetch/execute a URL.
+  {
+    name: 'fetch-instruction',
+    re: /\b(?:curl|wget|Invoke-WebRequest|fetch)\b[^\n]{0,80}\bhttps?:\/\//gi,
+  },
+  // Tracking/beacon images that leak context when rendered.
+  {
+    name: 'markdown-beacon-image',
+    re: /!\[[^\]]*\]\(\s*https?:\/\/[^)\s]+[?&][^)\s]*=/gi,
+  },
+];
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 /**
@@ -132,10 +162,12 @@ export class EgressScanner {
    * Scan output text for injection patterns and apply the configured mode.
    * Returns the (possibly transformed) text plus the findings list.
    */
-  scan(text: string): EgressScanResult {
+  scan(text: string, trustLevel: TrustLevel = 'user'): EgressScanResult {
     const findings: EgressFinding[] = [];
+    const patterns: readonly EgressPattern[] =
+      trustLevel === 'external' ? [...EGRESS_PATTERNS, ...EXTERNAL_PATTERNS] : EGRESS_PATTERNS;
 
-    for (const { name, re } of EGRESS_PATTERNS) {
+    for (const { name, re } of patterns) {
       re.lastIndex = 0;
       let m: RegExpExecArray | null;
       while ((m = re.exec(text)) !== null) {
@@ -164,7 +196,7 @@ export class EgressScanner {
 
     if (this.mode === 'redact') {
       let clean = text;
-      for (const { re } of EGRESS_PATTERNS) {
+      for (const { re } of patterns) {
         re.lastIndex = 0;
         clean = clean.replace(re, EGRESS_REDACTED_TOKEN);
       }

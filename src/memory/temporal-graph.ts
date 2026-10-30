@@ -28,6 +28,7 @@ import { writeFileAtomicSync } from '../fs.js';
 import { randomUUID } from 'node:crypto';
 import { childLogger } from '../core/logger.js';
 import type { MemoryScopeFilter } from './scoping.js';
+import type { TrustLevel } from '../types.js';
 
 const log = childLogger('temporal-graph');
 
@@ -61,6 +62,8 @@ export interface TemporalFact {
   invalidationReason?: string;
   /** Multi-tenancy scope (PH-007) — absent = global/shared fact. */
   scope?: MemoryScopeFilter;
+  /** Provenance (TR-16): 'system' | 'user' | 'external'. */
+  trustLevel?: TrustLevel;
   /** Relationships to other facts. */
   relationships: FactRelationship[];
 }
@@ -97,6 +100,8 @@ export interface AddFactInput {
   invalidationReason?: string;
   /** Multi-tenancy scope (userId/agentId/appId/runId). Omit = global fact. */
   scope?: MemoryScopeFilter;
+  /** Provenance (TR-16). Default 'user'. */
+  trustLevel?: TrustLevel;
 }
 
 /** Query parameters for point-in-time. */
@@ -204,6 +209,7 @@ export class TemporalGraph {
       validFrom: input.validFrom ?? now,
       recordedAt: now,
       valid: true,
+      trustLevel: input.trustLevel ?? 'user',
       ...(input.scope ? { scope: input.scope } : {}),
       relationships,
     };

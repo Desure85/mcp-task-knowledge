@@ -71,6 +71,31 @@ Features:
 - Fact relationships (supersedes, contradicts, relates_to)
 - History chains
 
+## Content Trust Levels (TR-16)
+
+Stored content carries its provenance, so the egress scanner can treat content
+the user did not author more strictly.
+
+- `trustLevel`: `system` | `user` | `external` (frontmatter / fact metadata).
+- Defaults: `user` for anything created locally; legacy docs without the field
+  are treated as `user`.
+- Set it explicitly when ingesting untrusted material:
+  `knowledge_import_single`, `knowledge_import_markdown`, `knowledge_bulk_create`/
+  `knowledge_bulk_update`, `memory_extract`/`memory_extract_async`,
+  `memory_temporal_add`, and async `bulk_import` documents all accept it.
+- Egress: when a tool result carries `trustLevel: external`, the scanner also
+  applies external-only patterns (active HTML, `javascript:`/`data:text/html`
+  URLs, fetch/curl instructions, beacon images). In `annotate` mode the warning
+  block is labelled `[EXTERNAL UNTRUSTED CONTENT]`; the data block itself stays
+  byte-identical and JSON-parseable.
+
+```typescript
+await mcp.call('knowledge_import_single', {
+  markdown: pageMarkdown,
+  trustLevel: 'external',
+});
+```
+
 ## User Profiles (NEXT-004, vs Supermemory)
 
 ```typescript

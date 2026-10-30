@@ -234,6 +234,12 @@ function ensureAsyncProcessors(): AsyncJobManager {
           maxFacts: asOptionalNumber(args['maxFacts'], 'maxFacts'),
           minConfidence: asOptionalNumber(args['minConfidence'], 'minConfidence'),
           persist: args['persist'] === true,
+          trustLevel:
+            args['trustLevel'] === 'system' ||
+            args['trustLevel'] === 'external' ||
+            args['trustLevel'] === 'user'
+              ? (args['trustLevel'] as 'system' | 'user' | 'external')
+              : undefined,
         });
         onProgress?.(1);
         return {
@@ -296,6 +302,12 @@ function ensureAsyncProcessors(): AsyncJobManager {
             tags: [...(Array.isArray(doc['tags']) ? (doc['tags'] as string[]) : []), 'async-import'],
             source: 'async-import',
             type: 'memory_fact',
+            trustLevel:
+              doc['trustLevel'] === 'system' ||
+              doc['trustLevel'] === 'external' ||
+              doc['trustLevel'] === 'user'
+                ? (doc['trustLevel'] as 'system' | 'user' | 'external')
+                : 'user',
           });
           docIds.push(docRec.id);
           onProgress?.((i + 1) / documents.length);
@@ -359,10 +371,12 @@ export function registerMemoryTools(ctx: ServerContext): void {
         maxFacts: z.number().int().min(1).max(100).default(20).optional().describe("Maximum facts to extract"),
         minConfidence: z.number().min(0).max(1).default(0.5).optional().describe("Minimum confidence threshold"),
         persist: z.boolean().default(false).optional().describe("Persist facts to knowledge base"),
+        trustLevel: z.enum(['system', 'user', 'external']).default('user').optional()
+          .describe("Provenance stamped on extracted/persisted facts (TR-16)"),
       },
     },
     async (args) => {
-      const { transcript, project, userId, agentId, appId, runId, maxFacts, minConfidence, persist } = args;
+      const { transcript, project, userId, agentId, appId, runId, maxFacts, minConfidence, persist, trustLevel } = args;
 
       if (persist && !project) {
         return err("project is required when persist=true");
@@ -377,6 +391,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         maxFacts,
         minConfidence,
         persist,
+        trustLevel,
       });
 
       return ok({
@@ -409,6 +424,8 @@ export function registerMemoryTools(ctx: ServerContext): void {
         maxFacts: z.number().int().min(1).max(100).default(20).optional().describe("Maximum facts to extract"),
         minConfidence: z.number().min(0).max(1).default(0.5).optional().describe("Minimum confidence threshold"),
         persist: z.boolean().default(false).optional().describe("Persist facts to knowledge base"),
+        trustLevel: z.enum(['system', 'user', 'external']).default('user').optional()
+          .describe("Provenance stamped on extracted/persisted facts (TR-16)"),
         webhookUrl: z.string().url().optional().describe("Webhook POSTed with the job result on completion"),
         metadata: z.record(z.string(), z.unknown()).optional().describe("Opaque metadata attached to the job"),
       },
@@ -430,6 +447,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
           maxFacts: args.maxFacts,
           minConfidence: args.minConfidence,
           persist: args.persist === true,
+          trustLevel: args.trustLevel,
         },
         webhookUrl: args.webhookUrl,
         metadata: args.metadata as Record<string, unknown> | undefined,
@@ -525,6 +543,8 @@ export function registerMemoryTools(ctx: ServerContext): void {
         validFrom: z.string().optional().describe("When the fact became true (ISO 8601, default: now)"),
         supersedesFactId: z.string().optional().describe("ID of fact this one supersedes"),
         invalidationReason: z.string().optional().describe("Why the old fact is being superseded"),
+        trustLevel: z.enum(['system', 'user', 'external']).default('user').optional()
+          .describe("Provenance of this fact (TR-16)"),
         scope: z.object({
           userId: z.string().optional(),
           agentId: z.string().optional(),
@@ -544,6 +564,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         validFrom: args.validFrom,
         supersedesFactId: args.supersedesFactId,
         invalidationReason: args.invalidationReason,
+        trustLevel: args.trustLevel,
         scope: args.scope ?? sessionUserScope(ctx),
       });
       return ok(fact);
