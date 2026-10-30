@@ -284,13 +284,24 @@ describe('AUD high-severity live probes', () => {
 
   it('AUD-05: after the token expires the same session id no longer works', async () => {
     const { port } = await startServer('expiry', { MCP_PRUNE_INTERVAL_MS: '300' });
-    const sid = await openSession(port, mintJwt({ ttlSec: 3 }));
+    // Sessions end tokenTtlGraceMs (30s default) BEFORE the token expires, so a 40s token gives a ~10s
+    // session — enough headroom for slow CI (init + auth + first call) yet quick to wait out.
+    const sid = await openSession(port, mintJwt({ ttlSec: 40 }));
     const before = await call(port, sid, 'tasks_list', {});
     expect(before.status).toBe(200);
     expect(before.ok).not.toBe(undefined);
-    await new Promise((r) => setTimeout(r, 5000));
-    const after = await rpc(port, { jsonrpc: '2.0', id: 99, method: 'tools/list' }, sid);
-    expect([401, 403, 404], `status after expiry: ${after.status} ${JSON.stringify(after.json)}`).toContain(after.status);
+    // Guard against a vacuous pass: the very request we poll with must succeed while the token is valid.
+    const live = await rpc(port, { jsonrpc: '2.0', id: 98, method: 'tools/list' }, sid);
+    expect(live.status, 'tools/list must work before expiry').toBe(200);
+    // Poll instead of a fixed sleep: expiry + prune sweep timing varies under load.
+    let status = 0;
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 500));
+      status = (await rpc(port, { jsonrpc: '2.0', id: 99, method: 'tools/list' }, sid)).status;
+      if (status !== 200) break;
+    }
+    expect([401, 403, 404], `status after expiry: ${status}`).toContain(status);
   }, 60000);
 
   it('AUD-07: security stack is on by default — tool calls land in the audit log', async () => {
