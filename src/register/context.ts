@@ -129,6 +129,8 @@ export interface ServerContext {
 
   /** TokenManager issuing tokens validated by the default validator (DX-29). Present only when no JWT_SECRET/JWKS_URL validator is configured. */
   tokenManager?: TokenManager;
+  /** Revoke a JWT by id until its exp (set when a JwtValidator backs auth). Used by POST /auth/logout. */
+  revokeJwt?: (jti: string, exp?: number) => void;
 
   /** One-time setup-link store (DX-29). Set by AppContainer after auth init. */
   setupLinkStore?: SetupLinkStore;

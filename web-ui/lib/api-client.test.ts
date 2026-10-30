@@ -213,6 +213,28 @@ describe('auth token', () => {
   });
 });
 
+describe('auth.logout', () => {
+  it('revokes server-side with the bearer token, then clears the stored token', async () => {
+    setAuthToken('login-jwt');
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => { calls.push({ url, init }); return { ok: true }; });
+    await api.auth.logout();
+    vi.unstubAllGlobals();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toMatch(/\/auth\/logout$/);
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer login-jwt');
+    expect(store.has('mcp.auth.token')).toBe(false);
+  });
+
+  it('still signs out locally when the server is unreachable', async () => {
+    setAuthToken('login-jwt');
+    vi.stubGlobal('fetch', async () => { throw new Error('offline'); });
+    await api.auth.logout();
+    vi.unstubAllGlobals();
+    expect(store.has('mcp.auth.token')).toBe(false);
+  });
+});
+
 describe('project selection survives reloads', () => {
   it('setCurrent persists, and the next session re-applies it', async () => {
     okAll();

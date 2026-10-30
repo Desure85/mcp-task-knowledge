@@ -18,7 +18,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import * as jose from 'jose';
 import { AuthProtection } from '../core/auth-protection.js';
 import { childLogger } from '../core/logger.js';
@@ -26,6 +26,7 @@ import { childLogger } from '../core/logger.js';
 const log = childLogger('transport:login');
 
 export const LOGIN_PATH = '/auth/login';
+export const LOGOUT_PATH = '/auth/logout';
 
 /** Token lifetime: 30 days, mirrored in the `expiresIn` response field. */
 export const LOGIN_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -138,6 +139,7 @@ async function issueToken(config: LoginConfig): Promise<string> {
   return await new jose.SignJWT({ roles: [...LOGIN_ROLES] })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(config.username)
+    .setJti(randomUUID())
     .setIssuedAt(now)
     .setExpirationTime(now + LOGIN_TOKEN_TTL_SECONDS)
     .sign(textEncoder.encode(config.jwtSecret));
@@ -247,5 +249,52 @@ export function createLoginHandler(options: LoginRouteOptions = {}): LoginHandle
       expiresIn: LOGIN_TOKEN_TTL_SECONDS,
       user: { id: config.username, roles: [...LOGIN_ROLES] },
     });
+  };
+}
+
+/** True for `/auth/logout` (with optional trailing slash or query string). */
+export function isLogoutPath(url: string): boolean {
+  const path = url.split('?')[0];
+  return path === LOGOUT_PATH || path === `${LOGOUT_PATH}/`;
+}
+
+export interface LogoutRouteOptions {
+  /** Revoke a token id until `exp` (epoch seconds). */
+  revoke: (jti: string, exp?: number) => void;
+}
+
+/**
+ * `POST /auth/logout` with `Authorization: Bearer <jwt>` — revokes that token
+ * server-side so a copied/leaked login token stops working, not just the
+ * browser's copy. The signature is verified first: an unverified token must
+ * never be able to blacklist someone else's jti. Idempotent for tokens that
+ * are already revoked or expired (still 200 so a retry never looks like an error).
+ */
+export function createLogoutHandler(options: LogoutRouteOptions): LoginHandler {
+  return async (req, res) => {
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { ok: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'Use POST' } }, { Allow: 'POST' });
+      return;
+    }
+    const secret = process.env.JWT_SECRET ?? '';
+    const header = String(req.headers.authorization ?? '');
+    const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
+    if (!secret || !token) {
+      sendError(res, 401, 'UNAUTHENTICATED', 'Bearer token required');
+      return;
+    }
+    try {
+      const { payload } = await jose.jwtVerify(token, textEncoder.encode(secret), { algorithms: ['HS256'] });
+      if (typeof payload.jti === 'string') options.revoke(payload.jti, payload.exp);
+      log.info({ userId: payload.sub, ip: clientIp(req) }, 'logout: token revoked');
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      // Expired tokens are already useless — treat as success; anything else is a bad token.
+      if ((err as { code?: string }).code === 'ERR_JWT_EXPIRED') {
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      sendError(res, 401, 'UNAUTHENTICATED', 'Invalid token');
+    }
   };
 }

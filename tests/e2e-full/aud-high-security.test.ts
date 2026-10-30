@@ -190,6 +190,31 @@ describe('admin login → token → setup link (live)', () => {
     expect(right.status).toBe(429);
   }, 60000);
 
+  it('POST /auth/logout revokes the token server-side; a forged token revokes nothing', async () => {
+    const { port } = await startServer('logout', LOGIN);
+    const login = await postLogin(port, { username: 'admin', password: LOGIN.MCP_LOGIN_PASSWORD });
+    const token: string = login.json.token;
+    const logout = (bearer: string) =>
+      fetch(`http://127.0.0.1:${port}/auth/logout`, { method: 'POST', headers: { authorization: `Bearer ${bearer}` } });
+
+    // A token that merely *claims* the same jti but is signed with another key must be rejected and must not blacklist it.
+    const [h, p] = token.split('.');
+    const forged = `${h}.${p}.${crypto.createHmac('sha256', 'wrong-key').update(`${h}.${p}`).digest('base64url')}`;
+    expect((await logout(forged)).status).toBe(401);
+    expect((await call(port, await openSession(port, token), 'session_list')).ok, 'still valid after forged logout').toBe(true);
+
+    expect((await logout(token)).status).toBe(200);
+    expect((await logout(token)).status, 'idempotent').toBe(200);
+
+    const init = await rpc(port, {
+      jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'probe', version: '0' } },
+    });
+    const auth = await call(port, init.sid!, 'mcp.authenticate', { token });
+    expect(auth.ok, 'revoked token must no longer authenticate').toBe(false);
+    expect((await fetch(`http://127.0.0.1:${port}/auth/logout`, { method: 'POST' })).status).toBe(401);
+  }, 60000);
+
   it('setup link is single-use and its token is scoped to the requested role, not admin', async () => {
     const { port } = await startServer('setup-link', LOGIN);
     const login = await postLogin(port, { username: 'admin', password: LOGIN.MCP_LOGIN_PASSWORD });
