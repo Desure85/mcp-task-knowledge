@@ -897,6 +897,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-25 | Клиентская compat-матрица | low | pending | — | Таблица «Claude Desktop ✓ / Cursor ✓ / Windsurf ?» + дата последней ручной проверки, обновляется при релизе |
 | DX-28 | Contributor DX | low | pending | — | CONTRIBUTING.md, PR/issue-шаблоны, актуализация docs/architecture.md (после WIRE-находок может расходиться с кодом), опционально devcontainer |
 
+### Фаза 6 — Runtime support (Node 24)
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-31 | Node.js 24: CI, Docker, engines | high | done | — | Node 20 EOL (апрель 2026). `engines.node >=22.0.0`, `.nvmrc=24`; все workflow — Node 24 (primary), `node-compat` матрица `22.x`+`24.x`; Dockerfile/web-ui/Dockerfile/compose — `node:24-bullseye` / `node:24-alpine`, base-образы `mcp-node:24-*`; подняты actions: checkout v7, setup-node v7, upload-artifact v7, docker/login 4.6.0, setup-buildx 4.3.0, build-push 7.3.0, setup-qemu 4.3.0 (inputs не менялись; checkout v7 ломает только `pull_request_target`/`workflow_run` — у нас их нет). Проверено на Node 24.22.2: build, test:types, lint, `npm test` 259 файлов/3026 тестов, web-ui `tsc`+`npm test`; нативные модули better-sqlite3 12.11 (ABI 137) и onnxruntime-node 1.30 грузятся. Осталось: опубликовать `mcp-node:24-*` через docker-build-base |
+
 ---
 
 ## Этап O — Trust/Hardening: вторая волна аудитов и выдержка (2026-09-11)
@@ -1161,7 +1167,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-10-30 (Добавлен этап V «Workflow и доски задач» (V-01..V-05, 5 pending: свои статусы, граф переходов, типы, сворачиваемые колонки, дорожки по типам); Этапы R, S, T: целостность/история, трекер уровня YouTrack, командная работа и вики — 19 pending; INT-002 исправлен, INT-007/008. Добавлен этап U «Удобство для агентов»; U-01 claim/lease → done)
+**Последнее обновление:** 2026-10-30 (Добавлен этап V «Workflow и доски задач» (V-01..V-05, 5 pending: свои статусы, граф переходов, типы, сворачиваемые колонки, дорожки по типам); Этапы R, S, T: целостность/история, трекер уровня YouTrack, командная работа и вики — 19 pending; INT-002 исправлен, INT-007/008. Добавлен этап U «Удобство для агентов»; U-01 claim/lease → done) DX-31: Node.js 24 (CI, Docker, engines) → done; Actions v7/4.x.
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -1195,7 +1201,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
-| DX/Onboarding (N) | 20 | 20 | 0 | 0 | 0 | 0 |
+| DX/Onboarding (N) | 21 | 20 | 0 | 1 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
 | KB hardening (Q) | 7 | 1 | 0 | 6 | 0 | 0 |
@@ -1204,7 +1210,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Team work and wiki (T) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Agent convenience (U) | 5 | 4 | 0 | 1 | 0 | 0 |
 | Workflow and boards (V) | 5 | 5 | 0 | 0 | 0 | 0 |
-| **Итого** | **330** | **75** | **0** | **254** | **0** | **1** |
+| **Итого** | **331** | **75** | **0** | **255** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O

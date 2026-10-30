@@ -4,7 +4,7 @@
 
 ## Стек
 
-TypeScript (strict), Node.js 20, ESM, Vitest, Zod. Данные — Markdown/JSON файлы.
+TypeScript (strict), Node.js 22+ (CI: 22.x and 24.x), ESM, Vitest, Zod. Данные — Markdown/JSON файлы.
 
 ## Начало работы
 

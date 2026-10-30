@@ -245,10 +245,14 @@ async function main() {
     }
   }
   console.log(`\n${pass} passed, ${fail} failed, ${skip} skipped`);
-  process.exit(fail > 0 ? 1 : 0);
+  // Use exitCode, not process.exit(): when stdout is a pipe (execFile in
+  // tests/CI), a forced exit can truncate the final summary line before the
+  // stream is flushed. The event loop has no pending work here — every
+  // execFile/fs call above is awaited — so natural exit is safe.
+  process.exitCode = fail > 0 ? 1 : 0;
 }
 
 main().catch((e) => {
   console.error('executable-docs crashed:', e);
-  process.exit(1);
+  process.exitCode = 1;
 });

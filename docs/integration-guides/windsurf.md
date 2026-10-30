@@ -5,7 +5,7 @@ Guide for connecting `mcp-task-knowledge` to [Windsurf](https://codeium.com/wind
 ## Prerequisites
 
 - Windsurf IDE (latest version recommended)
-- Node.js 18+
+- Node.js 22+
 - Server built from source: `npm install && npm run build`
 
 ## Configuration

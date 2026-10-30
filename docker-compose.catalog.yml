@@ -1,6 +1,6 @@
 services:
   service-catalog:
-    image: node:20-alpine
+    image: node:24-alpine
     working_dir: /app
     environment:
       - NODE_ENV=development

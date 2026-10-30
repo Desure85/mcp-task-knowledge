@@ -320,7 +320,7 @@ PR description: что сделано, почему, что не сделано 
 **Версия:** 1.0.20
 **Репозиторий:** <https://github.com/Desure85/mcp-task-knowledge>
 **Основная ветка:** `master`
-**Стек:** TypeScript, Node.js 20, MCP SDK, Vitest, Zod, ONNX Runtime
+**Стек:** TypeScript, Node.js 24 (engines >=22), MCP SDK, Vitest, Zod, ONNX Runtime
 
 > **Полная документация:** `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md), [Configuration](docs/getting-started/configuration.md), [Docker](docs/deployment/docker.md), [API Reference](docs/api-reference.md)
 
@@ -412,10 +412,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-10-30
-**Session ID:** ses_e72dfcc40ffezuSMVsJt9RRyXI (остаток аудита: AUD-11..16 + TR-16)
-**Текущая ветка:** fix/remaining-audit-aud11-16-tr16 (worktree `/home/dm/work/mcp-tk-remaudit`, от origin/master 75f56a1)
-**Текущий этап:** Этап M/TR — закрытие остатка request-path аудита (AUD-11..16) и trust/provenance (TR-16).
-**Статус:** AUD-11..16 → done (код был реализован в 6505d0d/05aedbd, проверено откатом каждого фикса); TR-16 реализован. `build`, `test:types`, `lint:md`, `backlog:check`, `npm test` (258 файлов / 3012 тестов) — green.
+**Session ID:** ses_e72dfcc40ffezuSMVsJt9RRyXI (chore: Node.js 24)
+**Текущая ветка:** chore/node-24 (worktree `/home/dm/work/mcp-tk-node24`, от origin/master 40b6050)
+**Текущий этап:** Infra — переход на Node.js 24 (CI, Docker, engines) и снятие Node 20 deprecation в Actions.
+**Статус:** DX-31 done. `engines >=22.0.0`, `.nvmrc=24`, CI primary 24 + compat 22/24, Docker `node:24-*`, actions checkout/setup-node/upload-artifact v7 + docker actions 4.x/7.x. Проверено на Node 24.22.2: build/test:types/lint/lint:md/backlog:check, `npm test` 259 файлов / 3026 тестов, web-ui tsc + 69 тестов, docker build (основной образ и web-ui). Осталось: опубликовать `mcp-node:24-*` через workflow_dispatch docker-build-base.
+
+### Сессия ses_e72dfcc40ffezuSMVsJt9RRyXI (Node.js 24 + CI hygiene, 2026-10-30)
+
+- Node 20 EOL: обновлены все workflow (12 файлов), Dockerfile (базовые образы, NodeSource 24.x, proxy-stages), web-ui/Dockerfile, compose-файлы, docs/README/CONTRIBUTING/AGENTS; `engines.node >=22.0.0`, добавлен `.nvmrc=24`.
+- Версии Actions перенесены из dependabot-PR (#194/#195/#199/#200/#202/#203/#210) единым изменением: checkout v7, setup-node v7, upload-artifact v7, docker/login 4.6.0, setup-buildx 4.3.0, build-push 7.3.0, setup-qemu 4.3.0. Inputs сверены по `action.yml` — используемые не изменились; checkout v7 ломает только `pull_request_target`/`workflow_run` (в репозитории их нет).
+- Проверка нативных модулей на Node 24 (ABI 137): better-sqlite3 12.11.1 и onnxruntime-node 1.30.0 загружаются; полный `npm test` зелёный (259/3026), web-ui tsc — 0 ошибок, docker build проходит (в образе Node 24).
+- Гейт для CI: `mcp-node:24-bullseye|alpine` ещё не опубликованы в GHCR (20-е есть) — перед мержем нужно вручную запустить `docker-build-base` (workflow_dispatch), иначе push-сборка баз упадёт на отсутствующем BASE_NODE_IMAGE.
+- Флейк окружения: `chaos-shutdown` падает по таймауту SIGTERM, если порт 4001 занят чужим/осиротевшим процессом; при свободном порте и `--maxWorkers=4` полный прогон зелёный. Это не регрессия Node 24 (ручной SIGTERM — exit 0 за 14 мс).
 
 ### Сессия ses_e72dfcc40ffezuSMVsJt9RRyXI (остаток аудита AUD-11..16 + TR-16, 2026-10-30)
 
