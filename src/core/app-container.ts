@@ -530,7 +530,7 @@ export class AppContainer {
       }
 
       // AUD-07: wire the previously-dead security stack into tools/call
-      // dispatch. Opt-in via SECURITY_STACK=1 — when off, wrapToolHandler
+      // dispatch. On by default (SECURITY_STACK=0 disables) — when off, wrapToolHandler
       // skips the stage entirely (backwards compat). Placed after auth init
       // so ACL can resolve caller roles via AuthManager.
       let auditLoggerRef: AuditLogger | undefined;
@@ -557,17 +557,23 @@ export class AppContainer {
           enabled: process.env.SECURITY_ACL === '1' || process.env.SECURITY_ACL === 'true',
         });
         this.ctx.acl = acl;
+        const rawSanitizer = (process.env.SECURITY_SANITIZER_MODE ?? '').toLowerCase();
+        const sanitizerMode = rawSanitizer === 'reject' ? 'reject' : rawSanitizer === 'sanitize' ? 'sanitize' : undefined;
         this.ctx.securityStack = new SecurityStack({
           rateLimiter: this.ctx.rateLimiter,
           acl,
           auditLogger,
           authProtection: this.authProtection ?? new AuthProtection(),
-          sanitizer: { mode: process.env.SECURITY_SANITIZER_MODE === 'reject' ? 'reject' : 'sanitize' },
+          // Content-mutating stages are opt-in: a knowledge base stores arbitrary markdown and
+          // code, and the sanitizer rewrote frontmatter while the egress 'warn' annotation
+          // prefixed tool output so it no longer parsed as JSON. Rate-limit, audit and
+          // auth-lockout (non-mutating) are on by default.
+          sanitizer: sanitizerMode ? { mode: sanitizerMode } : undefined,
           authManager: this.authManager,
-          egress: resolveEgressMode(),
+          egress: process.env.SECURITY_EGRESS_MODE ? resolveEgressMode() : undefined,
         });
         this.addCleanup(() => auditLogger.close());
-        this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (SECURITY_STACK=1)');
+        this.log.info({ auditPath, aclEnabled: acl.enabled }, 'security stack initialized (disable with SECURITY_STACK=0)');
       }
 
       // DX-29: one-time setup links. Token issuer must produce tokens the

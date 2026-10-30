@@ -311,8 +311,12 @@ export class SecurityStack {
 
 // ─── Env wiring ─────────────────────────────────────────────────────
 
-/** Whether the security stack is enabled via SECURITY_STACK env var. */
+/**
+ * Secure by default: the stack is on unless SECURITY_STACK is explicitly set to
+ * 0/false/no/off. (Previously opt-in, which left rate-limit, audit and auth
+ * lockout silently disabled on every default deployment.)
+ */
 export function isSecurityStackEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const v = (env.SECURITY_STACK ?? '').toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes';
+  const v = (env.SECURITY_STACK ?? '').trim().toLowerCase();
+  return !(v === '0' || v === 'false' || v === 'no' || v === 'off');
 }
