@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script>if(location.search.includes('theme=dark')){document.documentElement.dataset.theme='dark'}</script>
+<style>
+/* ---------- Design tokens (copied from tokens.css, not edited) ---------- */
+:root {
+  color-scheme: light;
+  --paper: #f5f5f2;
+  --surface: #ffffff;
+  --surface-2: #efefea;
+  --rule: #d5d7d1;
+  --rule-strong: #b9bcb4;
+  --ink: #15171a;
+  --muted: #5b616b;
+  --accent: #0e6b66;
+  --accent-hover: #0a504c;
+  --accent-soft: #e3f1ef;
+  --on-accent: #ffffff;
+  --st-todo: #5b616b;
+  --st-doing: #b45309;
+  --st-review: #6d28d9;
+  --st-blocked: #a3211b;
+  --st-done: #157347;
+  --st-archive: #6b7280;
+  --ty-bug: #a3211b;
+  --ty-feature: #6d28d9;
+  --ty-task: #3f4753;
+  --pr-high: #a3211b;
+  --pr-med: #b45309;
+  --pr-low: #6b7280;
+  --focus: #0e6b66;
+  --radius-control: 3px;
+  --radius-card: 4px;
+  --shadow-pop: 0 8px 24px rgb(16 18 22 / 0.14);
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-24: 24px;
+  --row: 32px;
+  --nav: 236px;
+  --topbar: 48px;
+  --column: 264px;
+  --column-collapsed: 48px;
+  --gap: 12px;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #121417;
+  --surface: #191c21;
+  --surface-2: #20242a;
+  --rule: #2b3037;
+  --rule-strong: #3a4048;
+  --ink: #e9ebee;
+  --muted: #a3a9b3;
+  --accent: #5ed3c6;
+  --accent-hover: #7ee0d5;
+  --accent-soft: #12312f;
+  --on-accent: #0c1211;
+  --st-todo: #98a1ac;
+  --st-doing: #e0a45a;
+  --st-review: #b49bf5;
+  --st-blocked: #f08a80;
+  --st-done: #6dcf9a;
+  --st-archive: #8b93a0;
+  --ty-bug: #f08a80;
+  --ty-feature: #b49bf5;
+  --ty-task: #a7aeb9;
+  --pr-high: #f08a80;
+  --pr-med: #e0a45a;
+  --pr-low: #8b93a0;
+  --focus: #5ed3c6;
+  --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
+}
+
+/* ---------- Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-13);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+h1, p { margin: 0; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+svg { display: block; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -56px;
+  z-index: 100;
+  padding: 8px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--text-13);
+  text-decoration: none;
+  transition: top 120ms ease;
+}
+.skip-link:focus { top: 8px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- Sign in ---------- */
+.signin { min-height: 100vh; padding: 96px 24px 48px 96px; }
+.col { width: 380px; max-width: 100%; padding-top: 28px; border-top: 1px solid var(--rule-strong); }
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-14);
+  font-weight: 600;
+  line-height: 1;
+}
+.brand-name { font-size: var(--text-13); font-weight: 500; }
+
+h1 { margin-top: 32px; font-size: var(--text-20); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+
+.notice {
+  margin-top: 18px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--pr-med);
+  font-size: var(--text-12);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+form { margin-top: 20px; }
+.fields { display: flex; flex-direction: column; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: var(--text-12); font-weight: 500; color: var(--muted); }
+.field input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-13);
+}
+.field input:hover { border-color: var(--rule-strong); }
+.field input:focus { border-color: var(--accent); }
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  margin-top: 18px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-13);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.secondary {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: var(--text-12);
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+}
+.secondary:hover { color: var(--accent-hover); text-decoration-color: currentColor; }
+
+.foot {
+  margin-top: 34px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-12);
+  line-height: 1.55;
+  color: var(--muted);
+}
+.endpoint { display: flex; align-items: center; margin-top: 8px; font-size: var(--text-12); color: var(--ink); }
+.endpoint .sep { display: inline-block; width: 1px; height: 11px; margin: 0 9px; background: var(--rule-strong); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+@media (max-width: 720px) {
+  .signin { padding: 40px 24px 32px; }
+  .col { width: 100%; padding-top: 22px; }
+  h1 { margin-top: 24px; }
+  .btn-primary { height: 44px; }
+  .field input { height: 44px; font-size: var(--text-14); }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+
+<main id="content" class="signin">
+  <div class="col">
+    <header class="brand">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span class="brand-name">MCP Tasks &amp; Knowledge</span>
+    </header>
+
+    <h1>Sign in</h1>
+
+    <p class="notice" role="status">Session expired &mdash; sign in again to continue to Tasks.</p>
+
+    <form>
+      <div class="fields">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password">
+        </div>
+      </div>
+
+      <button class="btn-primary" type="submit">Sign in</button>
+    </form>
+
+    <a class="secondary" href="#content">Use an access token</a>
+
+    <div class="foot">
+      <p>Agents connect with a token. Create one on Access.</p>
+      <p class="endpoint">
+        <span class="num">localhost:3001</span>
+        <span class="sep" aria-hidden="true"></span>
+        <span class="num">mcp</span>
+      </p>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,170 @@
+/**
+ * Direction C — "Workbench" — design tokens (Tailwind v4).
+ *
+ * Split-tone shell: an ink navigator that holds the list, a light canvas that
+ * holds the work. Brand indigo is kept (the "M" mark stays recognisable), but
+ * it is an action colour, not a decoration. Every text pair is >= 4.5:1.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Ink navigator */
+  --chrome: #1a1d23;
+  --chrome-2: #23272f;
+  --chrome-line: #333845;
+  --chrome-ink: #edeff3;
+  --chrome-muted: #9ca3b4;
+
+  /* Canvas */
+  --canvas: #fbfbfc;
+  --surface: #ffffff;
+  --surface-2: #f2f3f6;
+  --line: #e4e6eb;
+  --line-strong: #cdd1d9;
+
+  /* Text */
+  --ink: #14171c;
+  --muted: #5a6270;
+
+  /* Accent (brand indigo) */
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef0fe;
+  --on-accent: #ffffff;
+
+  /* Status */
+  --st-todo: #5a6270;
+  --st-doing: #4f46e5;
+  --st-review: #7c3aed;
+  --st-blocked: #b42318;
+  --st-done: #0e7a5f;
+  --st-archive: #6b7280;
+
+  /* Type */
+  --ty-bug: #b42318;
+  --ty-feature: #7c3aed;
+  --ty-task: #4b5563;
+
+  /* Priority */
+  --pr-high: #b42318;
+  --pr-med: #b45309;
+  --pr-low: #6b7280;
+
+  --focus: #4f46e5;
+
+  /* Geometry */
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-panel: 12px;
+  --shadow-pop: 0 12px 32px rgb(20 23 28 / 0.16);
+
+  /* Type */
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-15: 15px;
+  --text-17: 17px;
+  --text-22: 22px;
+  --text-30: 30px;
+
+  /* Density */
+  --row: 36px;
+  --nav: 288px;
+  --topbar: 52px;
+  --column: 288px;
+  --gap: 14px;
+  --measure: 68ch;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --chrome: #0c0e12;
+  --chrome-2: #161a21;
+  --chrome-line: #262b34;
+  --chrome-ink: #e9ebf0;
+  --chrome-muted: #98a0b0;
+
+  --canvas: #101216;
+  --surface: #171a20;
+  --surface-2: #1e222a;
+  --line: #262b34;
+  --line-strong: #39404c;
+
+  --ink: #e9ebf0;
+  --muted: #98a0b0;
+
+  --accent: #8b87ff;
+  --accent-hover: #a5a2ff;
+  --accent-soft: #1e2033;
+  --on-accent: #0e0f1a;
+
+  --st-todo: #98a0b0;
+  --st-doing: #8b87ff;
+  --st-review: #c4a7ff;
+  --st-blocked: #f08a80;
+  --st-done: #4fd1a5;
+  --st-archive: #8b93a0;
+
+  --ty-bug: #f08a80;
+  --ty-feature: #c4a7ff;
+  --ty-task: #a7aeb9;
+
+  --pr-high: #f08a80;
+  --pr-med: #e0a45a;
+  --pr-low: #8b93a0;
+
+  --focus: #8b87ff;
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.55);
+}
+
+@theme inline {
+  --color-chrome: var(--chrome);
+  --color-chrome-2: var(--chrome-2);
+  --color-chrome-line: var(--chrome-line);
+  --color-chrome-ink: var(--chrome-ink);
+  --color-chrome-muted: var(--chrome-muted);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-st-todo: var(--st-todo);
+  --color-st-doing: var(--st-doing);
+  --color-st-review: var(--st-review);
+  --color-st-blocked: var(--st-blocked);
+  --color-st-done: var(--st-done);
+  --color-st-archive: var(--st-archive);
+  --color-ty-bug: var(--ty-bug);
+  --color-ty-feature: var(--ty-feature);
+  --color-ty-task: var(--ty-task);
+  --color-pr-high: var(--pr-high);
+  --color-pr-med: var(--pr-med);
+  --color-pr-low: var(--pr-low);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --text-11: var(--text-11);
+  --text-12: var(--text-12);
+  --text-13: var(--text-13);
+  --text-14: var(--text-14);
+  --text-15: var(--text-15);
+  --text-17: var(--text-17);
+  --text-22: var(--text-22);
+  --text-30: var(--text-30);
+
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+  --radius-panel: var(--radius-panel);
+}
