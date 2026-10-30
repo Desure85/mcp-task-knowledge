@@ -1,6 +1,6 @@
 # ROADMAP
 
-**Последнее обновление:** 2026-09-02
+**Последнее обновление:** 2026-10-30 (добавлены открытые этапы R–U)
 **Статус:** 181/182 задачи завершены (99.5%)
 
 > Полная документация: `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md)
@@ -77,6 +77,17 @@ memory-recall, memory-sync, memory-context, memory-extract, memory-context-v2, m
 | ID | Задача | Приоритет | Статус |
 |----|--------|-----------|--------|
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred |
+
+### Открытые этапы R–U
+
+Введены после последнего rewrite этого файла; подробные задачи и DoD — в `BACKLOG.md`.
+
+| Этап | Название | Задач | Статус |
+|------|----------|-------|--------|
+| R | Многопользовательская целостность и история изменений | 8 | pending |
+| S | Трекер уровня YouTrack | 5 | pending |
+| T | Командная работа и вики | 6 | pending |
+| U | Удобство для агентов (claim/lease, дельта изменений, evidence, экономия токенов, memory_verify) | 5 | pending |
 
 ---
 
