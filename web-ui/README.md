@@ -47,6 +47,21 @@ When the server requires auth, the client exchanges the stored JWT for a single-
 (`POST /auth/ws-ticket`, JWT in the `Authorization` header) and upgrades with `?ticket=…`. The JWT is never
 placed in the WebSocket URL, so it cannot leak into proxy/server access logs or browser console errors.
 
+### Theme and design tokens
+
+The admin UI has two independent theme axes stored in `localStorage`:
+
+- `mcp.mode`: `light`, `dark` or `system` (system follows the OS preference);
+- `mcp.theme`: `indigo` (default), `petrol` or `copper`.
+
+An inline script in `app/layout.tsx` applies `data-mode`/`data-theme` before first
+paint, so reloads do not flash. Tokens live in `app/globals.css`; components must
+use semantic utilities (`bg-surface`, `text-ink`, `border-line`, `bg-accent`,
+`text-st-done`, …) rather than raw colours. Add a palette to `lib/theme.ts` and
+to all six `[data-theme][data-mode]` CSS blocks, then run
+`npm run test -- lib/theme.contrast.test.ts` (WCAG AA gate). The dev-only
+`/design` route shows every primitive in all six variants.
+
 ## Pages
 
 - `/` — Home (overview + links)
