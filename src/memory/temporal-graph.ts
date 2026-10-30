@@ -23,8 +23,8 @@
  *   const facts = graph.queryAtTime('2026-06-01');
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+import { writeFileAtomicSync } from '../fs.js';
 import { randomUUID } from 'node:crypto';
 import { childLogger } from '../core/logger.js';
 import type { MemoryScopeFilter } from './scoping.js';
@@ -149,8 +149,7 @@ export class TemporalGraph {
 
   private save(): void {
     try {
-      mkdirSync(dirname(this.storagePath), { recursive: true });
-      writeFileSync(this.storagePath, JSON.stringify(this.storage, null, 2));
+      writeFileAtomicSync(this.storagePath, JSON.stringify(this.storage, null, 2));
     } catch (e) {
       log.error({ error: e, path: this.storagePath }, 'failed to save temporal graph');
     }

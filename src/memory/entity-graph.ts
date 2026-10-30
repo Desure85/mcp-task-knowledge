@@ -19,7 +19,8 @@
  *   const path = graph.findPath('src/a.ts', 'src/b.ts');
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { writeFileAtomicSync } from '../fs.js';
 import { join, dirname, resolve, relative, extname, basename } from 'node:path';
 import { childLogger } from '../core/logger.js';
 
@@ -456,9 +457,7 @@ export class EntityGraph {
 
   private save(): void {
     try {
-      const dir = dirname(this.filePath);
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(this.filePath, JSON.stringify(this.storage, null, 2), 'utf8');
+      writeFileAtomicSync(this.filePath, JSON.stringify(this.storage, null, 2));
     } catch (err) {
       log.error({ err }, 'failed to save entity graph');
     }

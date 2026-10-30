@@ -6,8 +6,8 @@
  * events. This keeps the log bounded while preserving full history.
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+import { writeFileAtomicSync } from '../fs.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('sync:event-log');
@@ -139,13 +139,11 @@ export class EventLog {
   }
 
   private persist(): void {
-    const dir = dirname(this.storagePath);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(this.storagePath, JSON.stringify({
+    writeFileAtomicSync(this.storagePath, JSON.stringify({
       events: this.events,
       snapshots: [...this.snapshots.entries()],
       nextEventId: this.nextEventId,
-    }), 'utf8');
+    }));
   }
 
   private load(): void {

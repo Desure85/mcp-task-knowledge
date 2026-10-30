@@ -814,8 +814,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| AUD-08 | HTTP body cap + session cap | medium | pending | — | POST body без лимита (http-transport.ts:167) → memory DoS; SM maxSessions обходится — transport попадает в `sessions` до `sm.create` (reject ловится, транспорт живёт). Фикс: Content-Length/maxBytes лимит; при SM-reject — transport.close() |
-| AUD-09 | Unix socket: права + опциональный auth | medium | pending | — | Сокет без chmod + requireAuth=false → любой локальный юзер = полный доступ (stream-transport.ts:478, auth-gate.ts:60). Фикс: chmod 600; опционально requireAuth для unix |
+| AUD-08 | HTTP body cap + session cap | medium | done | — | POST body без лимита (http-transport.ts:167) → memory DoS; SM maxSessions обходится — transport попадает в `sessions` до `sm.create` (reject ловится, транспорт живёт). Фикс: Content-Length/maxBytes лимит; при SM-reject — transport.close() **Закрыто (S-20261030-prodaudit): MCP_MAX_BODY_BYTES в http-transport.ts (код проверен 2026-10-30).** |
+| AUD-09 | Unix socket: права + опциональный auth | medium | done | — | Сокет без chmod + requireAuth=false → любой локальный юзер = полный доступ (stream-transport.ts:478, auth-gate.ts:60). Фикс: chmod 600; опционально requireAuth для unix **Закрыто (S-20261030-prodaudit): chmod 600 unix-сокета, stream-transport.ts (код проверен 2026-10-30).** |
 | AUD-10 | tools_run/tools_batch: gated handler + scope | medium | done | — | Registry хранил raw handler → вызов без requestScope/auth/SecurityStack; исполнял tools при TOOLS_ENABLED=0. Фикс: registry хранит gated handler (setup.ts ×4 + app-container connector path через ctx.gateToolHandler), tools_run/tools_batch форвардят SDK extra (sessionId) и рефузят non-whitelist при TOOLS_ENABLED=0. Закрывает и TR-15. Тесты: tests/aud10-tools-run-gate.test.ts |
 | AUD-11 | JWKS: kid-selection + cache TTL | medium | pending | — | `resolveKey()` вызывает `jwksResolver()` без (protectedHeader, token) → kid не участвует → мульти-ключевой JWKS ломает валидацию (jwt-validator.ts:398). `jwksCacheTtl` — мёртвая опция. Фикс: `jwtVerify(token, jwksResolver, opts)`, передать cacheMaxAge |
 | AUD-12 | Гигиена error-сообщений | medium | pending | — | `e.message` уходит клиенту (auth-gate.ts:180, http-transport.ts:354, register/auth.ts:51) — внутренние пути/детали наружу. Фикс: наружу generic message, детали в server log |
@@ -828,7 +828,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AUD-14 | pendingInitRemotes — per-request map | low | pending | — | FIFO-очередь мисатрибутит remote при параллельных initialize и течёт при неудачных init (http-transport.ts:60,202,265) |
 | AUD-15 | revokeSession на close/prune | low | pending | AUD-05 | `authenticatedSessions` растёт бесконечно, stale marks (auth.ts:160) |
 | AUD-16 | JWT blacklist: eviction по exp + persist | low | pending | — | Count-based eviction де-ревокает старые jti после 10k; рестарт снимает все ревокации (jwt-validator.ts:311) |
-| AUD-17 | TLS: завайрить или дропнуть | low | pending | — | `createTlsContext`/`TlsContext` — ноль вызовов (SEC-002 мёртв, транспорты plaintext). Либо wire в http/tcp adapters, либо честно пометить deferred |
+| AUD-17 | TLS: завайрить или дропнуть | low | done | — | `createTlsContext`/`TlsContext` — ноль вызовов (SEC-002 мёртв, транспорты plaintext). Либо wire в http/tcp adapters, либо честно пометить deferred **Закрыто (S-20261030-prodaudit): createTlsContext вызывается из http/stream-transport (код проверен 2026-10-30).** |
 
 ### Фаза 5 — Следующий аудит
 
@@ -971,12 +971,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-16 | Trust/provenance metadata на stored docs | medium | pending | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external. |
 | TR-17 | XML/context escaping в memory_context_assemble | high | pending | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. |
 | DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | pending | AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
-| AUD-18a | Path traversal userId в ProfileManager | critical | pending | AUD-18 | memory/user-profile.ts:95 join(storageDir, userId+'.json') без resolveUnder — arbitrary read/write |
-| AUD-18b | Non-atomic JSON stores в memory/sync | critical | pending | AUD-18 | TemporalGraph/EntityGraph/ProfileManager пишут writeFileSync без tmp+rename — crash = silent data loss |
+| AUD-18a | Path traversal userId в ProfileManager | critical | done | AUD-18 | memory/user-profile.ts:95 join(storageDir, userId+'.json') без resolveUnder — arbitrary read/write **Закрыто (S-20261030-prodaudit): userId → resolveUnder в ProfileManager (get/update/delete); заодно `require` в ESM ломал deleteProfile.** |
+| AUD-18b | Non-atomic JSON stores в memory/sync | critical | done | AUD-18 | TemporalGraph/EntityGraph/ProfileManager пишут writeFileSync без tmp+rename — crash = silent data loss **Закрыто (S-20261030-prodaudit): writeFileAtomicSync (tmp+rename) в user-profile/temporal-graph/entity-graph/event-log.** |
 | AUD-18c | Lost-update RMW races в stores | high | pending | AUD-18 | In-memory copy→mutate→rewrite без lock; concurrent updates теряются |
 | AUD-18d | EventLog unbounded growth + no compaction | high | pending | AUD-18 | persist() переписывает весь лог на каждый append; compactThreshold не используется |
 | AUD-18e | threeWayMerge LWW no tiebreaker + manual writes null | medium | pending | AUD-18 | src/sync/ — merge bugs; whole sync stack is dead code (not wired) |
-| AUD-18f | writeText не атомарный для .md knowledge docs | medium | pending | AUD-18 | writeJson атомарный (Q-013), writeText — нет |
+| AUD-18f | writeText не атомарный для .md knowledge docs | medium | done | AUD-18 | writeJson атомарный (Q-013), writeText — нет **Закрыто (S-20261030-prodaudit): writeText атомарный (tmp+rename).** |
 | TR-04a | Delete lying tests: tasks_dag, obsidian.*.smoke (×2), confirm.replace.e2e | high | pending | TR-04 | Тесты ре-имплементируют SUT — реальный код может сломаться, тесты зелёные |
 | TR-04b | Rewrite openapi.test.ts + markdown.test.ts на реальные модули | high | pending | TR-04 | zodToOpenApi определён в тесте; _getToolHandler→null |
 | TR-04c | Rewrite cli.tools_list.contract + jsonrpc-fuzz (real imports) | high | pending | TR-04 | Regex по 22-строчному делегату; normalizeEnvelope клон |

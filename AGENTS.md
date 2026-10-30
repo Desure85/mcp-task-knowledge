@@ -322,9 +322,9 @@ PR description: что сделано, почему, что не сделано 
 **Основная ветка:** `master`
 **Стек:** TypeScript, Node.js 20, MCP SDK, Vitest, Zod, ONNX Runtime
 
-> **Полная документация:** `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md), [Configuration](docs/getting-started/configuration.md), [Docker](docs/deployment/docker.md), [API Reference](docs/api/reference.md)
+> **Полная документация:** `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md), [Configuration](docs/getting-started/configuration.md), [Docker](docs/deployment/docker.md), [API Reference](docs/api-reference.md)
 
-Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 100 MCP-инструментов, 2300+ тестов, 92.7% coverage.
+Файловый MCP-сервер для таск-менеджмента, базы знаний, библиотеки промптов и **памяти AI-агентов**. 116 MCP-инструментов, 2900+ тестов, 92.7% coverage.
 
 ### Ключевые модули
 
@@ -416,6 +416,12 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 **Текущая ветка:** master (→ origin/master)
 **Текущий этап:** Этап Q — Knowledge-base hardening. Baseline и после — на одних сетах (146 чанков docs, 18 RU/EN/code запросов, 99 полей, 2024×8 labels), harness в `scripts/kb-bench.mjs` + `scripts/field-eval.mjs`, отчёт `docs/benchmarks/kb-hardening-2026-10-20.md`.
 **Статус:** KE-01..05 done. Полный сет 2024: языковой top-1 81.5–83.6% (все языки ≥80%, tr 82.0), gold 58/78. 2941 тест green, test:types clean, cold-start 384ms.
+
+### Сессия S-20261030-prodaudit (аудит production-readiness, ветка audit/prod-readiness)
+
+- Baseline master: build ok, 2957 тестов зелёные. Найдено и закрыто: AUD-18a (path traversal `userId` в ProfileManager, в т.ч. delete), AUD-18b (неатомарная запись memory/sync-хранилищ), AUD-18f (`writeText`). Попутно: `deleteProfile` использовал `require` в ESM и всегда возвращал false.
+- Расхождения доки с кодом: живой `tools/list` = 116 (118 с catalog + dynamic tools), доки говорили 100/101/76/114; `scripts/api-reference.mjs` обрезал список на 100 (нет пагинации) — исправлено; битая ссылка на `docs/api/reference.md`; в BACKLOG AUD-08/09/17 числились pending при реализованном коде.
+- Не проверено и остаётся открытым: AUD-05/06/11/12/13/14/15/16, AUD-18c/d/e, TR-01/04/14/16/17. Статусы AUD-04/07 в таблице не менялись — нужна проверка e2e.
 
 ### Сессия ses_ea99b2472ffeIU0Jd5H493qwWg (Этап Q — KB hardening, 2026-10-20)
 
