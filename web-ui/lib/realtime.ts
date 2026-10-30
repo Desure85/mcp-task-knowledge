@@ -29,7 +29,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { resolveToken } from './api-client';
+import { resolveAuthEndpoint, resolveToken } from './api-client';
+import { AUTH_EXPIRED_EVENT } from './auth';
 
 // ─── Event types (mirror of server RealtimeEvent + control frames) ──
 
@@ -117,6 +118,40 @@ export function defaultRealtimeUrl(): string {
   });
 }
 
+// ─── WS ticket (UI-22) ──────────────────────────────────────────────
+
+/** The server rejected the JWT while issuing a WS ticket (401/403). */
+export class WsTicketAuthError extends Error {
+  constructor() {
+    super('ws ticket rejected');
+    this.name = 'WsTicketAuthError';
+  }
+}
+
+/**
+ * Exchange the stored JWT for a one-time ticket. The JWT travels only in the
+ * Authorization header; the WebSocket URL receives `?ticket=`, never the JWT.
+ * No token → open realtime server, connect without a ticket.
+ */
+export async function fetchWsTicket(): Promise<string | undefined> {
+  const token = resolveToken();
+  if (!token) return undefined;
+
+  const res = await fetch(resolveAuthEndpoint('/ws-ticket'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (res.status === 401 || res.status === 403) throw new WsTicketAuthError();
+  if (!res.ok) throw new Error(`ws ticket request failed: ${res.status}`);
+
+  const body = (await res.json().catch(() => ({}))) as { ticket?: unknown };
+  if (typeof body.ticket !== 'string' || body.ticket.length === 0) {
+    throw new Error('ws ticket response missing ticket');
+  }
+  return body.ticket;
+}
+
 // ─── Backoff (pure helper — unit-testable) ──────────────────────────
 
 /** Consecutive failed connects after which the UI reports "Offline". */
@@ -154,6 +189,7 @@ export class RealtimeClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private manualClose = false;
+  private connecting = false;
   private clientId: string | null = null;
 
   constructor(opts: RealtimeClientOpts = {}) {
@@ -199,23 +235,48 @@ export class RealtimeClient {
 
   /** Open the connection (idempotent). Never throws — degrades to `unavailable`. */
   connect(): void {
+    void this.open();
+  }
+
+  private async open(): Promise<void> {
     if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
       this.setStatus('unavailable');
       return;
     }
+    if (this.connecting) return;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
     this.manualClose = false;
+    this.connecting = true;
     // Once retries have failed OFFLINE_AFTER times keep saying so instead of flickering
     // back to "Connecting…" on every attempt (we still keep retrying in the background).
     if (this.attempt < OFFLINE_AFTER_ATTEMPTS) {
       this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
     }
+
+    let ticket: string | undefined;
+    try {
+      ticket = await fetchWsTicket();
+    } catch (error) {
+      this.connecting = false;
+      if (error instanceof WsTicketAuthError) {
+        // Invalid/expired JWT: stop retrying (a loop of 401s), send the user to
+        // the existing login flow instead.
+        this.setStatus('unavailable');
+        this.notifyAuthExpired();
+        return;
+      }
+      this.scheduleReconnect();
+      return;
+    }
+
+    this.connecting = false;
+    if (this.manualClose) return;
+
     let ws: WebSocket;
     try {
-      const url = this.buildUrl();
-      ws = new WebSocket(url);
+      ws = new WebSocket(this.buildUrl(ticket));
     } catch {
       this.scheduleReconnect();
       return;
@@ -284,6 +345,7 @@ export class RealtimeClient {
   /** Permanently close; cancels reconnect + heartbeat timers. */
   disconnect(): void {
     this.manualClose = true;
+    this.connecting = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -298,16 +360,20 @@ export class RealtimeClient {
     this.setStatus('closed');
   }
 
-  private buildUrl(): string {
+  private buildUrl(ticket?: string): string {
     const url = new URL(this.url, typeof window !== 'undefined' ? window.location.href : 'http://localhost');
     if (!url.searchParams.get('project') && this.project) url.searchParams.set('project', this.project);
     if (!url.searchParams.get('userId') && this.userId) url.searchParams.set('userId', this.userId);
-    // WS upgrade is auth-gated and reads the JWT from ?token= (silent close otherwise).
-    if (!url.searchParams.get('token')) {
-      const token = resolveToken();
-      if (token) url.searchParams.set('token', token);
-    }
+    // UI-22: the JWT never goes into the URL. Authenticated upgrades carry a
+    // single-use ticket (the JWT itself stays in the ticket request header).
+    if (ticket) url.searchParams.set('ticket', ticket);
     return url.toString();
+  }
+
+  private notifyAuthExpired(): void {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
   }
 
   private send(payload: Record<string, unknown>): void {
