@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script>if(location.search.includes('theme=dark')){document.documentElement.dataset.theme='dark'}</script>
+<style>
+/* ---------- Design tokens (copied from tokens.css, not edited) ---------- */
+:root {
+  color-scheme: light;
+  --paper: #f5f5f2;
+  --surface: #ffffff;
+  --surface-2: #efefea;
+  --rule: #d5d7d1;
+  --rule-strong: #b9bcb4;
+  --ink: #15171a;
+  --muted: #5b616b;
+  --accent: #0e6b66;
+  --accent-hover: #0a504c;
+  --accent-soft: #e3f1ef;
+  --on-accent: #ffffff;
+  --st-todo: #5b616b;
+  --st-doing: #b45309;
+  --st-review: #6d28d9;
+  --st-blocked: #a3211b;
+  --st-done: #157347;
+  --st-archive: #6b7280;
+  --ty-bug: #a3211b;
+  --ty-feature: #6d28d9;
+  --ty-task: #3f4753;
+  --pr-high: #a3211b;
+  --pr-med: #b45309;
+  --pr-low: #6b7280;
+  --focus: #0e6b66;
+  --radius-control: 3px;
+  --radius-card: 4px;
+  --shadow-pop: 0 8px 24px rgb(16 18 22 / 0.14);
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-24: 24px;
+  --row: 32px;
+  --nav: 236px;
+  --topbar: 48px;
+  --column: 264px;
+  --column-collapsed: 48px;
+  --gap: 12px;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #121417;
+  --surface: #191c21;
+  --surface-2: #20242a;
+  --rule: #2b3037;
+  --rule-strong: #3a4048;
+  --ink: #e9ebee;
+  --muted: #a3a9b3;
+  --accent: #5ed3c6;
+  --accent-hover: #7ee0d5;
+  --accent-soft: #12312f;
+  --on-accent: #0c1211;
+  --st-todo: #98a1ac;
+  --st-doing: #e0a45a;
+  --st-review: #b49bf5;
+  --st-blocked: #f08a80;
+  --st-done: #6dcf9a;
+  --st-archive: #8b93a0;
+  --ty-bug: #f08a80;
+  --ty-feature: #b49bf5;
+  --ty-task: #a7aeb9;
+  --pr-high: #f08a80;
+  --pr-med: #e0a45a;
+  --pr-low: #8b93a0;
+  --focus: #5ed3c6;
+  --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
+}
+
+/* ---------- Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-13);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+svg { display: block; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -56px;
+  z-index: 100;
+  padding: 8px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: var(--text-13);
+  text-decoration: none;
+  transition: top 120ms ease;
+}
+.skip-link:focus { top: 8px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- Top bar ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: var(--topbar);
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.tb-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-11);
+  font-weight: 600;
+  line-height: 1;
+}
+.brand-name { font-size: var(--text-13); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb-project {
+  padding-left: 12px;
+  border-left: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tb-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  width: 300px;
+  max-width: 34vw;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+}
+.tb-search svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.tb-search label { font-size: var(--text-11); color: var(--muted); white-space: nowrap; }
+.tb-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-13);
+}
+.tb-search input:focus-visible { outline: none; }
+.tb-search:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tb-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-12); color: var(--muted); }
+.live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--st-done); }
+.tb-user {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  cursor: pointer;
+}
+.tb-user:hover { background: var(--surface-2); }
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+.icon-btn svg { width: 16px; height: 16px; }
+.tb-menu, .tb-search-btn { display: none; }
+
+/* ---------- Shell and nav ---------- */
+.shell { display: flex; align-items: flex-start; min-height: calc(100vh - var(--topbar)); }
+.nav {
+  position: sticky;
+  top: var(--topbar);
+  flex: 0 0 var(--nav);
+  width: var(--nav);
+  height: calc(100vh - var(--topbar));
+  padding: 14px 10px 24px;
+  overflow-y: auto;
+  border-right: 1px solid var(--rule);
+  background: var(--paper);
+}
+.nav-group + .nav-group { margin-top: 18px; }
+.nav-label { padding: 0 8px 6px; font-size: var(--text-12); font-weight: 500; color: var(--muted); }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--row);
+  padding: 0 8px 0 6px;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font-size: var(--text-13);
+  text-decoration: none;
+}
+.nav-item svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.nav-item:hover { background: var(--surface-2); }
+.nav-item[aria-current="page"] { background: var(--accent-soft); border-left-color: var(--accent); font-weight: 500; }
+.nav-item[aria-current="page"] svg { color: var(--accent); }
+.nav-count { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-11); font-variant-numeric: tabular-nums; color: var(--muted); }
+
+/* ---------- Main and page header ---------- */
+.main { flex: 1; min-width: 0; padding: 24px 28px 32px; }
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+h1 { font-size: var(--text-20); font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
+.subline { display: flex; align-items: center; flex-wrap: wrap; margin-top: 3px; font-size: var(--text-13); color: var(--muted); }
+.vrule { display: inline-block; width: 1px; height: 11px; margin: 0 9px; background: var(--rule-strong); vertical-align: -1px; }
+.actions { display: flex; align-items: center; gap: 8px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-13);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.btn:hover { background: var(--surface-2); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-switch { font-family: var(--font-mono); font-size: var(--text-12); }
+.btn-switch .mark { width: 6px; height: 6px; border-radius: 1px; background: var(--accent); }
+.btn-switch svg { width: 13px; height: 13px; color: var(--muted); }
+
+/* ---------- Counters ---------- */
+.counters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 20px;
+  border-top: 1px solid var(--rule-strong);
+  border-bottom: 1px solid var(--rule);
+}
+.counter { display: flex; flex-direction: column; gap: 1px; padding: 12px 16px 11px; border-left: 1px solid var(--rule); }
+.counter:first-child { border-left: 0; padding-left: 0; }
+.counter-n { font-family: var(--font-mono); font-size: var(--text-20); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.counter-l { font-size: var(--text-12); color: var(--muted); }
+.counter-n .flag { color: var(--st-blocked); }
+
+/* ---------- Two columns ---------- */
+.cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); margin-top: 4px; }
+.col-left { padding: 20px 28px 0 0; min-width: 0; }
+.col-right { padding: 20px 0 0 24px; border-left: 1px solid var(--rule); min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule-strong); }
+.panel-title { font-size: var(--text-13); font-weight: 600; }
+.panel-meta { font-family: var(--font-mono); font-size: var(--text-11); font-variant-numeric: tabular-nums; color: var(--muted); }
+
+/* Attention queue */
+.att-row {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 11px 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.sev { align-self: stretch; width: 3px; min-height: 34px; background: var(--sev); }
+.sev-blocked { --sev: var(--st-blocked); }
+.sev-claim { --sev: var(--pr-med); }
+.sev-review { --sev: var(--st-review); }
+.sev-dep { --sev: var(--ty-task); }
+.sev-stale { --sev: var(--st-archive); }
+.att-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: var(--text-13); font-weight: 500; line-height: 1.35; }
+.att-title .pid { font-family: var(--font-mono); font-size: var(--text-12); font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; }
+.att-reason { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; font-size: var(--text-12); color: var(--muted); }
+.att-sev { font-weight: 500; color: var(--sev); }
+.att-right { display: flex; align-items: center; gap: 14px; padding-top: 1px; }
+.att-age { font-family: var(--font-mono); font-size: var(--text-11); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 28px; text-align: right; }
+.att-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--text-12);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.att-action:hover { color: var(--accent-hover); text-decoration-color: currentColor; }
+
+/* Activity ledger */
+.ledger { margin-top: 2px; }
+.ledger-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.ledger-t { font-family: var(--font-mono); font-size: var(--text-11); font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 1px; }
+.ledger-x { font-size: var(--text-12); line-height: 1.4; }
+.ledger-x .who { color: var(--ink); }
+.ledger-x .pid { font-family: var(--font-mono); font-size: var(--text-11); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* Agents */
+.agents-block { margin-top: 22px; }
+.agent-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.presence { width: 6px; height: 6px; border-radius: 50%; background: var(--st-done); flex: none; }
+.presence.idle { background: var(--rule-strong); }
+.agent-name { font-size: var(--text-13); font-weight: 500; }
+.agent-state { font-size: var(--text-11); color: var(--muted); }
+.agent-detail { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-11); font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ---------- 1024 ---------- */
+@media (max-width: 1023px) {
+  .tb-search { display: none; }
+  .tb-search-btn { display: inline-flex; }
+  .nav { display: none; }
+  .main { padding: 20px 20px 28px; }
+  .col-right { padding-left: 18px; }
+}
+
+/* ---------- 720 (mobile 390) ---------- */
+@media (max-width: 720px) {
+  .topbar { height: 44px; gap: 10px; padding: 0 12px; }
+  .tb-menu { display: inline-flex; }
+  .brand-name { display: none; }
+  .tb-project { padding-left: 0; border-left: 0; }
+  .live { font-size: var(--text-11); }
+  .main { padding: 16px 16px 28px; }
+  .actions { width: 100%; }
+  .actions .btn { flex: 1; height: 44px; }
+  .counters { grid-template-columns: 1fr 1fr; margin-top: 16px; border-bottom: 0; }
+  .counter { padding: 12px 12px 12px; border-bottom: 1px solid var(--rule); }
+  .counter:first-child { padding-left: 0; }
+  .counter:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .counter:nth-child(even) { border-left: 1px solid var(--rule); padding-left: 14px; }
+  .cols { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
+  .col-left { padding: 20px 0 0; }
+  .col-right { padding: 22px 0 0; border-left: 0; border-top: 1px solid var(--rule-strong); margin-top: 20px; }
+  .att-row { grid-template-columns: 3px minmax(0, 1fr); gap: 10px; }
+  .att-right { grid-column: 2; justify-content: flex-start; padding-top: 6px; gap: 16px; }
+  .att-age { min-width: 0; }
+  .att-action { font-size: var(--text-13); }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+
+<header class="topbar">
+  <div class="tb-left">
+    <button class="icon-btn tb-menu" aria-label="Open navigation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <span class="brand">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span class="brand-name">MCP Tasks &amp; Knowledge</span>
+    </span>
+    <span class="tb-project">mcp</span>
+  </div>
+
+  <div class="tb-search" role="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.6-3.6"/></svg>
+    <label for="global-search">Search</label>
+    <input id="global-search" type="search" autocomplete="off">
+  </div>
+
+  <div class="tb-right">
+    <span class="live"><span class="dot" aria-hidden="true"></span>Live</span>
+    <button class="icon-btn tb-search-btn" aria-label="Search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.6-3.6"/></svg>
+    </button>
+    <button class="tb-user" aria-label="Account dm">dm</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="nav" aria-label="Main">
+    <div class="nav-group">
+      <p class="nav-label">Workspace</p>
+      <a class="nav-item" href="#content" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/></svg>
+        Overview
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1.4 1.4L7.8 5M4 12l1.4 1.4L7.8 11M4 18l1.4 1.4L7.8 17"/></svg>
+        Tasks
+        <span class="nav-count">20</span>
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4h5.5A2.5 2.5 0 0 1 12 6.5V20a2.5 2.5 0 0 0-2.5-2.5H4z"/><path d="M20 4h-5.5A2.5 2.5 0 0 0 12 6.5V20a2.5 2.5 0 0 1 2.5-2.5H20z"/></svg>
+        Knowledge
+        <span class="nav-count">12</span>
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7.5 9.5l2.5 2.5-2.5 2.5M13 14.5h3.5"/></svg>
+        Prompts
+        <span class="nav-count">9</span>
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="2.8"/><path d="M4.5 6v6c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8V6"/><path d="M4.5 12v6c0 1.55 3.36 2.8 7.5 2.8s7.5-1.25 7.5-2.8v-6"/></svg>
+        Memory
+        <span class="nav-count">41</span>
+      </a>
+    </div>
+    <div class="nav-group">
+      <p class="nav-label">Insights</p>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 20V10M10 20V5M16 20v-6M4 20h16"/></svg>
+        Analytics
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.6-3.6M9 9h4M9 12h3"/></svg>
+        Search quality
+      </a>
+    </div>
+    <div class="nav-group">
+      <p class="nav-label">System</p>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3"/><circle cx="9" cy="13" r="1.4"/><circle cx="15" cy="13" r="1.4"/><path d="M12 3.5V7"/></svg>
+        Agents
+        <span class="nav-count">3</span>
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="12" r="3"/><path d="M11 12h9M17 12v3M20.5 12v3"/></svg>
+        Access
+      </a>
+      <a class="nav-item" href="#content">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h5M14 17h6"/><circle cx="15.5" cy="7" r="2"/><circle cx="11.5" cy="17" r="2"/></svg>
+        Settings
+      </a>
+    </div>
+  </nav>
+
+  <main id="content" class="main">
+    <div class="page-head">
+      <div>
+        <h1>Overview</h1>
+        <p class="subline"><span>What needs attention in <span class="num">mcp</span></span></p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-switch">
+          <span class="mark" aria-hidden="true"></span>
+          mcp
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-primary">New task</button>
+      </div>
+    </div>
+
+    <section class="counters" aria-label="Workspace counters">
+      <div class="counter">
+        <span class="counter-n">12</span>
+        <span class="counter-l">Open tasks</span>
+      </div>
+      <div class="counter">
+        <span class="counter-n"><span class="flag">1</span></span>
+        <span class="counter-l">Blocked</span>
+      </div>
+      <div class="counter">
+        <span class="counter-n">2</span>
+        <span class="counter-l">Agent claims</span>
+      </div>
+      <div class="counter">
+        <span class="counter-n">4</span>
+        <span class="counter-l">Stale documents</span>
+      </div>
+    </section>
+
+    <div class="cols">
+      <div class="col-left">
+        <section aria-labelledby="attention-title">
+          <div class="panel-head">
+            <h2 class="panel-title" id="attention-title">Needs attention</h2>
+            <span class="panel-meta">6 items</span>
+          </div>
+
+          <ul>
+            <li class="att-row sev-blocked">
+              <span class="sev" aria-hidden="true"></span>
+              <div>
+                <p class="att-title"><span class="pid">T-2074</span> Loading / error / empty contract</p>
+                <p class="att-reason"><span class="att-sev">Blocked</span><span>2 days, waiting on the state-contract decision</span></p>
+              </div>
+              <div class="att-right">
+                <span class="att-age">2d</span>
+                <button class="att-action">Open</button>
+              </div>
+            </li>
+
+            <li class="att-row sev-claim">
+              <span class="sev" aria-hidden="true"></span>
+              <div>
+                <p class="att-title"><span class="pid">T-2041</span> Knowledge: clicking a document crashes to a white screen</p>
+                <p class="att-reason"><span class="att-sev">Claim expiring</span><span>atlas holds it, 14m left</span></p>
+              </div>
+              <div class="att-right">
+                <span class="att-age">16m</span>
+                <button class="att-action">Open</button>
+              </div>
+            </li>
+
+            <li class="att-row sev-review">
+              <span class="sev" aria-hidden="true"></span>
+              <div>
+                <p class="att-title"><span class="pid">T-2047</span> Search inside Knowledge crashes on a miss</p>
+                <p class="att-reason"><span class="att-sev">Review waiting</span><span>scout requested changes 1 day ago</span></p>
+              </div>
+              <div class="att-right">
+                <span class="att-age">1d</span>
+                <button class="att-action">Review</button>
+              </div>
+            </li>
+
+            <li class="att-row sev-dep">
+              <span class="sev" aria-hidden="true"></span>
+              <div>
+                <p class="att-title"><span class="pid">T-2063</span> Tracks by task type with multi-select</p>
+                <p class="att-reason"><span class="att-sev">Unmet dependency</span><span>waits on T-2058 (QA)</span></p>
+              </div>
+              <div class="att-right">
+                <span class="att-age">&mdash;</span>
+                <button class="att-action">Open</button>
+              </div>
+            </li>
+
+            <li class="att-row sev-stale">
+              <span class="sev" aria-hidden="true"></span>
+              <div>
+                <p class="att-title">ADR-006 Claude Code plugin export</p>
+                <p class="att-reason"><span class="att-sev">Stale document</span><span>not updated in 62 days</span></p>
+              </div>
+              <div class="att-right">
+                <span class="att-age">62d</span>
+                <button class="att-action">Open doc</button>
+              </div>
+            </li>
+
+            <li class="att-row sev-stale">
+              <span class="sev" aria-hidden="true"></span>
+              <div>
+                <p class="att-title">Web UI architecture notes</p>
+                <p class="att-reason"><span class="att-sev">Stale document</span><span>not updated in 38 days</span></p>
+              </div>
+              <div class="att-right">
+                <span class="att-age">38d</span>
+                <button class="att-action">Open doc</button>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="col-right">
+        <section aria-labelledby="activity-title">
+          <div class="panel-head">
+            <h2 class="panel-title" id="activity-title">Activity</h2>
+            <span class="panel-meta">last 2 days</span>
+          </div>
+
+          <ul class="ledger">
+            <li class="ledger-row">
+              <span class="ledger-t">12m</span>
+              <span class="ledger-x"><span class="who">atlas</span> moved <span class="pid">T-2041</span> to In progress</span>
+            </li>
+            <li class="ledger-row">
+              <span class="ledger-t">42m</span>
+              <span class="ledger-x"><span class="who">sisyphus</span> claimed <span class="pid">T-2063</span></span>
+            </li>
+            <li class="ledger-row">
+              <span class="ledger-t">1h</span>
+              <span class="ledger-x"><span class="who">scout</span> requested changes on <span class="pid">T-2047</span></span>
+            </li>
+            <li class="ledger-row">
+              <span class="ledger-t">3h</span>
+              <span class="ledger-x"><span class="who">dm</span> created <span class="pid">T-2079</span> &ldquo;Paginate the tools catalog&rdquo;</span>
+            </li>
+            <li class="ledger-row">
+              <span class="ledger-t">5h</span>
+              <span class="ledger-x">Agent memory extracted 7 facts from session <span class="pid">mcp-kb-hardening</span></span>
+            </li>
+            <li class="ledger-row">
+              <span class="ledger-t">1d</span>
+              <span class="ledger-x"><span class="who">dm</span> updated &ldquo;KB hardening benchmark &mdash; 2026-10-20&rdquo;</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="agents-block" aria-labelledby="agents-title">
+          <div class="panel-head">
+            <h2 class="panel-title" id="agents-title">Agents</h2>
+            <span class="panel-meta">3</span>
+          </div>
+
+          <ul>
+            <li class="agent-row">
+              <span class="presence" aria-hidden="true"></span>
+              <span class="agent-name">atlas</span>
+              <span class="agent-state">running</span>
+              <span class="agent-detail">T-2041, 14m left</span>
+            </li>
+            <li class="agent-row">
+              <span class="presence" aria-hidden="true"></span>
+              <span class="agent-name">sisyphus</span>
+              <span class="agent-state">running</span>
+              <span class="agent-detail">T-2063, 42m of 45m</span>
+            </li>
+            <li class="agent-row">
+              <span class="presence idle" aria-hidden="true"></span>
+              <span class="agent-name">scout</span>
+              <span class="agent-state">idle 2h</span>
+              <span class="agent-detail">last: T-2047</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

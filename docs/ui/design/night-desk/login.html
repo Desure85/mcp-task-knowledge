@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap">
+<script>
+var t=(location.search.match(/theme=(dark|light)/)||[])[1];document.documentElement.dataset.theme=t||'dark';
+</script>
+<style>
+/* ---------- tokens (copied from tokens.css, do not edit there) ---------- */
+:root{
+  color-scheme:dark;
+  --canvas:#0f1115;--surface-1:#161922;--surface-2:#1c2029;--line:#2a3040;--line-strong:#3a4356;
+  --ink:#e8ebf2;--muted:#9aa3b4;
+  --accent:#e7a46b;--accent-ink:#201406;--accent-soft:#33241a;
+  --st-todo:#8c94a6;--st-doing:#e7a46b;--st-review:#a78bfa;--st-blocked:#f07a7a;--st-done:#57c79b;--st-archive:#8c94a6;
+  --ty-bug:#f07a7a;--ty-feature:#a78bfa;--ty-task:#8c94a6;
+  --pr-high:#f07a7a;--pr-med:#e7a46b;--pr-low:#8c94a6;
+  --focus:#e7a46b;
+  --radius-control:8px;--radius-card:10px;--radius-panel:14px;
+  --shadow-pop:0 16px 40px rgb(0 0 0 / 0.55);
+  --inset-hi:inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --font-sans:"Archivo",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --text-11:11px;--text-12:12px;--text-13:13px;--text-14:14px;--text-16:16px;--text-18:18px;--text-22:22px;--text-28:28px;
+  --row:34px;--rail:64px;--topbar:48px;--column:300px;--gap:14px;
+}
+html[data-theme="light"]{
+  color-scheme:light;
+  --canvas:#f3f4f7;--surface-1:#ffffff;--surface-2:#eaeef1;--line:#dde0e7;--line-strong:#c4c9d4;
+  --ink:#12151c;--muted:#59606e;
+  --accent:#a9551b;--accent-ink:#ffffff;--accent-soft:#f7e8dc;
+  --st-todo:#59606e;--st-doing:#a9551b;--st-review:#6d28d9;--st-blocked:#b42318;--st-done:#0e7a5f;--st-archive:#6b7280;
+  --ty-bug:#b42318;--ty-feature:#6d28d9;--ty-task:#4b5563;
+  --pr-high:#b42318;--pr-med:#a9551b;--pr-low:#6b7280;
+  --focus:#a9551b;
+  --shadow-pop:0 12px 32px rgb(18 21 28 / 0.16);
+  --inset-hi:inset 0 1px 0 #ffffff;
+}
+
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--canvas);color:var(--ink);
+  font-family:var(--font-sans);font-size:var(--text-13);line-height:1.45;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input{font:inherit;color:inherit}
+svg{display:block}
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.i-sm{width:16px;height:16px}
+.i-xs{width:14px;height:14px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.skip{
+  position:absolute;left:12px;top:-60px;z-index:200;padding:10px 14px;
+  background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);
+  border-radius:var(--radius-control);font-weight:500;
+}
+.skip:focus{top:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- login ---------- */
+.page{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:32px 24px}
+.page > header{width:100%;display:flex;justify-content:center}
+.card{
+  width:100%;max-width:400px;background:var(--surface-1);border:1px solid var(--line);
+  border-radius:var(--radius-panel);box-shadow:var(--inset-hi);padding:28px;display:flex;flex-direction:column;
+}
+.mark{
+  width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-weight:700;font-size:20px;letter-spacing:-0.02em;
+  margin-bottom:18px;
+}
+h1{font-size:var(--text-22);line-height:1.2;font-weight:700;letter-spacing:-0.01em}
+.lede{color:var(--muted);font-size:var(--text-13);margin-top:4px}
+
+.warn{
+  display:flex;align-items:flex-start;gap:8px;margin:18px 0 2px;padding:9px 10px;
+  border:1px solid var(--st-blocked);border-radius:var(--radius-control);
+  background:color-mix(in srgb,var(--st-blocked) 8%,transparent);
+}
+.warn svg{color:var(--st-blocked);margin-top:1px}
+.warn p{font-size:var(--text-12);line-height:1.45;color:var(--ink)}
+
+form{display:flex;flex-direction:column;gap:12px;margin-top:18px}
+.fl{display:flex;flex-direction:column;gap:6px}
+.fl label{font-size:var(--text-12);color:var(--muted);font-weight:500}
+.fl input{
+  height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--radius-control);
+  background:var(--canvas);color:var(--ink);font-size:var(--text-13);outline:0;width:100%;
+}
+.fl input::placeholder{color:var(--muted);opacity:.7}
+.fl input:hover{border-color:var(--line-strong)}
+.primary{
+  height:38px;margin-top:4px;border-radius:var(--radius-control);background:var(--accent);
+  color:var(--accent-ink);font-size:var(--text-13);font-weight:600;width:100%;
+}
+.primary:hover{opacity:.92}
+.alt{
+  align-self:flex-start;margin-top:2px;font-size:var(--text-12);font-weight:500;
+  color:var(--muted);text-decoration:underline;text-underline-offset:2px;
+}
+.alt:hover{color:var(--ink)}
+
+.foot{
+  margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;flex-direction:column;gap:8px;
+}
+.endpoint{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.endpoint .slash{color:var(--line-strong)}
+.foot p{font-size:var(--text-11);line-height:1.5;color:var(--muted)}
+.foot a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.foot a:hover{color:var(--ink)}
+
+@media (max-width:720px){
+  .page{padding:20px}
+  .card{padding:24px 20px;max-width:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21 20H3L12 4Z"/><path d="M12 10.5v4"/><path d="M12 17.4v.1"/></symbol>
+</svg>
+
+
+<main id="content" class="page">
+  <header>
+    <div class="card">
+      <div class="mark" aria-hidden="true">M</div>
+      <h1>Sign in</h1>
+      <p class="lede">MCP Tasks &amp; Knowledge</p>
+
+      <div class="warn">
+        <svg class="i i-sm" aria-hidden="true"><use href="#i-alert"/></svg>
+        <p>Session expired — sign in again to continue to Tasks.</p>
+      </div>
+
+      <form action="#" method="post">
+        <div class="fl">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username">
+        </div>
+        <div class="fl">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password">
+        </div>
+        <button class="primary" type="submit">Sign in</button>
+        <button class="alt" type="button">Use an access token</button>
+      </form>
+
+      <div class="foot">
+        <p class="endpoint">
+          <span>localhost:3001</span>
+          <span class="slash" aria-hidden="true">/</span>
+          <span>mcp</span>
+        </p>
+        <p>Agents connect with a token. Create one on <a href="#">Access</a>.</p>
+      </div>
+    </div>
+  </header>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,150 @@
+/**
+ * Direction A — "Registry" — design tokens (Tailwind v4).
+ *
+ * A register of work: alignment carries the hierarchy, colour only encodes
+ * data (status, type, priority). No decorative shadows, no tinted washes.
+ * Every text pair below is >= 4.5:1 (see the table in
+ * docs/ui/design-directions-2026-10.md).
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces and rules */
+  --paper: #f5f5f2;
+  --surface: #ffffff;
+  --surface-2: #efefea;
+  --rule: #d5d7d1;
+  --rule-strong: #b9bcb4;
+
+  /* Text */
+  --ink: #15171a;
+  --muted: #5b616b;
+
+  /* Accent (petrol) — links, focus, primary action */
+  --accent: #0e6b66;
+  --accent-hover: #0a504c;
+  --accent-soft: #e3f1ef;
+  --on-accent: #ffffff;
+
+  /* Status (text-safe on surface) */
+  --st-todo: #5b616b;
+  --st-doing: #b45309;
+  --st-review: #6d28d9;
+  --st-blocked: #a3211b;
+  --st-done: #157347;
+  --st-archive: #6b7280;
+
+  /* Task type */
+  --ty-bug: #a3211b;
+  --ty-feature: #6d28d9;
+  --ty-task: #3f4753;
+
+  /* Priority */
+  --pr-high: #a3211b;
+  --pr-med: #b45309;
+  --pr-low: #6b7280;
+
+  --focus: #0e6b66;
+
+  /* Geometry */
+  --radius-control: 3px;
+  --radius-card: 4px;
+  --shadow-pop: 0 8px 24px rgb(16 18 22 / 0.14);
+
+  /* Type */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-24: 24px;
+
+  /* Density */
+  --row: 32px;
+  --nav: 236px;
+  --topbar: 48px;
+  --column: 264px;
+  --column-collapsed: 48px;
+  --gap: 12px;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: #121417;
+  --surface: #191c21;
+  --surface-2: #20242a;
+  --rule: #2b3037;
+  --rule-strong: #3a4048;
+
+  --ink: #e9ebee;
+  --muted: #a3a9b3;
+
+  --accent: #5ed3c6;
+  --accent-hover: #7ee0d5;
+  --accent-soft: #12312f;
+  --on-accent: #0c1211;
+
+  --st-todo: #98a1ac;
+  --st-doing: #e0a45a;
+  --st-review: #b49bf5;
+  --st-blocked: #f08a80;
+  --st-done: #6dcf9a;
+  --st-archive: #8b93a0;
+
+  --ty-bug: #f08a80;
+  --ty-feature: #b49bf5;
+  --ty-task: #a7aeb9;
+
+  --pr-high: #f08a80;
+  --pr-med: #e0a45a;
+  --pr-low: #8b93a0;
+
+  --focus: #5ed3c6;
+  --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
+}
+
+/* Tailwind v4: expose the tokens as utilities (bg-surface, text-muted, …). */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-st-todo: var(--st-todo);
+  --color-st-doing: var(--st-doing);
+  --color-st-review: var(--st-review);
+  --color-st-blocked: var(--st-blocked);
+  --color-st-done: var(--st-done);
+  --color-st-archive: var(--st-archive);
+  --color-ty-bug: var(--ty-bug);
+  --color-ty-feature: var(--ty-feature);
+  --color-ty-task: var(--ty-task);
+  --color-pr-high: var(--pr-high);
+  --color-pr-med: var(--pr-med);
+  --color-pr-low: var(--pr-low);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --text-11: var(--text-11);
+  --text-12: var(--text-12);
+  --text-13: var(--text-13);
+  --text-14: var(--text-14);
+  --text-16: var(--text-16);
+  --text-20: var(--text-20);
+  --text-24: var(--text-24);
+
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+}

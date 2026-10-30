@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* ---------- tokens (copied from tokens.css, not edited) ---------- */
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  color-scheme:light;
+  --chrome:#1a1d23;--chrome-2:#23272f;--chrome-line:#333845;--chrome-ink:#edeff3;--chrome-muted:#9ca3b4;
+  --canvas:#fbfbfc;--surface:#ffffff;--surface-2:#f2f3f6;--line:#e4e6eb;--line-strong:#cdd1d9;
+  --ink:#14171c;--muted:#5a6270;
+  --accent:#4f46e5;--accent-hover:#4338ca;--accent-soft:#eef0fe;--on-accent:#ffffff;
+  --st-todo:#5a6270;--st-doing:#4f46e5;--st-review:#7c3aed;--st-blocked:#b42318;--st-done:#0e7a5f;--st-archive:#6b7280;
+  --ty-bug:#b42318;--ty-feature:#7c3aed;--ty-task:#4b5563;
+  --pr-high:#b42318;--pr-med:#b45309;--pr-low:#6b7280;
+  --focus:#4f46e5;
+  --radius-control:6px;--radius-card:8px;--radius-panel:12px;
+  --shadow-pop:0 12px 32px rgb(20 23 28 / .16);
+  --font-sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+  --text-11:11px;--text-12:12px;--text-13:13px;--text-14:14px;--text-15:15px;--text-17:17px;--text-22:22px;--text-30:30px;
+  --row:36px;--nav:288px;--topbar:52px;--column:288px;--gap:14px;--measure:68ch;
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --chrome:#0c0e12;--chrome-2:#161a21;--chrome-line:#262b34;--chrome-ink:#e9ebf0;--chrome-muted:#98a0b0;
+  --canvas:#101216;--surface:#171a20;--surface-2:#1e222a;--line:#262b34;--line-strong:#39404c;
+  --ink:#e9ebf0;--muted:#98a0b0;
+  --accent:#8b87ff;--accent-hover:#a5a2ff;--accent-soft:#1e2033;--on-accent:#0e0f1a;
+  --st-todo:#98a0b0;--st-doing:#8b87ff;--st-review:#c4a7ff;--st-blocked:#f08a80;--st-done:#4fd1a5;--st-archive:#8b93a0;
+  --ty-bug:#f08a80;--ty-feature:#c4a7ff;--ty-task:#a7aeb9;
+  --pr-high:#f08a80;--pr-med:#e0a45a;--pr-low:#8b93a0;
+  --focus:#8b87ff;--shadow-pop:0 16px 40px rgb(0 0 0 / .55);
+}
+
+/* ---------- base ---------- */
+html,body{margin:0;padding:0}
+html{background:var(--canvas);overflow-x:clip}
+body{font-family:var(--font-sans);font-size:var(--text-14);line-height:1.45;color:var(--ink);background:var(--canvas);-webkit-font-smoothing:antialiased;overflow-x:clip}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer;transition:background-color .12s linear,color .12s linear,border-color .12s linear}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.ink :focus-visible{outline-color:var(--chrome-ink)}
+.skip{position:fixed;left:12px;top:-64px;z-index:60;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--radius-control);padding:9px 14px;font-size:13px;font-weight:500}
+.skip:focus{top:12px}
+.i{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+h2{font-size:var(--text-17);font-weight:600;letter-spacing:-.01em;margin:0}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--nav) minmax(0,1fr);height:100dvh;overflow:hidden}
+.ink{background:var(--chrome);color:var(--chrome-ink);border-right:1px solid var(--chrome-line);display:flex;flex-direction:column;min-height:0;height:100dvh;overflow-y:auto}
+.brand{height:44px;flex:none;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--chrome-line)}
+.mark{width:24px;height:24px;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:600;font-size:13px;line-height:1}
+.brandname{font-size:13px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.brand .iconbtn{margin-left:auto}
+.proj{margin:12px 12px 4px;display:flex;flex-direction:column;gap:1px;text-align:left;background:var(--chrome-2);border:1px solid var(--chrome-line);border-radius:var(--radius-control);padding:8px 10px;color:var(--chrome-ink)}
+.proj:hover{background:var(--chrome-line)}
+.projkey{font-family:var(--font-mono);font-size:12px}
+.projname{font-size:12px;color:var(--chrome-muted)}
+.nav{display:flex;flex-direction:column;padding:6px 0;gap:1px}
+.nav + .nav{border-top:1px solid var(--chrome-line);margin-top:6px;padding-top:6px}
+.navlink{display:flex;align-items:center;gap:10px;height:34px;padding:0 14px;border-left:2px solid transparent;color:var(--chrome-muted);font-size:13px;font-weight:500}
+.navlink:hover{color:var(--chrome-ink);background:var(--chrome-2)}
+.navlink[aria-current="page"]{background:var(--chrome-2);border-left-color:var(--accent);color:var(--chrome-ink)}
+.navlink .count{margin-left:auto;font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;color:var(--chrome-muted)}
+.navlink[aria-current="page"] .count{color:var(--chrome-ink)}
+.nav-sec .navlink{height:30px;font-weight:400;font-size:12px}
+.nav-sec .i{width:15px;height:15px}
+.working{margin-top:auto;padding:12px 14px 14px;border-top:1px solid var(--chrome-line)}
+.workinghead{margin:0 0 6px;font-size:11px;color:var(--chrome-muted)}
+.agentrow{display:flex;align-items:center;gap:8px;height:26px;font-size:12px}
+.presence{width:7px;height:7px;border-radius:50%;background:var(--chrome-line);flex:none}
+.presence.on{background:var(--st-done)}
+.agentrow .agenttask{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--chrome-muted);font-variant-numeric:tabular-nums}
+
+.canvas{display:flex;flex-direction:column;min-width:0;min-height:0;height:100dvh;background:var(--canvas)}
+.topbar{height:var(--topbar);flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--canvas)}
+.crumb{display:flex;align-items:center;gap:10px;font-size:13px;min-width:0}
+.crumb-root{color:var(--muted)}
+.crumb-rule{width:1px;height:12px;background:var(--line-strong);flex:none}
+.crumb-cur{font-weight:500;white-space:nowrap}
+.spacer{flex:1 1 auto}
+.gsearch{display:flex;align-items:center;gap:8px}
+.gsearch label{font-size:12px;color:var(--muted);white-space:nowrap}
+.inputwrap{position:relative;display:flex;align-items:center}
+.inputwrap .i{position:absolute;left:8px;width:15px;height:15px;color:var(--muted);pointer-events:none}
+.inputwrap input{height:32px;padding:0 10px 0 28px;width:220px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface);color:var(--ink);font:inherit;font-size:13px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--st-done);flex:none}
+.user{display:inline-flex;align-items:center;gap:7px;font-size:13px}
+.avatar{width:24px;height:24px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:600;font-family:var(--font-mono)}
+.m-only{display:none}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);color:var(--ink);font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-sm{height:28px;padding:0 10px;font-size:12px}
+.iconbtn{display:inline-grid;place-items:center;width:26px;height:26px;border:1px solid transparent;border-radius:var(--radius-control);background:transparent;color:var(--muted);flex:none}
+.iconbtn:hover{background:var(--surface-2);color:var(--ink)}
+.ink .iconbtn{color:var(--chrome-muted)}
+.ink .iconbtn:hover{background:var(--chrome-2);color:var(--chrome-ink)}
+.switcher{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 9px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface);font-size:12px;color:var(--muted)}
+.switcher .mono{font-size:12px;color:var(--ink)}
+.switcher:hover{background:var(--surface-2)}
+.switcher .i{width:14px;height:14px}
+
+/* ---------- page head ---------- */
+.main{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.pagehead{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:16px 20px 14px}
+.pagehead h1{margin:0;font-size:var(--text-22);font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.sub{margin:5px 0 0;font-size:var(--text-12);color:var(--muted)}
+.pagehead-r{display:flex;align-items:center;gap:8px;flex:none}
+
+/* ---------- overview grid ---------- */
+.ovgrid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"att week" "att act";gap:0 26px;padding:0 20px;overflow:hidden}
+.attention{grid-area:att;display:flex;flex-direction:column;min-height:0;border-top:1px solid var(--line);padding-top:12px}
+.sechead{display:flex;align-items:center;gap:8px}
+.sechead .count{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.attlist{list-style:none;margin:6px 0 0;padding:0;overflow:hidden}
+.att{display:grid;grid-template-columns:3px minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:9px 0}
+.att + .att{border-top:1px solid var(--line)}
+.sev{width:3px;height:100%;min-height:34px;border-radius:1px;background:var(--sev,var(--muted))}
+.attsev{font-size:11px;color:var(--muted);margin:0 0 1px}
+.atttitle .tid{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
+.atttitle{margin:0;font-size:14px;font-weight:500;letter-spacing:-.005em;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attreason{margin:1px 0 0;font-size:12px;color:var(--muted);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attage{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:26px;text-align:right}
+
+.week{grid-area:week;border-top:1px solid var(--line);padding-top:12px}
+.wrows{margin-top:8px;border-top:1px solid var(--line)}
+.wrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;height:36px;border-bottom:1px solid var(--line)}
+.wrow dt{font-size:13px;color:var(--muted)}
+.wrow dd{margin:0;font-family:var(--font-mono);font-size:var(--text-17);font-weight:500;font-variant-numeric:tabular-nums}
+.activity{grid-area:act;display:flex;flex-direction:column;min-height:0;margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.evlist{list-style:none;margin:8px 0 0;padding:0;overflow:hidden}
+.ev{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;align-items:baseline;padding:5px 0;font-size:12px;color:var(--muted);line-height:1.4}
+.ev .t{font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.ev b{font-weight:500;color:var(--ink);font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums}
+.ev .who{color:var(--ink);font-weight:500}
+
+/* ---------- agents strip ---------- */
+.agentsbar{flex:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:12px 20px 0;border-top:1px solid var(--line);padding:10px 0 14px}
+.agentsbar .sechead{grid-column:1/-1;margin-bottom:4px}
+.agentcell{display:flex;align-items:center;gap:8px;min-width:0;font-size:12px;color:var(--muted)}
+.agentcell + .agentcell{border-left:1px solid var(--line);padding-left:14px}
+.agentcell .nm{font-size:13px;font-weight:500;color:var(--ink)}
+.agentcell .task{margin-left:auto;font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.presence{width:7px;height:7px;border-radius:50%;background:var(--chrome-line);flex:none;display:inline-block}
+.presence.on{background:var(--st-done)}
+.presence.idle{background:var(--st-archive)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1024px){
+  .app{grid-template-columns:1fr}
+  .ink{display:none}
+  .m-only{display:inline-grid}
+  .m-only.text{display:inline-flex}
+  .crumb,.gsearch,.live{display:none}
+  .mobile-proj{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  .mobile-proj .mono{color:var(--ink);font-size:12px}
+  .main{overflow-y:auto}
+  .ovgrid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;grid-template-areas:"week" "att" "act";gap:0;overflow:visible;padding:0 16px}
+  .attention{margin-top:20px}
+  .activity{margin-top:20px}
+  .pagehead{padding:14px 16px 10px}
+  .agentsbar{margin:16px 16px 0}
+}
+@media (max-width:720px){
+  .topbar{height:56px;padding:0 12px;gap:8px}
+  .uname{display:none}
+  .avatar{width:28px;height:28px;font-size:12px}
+  .iconbtn{width:44px;height:44px}
+  .pagehead{flex-direction:column;align-items:flex-start;gap:10px;padding:12px 14px 6px}
+  .pagehead-r{width:100%;flex-wrap:wrap}
+  .pagehead-r .btn,.switcher{height:44px}
+  .ovgrid{padding:0 14px}
+  .att{grid-template-columns:3px minmax(0,1fr) auto;gap:10px;row-gap:6px;padding:11px 0}
+  .atttitle,.attreason{white-space:normal}
+  .attage{display:none}
+  .att .btn{grid-column:2/4;justify-self:start;height:44px}
+  .wrows{display:grid;grid-template-columns:1fr 1fr;border-top:0;margin-top:10px}
+  .wrow{height:auto;padding:10px 0;border-top:1px solid var(--line);flex-direction:column;align-items:flex-start;gap:2px}
+  .wrow:nth-child(odd){padding-right:12px;border-right:1px solid var(--line)}
+  .wrow:nth-child(even){padding-left:12px}
+  .wrow dd{font-size:var(--text-22)}
+  .agentsbar{grid-template-columns:1fr;margin:16px 14px 0;padding-bottom:20px}
+  .agentcell{padding:8px 0;border-top:1px solid var(--line)}
+  .agentcell + .agentcell{border-left:0;padding-left:0}
+  .agentcell .task{margin-left:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script>
+if (location.search.indexOf('theme=dark') !== -1) document.documentElement.dataset.theme = 'dark';
+</script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<div class="app">
+  <aside class="ink" aria-label="Workspace navigation">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">M</span>
+      <span class="brandname">MCP Tasks</span>
+      <button class="iconbtn" type="button" aria-label="Collapse navigation">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+      </button>
+    </div>
+
+    <button class="proj" type="button" aria-label="Switch project, current project mcp">
+      <span class="projkey">mcp</span>
+      <span class="projname">MCP Tasks &amp; Knowledge</span>
+    </button>
+
+    <nav class="nav" aria-label="Workspace">
+      <a class="navlink" href="overview.html" aria-current="page">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 17h.01"/></svg>
+        <span>Attention</span><span class="count">6</span>
+      </a>
+      <a class="navlink" href="board.html">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/></svg>
+        <span>Tasks</span><span class="count">20</span>
+      </a>
+      <a class="navlink" href="knowledge.html">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>Knowledge</span><span class="count">12</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Prompts</span><span class="count">7</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span>Search</span>
+      </a>
+    </nav>
+
+    <nav class="nav nav-sec" aria-label="Workspace tools">
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/></svg>
+        <span>Analytics</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4"/><path d="m15.4 6.5-6.8 4"/></svg>
+        <span>Graph</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        <span>Memory</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        <span>Projects</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M2 14h4"/><path d="M10 8h4"/><path d="M18 16h4"/></svg>
+        <span>System</span>
+      </a>
+      <a class="navlink" href="#content">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Access</span>
+      </a>
+    </nav>
+
+    <div class="working">
+      <p class="workinghead">Working now</p>
+      <div class="agentrow"><span class="presence on" aria-hidden="true"></span><span>atlas</span><span class="agenttask">T-2041</span></div>
+      <div class="agentrow"><span class="presence on" aria-hidden="true"></span><span>sisyphus</span><span class="agenttask">T-2063</span></div>
+      <div class="agentrow"><span class="presence" aria-hidden="true"></span><span>scout</span><span class="agenttask">idle</span></div>
+    </div>
+  </aside>
+
+  <div class="canvas">
+    <header class="topbar">
+      <button class="iconbtn m-only" type="button" aria-label="Open navigation">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+      </button>
+      <div class="crumb"><span class="crumb-root">mcp</span><span class="crumb-rule" aria-hidden="true"></span><span class="crumb-cur">Overview</span></div>
+      <span class="mobile-proj m-only text"><span class="mono">mcp</span></span>
+      <span class="spacer"></span>
+      <div class="gsearch">
+        <label for="global-search">Search workspace</label>
+        <div class="inputwrap">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="global-search" type="search" placeholder="Tasks, documents, prompts">
+        </div>
+      </div>
+      <button class="iconbtn m-only" type="button" aria-label="Search workspace">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      </button>
+      <span class="live"><span class="livedot" aria-hidden="true"></span>Live</span>
+      <span class="user"><span class="avatar" aria-hidden="true">d</span><span class="uname">dm</span></span>
+    </header>
+
+    <main id="content" class="main">
+      <div class="pagehead">
+        <div>
+          <h1>Overview</h1>
+          <p class="sub">What needs attention in mcp</p>
+        </div>
+        <div class="pagehead-r">
+          <button class="switcher" type="button" aria-label="Switch project, current project mcp">
+            <span class="mono">mcp</span>
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="btn" type="button">New task</button>
+          <button class="btn btn-primary" type="button">Review 3 tasks</button>
+        </div>
+      </div>
+
+      <div class="ovgrid">
+        <section class="week" aria-labelledby="week-title">
+          <div class="sechead"><h2 id="week-title">This week</h2></div>
+          <dl class="wrows">
+            <div class="wrow"><dt>Open tasks</dt><dd>12</dd></div>
+            <div class="wrow"><dt>Blocked</dt><dd>1</dd></div>
+            <div class="wrow"><dt>Agent claims</dt><dd>2</dd></div>
+            <div class="wrow"><dt>Stale documents</dt><dd>4</dd></div>
+          </dl>
+        </section>
+
+        <section class="attention" aria-labelledby="attention-title">
+          <div class="sechead"><h2 id="attention-title">Attention</h2><span class="count">6</span></div>
+          <ol class="attlist">
+            <li class="att">
+              <span class="sev" style="--sev:var(--st-blocked)" aria-hidden="true"></span>
+              <div>
+                <p class="attsev">Blocked</p>
+                <p class="atttitle"><span class="tid">T-2074</span> Loading / error / empty contract</p>
+                <p class="attreason">Blocked 2 days, waiting on the state-contract decision</p>
+              </div>
+              <span class="attage">2d</span>
+              <button class="btn btn-sm" type="button">Open</button>
+            </li>
+            <li class="att">
+              <span class="sev" style="--sev:var(--pr-med)" aria-hidden="true"></span>
+              <div>
+                <p class="attsev">Claim expiring</p>
+                <p class="atttitle"><span class="tid">T-2041</span> Knowledge: clicking a document crashes to a white screen</p>
+                <p class="attreason">atlas holds it, 14m left</p>
+              </div>
+              <span class="attage">14m</span>
+              <button class="btn btn-sm" type="button">Open</button>
+            </li>
+            <li class="att">
+              <span class="sev" style="--sev:var(--st-review)" aria-hidden="true"></span>
+              <div>
+                <p class="attsev">Review waiting</p>
+                <p class="atttitle"><span class="tid">T-2047</span> Search inside Knowledge crashes on a miss</p>
+                <p class="attreason">scout requested changes 1 day ago</p>
+              </div>
+              <span class="attage">1d</span>
+              <button class="btn btn-sm" type="button">Review</button>
+            </li>
+            <li class="att">
+              <span class="sev" style="--sev:var(--pr-med)" aria-hidden="true"></span>
+              <div>
+                <p class="attsev">Unmet dependency</p>
+                <p class="atttitle"><span class="tid">T-2063</span> Tracks by task type with multi-select</p>
+                <p class="attreason">waits on T-2058 (QA)</p>
+              </div>
+              <span class="attage">3h</span>
+              <button class="btn btn-sm" type="button">Open</button>
+            </li>
+            <li class="att">
+              <span class="sev" style="--sev:var(--st-archive)" aria-hidden="true"></span>
+              <div>
+                <p class="attsev">Stale document</p>
+                <p class="atttitle">ADR-006 Claude Code plugin export</p>
+                <p class="attreason">not updated in 62 days</p>
+              </div>
+              <span class="attage">62d</span>
+              <button class="btn btn-sm" type="button">Open doc</button>
+            </li>
+            <li class="att">
+              <span class="sev" style="--sev:var(--st-archive)" aria-hidden="true"></span>
+              <div>
+                <p class="attsev">Stale document</p>
+                <p class="atttitle">Web UI architecture notes</p>
+                <p class="attreason">not updated in 38 days</p>
+              </div>
+              <span class="attage">38d</span>
+              <button class="btn btn-sm" type="button">Open doc</button>
+            </li>
+          </ol>
+        </section>
+
+        <section class="activity" aria-labelledby="activity-title">
+          <div class="sechead"><h2 id="activity-title">Activity</h2></div>
+          <ol class="evlist">
+            <li class="ev"><span class="t">12m</span><span><span class="who">atlas</span> moved <b>T-2041</b> to In progress</span></li>
+            <li class="ev"><span class="t">42m</span><span><span class="who">sisyphus</span> claimed <b>T-2063</b></span></li>
+            <li class="ev"><span class="t">1h</span><span><span class="who">scout</span> requested changes on <b>T-2047</b></span></li>
+            <li class="ev"><span class="t">3h</span><span><span class="who">dm</span> created <b>T-2079</b> Paginate the tools catalog</span></li>
+            <li class="ev"><span class="t">5h</span><span>agent memory extracted 7 facts from session mcp-kb-hardening</span></li>
+            <li class="ev"><span class="t">1d</span><span><span class="who">dm</span> updated KB hardening benchmark — 2026-10-20</span></li>
+          </ol>
+        </section>
+      </div>
+
+      <section class="agentsbar" aria-labelledby="agents-title">
+        <div class="sechead"><h2 id="agents-title">Agents</h2><span class="count">2 running, 1 idle</span></div>
+        <div class="agentcell"><span class="presence on" aria-hidden="true"></span><span class="nm">atlas</span><span>running</span><span class="task">T-2041, 14m left</span></div>
+        <div class="agentcell"><span class="presence on" aria-hidden="true"></span><span class="nm">sisyphus</span><span>running</span><span class="task">T-2063, 42m of 45m</span></div>
+        <div class="agentcell"><span class="presence idle" aria-hidden="true"></span><span class="nm">scout</span><span>idle 2h</span><span class="task">no claim</span></div>
+      </section>
+    </main>
+  </div>
+</div>
+</body>
+</html>

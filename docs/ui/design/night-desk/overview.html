@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap">
+<script>
+var t=(location.search.match(/theme=(dark|light)/)||[])[1];document.documentElement.dataset.theme=t||'dark';
+</script>
+<style>
+/* ---------- tokens (copied from tokens.css, do not edit there) ---------- */
+:root{
+  color-scheme:dark;
+  --canvas:#0f1115;--surface-1:#161922;--surface-2:#1c2029;--line:#2a3040;--line-strong:#3a4356;
+  --ink:#e8ebf2;--muted:#9aa3b4;
+  --accent:#e7a46b;--accent-ink:#201406;--accent-soft:#33241a;
+  --st-todo:#8c94a6;--st-doing:#e7a46b;--st-review:#a78bfa;--st-blocked:#f07a7a;--st-done:#57c79b;--st-archive:#8c94a6;
+  --ty-bug:#f07a7a;--ty-feature:#a78bfa;--ty-task:#8c94a6;
+  --pr-high:#f07a7a;--pr-med:#e7a46b;--pr-low:#8c94a6;
+  --focus:#e7a46b;
+  --radius-control:8px;--radius-card:10px;--radius-panel:14px;
+  --shadow-pop:0 16px 40px rgb(0 0 0 / 0.55);
+  --inset-hi:inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --font-sans:"Archivo",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --text-11:11px;--text-12:12px;--text-13:13px;--text-14:14px;--text-16:16px;--text-18:18px;--text-22:22px;--text-28:28px;
+  --row:34px;--rail:64px;--topbar:48px;--column:300px;--gap:14px;
+}
+html[data-theme="light"]{
+  color-scheme:light;
+  --canvas:#f3f4f7;--surface-1:#ffffff;--surface-2:#eaeef1;--line:#dde0e7;--line-strong:#c4c9d4;
+  --ink:#12151c;--muted:#59606e;
+  --accent:#a9551b;--accent-ink:#ffffff;--accent-soft:#f7e8dc;
+  --st-todo:#59606e;--st-doing:#a9551b;--st-review:#6d28d9;--st-blocked:#b42318;--st-done:#0e7a5f;--st-archive:#6b7280;
+  --ty-bug:#b42318;--ty-feature:#6d28d9;--ty-task:#4b5563;
+  --pr-high:#b42318;--pr-med:#a9551b;--pr-low:#6b7280;
+  --focus:#a9551b;
+  --shadow-pop:0 12px 32px rgb(18 21 28 / 0.16);
+  --inset-hi:inset 0 1px 0 #ffffff;
+}
+
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--canvas);color:var(--ink);
+  font-family:var(--font-sans);font-size:var(--text-13);line-height:1.45;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+svg{display:block}
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.i-sm{width:16px;height:16px}
+.i-xs{width:14px;height:14px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.skip{
+  position:absolute;left:12px;top:-60px;z-index:200;padding:10px 14px;
+  background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);
+  border-radius:var(--radius-control);font-weight:500;
+}
+.skip:focus{top:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--topbar) minmax(0,1fr);height:100vh;height:100dvh;overflow:hidden}
+.rail{
+  grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;
+  gap:4px;padding:10px 0;background:var(--canvas);border-right:1px solid var(--line);
+  position:relative;z-index:60;min-height:0;
+}
+.brand{
+  width:40px;height:40px;border-radius:11px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-weight:700;font-size:18px;letter-spacing:-0.02em;
+  margin-bottom:10px;flex:none;
+}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+.rail-btn{position:relative;width:40px;height:40px;border-radius:var(--radius-control);display:grid;place-items:center;color:var(--muted)}
+.rail-btn:hover{background:var(--surface-1);color:var(--ink)}
+.rail-btn[aria-current="page"]{background:var(--surface-2);color:var(--accent)}
+.rail-btn[aria-current="page"]::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:2px;background:var(--accent);border-radius:2px}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:4px}
+.flyout{
+  position:absolute;left:46px;top:50%;transform:translateY(-50%);z-index:80;
+  padding:5px 9px;border-radius:var(--radius-control);
+  background:var(--surface-2);border:1px solid var(--line);box-shadow:var(--shadow-pop);
+  font-size:var(--text-12);font-weight:500;color:var(--ink);white-space:nowrap;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s ease;
+}
+.rail-btn:hover .flyout,.rail-btn:focus-visible .flyout{opacity:1;visibility:visible}
+.rail-avatars{display:none}
+.menu-btn{display:none}
+
+.topbar{
+  grid-column:2;grid-row:1;display:flex;align-items:center;gap:14px;
+  padding:0 16px;background:var(--canvas);border-bottom:1px solid var(--line);
+  position:relative;z-index:40;min-width:0;
+}
+.gsearch{
+  display:flex;align-items:center;gap:8px;flex:0 1 420px;min-width:0;height:32px;
+  padding:0 10px;border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--muted);
+}
+.gsearch label{font-size:var(--text-12);white-space:nowrap;cursor:text}
+.gsearch input{flex:1;min-width:0;border:0;background:none;outline:0;color:var(--ink);font-size:var(--text-13);padding:0;height:100%}
+.gsearch kbd{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px;line-height:1.4}
+.gsearch-icon{display:none;width:32px;height:32px;border-radius:var(--radius-control);border:1px solid var(--line);background:var(--surface-1);color:var(--muted);place-items:center}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.proj{
+  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;
+  border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--ink);font-size:var(--text-12);
+}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.live .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.presence{display:inline-flex;align-items:center;gap:7px;font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.av-stack{display:inline-flex}
+.av{
+  width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line-strong);
+  font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink);
+}
+.av-stack .av + .av{margin-left:-6px}
+.av-agent{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.av-user{width:26px;height:26px;font-size:10px}
+
+/* ---------- main ---------- */
+.main{grid-column:2;grid-row:2;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:16px 24px 12px;flex-wrap:wrap}
+.page-head h1{font-size:var(--text-22);line-height:1.15;font-weight:700;letter-spacing:-0.01em}
+.subline{margin-top:3px;color:var(--muted);font-size:var(--text-13)}
+.head-actions{display:flex;align-items:center;gap:8px;flex:none}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 12px;border-radius:var(--radius-control);
+  border:1px solid var(--line-strong);background:var(--surface-1);color:var(--ink);
+  font-size:var(--text-13);font-weight:500;white-space:nowrap;
+}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+.btn-primary:hover{background:var(--accent);opacity:.92}
+.proj-lbl{font-size:var(--text-12);color:var(--muted)}
+.btn .i-xs{color:var(--muted)}
+
+/* ---------- signal tiles ---------- */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:0 24px 14px}
+.tile{
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;
+  gap:2px;padding:12px 13px 11px;border:1px solid var(--line);border-radius:var(--radius-card);
+  background:var(--surface-1);box-shadow:var(--inset-hi);overflow:hidden;
+}
+.tile:hover{background:var(--surface-2)}
+.tile .bar{position:absolute;top:0;left:0;right:0;height:2px;background:var(--c)}
+.tile .t-label{font-size:var(--text-12);color:var(--muted)}
+.tile .t-num{font-family:var(--font-mono);font-size:var(--text-28);font-weight:700;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.tile .t-note{font-size:var(--text-12);color:var(--muted)}
+
+/* ---------- panels ---------- */
+.ov-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1.15fr) 280px;gap:12px;padding:0 24px 18px;align-items:start}
+.panel{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius-panel);box-shadow:var(--inset-hi);overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px 9px;border-bottom:1px solid var(--line)}
+.panel-head h2{font-size:var(--text-13);font-weight:600;letter-spacing:-0.005em}
+.panel-head .p-meta{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.panel-body{display:flex;flex-direction:column}
+
+/* attention */
+.arow{display:grid;grid-template-columns:9px minmax(0,1fr) auto;gap:10px;padding:10px 13px;border-top:1px solid var(--line)}
+.arow:first-child{border-top:0}
+.arow .sev{width:8px;height:8px;border-radius:50%;background:var(--c);margin-top:5px}
+.a-main{min-width:0;display:flex;flex-direction:column;gap:2px}
+.a-title{display:flex;align-items:baseline;gap:7px;min-width:0}
+.a-title .id{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);flex:none}
+.a-title .txt{font-size:var(--text-13);font-weight:500;color:var(--ink);min-width:0}
+.a-reason{font-size:var(--text-12);color:var(--muted);min-width:0}
+.a-side{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.a-age{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.a-act{font-size:var(--text-12);font-weight:600;color:var(--ink);padding:1px 2px;border-radius:4px}
+.a-act:hover{text-decoration:underline;text-underline-offset:2px}
+
+/* activity */
+.ev{display:grid;grid-template-columns:34px 20px minmax(0,1fr);gap:8px;align-items:start;padding:9px 13px;border-top:1px solid var(--line)}
+.ev:first-child{border-top:0}
+.ev .time{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);padding-top:2px}
+.ev .txt{font-size:var(--text-12);color:var(--ink);line-height:1.4}
+.ev .txt b{font-weight:600}
+.ev .txt .obj{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+
+/* agents */
+.ag{display:grid;grid-template-columns:10px minmax(0,1fr);gap:9px;padding:11px 13px;border-top:1px solid var(--line)}
+.ag:first-child{border-top:0}
+.ag .pdot{width:8px;height:8px;border-radius:50%;background:var(--c);margin-top:4px}
+.ag .a-body{min-width:0;display:flex;flex-direction:column;gap:2px}
+.ag .a-line{display:flex;align-items:baseline;gap:7px}
+.ag .a-name{font-size:var(--text-13);font-weight:600;color:var(--ink)}
+.ag .a-state{font-size:var(--text-11);color:var(--muted)}
+.ag .a-task{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag .a-lease{font-family:var(--font-mono);font-size:var(--text-11);color:var(--accent);font-variant-numeric:tabular-nums}
+
+/* ---------- responsive ---------- */
+@media (max-width:1023px){
+  .ov-grid{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+  .agents-panel{grid-column:1/-1}
+  .page-head{padding:14px 18px 10px}
+  .tiles{padding:0 18px 12px}
+  .ov-grid{padding:0 18px 16px}
+}
+@media (max-width:720px){
+  .app{grid-template-columns:1fr;grid-template-rows:48px 48px minmax(0,1fr)}
+  .main{grid-column:1;grid-row:3;min-width:0;min-height:0;width:100%}
+  .rail{grid-column:1;grid-row:1;flex-direction:row;gap:10px;padding:0 12px;border-right:0;border-bottom:1px solid var(--line)}
+  .rail .brand{width:32px;height:32px;border-radius:9px;font-size:15px;margin:0}
+  .rail-nav,.rail-foot{display:none}
+  .menu-btn{display:grid}
+  .rail-avatars{display:flex;margin-left:auto;gap:0}
+  .rail-avatars .av + .av{margin-left:-6px}
+  .topbar{grid-column:1;grid-row:2;padding:0 12px;gap:10px}
+  .gsearch{display:none}
+  .gsearch-icon{display:grid}
+  .presence{display:none}
+  .page-head{padding:12px 14px 8px;align-items:center;gap:10px}
+  .page-head h1{font-size:var(--text-18)}
+  .btn{height:34px;padding:0 10px}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 14px 12px}
+  .ov-grid{grid-template-columns:minmax(0,1fr);gap:10px;padding:0 14px 16px}
+  .agents-panel{grid-column:1}
+  }
+.a-age,.ev .time,.t-num,.p-meta{font-variant-numeric:tabular-nums}
+.panel-head h2{letter-spacing:-0.01em}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4.5 4.5"/></symbol>
+  <symbol id="i-tasks" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 2.6 2.6L16 9.6"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="m7.5 9.5 3 2.5-3 2.5"/><path d="M13 14.5h4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21"/><path d="M17.5 12v3"/><path d="M20.5 12v2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9"/><path d="M18 7h2"/><circle cx="15.5" cy="7" r="2"/><path d="M4 17h4"/><path d="M13 17h7"/><circle cx="10.5" cy="17" r="2"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+</svg>
+
+<div class="app">
+  <nav class="rail" aria-label="Primary">
+    <button class="rail-btn menu-btn" type="button" aria-label="Open menu">
+      <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <a class="brand" href="overview.html" aria-label="MCP Tasks and Knowledge home">M</a>
+    <div class="rail-nav">
+      <a class="rail-btn" href="board.html" aria-label="Tasks">
+        <svg class="i" aria-hidden="true"><use href="#i-tasks"/></svg>
+      
+        <span class="flyout">Tasks</span>
+      </a>
+      <a class="rail-btn" href="overview.html" aria-current="page" aria-label="Overview">
+        <svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>
+      
+        <span class="flyout">Overview</span>
+      </a>
+      <a class="rail-btn" href="knowledge.html" aria-label="Knowledge">
+        <svg class="i" aria-hidden="true"><use href="#i-book"/></svg>
+      
+        <span class="flyout">Knowledge</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Prompts">
+        <svg class="i" aria-hidden="true"><use href="#i-terminal"/></svg>
+      
+        <span class="flyout">Prompts</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Memory">
+        <svg class="i" aria-hidden="true"><use href="#i-layers"/></svg>
+      
+        <span class="flyout">Memory</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Access">
+        <svg class="i" aria-hidden="true"><use href="#i-key"/></svg>
+      
+        <span class="flyout">Access</span>
+      </a>
+    </div>
+    <div class="rail-foot">
+      <a class="rail-btn" href="#" aria-label="Settings">
+        <svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>
+      
+        <span class="flyout">Settings</span>
+      </a>
+    </div>
+    <div class="rail-avatars" aria-label="2 agents online">
+      <span class="av av-agent">A</span>
+      <span class="av">S</span>
+    </div>
+  </nav>
+
+  <header class="topbar">
+    <div class="gsearch">
+      <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+      <label for="gq">Search</label>
+      <input id="gq" type="search">
+      <kbd>⌘K</kbd>
+    </div>
+    <button class="gsearch-icon" type="button" aria-label="Search">
+      <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+    </button>
+    <div class="top-right">
+      <button class="proj" type="button">
+        <span class="mono">mcp</span>
+        <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+      </button>
+      <span class="live"><span class="dot" aria-hidden="true"></span>Live</span>
+      <span class="presence">2 agents
+        <span class="av-stack" aria-hidden="true">
+          <span class="av av-agent">A</span>
+          <span class="av">S</span>
+        </span>
+      </span>
+      <span class="av av-user" aria-label="Signed in as dm">dm</span>
+    </div>
+  </header>
+
+  <main id="content" class="main">
+    <div class="page-head">
+      <div>
+        <h1>Overview</h1>
+        <p class="subline">What needs attention in mcp</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn" type="button" aria-label="Switch project, currently mcp">
+          <span class="proj-lbl">Project</span>
+          <span class="mono" style="font-size:var(--text-12)">mcp</span>
+          <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+        </button>
+        <button class="btn btn-primary" type="button">New task</button>
+      </div>
+    </div>
+
+    <div class="tiles">
+      <button class="tile" type="button" style="--c:var(--st-blocked)">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="t-label">Blocked</span>
+        <span class="t-num">1</span>
+        <span class="t-note">T-2074 waits on a decision</span>
+      </button>
+      <button class="tile" type="button" style="--c:var(--accent)">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="t-label">Agent claims</span>
+        <span class="t-num">2</span>
+        <span class="t-note">atlas and sisyphus hold leases</span>
+      </button>
+      <button class="tile" type="button" style="--c:var(--st-review)">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="t-label">Review requested</span>
+        <span class="t-num">1</span>
+        <span class="t-note">T-2047 needs a decision</span>
+      </button>
+      <button class="tile" type="button" style="--c:var(--st-todo)">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="t-label">Stale documents</span>
+        <span class="t-num">4</span>
+        <span class="t-note">oldest is 62 days old</span>
+      </button>
+    </div>
+
+    <div class="ov-grid">
+      <section class="panel" aria-labelledby="att-h">
+        <div class="panel-head">
+          <h2 id="att-h">Needs attention</h2>
+          <span class="p-meta">6 items</span>
+        </div>
+        <div class="panel-body">
+          <div class="arow" style="--c:var(--st-blocked)">
+            <span class="sev" aria-hidden="true"></span>
+            <div class="a-main">
+              <div class="a-title"><span class="id">T-2074</span><span class="txt">Loading / error / empty contract</span></div>
+              <div class="a-reason">Blocked 2 days, waiting on the state-contract decision</div>
+            </div>
+            <div class="a-side"><span class="a-age">2d</span><button class="a-act" type="button">Open</button></div>
+          </div>
+          <div class="arow" style="--c:var(--accent)">
+            <span class="sev" aria-hidden="true"></span>
+            <div class="a-main">
+              <div class="a-title"><span class="id">T-2041</span><span class="txt">Knowledge: clicking a document crashes to a white screen</span></div>
+              <div class="a-reason">atlas holds it, 14m left</div>
+            </div>
+            <div class="a-side"><span class="a-age">14m</span><button class="a-act" type="button">Open</button></div>
+          </div>
+          <div class="arow" style="--c:var(--st-review)">
+            <span class="sev" aria-hidden="true"></span>
+            <div class="a-main">
+              <div class="a-title"><span class="id">T-2047</span><span class="txt">Search inside Knowledge crashes on a miss</span></div>
+              <div class="a-reason">scout requested changes 1 day ago</div>
+            </div>
+            <div class="a-side"><span class="a-age">1d</span><button class="a-act" type="button">Review</button></div>
+          </div>
+          <div class="arow" style="--c:var(--st-doing)">
+            <span class="sev" aria-hidden="true"></span>
+            <div class="a-main">
+              <div class="a-title"><span class="id">T-2063</span><span class="txt">Tracks by task type with multi-select</span></div>
+              <div class="a-reason">waits on T-2058 (QA)</div>
+            </div>
+            <div class="a-side"><span class="a-age">—</span><button class="a-act" type="button">Open</button></div>
+          </div>
+          <div class="arow" style="--c:var(--st-todo)">
+            <span class="sev" aria-hidden="true"></span>
+            <div class="a-main">
+              <div class="a-title"><span class="txt">ADR-006 Claude Code plugin export</span></div>
+              <div class="a-reason">not updated in 62 days</div>
+            </div>
+            <div class="a-side"><span class="a-age">62d</span><button class="a-act" type="button">Open doc</button></div>
+          </div>
+          <div class="arow" style="--c:var(--st-todo)">
+            <span class="sev" aria-hidden="true"></span>
+            <div class="a-main">
+              <div class="a-title"><span class="txt">Web UI architecture notes</span></div>
+              <div class="a-reason">not updated in 38 days</div>
+            </div>
+            <div class="a-side"><span class="a-age">38d</span><button class="a-act" type="button">Open doc</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="act-h">
+        <div class="panel-head">
+          <h2 id="act-h">Live activity</h2>
+          <span class="p-meta">6 events</span>
+        </div>
+        <div class="panel-body">
+          <div class="ev">
+            <span class="time">12m</span>
+            <span class="av av-agent" aria-hidden="true">A</span>
+            <p class="txt"><b>atlas</b> moved <span class="obj">T-2041</span> to In progress</p>
+          </div>
+          <div class="ev">
+            <span class="time">42m</span>
+            <span class="av av-agent" aria-hidden="true">S</span>
+            <p class="txt"><b>sisyphus</b> claimed <span class="obj">T-2063</span></p>
+          </div>
+          <div class="ev">
+            <span class="time">1h</span>
+            <span class="av" aria-hidden="true">S</span>
+            <p class="txt"><b>scout</b> requested changes on <span class="obj">T-2047</span></p>
+          </div>
+          <div class="ev">
+            <span class="time">3h</span>
+            <span class="av" aria-hidden="true">D</span>
+            <p class="txt"><b>dm</b> created <span class="obj">T-2079</span> “Paginate the tools catalog”</p>
+          </div>
+          <div class="ev">
+            <span class="time">5h</span>
+            <span class="av av-agent" aria-hidden="true">M</span>
+            <p class="txt">agent memory extracted 7 facts from session <span class="obj">mcp-kb-hardening</span></p>
+          </div>
+          <div class="ev">
+            <span class="time">1d</span>
+            <span class="av" aria-hidden="true">D</span>
+            <p class="txt"><b>dm</b> updated “KB hardening benchmark — 2026-10-20”</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel agents-panel" aria-labelledby="ag-h">
+        <div class="panel-head">
+          <h2 id="ag-h">Agents</h2>
+          <span class="p-meta">3 known</span>
+        </div>
+        <div class="panel-body">
+          <div class="ag" style="--c:var(--st-done)">
+            <span class="pdot" aria-hidden="true"></span>
+            <div class="a-body">
+              <div class="a-line"><span class="a-name">atlas</span><span class="a-state">running</span></div>
+              <span class="a-task">T-2041</span>
+              <span class="a-lease">14m left of 30m</span>
+            </div>
+          </div>
+          <div class="ag" style="--c:var(--st-done)">
+            <span class="pdot" aria-hidden="true"></span>
+            <div class="a-body">
+              <div class="a-line"><span class="a-name">sisyphus</span><span class="a-state">running</span></div>
+              <span class="a-task">T-2063</span>
+              <span class="a-lease">42m of 45m</span>
+            </div>
+          </div>
+          <div class="ag" style="--c:var(--st-todo)">
+            <span class="pdot" aria-hidden="true"></span>
+            <div class="a-body">
+              <div class="a-line"><span class="a-name">scout</span><span class="a-state">idle 2h</span></div>
+              <span class="a-task">no lease held</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</body>
+</html>

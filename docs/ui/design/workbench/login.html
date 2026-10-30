@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* ---------- tokens (copied from tokens.css, not edited) ---------- */
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  color-scheme:light;
+  --chrome:#1a1d23;--chrome-2:#23272f;--chrome-line:#333845;--chrome-ink:#edeff3;--chrome-muted:#9ca3b4;
+  --canvas:#fbfbfc;--surface:#ffffff;--surface-2:#f2f3f6;--line:#e4e6eb;--line-strong:#cdd1d9;
+  --ink:#14171c;--muted:#5a6270;
+  --accent:#4f46e5;--accent-hover:#4338ca;--accent-soft:#eef0fe;--on-accent:#ffffff;
+  --st-todo:#5a6270;--st-doing:#4f46e5;--st-review:#7c3aed;--st-blocked:#b42318;--st-done:#0e7a5f;--st-archive:#6b7280;
+  --ty-bug:#b42318;--ty-feature:#7c3aed;--ty-task:#4b5563;
+  --pr-high:#b42318;--pr-med:#b45309;--pr-low:#6b7280;
+  --focus:#4f46e5;
+  --radius-control:6px;--radius-card:8px;--radius-panel:12px;
+  --shadow-pop:0 12px 32px rgb(20 23 28 / .16);
+  --font-sans:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+  --text-11:11px;--text-12:12px;--text-13:13px;--text-14:14px;--text-15:15px;--text-17:17px;--text-22:22px;--text-30:30px;
+  --row:36px;--nav:288px;--topbar:52px;--column:288px;--gap:14px;--measure:68ch;
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --chrome:#0c0e12;--chrome-2:#161a21;--chrome-line:#262b34;--chrome-ink:#e9ebf0;--chrome-muted:#98a0b0;
+  --canvas:#101216;--surface:#171a20;--surface-2:#1e222a;--line:#262b34;--line-strong:#39404c;
+  --ink:#e9ebf0;--muted:#98a0b0;
+  --accent:#8b87ff;--accent-hover:#a5a2ff;--accent-soft:#1e2033;--on-accent:#0e0f1a;
+  --st-todo:#98a0b0;--st-doing:#8b87ff;--st-review:#c4a7ff;--st-blocked:#f08a80;--st-done:#4fd1a5;--st-archive:#8b93a0;
+  --ty-bug:#f08a80;--ty-feature:#c4a7ff;--ty-task:#a7aeb9;
+  --pr-high:#f08a80;--pr-med:#e0a45a;--pr-low:#8b93a0;
+  --focus:#8b87ff;--shadow-pop:0 16px 40px rgb(0 0 0 / .55);
+}
+
+/* ---------- base ---------- */
+html,body{margin:0;padding:0}
+html{background:var(--canvas);overflow-x:clip}
+body{font-family:var(--font-sans);font-size:var(--text-14);line-height:1.45;color:var(--ink);background:var(--canvas);-webkit-font-smoothing:antialiased;overflow-x:clip}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer;transition:background-color .12s linear,color .12s linear,border-color .12s linear}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.auth-ink :focus-visible{outline-color:var(--chrome-ink)}
+.skip{position:fixed;left:12px;top:-64px;z-index:60;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--radius-control);padding:9px 14px;font-size:13px;font-weight:500}
+.skip:focus{top:12px}
+.i{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ---------- split screen ---------- */
+.auth{display:grid;grid-template-columns:46% minmax(0,1fr);min-height:100dvh}
+.auth-ink{background:var(--chrome);color:var(--chrome-ink);display:flex;flex-direction:column;padding:34px 36px 26px;border-bottom:2px solid var(--accent);border-right:1px solid var(--chrome-line)}
+.auth-brand{display:flex;align-items:center;gap:11px}
+.mark{width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:600;font-size:17px;line-height:1}
+.wordmark{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.auth-spacer{flex:1}
+.auth-state{max-width:27ch}
+.auth-state p{margin:0;font-size:var(--text-22);font-weight:500;line-height:1.32;letter-spacing:-.01em}
+.auth-endpoint{display:flex;align-items:center;gap:10px;margin-top:15px;font-family:var(--font-mono);font-size:12px;color:var(--chrome-muted);font-variant-numeric:tabular-nums}
+.auth-endpoint .vr{width:1px;height:11px;background:var(--chrome-line);flex:none}
+
+.auth-main{display:flex;align-items:center;background:var(--canvas);padding:48px 32px}
+.auth-form{width:360px;max-width:100%}
+.auth-form h1{margin:0 0 2px;font-size:var(--text-22);font-weight:600;letter-spacing:-.01em;line-height:1.25}
+
+.notice{display:flex;align-items:flex-start;gap:9px;margin:16px 0 20px;padding:10px 11px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface-2);color:var(--ink);font-size:13px;line-height:1.4}
+.notice .i{color:var(--pr-med);margin-top:1px}
+.notice p{margin:0}
+
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:12px;color:var(--muted)}
+.field input{height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);color:var(--ink);font:inherit;font-size:14px;width:100%}
+.field input:focus{border-color:var(--accent)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface);color:var(--ink);font-size:14px;font-weight:500}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-submit{width:100%;margin-top:6px}
+.linkbtn{display:inline-block;margin-top:14px;padding:0;border:0;background:transparent;color:var(--accent);font-size:13px;font-weight:500}
+.linkbtn:hover{color:var(--accent-hover)}
+.footnote{margin:30px 0 0;font-size:12px;line-height:1.5;color:var(--muted);max-width:34ch}
+
+/* ---------- responsive ---------- */
+@media (max-width:1024px){
+  .auth{grid-template-columns:42% minmax(0,1fr)}
+  .auth-ink{padding:28px 26px 22px}
+  .auth-main{padding:40px 24px}
+  .auth-state p{font-size:var(--text-17)}
+}
+@media (max-width:720px){
+  .auth{grid-template-columns:1fr;min-height:100dvh}
+  .auth-ink{height:96px;flex-direction:row;align-items:center;gap:12px;padding:0 20px;border-right:0;flex:none}
+  .auth-spacer{display:none}
+  .auth-state{display:none}
+  .mark{width:32px;height:32px;border-radius:10px;font-size:15px}
+  .wordmark{font-size:14px}
+  .auth-main{align-items:flex-start;padding:28px 20px 40px}
+  .auth-form{width:100%;max-width:360px}
+  .field input{height:44px}
+  .btn{height:44px}
+  .btn-submit{height:44px}
+  .linkbtn{padding:12px 0;margin-top:4px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script>
+if (location.search.indexOf('theme=dark') !== -1) document.documentElement.dataset.theme = 'dark';
+</script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<div class="auth">
+  <aside class="auth-ink" aria-label="MCP Tasks and Knowledge">
+    <header class="auth-brand">
+      <span class="mark" aria-hidden="true">M</span>
+      <span class="wordmark">MCP Tasks &amp; Knowledge</span>
+    </header>
+    <div class="auth-spacer"></div>
+    <div class="auth-state">
+      <p>Tasks, knowledge and agent memory on one server.</p>
+      <p class="auth-endpoint"><span>localhost:3001</span><span class="vr" aria-hidden="true"></span><span>mcp</span></p>
+    </div>
+  </aside>
+
+  <main id="content" class="auth-main">
+    <div class="auth-form">
+      <h1>Sign in</h1>
+
+      <div class="notice" role="status">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 17h.01"/></svg>
+        <p>Session expired — sign in again to continue to Tasks.</p>
+      </div>
+
+      <form action="#content" method="get">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" value="dm">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-submit" type="submit">Sign in</button>
+      </form>
+
+      <button class="linkbtn" type="button">Use an access token</button>
+
+      <p class="footnote">Agents connect with a token. Create one on Access.</p>
+    </div>
+  </main>
+</div>
+</body>
+</html>

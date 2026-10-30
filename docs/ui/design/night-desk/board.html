@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tasks — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap">
+<script>
+var t=(location.search.match(/theme=(dark|light)/)||[])[1];document.documentElement.dataset.theme=t||'dark';
+</script>
+<style>
+/* ---------- tokens (copied from tokens.css, do not edit there) ---------- */
+:root{
+  color-scheme:dark;
+  --canvas:#0f1115;--surface-1:#161922;--surface-2:#1c2029;--line:#2a3040;--line-strong:#3a4356;
+  --ink:#e8ebf2;--muted:#9aa3b4;
+  --accent:#e7a46b;--accent-ink:#201406;--accent-soft:#33241a;
+  --st-todo:#8c94a6;--st-doing:#e7a46b;--st-review:#a78bfa;--st-blocked:#f07a7a;--st-done:#57c79b;--st-archive:#8c94a6;
+  --ty-bug:#f07a7a;--ty-feature:#a78bfa;--ty-task:#8c94a6;
+  --pr-high:#f07a7a;--pr-med:#e7a46b;--pr-low:#8c94a6;
+  --focus:#e7a46b;
+  --radius-control:8px;--radius-card:10px;--radius-panel:14px;
+  --shadow-pop:0 16px 40px rgb(0 0 0 / 0.55);
+  --inset-hi:inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --font-sans:"Archivo",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --text-11:11px;--text-12:12px;--text-13:13px;--text-14:14px;--text-16:16px;--text-18:18px;--text-22:22px;--text-28:28px;
+  --row:34px;--rail:64px;--topbar:48px;--column:300px;--gap:14px;
+}
+html[data-theme="light"]{
+  color-scheme:light;
+  --canvas:#f3f4f7;--surface-1:#ffffff;--surface-2:#eaeef1;--line:#dde0e7;--line-strong:#c4c9d4;
+  --ink:#12151c;--muted:#59606e;
+  --accent:#a9551b;--accent-ink:#ffffff;--accent-soft:#f7e8dc;
+  --st-todo:#59606e;--st-doing:#a9551b;--st-review:#6d28d9;--st-blocked:#b42318;--st-done:#0e7a5f;--st-archive:#6b7280;
+  --ty-bug:#b42318;--ty-feature:#6d28d9;--ty-task:#4b5563;
+  --pr-high:#b42318;--pr-med:#a9551b;--pr-low:#6b7280;
+  --focus:#a9551b;
+  --shadow-pop:0 12px 32px rgb(18 21 28 / 0.16);
+  --inset-hi:inset 0 1px 0 #ffffff;
+}
+
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--canvas);color:var(--ink);
+  font-family:var(--font-sans);font-size:var(--text-13);line-height:1.45;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+svg{display:block}
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.i-sm{width:16px;height:16px}
+.i-xs{width:14px;height:14px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.skip{
+  position:absolute;left:12px;top:-60px;z-index:200;padding:10px 14px;
+  background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);
+  border-radius:var(--radius-control);font-weight:500;
+}
+.skip:focus{top:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--topbar) minmax(0,1fr);height:100vh;height:100dvh;overflow:hidden}
+
+.rail{
+  grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;
+  gap:4px;padding:10px 0;background:var(--canvas);border-right:1px solid var(--line);
+  position:relative;z-index:60;min-height:0;
+}
+.brand{
+  width:40px;height:40px;border-radius:11px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-weight:700;font-size:18px;letter-spacing:-0.02em;
+  margin-bottom:10px;flex:none;
+}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+.rail-btn{
+  position:relative;width:40px;height:40px;border-radius:var(--radius-control);
+  display:grid;place-items:center;color:var(--muted);
+}
+.rail-btn:hover{background:var(--surface-1);color:var(--ink)}
+.rail-btn[aria-current="page"]{background:var(--surface-2);color:var(--accent)}
+.rail-btn[aria-current="page"]::before{
+  content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:2px;
+  background:var(--accent);border-radius:2px;
+}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:4px}
+.flyout{
+  position:absolute;left:46px;top:50%;transform:translateY(-50%);z-index:80;
+  padding:5px 9px;border-radius:var(--radius-control);
+  background:var(--surface-2);border:1px solid var(--line);box-shadow:var(--shadow-pop);
+  font-size:var(--text-12);font-weight:500;color:var(--ink);white-space:nowrap;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s ease;
+}
+.rail-btn:hover .flyout,.rail-btn:focus-visible .flyout{opacity:1;visibility:visible}
+.rail-avatars{display:none}
+.menu-btn{display:none}
+
+.topbar{
+  grid-column:2;grid-row:1;display:flex;align-items:center;gap:14px;
+  padding:0 16px;background:var(--canvas);border-bottom:1px solid var(--line);
+  position:relative;z-index:40;min-width:0;
+}
+.gsearch{
+  display:flex;align-items:center;gap:8px;flex:0 1 420px;min-width:0;height:32px;
+  padding:0 10px;border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--muted);
+}
+.gsearch label{font-size:var(--text-12);white-space:nowrap;cursor:text}
+.gsearch input{
+  flex:1;min-width:0;border:0;background:none;outline:0;color:var(--ink);
+  font-size:var(--text-13);padding:0;height:100%;
+}
+.gsearch kbd{
+  font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);
+  border:1px solid var(--line);border-radius:4px;padding:1px 5px;line-height:1.4;
+}
+.gsearch-icon{
+  display:none;width:32px;height:32px;border-radius:var(--radius-control);
+  border:1px solid var(--line);background:var(--surface-1);color:var(--muted);
+  place-items:center;
+}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.proj{
+  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;
+  border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--ink);font-size:var(--text-12);
+}
+.proj .mono{font-size:var(--text-12)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.live .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.presence{display:inline-flex;align-items:center;gap:7px;font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.av-stack{display:inline-flex}
+.av{
+  width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line-strong);
+  font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink);
+}
+.av-stack .av + .av{margin-left:-6px}
+.av-agent{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.av-user{width:26px;height:26px;font-size:10px;text-transform:lowercase}
+
+/* ---------- main / page head ---------- */
+.main{grid-column:2;grid-row:2;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:16px 24px 10px}
+.page-head h1{font-size:var(--text-22);line-height:1.15;font-weight:700;letter-spacing:-0.01em}
+.subline{margin-top:3px;color:var(--muted);font-size:var(--text-13)}
+.subline .sep{margin:0 6px;color:var(--line-strong)}
+.head-actions{display:flex;align-items:center;gap:8px;flex:none}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 12px;border-radius:var(--radius-control);
+  border:1px solid var(--line-strong);background:var(--surface-1);color:var(--ink);
+  font-size:var(--text-13);font-weight:500;white-space:nowrap;
+}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+.btn-primary:hover{background:var(--accent);opacity:.92}
+
+/* ---------- toolbar ---------- */
+.toolbar{
+  display:flex;align-items:center;gap:10px;padding:0 24px 10px;min-width:0;
+}
+.tsearch{
+  display:flex;align-items:center;gap:7px;height:32px;flex:0 1 214px;min-width:120px;
+  padding:0 9px;border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--muted);
+}
+.tsearch label{font-size:var(--text-12);white-space:nowrap;cursor:text}
+.tsearch input{flex:1;min-width:0;border:0;background:none;outline:0;color:var(--ink);font-size:var(--text-13);padding:0;height:100%}
+.types{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.types::-webkit-scrollbar{display:none}
+.types-label{font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;
+  border-radius:999px;border:1px solid var(--line);background:var(--surface-1);
+  font-size:var(--text-12);color:var(--muted);white-space:nowrap;
+}
+.chip .count{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.chip[aria-pressed="true"]{color:var(--ink);border-color:var(--line-strong);background:var(--surface-2)}
+.chip[aria-pressed="true"] .count{color:var(--muted)}
+.tdot{width:7px;height:7px;border-radius:50%;background:var(--c,var(--ty-bug));flex:none}
+.chip .tick{color:var(--accent)}
+.chip-archive{gap:8px;color:var(--muted)}
+.linkish{font-size:var(--text-12);font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.linkish:hover{color:var(--accent)}
+.tool-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
+.saved{
+  display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 8px;
+  border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--ink);font-size:var(--text-12);
+}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface-1);overflow:hidden}
+.seg button{height:26px;padding:0 9px;display:inline-flex;align-items:center;gap:5px;font-size:var(--text-12);color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink)}
+
+/* ---------- board ---------- */
+.board-wrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;padding:0 0 34px}
+.board-scroll{
+  flex:1;min-height:0;overflow-x:auto;overflow-y:auto;padding:2px 24px 6px;
+  scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;
+  -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 52px),transparent);
+  mask-image:linear-gradient(to right,#000 calc(100% - 52px),transparent);
+}
+.board{
+  display:grid;
+  grid-template-columns:var(--column) var(--column) 48px var(--column) var(--column) var(--column) var(--column) var(--column);
+  column-gap:12px;row-gap:10px;min-width:max-content;align-items:start;
+}
+
+/* column headers */
+.ch{grid-row:1;display:flex;align-items:center;gap:7px;height:30px;padding:0 2px}
+.ch-inbox{grid-column:1}.ch-triage{grid-column:2}.ch-doing{grid-column:4}
+.ch-review{grid-column:5}.ch-blocked{grid-column:6}.ch-qa{grid-column:7}.ch-done{grid-column:8}
+.ch .bar{position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px;background:var(--cat)}
+.ch{position:relative}
+.ch .sdot{width:8px;height:8px;border-radius:50%;background:var(--sc);flex:none}
+.ch .label{font-size:var(--text-12);font-weight:600;color:var(--ink)}
+.ch .count{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.ch-blocked .label{color:var(--st-blocked)}
+
+/* collapsed ready strip */
+.strip{
+  grid-column:3;grid-row:1/7;display:flex;flex-direction:column;align-items:center;
+  gap:10px;padding:10px 0;background:var(--surface-1);border-radius:var(--radius-panel);
+  box-shadow:var(--inset-hi);position:relative;align-self:stretch;
+}
+.strip .bar{position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0;background:var(--st-todo)}
+.strip .vlabel{writing-mode:vertical-rl;transform:rotate(180deg);font-size:var(--text-12);font-weight:600;color:var(--muted);letter-spacing:.02em}
+.strip .vcount{font-family:var(--font-mono);font-size:var(--text-12);color:var(--ink);font-weight:700}
+.strip .vtoggle{color:var(--muted);margin-top:auto}
+
+/* track header */
+.track-head{display:flex;align-items:center;height:28px}
+.th-bug{grid-area:2/1/3/3}
+.th-feature{grid-area:4/1/5/3}
+.th-task{grid-area:6/1/7/3}
+.track-btn{display:inline-flex;align-items:center;gap:8px;padding:0 4px;height:28px;border-radius:var(--radius-control)}
+.track-btn:hover{background:var(--surface-1)}
+.track-name{font-size:var(--text-12);font-weight:700;letter-spacing:.01em;color:var(--ink)}
+.track-count{font-size:var(--text-11);color:var(--muted)}
+.track-btn .caret{color:var(--muted)}
+.track-task .track-name{color:var(--muted);font-weight:600}
+
+/* lanes */
+.lane{
+  background:var(--surface-1);border-radius:var(--radius-panel);box-shadow:var(--inset-hi);
+  padding:8px;display:flex;flex-direction:column;gap:8px;position:relative;min-height:96px;
+}
+.lane-b{grid-row:3}.lane-f{grid-row:5}
+.lane-c1{grid-column:1}.lane-c2{grid-column:2}.lane-c4{grid-column:4}
+.lane-c5{grid-column:5}.lane-c6{grid-column:6}.lane-c7{grid-column:7}.lane-c8{grid-column:8}
+.lane-empty{align-items:center;justify-content:center;color:var(--line-strong)}
+.lane-empty span{font-size:var(--text-11);color:var(--muted)}
+
+/* card */
+.card{
+  background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius-card);
+  box-shadow:var(--inset-hi);padding:9px 10px 10px;display:flex;flex-direction:column;gap:7px;
+}
+.card-top{display:flex;align-items:center;gap:7px}
+.card-id{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);letter-spacing:.02em}
+.card-title{
+  font-size:var(--text-13);font-weight:500;line-height:1.35;color:var(--ink);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.card-tags{display:flex;gap:8px;min-height:0}
+.card-tags span{font-size:var(--text-11);color:var(--muted)}
+.card-foot{display:flex;align-items:center;gap:8px;margin-top:1px}
+.prio{font-family:var(--font-mono);font-size:var(--text-11);font-weight:700;letter-spacing:.02em;color:var(--p)}
+.claim{
+  margin-left:auto;display:inline-flex;align-items:center;gap:5px;height:20px;
+  padding:0 7px 0 2px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);
+  font-size:var(--text-11);color:var(--muted);
+}
+.claim .av{width:16px;height:16px;font-size:9px;border-color:transparent}
+.lease{display:flex;flex-direction:column;gap:4px;margin-top:1px}
+.meter{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.lease-text{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* drag state */
+.lane-inner{display:flex;flex-direction:column;gap:8px;min-height:0}
+.lane.is-dim{background:color-mix(in srgb,var(--surface-1) 45%,var(--canvas));cursor:not-allowed}
+.lane.is-dim .lane-inner{opacity:.45}
+.lane.is-soft{opacity:.75}
+.card--source{opacity:.4}
+.notice{
+  border:1px solid var(--st-blocked);border-radius:var(--radius-card);
+  background:color-mix(in srgb,var(--st-blocked) 10%,transparent);
+  padding:8px 9px;display:flex;flex-direction:column;gap:3px;
+}
+.notice .n-head{display:flex;align-items:center;gap:6px;font-size:var(--text-12);font-weight:600;color:var(--st-blocked)}
+.notice .n-body{font-size:var(--text-11);color:var(--muted);line-height:1.4}
+.drag-ghost{
+  position:relative;margin-bottom:2px;z-index:6;
+  transform:rotate(-1.2deg);opacity:.94;
+  border-color:var(--accent);box-shadow:var(--shadow-pop);
+}
+.drag-ghost .card-id{color:var(--accent)}
+.more-cols{
+  position:absolute;right:24px;bottom:6px;z-index:8;display:inline-flex;align-items:center;gap:5px;
+  height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line-strong);
+  background:var(--surface-2);color:var(--ink);font-size:var(--text-11);
+  font-family:var(--font-mono);font-variant-numeric:tabular-nums;box-shadow:var(--shadow-pop);
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:1023px){
+  :root{--column:272px}
+  .page-head{padding:14px 18px 8px}
+  .toolbar{padding:0 18px 8px;flex-wrap:wrap}
+  .board-scroll{padding:2px 18px 6px}
+  .more-cols{right:18px}
+}
+@media (max-width:720px){
+  .app{grid-template-columns:1fr;grid-template-rows:48px 48px minmax(0,1fr)}
+  .main{grid-column:1;grid-row:3;min-width:0;min-height:0;width:100%}
+  .rail{grid-column:1;grid-row:1;flex-direction:row;gap:10px;padding:0 12px;border-right:0;border-bottom:1px solid var(--line)}
+  .rail .brand{width:32px;height:32px;border-radius:9px;font-size:15px;margin:0}
+  .rail-nav,.rail-foot{display:none}
+  .menu-btn{display:grid}
+  .rail-avatars{display:flex;margin-left:auto;gap:0}
+  .rail-avatars .av + .av{margin-left:-6px}
+  .topbar{grid-column:1;grid-row:2;padding:0 12px;gap:10px}
+  .gsearch{display:none}
+  .gsearch-icon{display:grid}
+  .top-right{gap:8px}
+  .presence{display:none}
+  .page-head{padding:12px 14px 6px;align-items:center;flex-wrap:wrap;gap:10px}
+  .page-head h1{font-size:var(--text-18)}
+  .subline{font-size:var(--text-12)}
+  .head-actions{gap:6px}
+  .btn{height:34px;padding:0 10px}
+  .toolbar{padding:0 14px 8px;gap:8px}
+  .tsearch{flex:1 1 100%}
+  .types{flex:1 1 100%}
+  .tool-right{width:100%;margin-left:0;flex-wrap:wrap}
+  .board-wrap .more-cols{display:none}
+  .toolbar .more-inline{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface-2);font-family:var(--font-mono);font-size:var(--text-11);color:var(--ink);font-variant-numeric:tabular-nums}
+  .board-scroll{padding:2px 14px 6px;scroll-snap-type:x mandatory}
+  .board{grid-template-columns:88vw 88vw 56px 88vw 88vw 88vw 88vw 88vw}
+  .ch{scroll-snap-align:start}
+  .lane{min-height:96px}
+  .lane-f{display:none}
+  .th-feature .caret{transform:rotate(-90deg)}
+  .more-cols{right:14px}
+  .strip{min-height:100%}
+}
+.card-id,.track-count,.ch .count,.lease-text,.more-cols{font-variant-numeric:tabular-nums}
+.more-inline{display:none}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4.5 4.5"/></symbol>
+  <symbol id="i-tasks" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 2.6 2.6L16 9.6"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="m7.5 9.5 3 2.5-3 2.5"/><path d="M13 14.5h4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21"/><path d="M17.5 12v3"/><path d="M20.5 12v2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9"/><path d="M18 7h2"/><circle cx="15.5" cy="7" r="2"/><path d="M4 17h4"/><path d="M13 17h7"/><circle cx="10.5" cy="17" r="2"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21 20H3L12 4Z"/><path d="M12 10.5v4"/><path d="M12 17.4v.1"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="5" height="15" rx="1.5"/><rect x="9.5" y="4.5" width="5" height="10" rx="1.5"/><rect x="15.5" y="4.5" width="5" height="13" rx="1.5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4.5 6h.01"/><path d="M4.5 12h.01"/><path d="M4.5 18h.01"/></symbol>
+  <symbol id="i-slash" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m6.5 17.5 11-11"/></symbol>
+</svg>
+
+<div class="app">
+  <nav class="rail" aria-label="Primary">
+    <button class="rail-btn menu-btn" type="button" aria-label="Open menu">
+      <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <a class="brand" href="overview.html" aria-label="MCP Tasks and Knowledge home">M</a>
+    <div class="rail-nav">
+      <a class="rail-btn" href="board.html" aria-current="page" aria-label="Tasks">
+        <svg class="i" aria-hidden="true"><use href="#i-tasks"/></svg>
+      
+        <span class="flyout">Tasks</span>
+      </a>
+      <a class="rail-btn" href="overview.html" aria-label="Overview">
+        <svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>
+      
+        <span class="flyout">Overview</span>
+      </a>
+      <a class="rail-btn" href="knowledge.html" aria-label="Knowledge">
+        <svg class="i" aria-hidden="true"><use href="#i-book"/></svg>
+      
+        <span class="flyout">Knowledge</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Prompts">
+        <svg class="i" aria-hidden="true"><use href="#i-terminal"/></svg>
+      
+        <span class="flyout">Prompts</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Memory">
+        <svg class="i" aria-hidden="true"><use href="#i-layers"/></svg>
+      
+        <span class="flyout">Memory</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Access">
+        <svg class="i" aria-hidden="true"><use href="#i-key"/></svg>
+      
+        <span class="flyout">Access</span>
+      </a>
+    </div>
+    <div class="rail-foot">
+      <a class="rail-btn" href="#" aria-label="Settings">
+        <svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>
+      
+        <span class="flyout">Settings</span>
+      </a>
+    </div>
+    <div class="rail-avatars" aria-label="2 agents online">
+      <span class="av av-agent">A</span>
+      <span class="av">S</span>
+    </div>
+  </nav>
+
+  <header class="topbar">
+    <div class="gsearch">
+      <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+      <label for="gq">Search</label>
+      <input id="gq" type="search">
+      <kbd>⌘K</kbd>
+    </div>
+    <button class="gsearch-icon" type="button" aria-label="Search">
+      <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+    </button>
+    <div class="top-right">
+      <button class="proj" type="button">
+        <span class="mono">mcp</span>
+        <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+      </button>
+      <span class="live"><span class="dot" aria-hidden="true"></span>Live</span>
+      <span class="presence">2 agents
+        <span class="av-stack" aria-hidden="true">
+          <span class="av av-agent">A</span>
+          <span class="av">S</span>
+        </span>
+      </span>
+      <span class="av av-user" aria-label="Signed in as dm">dm</span>
+    </div>
+  </header>
+
+  <main id="content" class="main">
+    <div class="page-head">
+      <div>
+        <h1>Tasks</h1>
+        <p class="subline">
+          <span class="num">20</span> open, <span class="num">2</span> blocked, <span class="num">2</span> agents working
+        </p>
+      </div>
+      <div class="head-actions">
+        <button class="btn" type="button">Dependencies</button>
+        <button class="btn btn-primary" type="button">New task</button>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="tsearch">
+        <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+        <label for="tq">Search tasks</label>
+        <input id="tq" type="search">
+      </div>
+
+      <div class="types" role="group" aria-label="Types">
+        <span class="types-label">Types</span>
+        <button class="chip" type="button" aria-pressed="true">
+          <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+          Bug <span class="count">6</span>
+          <svg class="i i-xs tick" aria-hidden="true"><use href="#i-tasks"/></svg>
+        </button>
+        <button class="chip" type="button" aria-pressed="true">
+          <span class="tdot" style="--c:var(--ty-feature)" aria-hidden="true"></span>
+          Feature <span class="count">5</span>
+          <svg class="i i-xs tick" aria-hidden="true"><use href="#i-tasks"/></svg>
+        </button>
+        <button class="chip" type="button" aria-pressed="true">
+          <span class="tdot" style="--c:var(--ty-task)" aria-hidden="true"></span>
+          Task <span class="count">4</span>
+          <svg class="i i-xs tick" aria-hidden="true"><use href="#i-tasks"/></svg>
+        </button>
+      </div>
+
+      <div class="chip chip-archive">
+        <span>Archive (hidden)</span>
+        <button class="linkish" type="button">Show</button>
+      </div>
+
+      <div class="tool-right">
+        <button class="saved" type="button">
+          All tasks
+          <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="seg" role="group" aria-label="View">
+          <button type="button" aria-pressed="true">
+            <svg class="i i-xs" aria-hidden="true"><use href="#i-board"/></svg>
+            Board
+          </button>
+          <button type="button" aria-pressed="false">
+            <svg class="i i-xs" aria-hidden="true"><use href="#i-list"/></svg>
+            List
+          </button>
+        </div>
+        <span class="more-inline">3 more columns
+          <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+        </span>
+      </div>
+    </div>
+
+    <div class="board-wrap">
+      <span class="more-cols">3 more columns
+        <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+      </span>
+      <div class="board-scroll">
+        <div class="board">
+
+          <!-- column headers -->
+          <div class="ch ch-inbox" style="--sc:var(--st-todo);--cat:var(--st-todo)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">Inbox</span><span class="count">3</span>
+          </div>
+          <div class="ch ch-triage" style="--sc:var(--st-todo);--cat:var(--st-todo)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">Triage</span><span class="count">2</span>
+          </div>
+          <div class="ch ch-doing" style="--sc:var(--st-doing);--cat:var(--st-doing)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">In progress</span><span class="count">2</span>
+          </div>
+          <div class="ch ch-review" style="--sc:var(--st-review);--cat:var(--st-doing)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">In review</span><span class="count">2</span>
+          </div>
+          <div class="ch ch-blocked" style="--sc:var(--st-blocked);--cat:var(--st-doing)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">Blocked</span><span class="count">1</span>
+          </div>
+          <div class="ch ch-qa" style="--sc:var(--st-doing);--cat:var(--st-doing)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">QA</span><span class="count">1</span>
+          </div>
+          <div class="ch ch-done" style="--sc:var(--st-done);--cat:var(--st-done)">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="sdot" aria-hidden="true"></span>
+            <span class="label">Done</span><span class="count">3</span>
+          </div>
+
+          <!-- collapsed Ready column -->
+          <div class="strip">
+            <span class="bar" aria-hidden="true"></span>
+            <span class="vlabel">Ready</span>
+            <span class="vcount">4</span>
+            <button class="vtoggle" type="button" aria-label="Expand Ready column" aria-expanded="false">
+              <svg class="i i-sm" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+            </button>
+          </div>
+
+          <!-- BUG TRACK -->
+          <div class="track-head th-bug">
+            <button class="track-btn" type="button" aria-expanded="true">
+              <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+              <span class="track-name">Bug</span>
+              <span class="track-count">6</span>
+              <svg class="i i-sm caret" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </button>
+          </div>
+
+          <div class="lane lane-b lane-c1 is-dim" role="group" aria-label="Inbox, bug track">
+            <article class="card drag-ghost" aria-label="Dragging T-2041 over Inbox">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+                <span class="card-id">T-2041</span>
+              </div>
+              <p class="card-title">Knowledge: clicking a document crashes to a white screen</p>
+              <div class="card-tags"><span>knowledge</span></div>
+              <div class="card-foot">
+                <span class="prio" style="--p:var(--pr-high)">P1</span>
+                <span class="claim"><span class="av av-agent">A</span>atlas</span>
+              </div>
+              <div class="lease">
+                <div class="meter"><i style="width:47%"></i></div>
+                <span class="lease-text">14m left of 30m</span>
+              </div>
+            </article>
+            <div class="notice">
+              <span class="n-head">
+                <svg class="i i-xs" aria-hidden="true"><use href="#i-slash"/></svg>
+                Can’t move to Inbox
+              </span>
+              <span class="n-body">Allowed from In progress: In review, Blocked</span>
+            </div>
+            <div class="lane-inner">
+              <article class="card">
+                <div class="card-top">
+                  <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+                  <span class="card-id">T-2029</span>
+                </div>
+                <p class="card-title">Connection badge never leaves “Connecting…”</p>
+                <div class="card-tags"><span>realtime</span></div>
+                <div class="card-foot"><span class="prio" style="--p:var(--pr-med)">P2</span></div>
+              </article>
+            </div>
+          </div>
+
+          <div class="lane lane-b lane-c2 is-soft" role="group" aria-label="Triage, bug track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+                <span class="card-id">T-2033</span>
+              </div>
+              <p class="card-title">Topbar title truncated at 390 px</p>
+              <div class="card-foot"><span class="prio" style="--p:var(--pr-low)">P3</span></div>
+            </article>
+          </div>
+
+          <div class="lane lane-b lane-c4" role="group" aria-label="In progress, bug track">
+            <article class="card card--source">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+                <span class="card-id">T-2041</span>
+              </div>
+              <p class="card-title">Knowledge: clicking a document crashes to a white screen</p>
+              <div class="card-tags"><span>knowledge</span></div>
+              <div class="card-foot">
+                <span class="prio" style="--p:var(--pr-high)">P1</span>
+                <span class="claim"><span class="av av-agent">A</span>atlas</span>
+              </div>
+              <div class="lease">
+                <div class="meter"><i style="width:47%"></i></div>
+                <span class="lease-text">14m left of 30m</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="lane lane-b lane-c5 is-soft" role="group" aria-label="In review, bug track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+                <span class="card-id">T-2047</span>
+              </div>
+              <p class="card-title">Search inside Knowledge crashes on a miss</p>
+              <div class="card-tags"><span>review by scout, 1d</span></div>
+              <div class="card-foot"><span class="prio" style="--p:var(--pr-high)">P1</span></div>
+            </article>
+          </div>
+
+          <div class="lane lane-b lane-c6 lane-empty" role="group" aria-label="Blocked, bug track">
+            <span>No cards</span>
+          </div>
+
+          <div class="lane lane-b lane-c7 lane-empty" role="group" aria-label="QA, bug track">
+            <span>No cards</span>
+          </div>
+
+          <div class="lane lane-b lane-c8" role="group" aria-label="Done, bug track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-bug)" aria-hidden="true"></span>
+                <span class="card-id">T-1998</span>
+              </div>
+              <p class="card-title">Prompt version renders as <span class="mono">vlatest</span></p>
+              <div class="card-foot"><span class="prio" style="--p:var(--pr-low)">P3</span></div>
+            </article>
+          </div>
+
+          <!-- FEATURE TRACK -->
+          <div class="track-head th-feature">
+            <button class="track-btn" type="button" aria-expanded="true">
+              <span class="tdot" style="--c:var(--ty-feature)" aria-hidden="true"></span>
+              <span class="track-name">Feature</span>
+              <span class="track-count">5</span>
+              <svg class="i i-sm caret" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </button>
+          </div>
+
+          <div class="lane lane-f lane-c1 is-dim" role="group" aria-label="Inbox, feature track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-feature)" aria-hidden="true"></span>
+                <span class="card-id">T-2066</span>
+              </div>
+              <p class="card-title">Overview: what needs attention</p>
+              <div class="card-foot"><span class="prio" style="--p:var(--pr-med)">P2</span></div>
+            </article>
+          </div>
+
+          <div class="lane lane-f lane-c2 is-soft lane-empty" role="group" aria-label="Triage, feature track">
+            <span>No cards</span>
+          </div>
+
+          <div class="lane lane-f lane-c4" role="group" aria-label="In progress, feature track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-feature)" aria-hidden="true"></span>
+                <span class="card-id">T-2063</span>
+              </div>
+              <p class="card-title">Tracks by task type with multi-select</p>
+              <div class="card-foot">
+                <span class="prio" style="--p:var(--pr-med)">P2</span>
+                <span class="claim"><span class="av av-agent">S</span>sisyphus</span>
+              </div>
+              <div class="lease">
+                <div class="meter"><i style="width:93%"></i></div>
+                <span class="lease-text">42m of 45m</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="lane lane-f lane-c5 is-soft lane-empty" role="group" aria-label="In review, feature track">
+            <span>No cards</span>
+          </div>
+
+          <div class="lane lane-f lane-c6 lane-empty" role="group" aria-label="Blocked, feature track">
+            <span>No cards</span>
+          </div>
+
+          <div class="lane lane-f lane-c7" role="group" aria-label="QA, feature track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-feature)" aria-hidden="true"></span>
+                <span class="card-id">T-2058</span>
+              </div>
+              <p class="card-title">Transition graph with server-side rejection</p>
+              <div class="card-foot"><span class="prio" style="--p:var(--pr-high)">P1</span></div>
+            </article>
+          </div>
+
+          <div class="lane lane-f lane-c8" role="group" aria-label="Done, feature track">
+            <article class="card">
+              <div class="card-top">
+                <span class="tdot" style="--c:var(--ty-feature)" aria-hidden="true"></span>
+                <span class="card-id">T-2011</span>
+              </div>
+              <p class="card-title">Custom statuses per project</p>
+              <div class="card-foot"><span class="prio" style="--p:var(--pr-high)">P1</span></div>
+            </article>
+          </div>
+
+          <!-- TASK TRACK (collapsed to a header row) -->
+          <div class="track-head th-task track-task">
+            <button class="track-btn" type="button" aria-expanded="false">
+              <span class="tdot" style="--c:var(--ty-task)" aria-hidden="true"></span>
+              <span class="track-name">Task</span>
+              <span class="track-count">4</span>
+              <svg class="i i-sm caret" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

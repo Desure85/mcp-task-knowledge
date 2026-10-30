@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX/UI audit — October 2026 — MCP Tasks &amp; Knowledge</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap">
+<script>
+var t=(location.search.match(/theme=(dark|light)/)||[])[1];document.documentElement.dataset.theme=t||'dark';
+</script>
+<style>
+/* ---------- tokens (copied from tokens.css, do not edit there) ---------- */
+:root{
+  color-scheme:dark;
+  --canvas:#0f1115;--surface-1:#161922;--surface-2:#1c2029;--line:#2a3040;--line-strong:#3a4356;
+  --ink:#e8ebf2;--muted:#9aa3b4;
+  --accent:#e7a46b;--accent-ink:#201406;--accent-soft:#33241a;
+  --st-todo:#8c94a6;--st-doing:#e7a46b;--st-review:#a78bfa;--st-blocked:#f07a7a;--st-done:#57c79b;--st-archive:#8c94a6;
+  --ty-bug:#f07a7a;--ty-feature:#a78bfa;--ty-task:#8c94a6;
+  --pr-high:#f07a7a;--pr-med:#e7a46b;--pr-low:#8c94a6;
+  --focus:#e7a46b;
+  --radius-control:8px;--radius-card:10px;--radius-panel:14px;
+  --shadow-pop:0 16px 40px rgb(0 0 0 / 0.55);
+  --inset-hi:inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --font-sans:"Archivo",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --text-11:11px;--text-12:12px;--text-13:13px;--text-14:14px;--text-16:16px;--text-18:18px;--text-22:22px;--text-28:28px;
+  --row:34px;--rail:64px;--topbar:48px;--column:300px;--gap:14px;
+}
+html[data-theme="light"]{
+  color-scheme:light;
+  --canvas:#f3f4f7;--surface-1:#ffffff;--surface-2:#eaeef1;--line:#dde0e7;--line-strong:#c4c9d4;
+  --ink:#12151c;--muted:#59606e;
+  --accent:#a9551b;--accent-ink:#ffffff;--accent-soft:#f7e8dc;
+  --st-todo:#59606e;--st-doing:#a9551b;--st-review:#6d28d9;--st-blocked:#b42318;--st-done:#0e7a5f;--st-archive:#6b7280;
+  --ty-bug:#b42318;--ty-feature:#6d28d9;--ty-task:#4b5563;
+  --pr-high:#b42318;--pr-med:#a9551b;--pr-low:#6b7280;
+  --focus:#a9551b;
+  --shadow-pop:0 12px 32px rgb(18 21 28 / 0.16);
+  --inset-hi:inset 0 1px 0 #ffffff;
+}
+
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--canvas);color:var(--ink);
+  font-family:var(--font-sans);font-size:var(--text-13);line-height:1.45;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+svg{display:block}
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.i-sm{width:16px;height:16px}
+.i-xs{width:14px;height:14px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.skip{
+  position:absolute;left:12px;top:-60px;z-index:200;padding:10px 14px;
+  background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);
+  border-radius:var(--radius-control);font-weight:500;
+}
+.skip:focus{top:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:var(--topbar) minmax(0,1fr);height:100vh;height:100dvh;overflow:hidden}
+.rail{
+  grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;
+  gap:4px;padding:10px 0;background:var(--canvas);border-right:1px solid var(--line);
+  position:relative;z-index:60;min-height:0;
+}
+.brand{
+  width:40px;height:40px;border-radius:11px;background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-weight:700;font-size:18px;letter-spacing:-0.02em;
+  margin-bottom:10px;flex:none;
+}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+.rail-btn{position:relative;width:40px;height:40px;border-radius:var(--radius-control);display:grid;place-items:center;color:var(--muted)}
+.rail-btn:hover{background:var(--surface-1);color:var(--ink)}
+.rail-btn[aria-current="page"]{background:var(--surface-2);color:var(--accent)}
+.rail-btn[aria-current="page"]::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:2px;background:var(--accent);border-radius:2px}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:4px}
+.flyout{
+  position:absolute;left:46px;top:50%;transform:translateY(-50%);z-index:80;
+  padding:5px 9px;border-radius:var(--radius-control);
+  background:var(--surface-2);border:1px solid var(--line);box-shadow:var(--shadow-pop);
+  font-size:var(--text-12);font-weight:500;color:var(--ink);white-space:nowrap;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility .12s ease;
+}
+.rail-btn:hover .flyout,.rail-btn:focus-visible .flyout{opacity:1;visibility:visible}
+.rail-avatars{display:none}
+.menu-btn{display:none}
+
+.topbar{
+  grid-column:2;grid-row:1;display:flex;align-items:center;gap:14px;
+  padding:0 16px;background:var(--canvas);border-bottom:1px solid var(--line);
+  position:relative;z-index:40;min-width:0;
+}
+.gsearch{
+  display:flex;align-items:center;gap:8px;flex:0 1 420px;min-width:0;height:32px;
+  padding:0 10px;border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--muted);
+}
+.gsearch label{font-size:var(--text-12);white-space:nowrap;cursor:text}
+.gsearch input{flex:1;min-width:0;border:0;background:none;outline:0;color:var(--ink);font-size:var(--text-13);padding:0;height:100%}
+.gsearch kbd{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px;line-height:1.4}
+.gsearch-icon{display:none;width:32px;height:32px;border-radius:var(--radius-control);border:1px solid var(--line);background:var(--surface-1);color:var(--muted);place-items:center}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.proj{
+  display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;
+  border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--ink);font-size:var(--text-12);
+}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.live .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.presence{display:inline-flex;align-items:center;gap:7px;font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.av-stack{display:inline-flex}
+.av{
+  width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line-strong);
+  font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink);
+}
+.av-stack .av + .av{margin-left:-6px}
+.av-agent{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.av-user{width:26px;height:26px;font-size:10px}
+
+/* ---------- main ---------- */
+.main{grid-column:2;grid-row:2;min-height:0;min-width:0}
+
+/* document list */
+.k-main{display:grid;grid-template-columns:340px minmax(0,1fr);min-height:0;overflow:hidden}
+.doclist{
+  grid-column:1;background:var(--surface-1);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.dl-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:14px 14px 10px}
+.dl-head h2{font-size:var(--text-13);font-weight:600}
+.dl-head .count{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.dl-tools{display:flex;flex-direction:column;gap:8px;padding:0 14px 10px}
+.field{
+  display:flex;align-items:center;gap:7px;height:32px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--muted);min-width:0;
+}
+.field label{font-size:var(--text-12);color:var(--muted);white-space:nowrap;cursor:text}
+.field input{flex:1;min-width:0;border:0;background:none;outline:0;color:var(--ink);font-size:var(--text-13);padding:0;height:100%}
+.filterrow{display:flex;align-items:center;gap:8px}
+.filterrow > label{font-size:var(--text-12);color:var(--muted);white-space:nowrap}
+.selectwrap{position:relative;flex:1;min-width:0;display:flex;align-items:center}
+.selectwrap select{
+  appearance:none;-webkit-appearance:none;width:100%;height:30px;padding:0 26px 0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-control);
+  background:var(--surface-1);color:var(--ink);font-size:var(--text-12);cursor:pointer;
+}
+.selectwrap .chev{position:absolute;right:7px;color:var(--muted);pointer-events:none}
+.docrows{flex:1;min-height:0;overflow-y:auto;padding:2px 8px 8px}
+.docrow{
+  position:relative;display:flex;flex-direction:column;gap:3px;
+  padding:8px 10px;border-radius:var(--radius-control);
+}
+.docrow:hover{background:var(--surface-2)}
+.docrow[aria-current="page"]{background:var(--surface-2)}
+.docrow[aria-current="page"]::before{
+  content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;
+  background:var(--accent);border-radius:2px;
+}
+.dr-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dr-type{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.dr-upd{font-family:var(--font-mono);font-size:var(--text-11);color:var(--muted)}
+.dr-title{font-size:var(--text-13);font-weight:500;color:var(--ink);line-height:1.3}
+.docrow[aria-current="page"] .dr-title{font-weight:600}
+.dl-foot{padding:8px 14px 14px;border-top:1px solid var(--line)}
+.more-docs{
+  width:100%;height:32px;border-radius:var(--radius-control);border:1px solid var(--line);
+  background:var(--surface-1);color:var(--ink);font-size:var(--text-12);font-weight:500;
+}
+.more-docs:hover{background:var(--surface-2)}
+
+/* document pane */
+.docscroll{grid-column:2;min-height:0;overflow-y:auto;overflow-x:hidden;background:var(--canvas)}
+.doc{display:grid;grid-template-columns:minmax(0,1fr) 216px;gap:44px;padding:26px 32px 64px;max-width:1080px}
+.doc-body{min-width:0;max-width:68ch}
+.back{display:none}
+.doc-title{font-size:var(--text-28);line-height:1.2;font-weight:700;letter-spacing:-0.015em;text-wrap:balance}
+.doc-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:var(--text-12);color:var(--muted)}
+.doc-meta .m-i{display:inline-flex;align-items:baseline;gap:5px}
+.doc-meta .k{color:var(--muted)}
+.doc-meta .v{color:var(--ink);font-family:var(--font-mono);font-size:var(--text-11)}
+.doc-meta .rule{width:1px;height:12px;background:var(--line-strong)}
+.tag{
+  font-size:var(--text-11);color:var(--muted);border:1px solid var(--line);
+  border-radius:999px;padding:1px 7px;
+}
+.doc-body h2{font-size:var(--text-16);line-height:1.4;font-weight:600;letter-spacing:-0.01em;margin:30px 0 8px}
+.doc-body h3{font-size:var(--text-13);line-height:1.4;font-weight:600;margin:20px 0 6px}
+.doc-body p{font-size:15px;line-height:1.65;color:var(--ink);margin:0 0 12px;max-width:68ch}
+.doc-body ul{margin:0 0 14px;padding-left:18px;display:flex;flex-direction:column;gap:7px}
+.doc-body li{font-size:15px;line-height:1.6;color:var(--ink)}
+.doc-body li .lv{
+  font-family:var(--font-mono);font-size:var(--text-11);font-weight:700;
+  padding:1px 5px;border-radius:4px;margin-right:6px;
+}
+.lv-p0{color:var(--st-blocked);border:1px solid var(--st-blocked)}
+.lv-p1{color:var(--pr-med);border:1px solid var(--pr-med)}
+.doc-body code{
+  font-family:var(--font-mono);font-size:var(--text-12);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink);
+}
+.codeblock{
+  background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius-control);
+  padding:12px 14px;margin:4px 0 16px;overflow-x:auto;box-shadow:var(--inset-hi);
+}
+.codeblock pre{margin:0}
+.codeblock code{
+  background:none;border:0;padding:0;font-size:var(--text-12);line-height:1.7;
+  color:var(--ink);white-space:pre;
+}
+
+/* right rail */
+.doc-rail{position:sticky;top:0;align-self:start;display:flex;flex-direction:column;gap:24px;padding-top:4px}
+.rail-h{font-size:var(--text-11);font-weight:600;letter-spacing:.02em;color:var(--muted);margin-bottom:8px}
+.rail-toc ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.rail-toc a{
+  display:block;font-size:var(--text-13);line-height:1.5;color:var(--muted);
+  padding:4px 0 4px 10px;border-left:1px solid var(--line);
+}
+.rail-toc a:hover{color:var(--ink)}
+.rail-toc a[aria-current="true"]{color:var(--accent);font-weight:500;border-left-color:var(--accent)}
+.related{display:flex;flex-wrap:wrap;gap:6px}
+.rtask{
+  font-family:var(--font-mono);font-size:var(--text-11);color:var(--ink);
+  border:1px solid var(--line-strong);border-radius:999px;padding:3px 9px;
+}
+.rtask:hover{background:var(--surface-2)}
+.linked{display:flex;flex-direction:column;gap:6px}
+.linked a{font-size:var(--text-12);color:var(--muted);line-height:1.4}
+.linked a:hover{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.toc-mobile{display:none}
+
+/* ---------- responsive ---------- */
+@media (max-width:1023px){
+  .k-main{grid-template-columns:290px minmax(0,1fr)}
+  .doc{grid-template-columns:minmax(0,1fr);gap:28px;padding:22px 22px 48px}
+  .doc-rail{position:static;border-top:1px solid var(--line);padding-top:18px}
+}
+@media (max-width:720px){
+  .app{grid-template-columns:1fr;grid-template-rows:48px 48px minmax(0,1fr)}
+  .main{grid-column:1;grid-row:3;min-width:0;min-height:0;width:100%}
+  .rail{grid-column:1;grid-row:1;flex-direction:row;gap:10px;padding:0 12px;border-right:0;border-bottom:1px solid var(--line)}
+  .rail .brand{width:32px;height:32px;border-radius:9px;font-size:15px;margin:0}
+  .rail-nav,.rail-foot{display:none}
+  .menu-btn{display:grid}
+  .rail-avatars{display:flex;margin-left:auto;gap:0}
+  .rail-avatars .av + .av{margin-left:-6px}
+  .topbar{grid-column:1;grid-row:2;padding:0 12px;gap:10px}
+  .gsearch{display:none}
+  .gsearch-icon{display:grid}
+  .presence{display:none}
+  .k-main{grid-template-columns:minmax(0,1fr)}
+  .doclist{display:none}
+  .docscroll{grid-column:1}
+  .doc{padding:16px 20px 44px;gap:24px}
+  .back{
+    display:inline-flex;align-items:center;gap:6px;height:34px;margin-bottom:14px;
+    padding:0 10px;border:1px solid var(--line);border-radius:var(--radius-control);
+    background:var(--surface-1);color:var(--ink);font-size:var(--text-12);font-weight:500;
+  }
+  .doc-title{font-size:var(--text-22)}
+  .doc-body p,.doc-body li{font-size:var(--text-14)}
+  .rail-toc{display:none}
+  .toc-mobile{display:block;margin:16px 0 4px;border:1px solid var(--line);border-radius:var(--radius-control);background:var(--surface-1)}
+  .toc-mobile summary{
+    list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+    height:40px;padding:0 12px;font-size:var(--text-13);font-weight:600;
+  }
+  .toc-mobile summary::-webkit-details-marker{display:none}
+  .toc-mobile ul{list-style:none;margin:0;padding:0 12px 10px;display:flex;flex-direction:column;gap:2px}
+  .toc-mobile a{display:block;padding:5px 0;font-size:var(--text-13);color:var(--muted)}
+  .toc-mobile a[aria-current="true"]{color:var(--accent);font-weight:500}
+}
+.dr-type,.dr-upd,.doc-meta .v{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4.5 4.5"/></symbol>
+  <symbol id="i-tasks" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 2.6 2.6L16 9.6"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="m7.5 9.5 3 2.5-3 2.5"/><path d="M13 14.5h4"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21"/><path d="M17.5 12v3"/><path d="M20.5 12v2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9"/><path d="M18 7h2"/><circle cx="15.5" cy="7" r="2"/><path d="M4 17h4"/><path d="M13 17h7"/><circle cx="10.5" cy="17" r="2"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M20 12H4"/><path d="m10 6-6 6 6 6"/></symbol>
+</svg>
+
+<div class="app">
+  <nav class="rail" aria-label="Primary">
+    <button class="rail-btn menu-btn" type="button" aria-label="Open menu">
+      <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <a class="brand" href="overview.html" aria-label="MCP Tasks and Knowledge home">M</a>
+    <div class="rail-nav">
+      <a class="rail-btn" href="board.html" aria-label="Tasks">
+        <svg class="i" aria-hidden="true"><use href="#i-tasks"/></svg>
+      
+        <span class="flyout">Tasks</span>
+      </a>
+      <a class="rail-btn" href="overview.html" aria-label="Overview">
+        <svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>
+      
+        <span class="flyout">Overview</span>
+      </a>
+      <a class="rail-btn" href="knowledge.html" aria-current="page" aria-label="Knowledge">
+        <svg class="i" aria-hidden="true"><use href="#i-book"/></svg>
+      
+        <span class="flyout">Knowledge</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Prompts">
+        <svg class="i" aria-hidden="true"><use href="#i-terminal"/></svg>
+      
+        <span class="flyout">Prompts</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Memory">
+        <svg class="i" aria-hidden="true"><use href="#i-layers"/></svg>
+      
+        <span class="flyout">Memory</span>
+      </a>
+      <a class="rail-btn" href="#" aria-label="Access">
+        <svg class="i" aria-hidden="true"><use href="#i-key"/></svg>
+      
+        <span class="flyout">Access</span>
+      </a>
+    </div>
+    <div class="rail-foot">
+      <a class="rail-btn" href="#" aria-label="Settings">
+        <svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>
+      
+        <span class="flyout">Settings</span>
+      </a>
+    </div>
+    <div class="rail-avatars" aria-label="2 agents online">
+      <span class="av av-agent">A</span>
+      <span class="av">S</span>
+    </div>
+  </nav>
+
+  <header class="topbar">
+    <div class="gsearch">
+      <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+      <label for="gq">Search</label>
+      <input id="gq" type="search">
+      <kbd>⌘K</kbd>
+    </div>
+    <button class="gsearch-icon" type="button" aria-label="Search">
+      <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+    </button>
+    <div class="top-right">
+      <button class="proj" type="button">
+        <span class="mono">mcp</span>
+        <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+      </button>
+      <span class="live"><span class="dot" aria-hidden="true"></span>Live</span>
+      <span class="presence">2 agents
+        <span class="av-stack" aria-hidden="true">
+          <span class="av av-agent">A</span>
+          <span class="av">S</span>
+        </span>
+      </span>
+      <span class="av av-user" aria-label="Signed in as dm">dm</span>
+    </div>
+  </header>
+
+  <main id="content" class="main k-main">
+    <aside class="doclist" aria-label="Documents">
+      <div class="dl-head">
+        <h2>Documents</h2>
+        <span class="count">12</span>
+      </div>
+      <div class="dl-tools">
+        <div class="field">
+          <svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg>
+          <label for="dq">Search</label>
+          <input id="dq" type="search">
+        </div>
+        <div class="filterrow">
+          <label for="dtype">Type</label>
+          <div class="selectwrap">
+            <select id="dtype">
+              <option>All types</option>
+              <option>audit</option>
+              <option>spec</option>
+              <option>report</option>
+              <option>guide</option>
+              <option>changelog</option>
+              <option>runbook</option>
+            </select>
+            <svg class="i i-xs chev" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+          </div>
+        </div>
+      </div>
+      <nav class="docrows" aria-label="Document list">
+        <a class="docrow" href="#" aria-current="page">
+          <span class="dr-top"><span class="dr-type">audit</span><span class="dr-upd">2d</span></span>
+          <span class="dr-title">UX/UI audit — October 2026</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">spec</span><span class="dr-upd">1d</span></span>
+          <span class="dr-title">Stage V — workflow and boards</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">report</span><span class="dr-upd">10d</span></span>
+          <span class="dr-title">KB hardening benchmark — 2026-10-20</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">guide</span><span class="dr-upd">5d</span></span>
+          <span class="dr-title">Testing: e2e harness</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">guide</span><span class="dr-upd">7d</span></span>
+          <span class="dr-title">Agent memory: extraction pipeline</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">spec</span><span class="dr-upd">14d</span></span>
+          <span class="dr-title">Realtime protocol: WS auth</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">changelog</span><span class="dr-upd">16d</span></span>
+          <span class="dr-title">Release 1.0.20</span>
+        </a>
+        <a class="docrow" href="#">
+          <span class="dr-top"><span class="dr-type">runbook</span><span class="dr-upd">21d</span></span>
+          <span class="dr-title">Docker deployment</span>
+        </a>
+      </nav>
+      <div class="dl-foot">
+        <button class="more-docs" type="button">Show 4 more documents</button>
+      </div>
+    </aside>
+
+    <div class="docscroll">
+      <div class="doc">
+        <article class="doc-body">
+          <a class="back" href="#">
+            <svg class="i i-sm" aria-hidden="true"><use href="#i-arrow-left"/></svg>
+            All documents
+          </a>
+          <h1 class="doc-title">UX/UI audit — October 2026</h1>
+          <div class="doc-meta">
+            <span class="m-i"><span class="k">Type</span><span class="v">audit</span></span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="m-i"><span class="k">Project</span><span class="v">mcp</span></span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="m-i"><span class="k">Updated</span><span class="v">2026-10-30</span></span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="m-i"><span class="k">Findings</span><span class="v">30</span></span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="m-i"><span class="k">Owner</span><span class="v">dm</span></span>
+            <span class="tag">ui</span>
+            <span class="tag">ux</span>
+            <span class="tag">accessibility</span>
+          </div>
+
+          <details class="toc-mobile">
+            <summary>On this page
+              <svg class="i i-xs" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+            </summary>
+            <ul>
+              <li><a href="#verdict" aria-current="true">Verdict</a></li>
+              <li><a href="#findings">Findings</a></li>
+              <li><a href="#accessibility">Accessibility measurements</a></li>
+              <li><a href="#tasks">Tasks vs YouTrack</a></li>
+              <li><a href="#proposals">Proposals</a></li>
+            </ul>
+          </details>
+
+          <h2 id="verdict">Verdict</h2>
+          <p>The admin is usable for one technical user who already knows the system. It is not yet safe for a second user, and it is not safe for an agent working in the same workspace at the same time. Two defects block daily use of Knowledge, and a layer of state, identity and accessibility problems sits directly underneath them.</p>
+          <p>Nothing in this audit is a feature request. Every finding is a defect against a screen that already exists, and every one of them was reproduced on the running build.</p>
+
+          <h2 id="findings">Findings</h2>
+          <p>The audit covered the four screens exercised every day: Tasks, Overview, Knowledge and Access. Findings are grouped by severity; the full list of 30 is attached to the task in YouTrack.</p>
+          <h3>P0 — blocked</h3>
+          <ul>
+            <li><span class="lv lv-p0">P0</span>Clicking a document in Knowledge crashes the renderer to a white screen. The document id is read after the list unmounts, and the error boundary above the pane never sees it.</li>
+            <li><span class="lv lv-p0">P0</span>Search inside Knowledge crashes on a miss. An empty result set is treated as a failed fetch and thrown, instead of rendered as an empty state.</li>
+          </ul>
+          <h3>P1 — degrading</h3>
+          <ul>
+            <li><span class="lv lv-p1">P1</span>Error and empty states are the same component. A 404 and a search with no matches look identical, so the user cannot tell what to do next.</li>
+            <li><span class="lv lv-p1">P1</span>The realtime badge never leaves “Connecting…”. The socket opens, but the state machine has no <code>connected</code> transition.</li>
+            <li><span class="lv lv-p1">P1</span>13 form fields have no programmatic label. Screen readers announce them all as “edit text”.</li>
+            <li><span class="lv lv-p1">P1</span>Six text styles fall under 4.5:1 contrast in the light theme, most of them muted metadata at 11px.</li>
+          </ul>
+
+          <h2 id="accessibility">Accessibility measurements</h2>
+          <p>Contrast was measured on the rendered light theme with the browser accessibility pane, one text style at a time. Body text clears 4.5:1 in both themes. Every failure is in secondary metadata: timestamps, counts and two of the muted labels on the board header.</p>
+          <p>Focus rings are present on primary controls and absent on the board column headers and the rail icons. The skip link exists in the markup but is clipped off-screen on every route except Tasks, where it is also the only route that keeps a visible focus ring after a tab.</p>
+
+          <h2 id="tasks">Tasks vs YouTrack</h2>
+          <p>The audit is tracked as five tasks rather than thirty. Two P0 items are filed against the Knowledge module. The accessibility layer is filed as a single task with a checklist, not as six separate tickets.</p>
+          <div class="codeblock"><pre><code>UI-13  document pane crash       DEV-7891
+UI-22  search empty state        DEV-7892
+F-29   shared status contract    DEV-7896</code></pre></div>
+          <p>Mirroring YouTrack one-to-one was rejected. It doubles the reading load, and the two stores disagree within a day because neither owns the status field.</p>
+
+          <h2 id="proposals">Proposals</h2>
+          <p>Three changes remove most of the risk. A single state contract — loading, empty, error, ready — shared by every data view. One token set for colour and type, generated from the same source the server uses for status names. One page shell, so the rail, the top bar and the focus order stop drifting between routes.</p>
+          <p>None of the three is a redesign. The cheapest sequence is the state contract first, then the tokens, then the shell; everything else in this audit can ship on top of them without touching them again.</p>
+        </article>
+
+        <aside class="doc-rail">
+          <nav class="rail-toc" aria-label="On this page">
+            <p class="rail-h">On this page</p>
+            <ul>
+              <li><a href="#verdict" aria-current="true">Verdict</a></li>
+              <li><a href="#findings">Findings</a></li>
+              <li><a href="#accessibility">Accessibility measurements</a></li>
+              <li><a href="#tasks">Tasks vs YouTrack</a></li>
+              <li><a href="#proposals">Proposals</a></li>
+            </ul>
+          </nav>
+          <div>
+            <p class="rail-h">Related tasks</p>
+            <div class="related">
+              <a class="rtask" href="board.html">UI-13</a>
+              <a class="rtask" href="board.html">UI-22</a>
+              <a class="rtask" href="board.html">F-29</a>
+            </div>
+          </div>
+          <div>
+            <p class="rail-h">Linked from</p>
+            <div class="linked">
+              <a href="#">Stage V — workflow and boards</a>
+              <a href="#">Release 1.0.20</a>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
