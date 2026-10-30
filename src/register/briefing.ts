@@ -61,6 +61,7 @@ export function registerBriefingTools(ctx: ServerContext): void {
           priority: t.priority,
           status: t.status,
           ...(t.tags?.length ? { tags: t.tags } : {}),
+          ...(t.claim ? { claim: t.claim } : {}),
           updatedAt: t.updatedAt,
         }));
 

@@ -79,8 +79,16 @@ async function cmdDiagnose() {
 
 async function cmdTools() {
   await withServer(async (client) => {
-    const res = await call(client, 'tools_list', { offset: 0, limit: 100 });
-    const tools = res.data?.data ?? [];
+    // Page through the whole catalog — a single capped call silently hid tools past the first 100.
+    const PAGE = 100;
+    const tools = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const res = await call(client, 'tools_list', { offset, limit: PAGE });
+      const page = res.data?.data ?? [];
+      tools.push(...page);
+      const total = res.data?.pagination?.total ?? 0;
+      if (page.length < PAGE || tools.length >= total) break;
+    }
     console.log(`=== Tools (${tools.length}) ===`);
     for (const t of tools.sort((a, b) => a.name.localeCompare(b.name))) {
       console.log(`  ${t.name} — ${(t.description ?? '').split('\n')[0].slice(0, 80)}`);

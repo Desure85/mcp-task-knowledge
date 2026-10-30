@@ -1,8 +1,8 @@
-# MCP Tools (100)
+# MCP Tools (119)
 
 All tools registered in the MCP server, grouped by category.
 
-## Tasks (19 tools)
+## Tasks (22 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -11,6 +11,9 @@ All tools registered in the MCP server, grouped by category.
 | `tasks_get` | Get task by ID |
 | `tasks_update` | Update task fields (title, status, priority, tags) |
 | `tasks_close` | Close a task |
+| `tasks_claim` | Take a lease on a task (TTL, default 30 min); foreign active claims are rejected with `TASK_CLAIMED` |
+| `tasks_renew` | Extend your lease (heartbeat); does not change `updatedAt`/version, so no false MU-02 conflicts |
+| `tasks_release` | Release your lease; idempotent when the task is already free |
 | `tasks_add_subtask` | Add subtask (parentId) |
 | `tasks_get_children` | Get direct children |
 | `tasks_get_subtree` | Get full subtree |
@@ -25,6 +28,17 @@ All tools registered in the MCP server, grouped by category.
 | `tasks_bulk_trash` | Bulk trash tasks |
 | `tasks_bulk_restore` | Bulk restore tasks |
 | `tasks_bulk_delete_permanent` | Bulk permanently delete tasks |
+
+### Task claims (U-01)
+
+`tasks_claim` marks a task as taken by the calling MCP session for `ttlSec`
+(30 s – 24 h, default 1800). `tasks_get`/`tasks_list`/`briefing` show the
+holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
+
+- re-claiming your own task renews it; another session gets `{ok:false, error:{code:"TASK_CLAIMED", hint, details:{holder, expiresAt}}}`;
+- expired claims never block — they are hidden on read and removed on write plus a background sweep (`TASK_CLAIM_SWEEP_MS`, default 60000, `0` disables);
+- renew/release are coordination writes: `updatedAt` is untouched, so the future optimistic-lock version (MU-02) is not disturbed;
+- the lease is advisory for writes: it prevents double *claiming*, not content updates by a non-holder.
 
 ## Knowledge (14 tools)
 
@@ -236,4 +250,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 116 tools by default (118 with catalog + dynamic tools enabled) + 6 resources
+## Total: 119 tools by default (121 with catalog + dynamic tools enabled) + 6 resources

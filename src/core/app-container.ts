@@ -86,6 +86,7 @@ import { createSecretManager } from './secret-manager.js';
 import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
 import { PROMPTS_DIR, getCurrentProject, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { checkSchemaVersion, SchemaVersionError } from '../services/schema-version.js';
+import { startClaimSweeper, stopClaimSweeper } from '../storage/tasks.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -609,6 +610,12 @@ export class AppContainer {
           this.addCleanup(() => this.ctx?.setupLinkStore?.close());
           this.log.info('setup-link store initialized');
         }
+      }
+
+      // U-01: expired task claims are hidden on read; this sweep also removes
+      // them from disk so a crashed holder does not leave stale lease records.
+      if (startClaimSweeper()) {
+        this.addCleanup(() => stopClaimSweeper());
       }
 
       // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)

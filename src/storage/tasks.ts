@@ -2,9 +2,12 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { TASKS_DIR } from '../config.js';
 import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson } from '../fs.js';
-import type { Task, Priority, Status, TaskTreeNode } from '../types.js';
+import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('storage:tasks');
 
 export async function tasksProjectDir(project: string) {
   const dir = resolveUnder(TASKS_DIR, project);
@@ -73,6 +76,32 @@ export async function createTask(input: {
   return task;
 }
 
+function taskFilePath(project: string, id: string): string {
+  return resolveUnder(TASKS_DIR, project, `${id}.json`);
+}
+
+async function readTaskRaw(project: string, id: string): Promise<Task | null> {
+  const p = taskFilePath(project, id);
+  if (!(await pathExists(p))) return null;
+  return readJson<Task>(p);
+}
+
+/** Whether a lease is still valid. Expired claims never block a claimer. */
+export function isClaimActive(claim: TaskClaim | undefined, nowMs: number = Date.now()): boolean {
+  if (!claim) return false;
+  const expiresAt = Date.parse(claim.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt > nowMs;
+}
+
+/** Hide (but do not persist) an expired claim on the read path. */
+function withoutExpiredClaim(task: Task, nowMs: number = Date.now()): Task {
+  if (task.claim && !isClaimActive(task.claim, nowMs)) {
+    const { claim: _expired, ...rest } = task;
+    return rest;
+  }
+  return task;
+}
+
 export async function listTasks(filter?: {
   project?: string;
   status?: Status;
@@ -96,7 +125,7 @@ export async function listTasks(filter?: {
     const files = await (await import('node:fs/promises')).readdir(dir);
     for (const f of files) {
       if (!f.endsWith('.json')) continue;
-      const t = await readJson<Task>(path.join(dir, f));
+      const t = withoutExpiredClaim(await readJson<Task>(path.join(dir, f)));
       // skip trashed by default unless explicitly included
       if (!filter?.includeTrashed && (t as any).trashed) continue;
       // skip archived by default unless explicitly included
@@ -146,14 +175,202 @@ export async function listTasksTree(filter?: {
 }
 
 export async function getTask(project: string, id: string): Promise<Task | null> {
-  const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
-  if (!(await pathExists(p))) return null;
-  return readJson<Task>(p);
+  const task = await readTaskRaw(project, id);
+  return task ? withoutExpiredClaim(task) : null;
 }
 
 // Backwards-compatible alias expected by some tests
 export async function readTask(project: string, id: string): Promise<Task | null> {
   return getTask(project, id);
+}
+
+// ─── Claim / lease (U-01) ───────────────────────────────────────────
+//
+// Lease state lives on the task record but is deliberately outside the
+// content revision: claim/renew/release never touch `updatedAt` (nor the
+// future MU-02 `version`). Otherwise every heartbeat would invalidate other
+// clients' optimistic-lock tokens and produce false CONFLICTs.
+
+export const DEFAULT_CLAIM_TTL_SEC = 1800;
+export const MIN_CLAIM_TTL_SEC = 30;
+export const MAX_CLAIM_TTL_SEC = 86_400;
+
+export interface ClaimActor {
+  /** MCP session id of the caller. */
+  sessionId: string;
+  userId?: string;
+  client?: string;
+  ttlSec?: number;
+}
+
+export type ClaimTaskResult =
+  | { status: 'claimed' | 'renewed'; task: Task; claim: TaskClaim }
+  | { status: 'claimed_by_other'; claim: TaskClaim }
+  | { status: 'not_found' };
+
+export type RenewTaskResult =
+  | { status: 'renewed'; task: Task; claim: TaskClaim }
+  | { status: 'not_claimed' }
+  | { status: 'claimed_by_other'; claim: TaskClaim }
+  | { status: 'not_found' };
+
+export type ReleaseTaskResult =
+  | { status: 'released'; task: Task }
+  | { status: 'not_claimed'; task: Task }
+  | { status: 'claimed_by_other'; claim: TaskClaim }
+  | { status: 'not_found' };
+
+function claimTtlMs(ttlSec?: number): number {
+  const raw = typeof ttlSec === 'number' && Number.isFinite(ttlSec) ? Math.trunc(ttlSec) : DEFAULT_CLAIM_TTL_SEC;
+  const clamped = Math.min(MAX_CLAIM_TTL_SEC, Math.max(MIN_CLAIM_TTL_SEC, raw));
+  return clamped * 1000;
+}
+
+function buildClaim(task: Task, actor: ClaimActor, nowMs: number): TaskClaim {
+  const ttlMs = claimTtlMs(actor.ttlSec);
+  const existing = task.claim;
+  const claimedAt = existing && isClaimActive(existing, nowMs) ? existing.claimedAt : new Date(nowMs).toISOString();
+  return {
+    bySessionId: actor.sessionId,
+    ...(actor.userId ? { byUserId: actor.userId } : {}),
+    ...(actor.client ? { client: actor.client } : {}),
+    claimedAt,
+    heartbeatAt: new Date(nowMs).toISOString(),
+    expiresAt: new Date(nowMs + ttlMs).toISOString(),
+  };
+}
+
+async function persistClaim(project: string, id: string, task: Task, claim: TaskClaim | undefined): Promise<Task> {
+  const updated: Task = { ...task, claim };
+  if (!claim) delete (updated as { claim?: TaskClaim }).claim;
+  await writeJson(taskFilePath(project, id), updated);
+  return updated;
+}
+
+/** Claim a task or extend the lease of its current holder. */
+export async function claimTask(project: string, id: string, actor: ClaimActor): Promise<ClaimTaskResult> {
+  const lockKey = `task:${project}/${id}`;
+  return withFileLock(lockKey, async () => {
+    const task = await readTaskRaw(project, id);
+    if (!task) return { status: 'not_found' };
+
+    const nowMs = Date.now();
+    if (task.claim && isClaimActive(task.claim, nowMs)) {
+      if (task.claim.bySessionId !== actor.sessionId) {
+        return { status: 'claimed_by_other', claim: task.claim };
+      }
+      const claim = buildClaim(task, actor, nowMs);
+      const updated = await persistClaim(project, id, task, claim);
+      return { status: 'renewed', task: updated, claim };
+    }
+
+    const claim = buildClaim(task, actor, nowMs);
+    const updated = await persistClaim(project, id, task, claim);
+    return { status: 'claimed', task: updated, claim };
+  });
+}
+
+/** Extend an existing lease. Does not bump updatedAt/version. */
+export async function renewTaskClaim(project: string, id: string, actor: ClaimActor): Promise<RenewTaskResult> {
+  const lockKey = `task:${project}/${id}`;
+  return withFileLock(lockKey, async () => {
+    const task = await readTaskRaw(project, id);
+    if (!task) return { status: 'not_found' };
+
+    const nowMs = Date.now();
+    if (!task.claim || !isClaimActive(task.claim, nowMs)) {
+      return { status: 'not_claimed' };
+    }
+    if (task.claim.bySessionId !== actor.sessionId) {
+      return { status: 'claimed_by_other', claim: task.claim };
+    }
+
+    const claim = buildClaim(task, actor, nowMs);
+    const updated = await persistClaim(project, id, task, claim);
+    return { status: 'renewed', task: updated, claim };
+  });
+}
+
+/** Release a lease. Only the holder may release before expiry; expired claims are cleaned. */
+export async function releaseTaskClaim(project: string, id: string, actor: ClaimActor): Promise<ReleaseTaskResult> {
+  const lockKey = `task:${project}/${id}`;
+  return withFileLock(lockKey, async () => {
+    const task = await readTaskRaw(project, id);
+    if (!task) return { status: 'not_found' };
+
+    if (!task.claim) return { status: 'not_claimed', task };
+
+    const nowMs = Date.now();
+    if (isClaimActive(task.claim, nowMs) && task.claim.bySessionId !== actor.sessionId) {
+      return { status: 'claimed_by_other', claim: task.claim };
+    }
+
+    const updated = await persistClaim(project, id, task, undefined);
+    return { status: 'released', task: updated };
+  });
+}
+
+/** Remove expired claims from disk. Returns `<project>/<id>` for each cleaned task. */
+export async function pruneExpiredClaims(project?: string): Promise<string[]> {
+  const projects = project ? [project] : await listAllProjects();
+  const pruned: string[] = [];
+
+  for (const prj of projects) {
+    const dir = resolveUnder(TASKS_DIR, prj);
+    if (!(await pathExists(dir))) continue;
+    let files: string[];
+    try {
+      files = await fs.readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const f of files) {
+      if (!f.endsWith('.json')) continue;
+      const id = f.slice(0, -'.json'.length);
+      let probe: Task;
+      try {
+        probe = await readJson<Task>(path.join(dir, f));
+      } catch {
+        continue;
+      }
+      if (!probe.claim || isClaimActive(probe.claim)) continue;
+
+      const removed = await withFileLock(`task:${prj}/${id}`, async () => {
+        const fresh = await readTaskRaw(prj, id);
+        if (!fresh?.claim || isClaimActive(fresh.claim)) return false;
+        await persistClaim(prj, id, fresh, undefined);
+        return true;
+      });
+      if (removed) pruned.push(`${prj}/${id}`);
+    }
+  }
+
+  return pruned;
+}
+
+let claimSweepTimer: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * Start the background claim sweeper (SessionManager.prune pattern).
+ * `TASK_CLAIM_SWEEP_MS=0` disables it. Idempotent; timer is unref'd so it
+ * never keeps the process alive.
+ */
+export function startClaimSweeper(intervalMs: number = Number(process.env.TASK_CLAIM_SWEEP_MS ?? 60_000)): boolean {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
+  if (claimSweepTimer) return true;
+  claimSweepTimer = setInterval(() => {
+    pruneExpiredClaims().catch((err) => log.error({ err }, 'claim sweep error'));
+  }, intervalMs);
+  claimSweepTimer.unref?.();
+  log.info({ intervalMs }, 'task claim sweeper started');
+  return true;
+}
+
+export function stopClaimSweeper(): void {
+  if (claimSweepTimer) {
+    clearInterval(claimSweepTimer);
+    claimSweepTimer = undefined;
+  }
 }
 
 export async function updateTask(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {

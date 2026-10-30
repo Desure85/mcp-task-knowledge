@@ -10,6 +10,27 @@ export type Status = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'clos
  */
 export type TrustLevel = 'system' | 'user' | 'external';
 
+/**
+ * Claim/lease metadata for a task (U-01).
+ *
+ * This is coordination state, NOT content: `tasks_renew` updates
+ * `heartbeatAt`/`expiresAt` only and deliberately leaves the task's
+ * `updatedAt` (and the future MU-02 `version`) untouched. A heartbeat must
+ * never invalidate another client's optimistic-lock token, otherwise every
+ * renew would manufacture a false CONFLICT.
+ */
+export interface TaskClaim {
+  /** MCP session id of the holder (transport session / per-connection id). */
+  bySessionId: string;
+  /** Authenticated user id, when the session carries one. */
+  byUserId?: string;
+  /** Free-form client label supplied by the caller (e.g. "claude-code", "opencode"). */
+  client?: string;
+  claimedAt: string; // ISO — first claim, preserved across renewals
+  heartbeatAt: string; // ISO — last claim/renew
+  expiresAt: string; // ISO — lease deadline; expired claims do not block
+}
+
 export interface Task {
   id: string;
   project: string; // namespace/key for project
@@ -25,6 +46,8 @@ export interface Task {
   parentId?: string;
   // Dependency graph: task IDs this task depends on (all must be completed before this can start)
   dependsOn?: string[];
+  /** U-01: active lease holder; absent/expired = free to claim. */
+  claim?: TaskClaim;
   // Soft-delete lifecycle
   archived?: boolean;
   trashed?: boolean;
