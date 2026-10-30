@@ -41,6 +41,8 @@ jobs:
 
       # mcp-task-knowledge в корне
       - name: Install & build mcp-task-knowledge
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: |
           npm install --no-audit --no-fund
           npm run build

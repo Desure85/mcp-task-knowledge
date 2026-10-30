@@ -26,6 +26,8 @@ jobs:
           cache: 'npm'
 
       - name: Install deps
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: npm install --no-audit --no-fund
 
       - name: Build
