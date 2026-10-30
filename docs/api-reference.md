@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **118**
+Всего инструментов: **121**
 
 ## Инструменты
 
@@ -108,14 +108,17 @@
 | `tasks_bulk_restore` | Restore many tasks from archive/trash |
 | `tasks_bulk_trash` | Move many tasks to trash |
 | `tasks_bulk_update` | Update fields of many tasks at once |
+| `tasks_claim` | Take a lease on a task so a second agent does not start the same work. The holder is visible to othe |
 | `tasks_close` | Close a task by setting its status to 'closed'. Optionally cascade the close to all descendants (sub |
 | `tasks_create` | Create a single task. Optionally set parentId to create a subtask. Maximum nesting depth is 10 level |
 | `tasks_dag` | Get the full dependency DAG for a project: topological sort, critical path, and edge list. |
-| `tasks_get` | Get task by id |
+| `tasks_get` | Get task by id. Includes the active claim/lease holder when the task is claimed. |
 | `tasks_get_children` | Get direct children of a task (one level deep, not recursive). |
 | `tasks_get_deps` | Get the dependency graph for a specific task: what it depends on and what depends on it. |
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
-| `tasks_list` | List tasks with optional filters |
+| `tasks_list` | List tasks with optional filters. Includes the active claim/lease holder when a task is claimed. |
+| `tasks_release` | Release your lease so another agent can pick the task up. Only the holder may release before expiry; |
+| `tasks_renew` | Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not  |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId) |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
@@ -694,6 +697,7 @@ Import .md files from a directory into the knowledge base. Files can have YAML f
 - `excludePaths`
 - `tag`
 - `type`
+- `trustLevel`
 - `dryRun`
 
 **Пример вызова:**
@@ -715,6 +719,7 @@ Import .md files from a directory into the knowledge base. Files can have YAML f
     ],
     "tag": "example",
     "type": "note",
+    "trustLevel": "example",
     "dryRun": false
   }
 }
@@ -762,6 +767,7 @@ Import a single markdown document into the knowledge base. The markdown can cont
 - `type`
 - `source`
 - `parentId`
+- `trustLevel`
 
 **Пример вызова:**
 
@@ -777,7 +783,8 @@ Import a single markdown document into the knowledge base. The markdown can cont
     ],
     "type": "note",
     "source": "example",
-    "parentId": null
+    "parentId": null,
+    "trustLevel": "example"
   }
 }
 ```
@@ -1114,6 +1121,7 @@ Extract structured facts from a conversation/session transcript. Facts are categ
 - `maxFacts`
 - `minConfidence`
 - `persist`
+- `trustLevel`
 
 **Пример вызова:**
 
@@ -1129,7 +1137,8 @@ Extract structured facts from a conversation/session transcript. Facts are categ
     "runId": "example",
     "maxFacts": "example",
     "minConfidence": "example",
-    "persist": "example"
+    "persist": "example",
+    "trustLevel": "example"
   }
 }
 ```
@@ -1151,6 +1160,7 @@ Non-blocking variant of memory_extract for long-running extraction (large transc
 - `maxFacts`
 - `minConfidence`
 - `persist`
+- `trustLevel`
 - `webhookUrl`
 - `metadata`
 
@@ -1169,6 +1179,7 @@ Non-blocking variant of memory_extract for long-running extraction (large transc
     "maxFacts": "example",
     "minConfidence": "example",
     "persist": "example",
+    "trustLevel": "example",
     "webhookUrl": "example",
     "metadata": "example"
   }
@@ -1517,6 +1528,7 @@ Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally
 - `validFrom`
 - `supersedesFactId`
 - `invalidationReason`
+- `trustLevel`
 - `scope`
 
 **Пример вызова:**
@@ -1535,6 +1547,7 @@ Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally
     "validFrom": "example",
     "supersedesFactId": "example",
     "invalidationReason": "example",
+    "trustLevel": "example",
     "scope": "example"
   }
 }
@@ -2715,6 +2728,33 @@ Update fields of many tasks at once
 }
 ```
 
+## tasks_claim
+
+**Claim Task**
+
+Take a lease on a task so a second agent does not start the same work. The holder is visible to others (bySessionId/byUserId/client/expiresAt). Re-claiming your own task renews the lease; a foreign active claim is rejected with code TASK_CLAIMED. Expired claims never block. Renewals do not change the task content revision (updatedAt/version).
+
+**Параметры:**
+
+- `project`
+- `id`
+- `ttlSec`
+- `client`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_claim",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "ttlSec": "example",
+    "client": "example"
+  }
+}
+```
+
 ## tasks_close
 
 **Close Task**
@@ -2808,7 +2848,7 @@ Get the full dependency DAG for a project: topological sort, critical path, and 
 
 **Get Task**
 
-Get task by id
+Get task by id. Includes the active claim/lease holder when the task is claimed.
 
 **Параметры:**
 
@@ -2902,7 +2942,7 @@ Get a specific task and all its descendants as a hierarchical tree. Useful for i
 
 **List Tasks**
 
-List tasks with optional filters
+List tasks with optional filters. Includes the active claim/lease holder when a task is claimed.
 
 **Параметры:**
 
@@ -2921,6 +2961,54 @@ List tasks with optional filters
     "status": "pending",
     "tag": "example",
     "includeArchived": false
+  }
+}
+```
+
+## tasks_release
+
+**Release Task Claim**
+
+Release your lease so another agent can pick the task up. Only the holder may release before expiry; an expired claim is cleaned up by anyone. Releasing a free task is idempotent (released:false, alreadyFree:true).
+
+**Параметры:**
+
+- `project`
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_release",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+## tasks_renew
+
+**Renew Task Claim**
+
+Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not change updatedAt/version, so they never invalidate another client's optimistic lock. Returns TASK_NOT_CLAIMED when the lease is absent or has expired, TASK_CLAIMED when held by someone else.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `ttlSec`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_renew",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "ttlSec": "example"
   }
 }
 ```

@@ -1,15 +1,53 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { resolveProject } from '../config.js';
-import { createTask, listTasks, listTasksTree, getTask, getTaskSubtree, getDirectChildren, updateTask, closeTaskWithCascade, MAX_TASK_DEPTH } from '../storage/tasks.js';
-import { ok, err } from '../utils/respond.js';
+import {
+  createTask,
+  listTasks,
+  listTasksTree,
+  getTask,
+  getTaskSubtree,
+  getDirectChildren,
+  updateTask,
+  closeTaskWithCascade,
+  claimTask,
+  renewTaskClaim,
+  releaseTaskClaim,
+  DEFAULT_CLAIM_TTL_SEC,
+  MIN_CLAIM_TTL_SEC,
+  MAX_CLAIM_TTL_SEC,
+  MAX_TASK_DEPTH,
+  type ClaimActor,
+} from '../storage/tasks.js';
+import { ok, err, errWith } from '../utils/respond.js';
+import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
+import { currentSessionId } from '../core/request-context.js';
+
+/** Resolve the claiming identity: SDK session > ALS request scope > local. */
+function resolveClaimActor(
+  ctx: ServerContext,
+  args: { client?: string; ttlSec?: number },
+  extra?: GateExtra,
+): ClaimActor {
+  const sessionId = resolveExtraSessionId(extra) ?? currentSessionId() ?? 'local';
+  const meta = ctx.sessionManager?.get(sessionId)?.metadata ?? {};
+  const userId = typeof meta.userId === 'string' ? meta.userId : undefined;
+  const metaClient = typeof meta.client === 'string' ? meta.client : undefined;
+  const client = args.client ?? metaClient;
+  return {
+    sessionId,
+    ...(userId ? { userId } : {}),
+    ...(client ? { client } : {}),
+    ttlSec: args.ttlSec,
+  };
+}
 
 export function registerTasksTools(ctx: ServerContext): void {
   ctx.server.registerTool(
     "tasks_list",
     {
       title: "List Tasks",
-      description: "List tasks with optional filters",
+      description: "List tasks with optional filters. Includes the active claim/lease holder when a task is claimed.",
       inputSchema: {
         project: z.string().optional(),
         status: z.enum(["pending", "in_progress", "completed", "closed"]).optional(),
@@ -47,7 +85,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     "tasks_get",
     {
       title: "Get Task",
-      description: "Get task by id",
+      description: "Get task by id. Includes the active claim/lease holder when the task is claimed.",
       inputSchema: { project: z.string().optional(), id: z.string().min(1) },
     },
     async ({ project, id }) => {
@@ -125,6 +163,128 @@ export function registerTasksTools(ctx: ServerContext): void {
         return ok(task);
       } catch (e: any) {
         return err(`Failed to update task: ${e?.message || String(e)}`);
+      }
+    }
+  );
+
+  ctx.server.registerTool(
+    "tasks_claim",
+    {
+      title: "Claim Task",
+      description:
+        "Take a lease on a task so a second agent does not start the same work. " +
+        "The holder is visible to others (bySessionId/byUserId/client/expiresAt). " +
+        "Re-claiming your own task renews the lease; a foreign active claim is rejected with code TASK_CLAIMED. " +
+        "Expired claims never block. Renewals do not change the task content revision (updatedAt/version).",
+      inputSchema: {
+        project: z.string().optional(),
+        id: z.string().min(1),
+        ttlSec: z.number().int().min(MIN_CLAIM_TTL_SEC).max(MAX_CLAIM_TTL_SEC)
+          .default(DEFAULT_CLAIM_TTL_SEC).optional()
+          .describe(`Lease length in seconds (${MIN_CLAIM_TTL_SEC}-${MAX_CLAIM_TTL_SEC}, default ${DEFAULT_CLAIM_TTL_SEC})`),
+        client: z.string().optional().describe('Client label for the holder (e.g. "claude-code", "opencode")'),
+      },
+    },
+    async ({ project, id, ttlSec, client }, extra?: GateExtra) => {
+      const prj = resolveProject(project);
+      try {
+        const result = await claimTask(prj, id, resolveClaimActor(ctx, { ttlSec, client }, extra));
+        if (result.status === 'not_found') {
+          return err(`Task not found: ${project}/${id}`);
+        }
+        if (result.status === 'claimed_by_other') {
+          return errWith({
+            code: 'TASK_CLAIMED',
+            message: 'task is already claimed by another session',
+            hint: 'wait until expiresAt, ask the holder to release it, or call tasks_renew if you are the holder',
+            details: { holder: result.claim, expiresAt: result.claim.expiresAt },
+          });
+        }
+        return ok({ taskId: id, status: result.status, claim: result.claim, renewed: result.status === 'renewed' });
+      } catch (e: any) {
+        return err(`Failed to claim task: ${e?.message || String(e)}`);
+      }
+    }
+  );
+
+  ctx.server.registerTool(
+    "tasks_renew",
+    {
+      title: "Renew Task Claim",
+      description:
+        "Extend your lease on a claimed task (heartbeat). Only the current holder may renew. " +
+        "Renewals do not change updatedAt/version, so they never invalidate another client's optimistic lock. " +
+        "Returns TASK_NOT_CLAIMED when the lease is absent or has expired, TASK_CLAIMED when held by someone else.",
+      inputSchema: {
+        project: z.string().optional(),
+        id: z.string().min(1),
+        ttlSec: z.number().int().min(MIN_CLAIM_TTL_SEC).max(MAX_CLAIM_TTL_SEC)
+          .default(DEFAULT_CLAIM_TTL_SEC).optional()
+          .describe(`New lease length in seconds (${MIN_CLAIM_TTL_SEC}-${MAX_CLAIM_TTL_SEC}, default ${DEFAULT_CLAIM_TTL_SEC})`),
+      },
+    },
+    async ({ project, id, ttlSec }, extra?: GateExtra) => {
+      const prj = resolveProject(project);
+      try {
+        const result = await renewTaskClaim(prj, id, resolveClaimActor(ctx, { ttlSec }, extra));
+        if (result.status === 'not_found') {
+          return err(`Task not found: ${project}/${id}`);
+        }
+        if (result.status === 'not_claimed') {
+          return errWith({
+            code: 'TASK_NOT_CLAIMED',
+            message: 'no active claim on this task',
+            hint: 'call tasks_claim first (your lease may have expired)',
+          });
+        }
+        if (result.status === 'claimed_by_other') {
+          return errWith({
+            code: 'TASK_CLAIMED',
+            message: 'task is claimed by another session',
+            hint: 'only the current holder can renew; wait until expiresAt or claim after it expires',
+            details: { holder: result.claim, expiresAt: result.claim.expiresAt },
+          });
+        }
+        return ok({ taskId: id, status: result.status, claim: result.claim, renewed: true });
+      } catch (e: any) {
+        return err(`Failed to renew claim: ${e?.message || String(e)}`);
+      }
+    }
+  );
+
+  ctx.server.registerTool(
+    "tasks_release",
+    {
+      title: "Release Task Claim",
+      description:
+        "Release your lease so another agent can pick the task up. Only the holder may release before expiry; " +
+        "an expired claim is cleaned up by anyone. Releasing a free task is idempotent (released:false, alreadyFree:true).",
+      inputSchema: {
+        project: z.string().optional(),
+        id: z.string().min(1),
+      },
+    },
+    async ({ project, id }, extra?: GateExtra) => {
+      const prj = resolveProject(project);
+      try {
+        const result = await releaseTaskClaim(prj, id, resolveClaimActor(ctx, {}, extra));
+        if (result.status === 'not_found') {
+          return err(`Task not found: ${project}/${id}`);
+        }
+        if (result.status === 'claimed_by_other') {
+          return errWith({
+            code: 'TASK_CLAIMED',
+            message: 'task is claimed by another session',
+            hint: 'only the holder can release before expiresAt; wait for expiry or ask them to release',
+            details: { holder: result.claim, expiresAt: result.claim.expiresAt },
+          });
+        }
+        if (result.status === 'not_claimed') {
+          return ok({ taskId: id, released: false, alreadyFree: true });
+        }
+        return ok({ taskId: id, released: true });
+      } catch (e: any) {
+        return err(`Failed to release claim: ${e?.message || String(e)}`);
       }
     }
   );
