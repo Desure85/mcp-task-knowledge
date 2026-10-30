@@ -1,8 +1,8 @@
 /**
- * connectors/jira.ts — Jira/YouTrack connector (INT-002)
+ * connectors/jira.ts — Jira connector, read-only (INT-002); YouTrack is not supported (INT-007)
  *
  * Integrates Jira issues as MCP tools via REST API (zero-dep fetch).
- * Supports both Jira Cloud (api.atlassian.com) and YouTrack (jetbrains.space).
+ * Targets Jira REST v2 only — YouTrack uses a different API and is tracked as INT-007.
  * Requires JIRA_TOKEN + JIRA_HOST env vars.
  */
 

@@ -7,7 +7,7 @@ Integration hub for external services. Each connector registers MCP tools with a
 | Connector | Tools | Status |
 |-----------|-------|--------|
 | GitHub | `github_issue_*`, `github_pr_*`, `github_repo_*` | ✅ Production |
-| Jira/YouTrack | `jira_issue_*` | ✅ Production |
+| Jira (read-only) | `jira_issue_list`, `jira_issue_get`, `jira_project_list` | ✅ Real (Jira REST v2). YouTrack: not supported yet (INT-007) |
 | Slack/Discord | `slack_*` | ✅ Production |
 | Google Drive | `gdrive_list_files`, `gdrive_get_file`, `gdrive_sync_folder` | ✅ Real (Drive v3, OAuth2 Bearer) |
 | Gmail | `gmail_list_messages`, `gmail_get_message`, `gmail_sync_to_kb` | ✅ Real (Gmail v1, OAuth2 Bearer) |
