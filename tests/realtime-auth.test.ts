@@ -1,13 +1,17 @@
 /**
- * realtime-auth.test.ts — AUD-06: WS handshake auth + broadcast gating.
+ * realtime-auth.test.ts — AUD-06 / UI-22: WS handshake auth via one-time ticket.
+ *
+ * The JWT is never accepted in the WebSocket URL. A ticket is issued by
+ * POST /auth/ws-ticket (tested in tests/ws-ticket.test.ts) and redeemed once
+ * at the upgrade; these tests cover the RealtimeServer side: no ticket,
+ * invalid ticket, legacy ?token=, single-use and identity binding.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { RealtimeServer, type RealtimeEvent } from '../src/transport/realtime.js';
+import { WsTicketStore } from '../src/core/ws-ticket.js';
 import { WebSocket } from 'ws';
 import { createServer } from 'node:http';
-
-const VALID_TOKEN = 'good-token';
 
 function connect(port: number, query = ''): WebSocket {
   return new WebSocket(`ws://127.0.0.1:${port}/ws${query}`);
@@ -51,13 +55,18 @@ function nextMessage(ws: WebSocket, pred: (m: Record<string, unknown>) => boolea
   });
 }
 
-describe('RealtimeServer AUD-06 auth', () => {
+describe('RealtimeServer AUD-06/UI-22 ticket auth', () => {
   let server: RealtimeServer;
   let httpServer: ReturnType<typeof createServer>;
   let port: number;
+  let store: WsTicketStore;
+
+  const issue = (userId = 'u1'): string => store.issue({ userId, jti: `jti-${userId}` }).ticket;
+  const connectAuthed = (userId = 'u1'): WebSocket => connect(port, `?ticket=${encodeURIComponent(issue(userId))}`);
 
   beforeEach(async () => {
     server = new RealtimeServer({ heartbeatMs: 60000 });
+    store = new WsTicketStore();
     httpServer = createServer();
     await new Promise<void>((resolve) => {
       httpServer.listen(0, '127.0.0.1', () => {
@@ -66,9 +75,7 @@ describe('RealtimeServer AUD-06 auth', () => {
         resolve();
       });
     });
-    server.attach(httpServer, '/ws', {
-      tokenValidator: (token) => token === VALID_TOKEN,
-    });
+    server.attach(httpServer, '/ws', { ticketStore: store });
   });
 
   afterEach(() => {
@@ -76,57 +83,56 @@ describe('RealtimeServer AUD-06 auth', () => {
     return new Promise<void>((resolve) => httpServer.close(() => resolve()));
   });
 
-  it('rejects unauthenticated WS (no token) with close 4001', async () => {
+  it('rejects a connection without a ticket (4001)', async () => {
     const ws = connect(port);
     const { code } = await waitClose(ws);
     expect(code).toBe(4001);
     expect(server.getConnectedClients()).toHaveLength(0);
   });
 
-  it('rejects invalid token with close 4001', async () => {
-    const ws = connect(port, '?token=wrong');
+  it('rejects an unknown ticket (4001)', async () => {
+    const ws = connect(port, '?ticket=not-a-real-ticket');
     const { code, reason } = await waitClose(ws);
     expect(code).toBe(4001);
     expect(reason).toBe('unauthorized');
   });
 
-  it('accepts valid token and sends connected', async () => {
-    const ws = connect(port, `?token=${VALID_TOKEN}`);
+  it('rejects the legacy ?token= form even with a valid-looking value (4001)', async () => {
+    const ws = connect(port, '?token=jwt-looking-value');
+    expect((await waitClose(ws)).code).toBe(4001);
+  });
+
+  it('accepts a valid ticket and sends connected', async () => {
+    const ws = connectAuthed('alice');
     const msg = await waitConnected(ws);
     expect(msg).toHaveProperty('clientId');
     ws.close();
   });
 
-  it('supports async tokenValidator', async () => {
-    server.close();
-    httpServer.close();
-    httpServer = createServer();
-    await new Promise<void>((resolve) => {
-      httpServer.listen(0, '127.0.0.1', () => {
-        const addr = httpServer.address();
-        port = typeof addr === 'object' && addr ? addr.port : 0;
-        resolve();
-      });
-    });
-    server = new RealtimeServer({ heartbeatMs: 60000 });
-    server.attach(httpServer, '/ws', {
-      tokenValidator: async (token) => token === VALID_TOKEN,
-    });
+  it('burns the ticket on first use (second connection rejected)', async () => {
+    const ticket = issue('u1');
+    const first = connect(port, `?ticket=${encodeURIComponent(ticket)}`);
+    await waitConnected(first);
 
-    const bad = connect(port, '?token=nope');
-    expect((await waitClose(bad)).code).toBe(4001);
+    const second = connect(port, `?ticket=${encodeURIComponent(ticket)}`);
+    expect((await waitClose(second)).code).toBe(4001);
+    first.close();
+  });
 
-    const good = connect(port, `?token=${VALID_TOKEN}`);
-    await waitOpen(good);
-    good.close();
+  it('binds the connection to the ticket subject, not a client query param', async () => {
+    const ticket = issue('alice');
+    const ws = connect(port, `?ticket=${encodeURIComponent(ticket)}&userId=mallory`);
+    await waitConnected(ws);
+    const client = server.getConnectedClients().find((c) => c.userId === 'alice');
+    expect(client, 'identity comes from the ticket').toBeTruthy();
+    ws.close();
   });
 
   it('broadcast from client with disallowed eventType → error, no broadcast', async () => {
-    const ws1 = connect(port, `?token=${VALID_TOKEN}`);
-    const ws2 = connect(port, `?token=${VALID_TOKEN}`);
+    const ws1 = connectAuthed();
+    const ws2 = connectAuthed();
     await Promise.all([waitOpen(ws1), waitOpen(ws2)]);
 
-    // subscribe both so they would receive broadcasts
     ws1.send(JSON.stringify({ type: 'subscribe' }));
     ws2.send(JSON.stringify({ type: 'subscribe' }));
     await new Promise((r) => setTimeout(r, 100));
@@ -150,8 +156,8 @@ describe('RealtimeServer AUD-06 auth', () => {
   });
 
   it('broadcast from client with allowed eventType → received by subscribed peer', async () => {
-    const ws1 = connect(port, `?token=${VALID_TOKEN}`);
-    const ws2 = connect(port, `?token=${VALID_TOKEN}`);
+    const ws1 = connectAuthed();
+    const ws2 = connectAuthed();
     await Promise.all([waitOpen(ws1), waitOpen(ws2)]);
 
     ws1.send(JSON.stringify({ type: 'subscribe' }));
@@ -170,11 +176,10 @@ describe('RealtimeServer AUD-06 auth', () => {
   });
 
   it('client without subscribe receives no events', async () => {
-    const ws1 = connect(port, `?token=${VALID_TOKEN}`);
-    const ws2 = connect(port, `?token=${VALID_TOKEN}`);
+    const ws1 = connectAuthed();
+    const ws2 = connectAuthed();
     await Promise.all([waitOpen(ws1), waitOpen(ws2)]);
 
-    // only ws1 subscribes
     ws1.send(JSON.stringify({ type: 'subscribe' }));
     await new Promise((r) => setTimeout(r, 100));
 
@@ -202,7 +207,7 @@ describe('RealtimeServer AUD-06 auth', () => {
     ws2.close();
   });
 
-  it('no validator configured → open access (backwards compat)', async () => {
+  it('no ticket store configured → open access (backwards compat)', async () => {
     server.close();
     httpServer.close();
     httpServer = createServer();

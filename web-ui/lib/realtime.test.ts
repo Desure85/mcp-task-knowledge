@@ -3,7 +3,7 @@
  * No WebSocket / React rendering — only pure functions.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   resolveRealtimeUrl,
   backoffDelay,
@@ -11,8 +11,12 @@ import {
   applyKnowledgeEvent,
   connectionBadgeClass,
   connectionBadgeLabel,
+  RealtimeClient,
+  fetchWsTicket,
+  WsTicketAuthError,
   type RealtimeEvent,
 } from './realtime';
+import { AUTH_EXPIRED_EVENT } from './auth';
 
 describe('resolveRealtimeUrl', () => {
   it('explicit wsUrl wins as-is', () => {
@@ -121,5 +125,153 @@ describe('connectionBadge', () => {
     expect(connectionBadgeLabel('connected', 3)).toBe('● Live (3 online)');
     expect(connectionBadgeLabel('connected')).toBe('● Live');
     expect(connectionBadgeLabel('unavailable')).toBe('○ Offline');
+  });
+});
+
+
+// ─── UI-22: ticket-based WS auth ────────────────────────────────────
+
+class MockWebSocket {
+  static OPEN = 1;
+  static CONNECTING = 0;
+  static CLOSED = 3;
+  static instances: MockWebSocket[] = [];
+
+  url: string;
+  readyState = MockWebSocket.CONNECTING;
+  onopen: ((ev?: unknown) => void) | null = null;
+  onclose: ((ev?: unknown) => void) | null = null;
+  onerror: ((ev?: unknown) => void) | null = null;
+  onmessage: ((ev?: unknown) => void) | null = null;
+
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+  }
+  send(): void {}
+  close(): void {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({});
+  }
+  triggerOpen(): void {
+    this.readyState = MockWebSocket.OPEN;
+    this.onopen?.({});
+  }
+  triggerClose(): void {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({});
+  }
+}
+
+describe('UI-22: WebSocket auth ticket', () => {
+  let dispatchEvent: ReturnType<typeof vi.fn>;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    MockWebSocket.instances = [];
+    dispatchEvent = vi.fn();
+    fetchMock = vi.fn();
+    vi.stubGlobal('window', {
+      location: { href: 'http://localhost:3410/tasks' },
+      dispatchEvent,
+      sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+      localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.NEXT_PUBLIC_MCP_TOKEN = 'jwt-token';
+    process.env.NEXT_PUBLIC_MCP_API_URL = 'http://127.0.0.1:3411/mcp';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    delete process.env.NEXT_PUBLIC_MCP_TOKEN;
+    delete process.env.NEXT_PUBLIC_MCP_API_URL;
+  });
+
+  it('fetches a ticket and puts it in the URL instead of the JWT', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-1' }) });
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [endpoint, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(endpoint).toContain('/auth/ws-ticket');
+    expect(init.headers.Authorization).toBe('Bearer jwt-token');
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    const socketUrl = new URL(MockWebSocket.instances[0].url);
+    expect(socketUrl.searchParams.get('ticket')).toBe('ticket-1');
+    expect(socketUrl.searchParams.get('token')).toBeNull();
+    expect(MockWebSocket.instances[0].url).not.toContain('jwt-token');
+  });
+
+  it('requests a fresh ticket before every reconnect', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-1' }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-2' }) });
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    MockWebSocket.instances[0].triggerOpen();
+    expect(client.getStatus()).toBe('connected');
+
+    MockWebSocket.instances[0].triggerClose();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    expect(new URL(MockWebSocket.instances[1].url).searchParams.get('ticket')).toBe('ticket-2');
+  });
+
+  it('treats a 401 ticket response as an auth failure and stops retrying', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(client.getStatus()).toBe('unavailable');
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    expect((dispatchEvent.mock.calls[0][0] as Event).type).toBe(AUTH_EXPIRED_EVENT);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(MockWebSocket.instances).toHaveLength(0);
+  });
+
+  it('schedules a normal retry when the ticket request fails at the network level', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getStatus()).toBe('reconnecting');
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-later' }) });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  it('connects without a ticket when no token is configured (open realtime)', async () => {
+    delete process.env.NEXT_PUBLIC_MCP_TOKEN;
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(new URL(MockWebSocket.instances[0].url).searchParams.get('ticket')).toBeNull();
+  });
+
+  it('fetchWsTicket rejects an invalid ticket response shape', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    await expect(fetchWsTicket()).rejects.toThrow(/missing ticket/);
+  });
+
+  it('fetchWsTicket surfaces 401 as WsTicketAuthError', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+    await expect(fetchWsTicket()).rejects.toBeInstanceOf(WsTicketAuthError);
   });
 });

@@ -134,9 +134,9 @@ async function call(port: number, sid: string, name: string, args: Record<string
   return { status: r.status, ok: parsed?.ok as boolean | undefined, error: parsed?.error, raw: r.json };
 }
 
-function wsOutcome(port: number, token: string | null): Promise<{ closeCode?: number; opened: boolean }> {
+function wsOutcome(port: number, query = ''): Promise<{ closeCode?: number; opened: boolean }> {
   return new Promise((resolve) => {
-    const url = `ws://127.0.0.1:${port}/ws${token === null ? '' : `?token=${encodeURIComponent(token)}`}`;
+    const url = `ws://127.0.0.1:${port}/ws${query}`;
     const ws = new WebSocket(url);
     let opened = false;
     const timer = setTimeout(() => { ws.terminate(); resolve({ opened }); }, 4000);
@@ -145,6 +145,14 @@ function wsOutcome(port: number, token: string | null): Promise<{ closeCode?: nu
     ws.on('unexpected-response', (_req, res) => { clearTimeout(timer); resolve({ closeCode: res.statusCode, opened: false }); });
     ws.on('error', () => { /* handled by close/unexpected-response */ });
   });
+}
+
+async function postWsTicket(port: number, token: string) {
+  const res = await fetch(`http://127.0.0.1:${port}/auth/ws-ticket`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
 }
 
 async function postLogin(port: number, body: unknown) {
@@ -261,14 +269,24 @@ describe('AUD high-severity live probes', () => {
     expect(init.json?.result?.serverInfo?.version).toBe(pkg.version);
   }, 60000);
 
-  it('AUD-06: /ws rejects no/invalid token and accepts a valid one', async () => {
+  it('AUD-06/UI-22: /ws rejects no/invalid tickets and the legacy ?token=; accepts a one-time ticket', async () => {
     const { port } = await startServer('ws');
-    const none = await wsOutcome(port, null);
-    expect(none.opened, `no token: ${JSON.stringify(none)}`).toBe(false);
-    const bad = await wsOutcome(port, 'garbage');
-    expect(bad.opened, `bad token: ${JSON.stringify(bad)}`).toBe(false);
-    const good = await wsOutcome(port, mintJwt({ roles: ['admin'] }));
-    expect(good.opened, `valid token: ${JSON.stringify(good)}`).toBe(true);
+    const token = mintJwt({ roles: ['admin'] });
+
+    const none = await wsOutcome(port);
+    expect(none.opened, `no ticket: ${JSON.stringify(none)}`).toBe(false);
+    const bad = await wsOutcome(port, '?ticket=garbage');
+    expect(bad.opened, `bad ticket: ${JSON.stringify(bad)}`).toBe(false);
+    const legacy = await wsOutcome(port, `?token=${encodeURIComponent(token)}`);
+    expect(legacy.opened, `legacy token in URL: ${JSON.stringify(legacy)}`).toBe(false);
+
+    const issued = await postWsTicket(port, token);
+    expect(issued.status, JSON.stringify(issued.json)).toBe(200);
+    expect(typeof issued.json.ticket).toBe('string');
+    const good = await wsOutcome(port, `?ticket=${encodeURIComponent(issued.json.ticket)}`);
+    expect(good.opened, `valid ticket: ${JSON.stringify(good)}`).toBe(true);
+    const replay = await wsOutcome(port, `?ticket=${encodeURIComponent(issued.json.ticket)}`);
+    expect(replay.opened, `replayed ticket: ${JSON.stringify(replay)}`).toBe(false);
   }, 60000);
 
   it('AUD-04: session_list is denied for a non-admin and allowed for admin', async () => {
