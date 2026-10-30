@@ -27,7 +27,7 @@ import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/au
 import { buildSetupMarkdown } from '../core/setup-link.js';
 import { getCurrentProject } from '../config.js';
 import { createTlsContext, type TlsContext } from './tls.js';
-import { createLoginHandler, isLoginPath } from './login-route.js';
+import { createLoginHandler, createLogoutHandler, isLoginPath, isLogoutPath } from './login-route.js';
 
 const log = childLogger('transport:http');
 
@@ -241,6 +241,7 @@ export class HttpTransportAdapter implements TransportAdapter {
     // Username/password login for the browser UI. Sessionless by design:
     // it only issues a JWT, the existing MCP auth gate still guards tools.
     const loginHandler = createLoginHandler();
+    const logoutHandler = createLogoutHandler({ revoke: (jti, exp) => ctx.revokeJwt?.(jti, exp) });
 
     // Create health handlers if a HealthChecker is provided
     if (this.healthChecker) {
@@ -294,6 +295,10 @@ export class HttpTransportAdapter implements TransportAdapter {
       // Routed before the JSON-RPC dispatch so it works with a bare browser.
       if (isLoginPath(url)) {
         await loginHandler(req, res);
+        return;
+      }
+      if (isLogoutPath(url)) {
+        await logoutHandler(req, res);
         return;
       }
 

@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, clearAuthToken, resolveMcpApiUrl, resolveToken, type SetupLink } from '@/lib/api-client';
+import { api, resolveMcpApiUrl, resolveToken, type SetupLink } from '@/lib/api-client';
 import { decodeJwtClaims, formatRemaining } from '@/lib/auth';
 import { PageHeader } from '@/components/PageHeader';
 
@@ -102,8 +102,8 @@ export default function AccessPage() {
     }
   }
 
-  function signOut() {
-    clearAuthToken();
+  async function signOut() {
+    await api.auth.logout();
     router.replace('/login');
   }
 

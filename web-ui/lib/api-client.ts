@@ -43,7 +43,7 @@ function stripTrailingSlashes(value: string): string {
  * NEXT_PUBLIC_MCP_AUTH_URL overrides the base; a value already ending in
  * `/auth` is accepted as-is so both env shapes work.
  */
-export function resolveAuthEndpoint(path: '/login'): string {
+export function resolveAuthEndpoint(path: '/login' | '/logout'): string {
   const explicit = process.env.NEXT_PUBLIC_MCP_AUTH_URL?.trim();
   if (explicit) {
     const base = stripTrailingSlashes(explicit);
@@ -530,8 +530,26 @@ export const api = {
   auth: {
     /** Exchanges credentials for a JWT and stores it via setAuthToken(). */
     login: (username: string, password: string) => loginRequest(username, password),
-    /** Drops the JWT for this tab and resets the MCP client. */
-    logout: () => clearAuthToken(),
+    /**
+     * Revokes the JWT on the server (so a copied token stops working), then drops it for this
+     * tab. The server call is best-effort: a network error must never trap the user signed in.
+     */
+    logout: async () => {
+      const token = hasStoredAuthToken() ? resolveToken() : undefined;
+      if (token) {
+        try {
+          await fetch(resolveAuthEndpoint('/logout'), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+            credentials: 'omit',
+          });
+        } catch {
+          /* offline — local sign-out still proceeds */
+        }
+      }
+      clearAuthToken();
+    },
   },
 
   // Admin (requires the admin role on the server)

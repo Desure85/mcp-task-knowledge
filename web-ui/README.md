@@ -27,7 +27,8 @@ export MCP_LOGIN_PASSWORD='a-long-random-password'
 ```
 
 Open the UI: unauthenticated visits redirect to `/login`. The JWT (30 days, `admin` role) lives in
-`sessionStorage` for the tab; **Sign out** in the top bar drops it, and a rejected or expired token
+`sessionStorage` for the tab; **Sign out** revokes it on the server (`POST /auth/logout`, the token id goes into
+`DATA_DIR/.jwt-revoked.json`, so a copied token stops working too) and drops it from the browser, and a rejected or expired token
 sends you back to `/login` automatically. Without `MCP_LOGIN_*` the login endpoint answers 503
 (fail-closed, there is no default password).
 

@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { api, clearAuthToken, hasAuthToken, hasStoredAuthToken } from '@/lib/api-client';
+import { api, hasAuthToken, hasStoredAuthToken } from '@/lib/api-client';
 import { connectionBadgeClass, connectionBadgeLabel } from '@/lib/realtime';
 import { pageMetaFor } from './nav-config';
 import { useLiveStatus } from './live-status';
@@ -107,8 +107,8 @@ export function Topbar() {
         {canSignOut && (
           <button
             type="button"
-            onClick={() => {
-              clearAuthToken();
+            onClick={async () => {
+              await api.auth.logout();
               router.replace('/login');
             }}
             className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50"

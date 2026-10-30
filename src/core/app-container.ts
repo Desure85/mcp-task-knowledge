@@ -863,6 +863,7 @@ export class AppContainer {
         // AUD-16: persist revocations so a restart doesn't de-revoke tokens.
         blacklistPath: path.join(DATA_DIR, '.jwt-revoked.json'),
       });
+      if (this.ctx) this.ctx.revokeJwt = (jti, exp) => validator.revokeByJti(jti, exp);
       return validator.asTokenValidator();
     }
     const manager = new TokenManager();
