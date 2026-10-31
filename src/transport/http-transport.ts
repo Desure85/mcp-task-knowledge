@@ -531,6 +531,14 @@ export class HttpTransportAdapter implements TransportAdapter {
   private async createSessionTransport(remote: string): Promise<SdkHttpTransport> {
     const transport = new SdkHttpTransport({
       sessionIdGenerator: () => randomUUID(),
+      // SC-01 / root cause 1: SSE framing is quadratic in payload size inside the SDK
+      // (20 MB: ~4194 ms over SSE vs 246 ms as application/json; see
+      // docs/benchmarks/scale-2026-10.md §3.2). JSON responses skip the SSE parser entirely.
+      // Trade-off: per-request progress notifications are only delivered over SSE, so
+      // MCP_JSON_RESPONSES=0 restores the old behaviour where they are needed.
+      enableJsonResponse: !['0', 'false', 'no', 'off'].includes(
+        String(process.env.MCP_JSON_RESPONSES ?? '').toLowerCase(),
+      ),
       onsessioninitialized: async (sessionId: string) => {
         this.sessions.set(sessionId, transport);
         const sm = this.serverCtx?.sessionManager;
