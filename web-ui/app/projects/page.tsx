@@ -156,6 +156,7 @@ export default function ProjectsPage() {
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-end">
             <Input
               label="Project id"
+              hint="Lowercase slug; cannot be changed later"
               value={newId}
               onChange={(e) => setNewId(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void createProject()}
@@ -168,7 +169,13 @@ export default function ProjectsPage() {
               onChange={(e) => setNewDesc(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void createProject()}
             />
-            <Button variant="primary" onClick={() => void createProject()} loading={busy} disabled={!newId.trim()}>
+            <Button
+              variant="primary"
+              onClick={() => void createProject()}
+              loading={busy}
+              disabled={!newId.trim()}
+              className="w-full sm:mb-[18px] sm:w-auto"
+            >
               Create
             </Button>
           </div>

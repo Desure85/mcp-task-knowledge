@@ -85,6 +85,7 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 - `api.tasks.list/create/get/update/close`
 - `api.knowledge.list/get/exportSingle/bulkCreate/bulkUpdate/bulkTrash`
 - `api.memory.factsList/temporalQuery/profileGet/layerList`
+- `api.prompts.list/get/update/delete/bulkCreate`
 - `api.search.tasks/knowledge`
 - `api.projects.list/getCurrent/setCurrent/statuses/transitions`
 
