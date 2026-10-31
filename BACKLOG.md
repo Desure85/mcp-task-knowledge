@@ -1246,11 +1246,38 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 ---
 
+---
+
+## Этап X — Масштабирование (2026-10-31)
+
+> Замеры: `docs/benchmarks/scale-2026-10.md` (1k/10k/100k, граф, UI, 1M-заглушки). Сейчас каждый
+> списочный вызов читает и парсит ВСЕ файлы проекта (`listTasks` — `src/storage/tasks.ts:120-156`,
+> `listDocs` — `src/storage/knowledge.ts:66-106`), поиск пересобирает BM25 на каждый запрос
+> (`src/search/bm25.ts:33-92`), а ответы в десятки мегабайт упираются в квадратичное обрамление
+> `ReadBuffer.append` MCP SDK (22.4 с на 64 MB). Факты: `tasks_list` 100k = 38 с / 56 MiB,
+> `knowledge_list` 100k = 60 с / 41 MiB, `search_knowledge` 100k = 44 с (первый вызов),
+> `dashboard_stats` 100k = 9.7 с, UI `/tasks` 10k = 6 с / 105k DOM, граф 5000 узлов = 13.7 с и
+> 16.3 с Long Tasks. Не дублирует U-04 (расширяет его курсором и `maxBytes`), MU-03 (SC-07 — решение
+> о пакетном коммите ДО его реализации), V-04/V-05 (колонки и дорожки доски), UI-16/UI-24 (список и
+> токены). Порядок: SC-01 → SC-02 → SC-03; SC-04 после SC-01; SC-06 параллельно; SC-05 независим;
+> SC-07 до MU-03; SC-08 последним.
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| SC-01 | Пагинация, `fields`, `count`, `maxBytes` и серверные фильтры во всех list/search | high | pending | — | Расширить U-04: единый пост-фильтр `fields`, `compact`, курсор `(updatedAt desc, id)` как opaque base64, `maxBytes` → `{items, nextCursor, truncated}`, `count`/count-only, серверные фильтры `status/tag/type/parentId` для `tasks_list/tasks_tree/tasks_dag/knowledge_list/knowledge_tree/search_*`. Дефолт — лимит 200 и `maxBytes` 1 MiB (breaking, клиентов нет). DoD: `npm test -- tests/response-economy.test.ts`; `node scripts/bench/run-scale.mjs --data <100k> --n 100000 --only tasks_list,knowledge_list --reps 3` → `responseBytes < 1048576` и `medianMs < 1000` для обеих операций |
+| SC-02 | SQLite-индекс метаданных задач и документов (файлы — источник истины) | high | pending | SC-01 | Таблицы `tasks`/`docs` (id, project, status, priority, type, parent_id, updated_at, tags) + обновление в той же критической секции, что `writeJson`/`writeText`; перестройка командой и ленивая сверка `stat` при старте; `doctor` показывает расхождения. Убирает O(N)-скан и холодный кэш (1000 файлов холодно = 25.8 с). DoD: `npm test -- tests/scale-index.test.ts` (эквивалентность list-результатов файловому пути, инвалидация, сверка при старте); `node scripts/bench/run-scale.mjs --data <100k> --n 100000 --only tasks_list,knowledge_list --reps 3` → `medianMs < 300` и `responseBytes < 1048576` |
+| SC-03 | Инвертированный индекс поиска (FTS5) вместо пересборки BM25 на запрос | high | pending | SC-02 | Индекс терминов/FTS5 в той же SQLite-базе; `search_tasks`/`search_knowledge` читают индекс, а не токенизируют корпус (100k доков = 23.6 с и 4.1 GB RSS). Сохранить текущее качество: hit@1 на `scripts/kb-bench-queries.json` не ниже baseline (`docs/benchmarks/kb-hardening-2026-10-20.md`: hit@1 88.9 %, MRR 0.926). DoD: `npm test -- tests/search-index.test.ts`; `node scripts/bench/run-scale.mjs --data <100k> --n 100000 --only search_tasks,search_knowledge --reps 3` → `medianMs < 1000`; `node scripts/kb-bench.mjs retrieval --mode bm25` → hit@1 ≥ 0.889 |
+| SC-04 | UI: серверная пагинация, виртуализация, агрегированные счётчики | high | pending | SC-01 | Доска грузит по колонкам (`status`+`limit`) и виртуализирует карточки, счётчики колонок — из `count`/`dashboard_stats`; список знаний — серверная пагинация + виртуализация; фильтры на сервере. Сейчас 10k задач = 105k DOM и 6 с до отрисовки (`web-ui/app/tasks/page.tsx:85`). DoD: `node scripts/bench/ui-bench.mjs --pages tasks,knowledge` на 10k → `domNodes < 20000` и `domSettledMs < 1500` для обеих страниц; `npm --prefix web-ui run test` зелёный |
+| SC-05 | Граф: лимит, окрестность узла, кластеризация, LOD и легенда | medium | pending | — | Дефолтный лимит 200–300 узлов с «показано N из M», режим окрестности (`depth=1..2`), кластеризация по типу/тегу с раскрытием, подписи только у крупных узлов. Сейчас 1000 узлов = 2.3 с и 2 с Long Tasks, 5000 = 13.7 с и 16.3 с (`scripts/bench/graph-bench.mjs`). DoD: `node scripts/bench/graph-bench.mjs --sizes 200,1000,5000` → при 5000 узлах `longTaskTotalMs < 2000` и `timedOut === false`; скриншоты 200/1000 в PR |
+| SC-06 | Шардирование каталогов и ретеншн архива | medium | pending | SC-02 | При > 50k файлов в проекте писать в `tasks/<project>/<ab>/` и `knowledge/<project>/<ab>/` (ab = первые 2 символа id), чтение поддерживает оба layout (паттерн уже есть в `listTasks`/`listDocs`); автоархив закрытых задач старше T без удаления; фоновая компакция. 1M файлов в одном каталоге: `readdir` 1.07 с тёплый, `rm -rf` 24.8 с. DoD: `npm test -- tests/sharding.test.ts` (миграция, чтение старого layout, отсутствие дублей); `node scripts/bench/seed-scale.mjs --n 100000 --out <dir> --sharded` → `readdir` по шарду < 100 мс |
+| SC-07 | Пакетная git-история (решение для MU-03) | medium | pending | — | До реализации MU-03 зафиксировать, что коммит на операцию при 100k+ файлов недопустим (`git add`/`status` = O(N) на запись): очередь изменений + коммит по таймеру/размеру пачки, либо отдельный репозиторий истории, либо таблица ревизий в SQLite. ADR + реализация пакетного коммита вместе с MU-03. DoD: `npm test -- tests/git-history-batch.test.ts` (N операций → один коммит, откат = новый коммит, нет потери изменений при падении); ADR в `docs/adr/` |
+| SC-08 | Бенчмарк масштаба как ночной гейт | low | pending | SC-01..SC-04 | `npm run bench:scale -- --n 100000` с порогами из DoD выше, JSON-результаты в артефакт CI, регрессия > 2× от baseline — красный. Не входит в `npm test`. DoD: workflow `.github/workflows/scale-bench.yml` (schedule) зелёный на master; при искусственном замедлении `listTasks` порог падает |
+
 ## Статистика бэклога
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-10-31 (добавлены этапы Y — подключаемое хранилище и эмбеддинги, Z — скиллы и плагины как пакеты, источники промптов и слияние; UI-30..UI-32 польза графа и U-06 graph_neighbors. Ранее: UI-28 граф знаний (подписи, «Show related facts», два режима), UI-29, DX-33, UI-26/UI-27, DX-34, V-01/V-02, UI-24 части 1–5, UI-10, UI-13, UI-22, DX-32)
+**Последнее обновление:** 2026-10-31 (добавлен этап X «Масштабирование» SC-01..SC-08 по итогам замеров `docs/benchmarks/scale-2026-10.md`; этапы Y — подключаемое хранилище и эмбеддинги, Z — скиллы и плагины как пакеты, источники промптов и слияние; UI-30..UI-32 польза графа и U-06 graph_neighbors. Ранее: UI-28 граф знаний (подписи, «Show related facts», два режима), UI-29, DX-33, UI-26/UI-27, DX-34, V-01/V-02, UI-24 части 1–5, UI-10, UI-13, UI-22, DX-32)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -1294,9 +1321,10 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent convenience (U) | 6 | 5 | 0 | 1 | 0 | 0 |
 | Workflow and boards (V) | 5 | 3 | 0 | 2 | 0 | 0 |
 | Admin UI design and UX (W) | 22 | 16 | 0 | 7 | 0 | 0 |
+| Scaling (X) | 8 | 8 | 0 | 0 | 0 | 0 |
 | Pluggable storage (Y) | 9 | 9 | 0 | 0 | 0 | 0 |
 | Skills and packages (Z) | 9 | 9 | 0 | 0 | 0 | 0 |
-| **Итого** | **376** | **109** | **0** | **266** | **0** | **1** |
+| **Итого** | **384** | **117** | **0** | **266** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
