@@ -49,19 +49,12 @@ placed in the WebSocket URL, so it cannot leak into proxy/server access logs or 
 
 ### Theme and design tokens
 
-The admin UI has two independent theme axes stored in `localStorage`:
-
-- `mcp.mode`: `light`, `dark` or `system` (system follows the OS preference);
-- `mcp.theme`: `indigo` (default), `petrol` or `copper`.
-
-An inline script in `app/layout.tsx` applies `data-mode`/`data-theme` before first
-paint, so reloads do not flash. Token-migrated pages (UI-24 parts 1–5):
-**Tasks, Overview, Access, Login, Knowledge, Memory, Analytics, Graph, Prompts, Projects, System, Search** plus the shell. Tokens live in `app/globals.css`; components must
-use semantic utilities (`bg-surface`, `text-ink`, `border-line`, `bg-accent`,
-`text-st-done`, …) rather than raw colours. Add a palette to `lib/theme.ts` and
-to all six `[data-theme][data-mode]` CSS blocks, then run
-`npm run test -- lib/theme.contrast.test.ts` (WCAG AA gate). The dev-only
-`/design` route shows every primitive in all six variants.
+Read [`../DESIGN.md`](../DESIGN.md) before changing anything under `web-ui/`; it is the single style guide
+for people and agents. Short version: two independent axes (`mcp.mode`: `light`/`dark`/`system`,
+`mcp.theme`: `indigo`/`petrol`/`copper`), values in `app/globals.css`, model in `lib/theme.ts`, primitives in
+`components/ui`, WCAG AA gate in `lib/theme.contrast.test.ts`, dev-only showcase at `/design`.
+`npm run design:doc` (repo root) refreshes the generated tables in `DESIGN.md`; guards live in
+`lib/design-guards.test.ts` and `lib/no-hardcoded-colors.test.ts`.
 
 ## Pages
 

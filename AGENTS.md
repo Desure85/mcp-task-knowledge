@@ -405,6 +405,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 - Запуск: `npm test`.
 - Для интеграционных: `npm run e2e:cli`.
 
+### Дизайн и UI (web-ui)
+
+- **Перед любой правкой `web-ui/` прочитай `DESIGN.md`** (в корне, рядом с этим файлом). Визуальные решения
+  владельца фиксируются там, а не в переписке: токены, две оси темы, каталог примитивов, контракт страницы,
+  список запретов и известный долг.
+- Стиль меняется только через `DESIGN.md`: новый примитив — сначала в `web-ui/components/ui` и на `/design`,
+  потом страница. Стражи `web-ui/lib/design-guards.test.ts` и `web-ui/lib/no-hardcoded-colors.test.ts` не
+  обходятся allowlist'ом без причины и задачи-владельца.
+- Сгенерированные блоки документа обновляет `npm run design:doc`; расхождение с кодом ловит
+  `web-ui/lib/design-doc.test.ts`.
+- Claude Code читает `CLAUDE.md`, который импортирует этот файл; правила `DESIGN.md` выше любых внешних
+  скиллов вроде `frontend-design`.
+
 ---
 
 ## 8. Текущее состояние сессии
@@ -412,10 +425,26 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-10-31
-**Session ID:** ses_e72dfcc40ffezuSMVsJt9RRyXI (V-01/V-02 statuses and transitions)
-**Текущая ветка:** feat/project-statuses-transitions (worktree `/home/dm/work/mcp-tk-v01`, от origin/master 3672e2e)
-**Текущий этап:** Stage V — project statuses and transition graph (server + web-ui client).
-**Статус:** V-01/V-02 done, V-03/V-04/V-05 pending. Default four statuses + legacy `blocked`, `project_statuses_get/set`, `project_transitions_get/set`, category-based dashboard/briefing/DAG, transition errors and bulk failures, API reference regenerated.
+**Session ID:** ses_e6cd1f9fcffes9PwNIHtPttsF7 (UI-34 DESIGN.md и стражи дизайна)
+**Текущая ветка:** docs/design-guide (worktree `/home/dm/work/mcp-tk-designdoc`, от origin/master 0cc8afc)
+**Текущий этап:** Stage W — админка: дизайн и UX. UI-34: единый стилевой гайд и охранные тесты.
+**Статус:** UI-34 done (документация, генератор, стражи), UI-33 добавлен как pending. Поведение интерфейса не менялось.
+
+### Сессия ses_e6cd1f9fcffes9PwNIHtPttsF7 (UI-34 DESIGN.md и стражи дизайна, 2026-10-31)
+
+- `DESIGN.md` в корне: обязательное чтение до правки `web-ui/`, принципы A+B+C, две оси темы, каталог
+  примитивов, контракт страницы и состояний, доступность AA, запреты, процесс добавления, журнал решений
+  владельца (2026-10-31) и известный долг.
+- `scripts/gen-design-doc.mjs` + `npm run design:doc`: генерирует таблицу токенов из `app/globals.css` и
+  `lib/theme.ts` и каталог примитивов из `components/ui/index.ts` (первая строка JSDoc). Блоки между
+  маркерами; руками не правятся.
+- Тесты: `web-ui/lib/design-doc.test.ts` (расхождение документа с кодом) и `web-ui/lib/design-guards.test.ts`
+  (нативные диалоги, голые контролы, контракт страницы). Allowlist'ы — реестр долга: устаревшая запись роняет тест.
+- `CLAUDE.md` в корне импортирует `AGENTS.md`, добавляет обязательный `DESIGN.md` и приоритет правил проекта
+  над внешними скиллами. `web-ui/README.md` и `docs/features/web-ui.md` ссылаются на `DESIGN.md` вместо
+  копии правил.
+- Страницы не переписывались: нарушения (собственные `h1` в Knowledge/Prompts, нативные контролы) внесены в
+  allowlist как долг UI-11/UI-15/UI-16 и перечислены в `DESIGN.md` §10.
 
 ### Сессия ses_e72dfcc40ffezuSMVsJt9RRyXI (V-01/V-02 statuses and transitions, 2026-10-31)
 
