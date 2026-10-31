@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **121**
+Всего инструментов: **125**
 
 ## Инструменты
 
@@ -78,6 +78,10 @@
 | `project_list` | List all available projects with task and knowledge counts, descriptions, and creation dates. |
 | `project_purge` | Enumerate and permanently delete ALL tasks and/or knowledge in the project. Requires confirm=true un |
 | `project_set_current` | Change the current project context used when project is omitted (per-session on http/tcp, global on  |
+| `project_statuses_get` | Get the project status set, close status and allowed initial statuses. New projects use the default  |
+| `project_statuses_set` | Replace the project status set. Statuses used by tasks cannot be removed without moveTo or moves. At |
+| `project_transitions_get` | Get the allowed status transition graph. A null graph means every transition is allowed. |
+| `project_transitions_set` | Replace the allowed status transition graph. A missing from-key is unrestricted; use null to restore |
 | `project_update` | Update project metadata (description). |
 | `prompts_ab_report` | Aggregate A/B metrics and passive feedback for all prompt keys |
 | `prompts_bandit_next` | Pick next variant for a prompt using epsilon-greedy over aggregates |
@@ -109,7 +113,7 @@
 | `tasks_bulk_trash` | Move many tasks to trash |
 | `tasks_bulk_update` | Update fields of many tasks at once |
 | `tasks_claim` | Take a lease on a task so a second agent does not start the same work. The holder is visible to othe |
-| `tasks_close` | Close a task by setting its status to 'closed'. Optionally cascade the close to all descendants (sub |
+| `tasks_close` | Close a task by moving it to the project's close status. Optionally cascade the close to all descend |
 | `tasks_create` | Create a single task. Optionally set parentId to create a subtask. Maximum nesting depth is 10 level |
 | `tasks_dag` | Get the full dependency DAG for a project: topological sort, critical path, and edge list. |
 | `tasks_get` | Get task by id. Includes the active claim/lease holder when the task is claimed. |
@@ -1954,6 +1958,102 @@ Change the current project context used when project is omitted (per-session on 
 }
 ```
 
+## project_statuses_get
+
+**Get Project Statuses**
+
+Get the project status set, close status and allowed initial statuses. New projects use the default four statuses.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_statuses_get",
+  "arguments": {
+    "project": "mcp"
+  }
+}
+```
+
+## project_statuses_set
+
+**Set Project Statuses**
+
+Replace the project status set. Statuses used by tasks cannot be removed without moveTo or moves. At least one active todo and one active done status are required.
+
+**Параметры:**
+
+- `project`
+- `statuses`
+- `moveTo`
+- `moves`
+- `closeStatus`
+- `initialStatuses`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_statuses_set",
+  "arguments": {
+    "project": "mcp",
+    "statuses": "example",
+    "moveTo": "example",
+    "moves": "example",
+    "closeStatus": "example",
+    "initialStatuses": "example"
+  }
+}
+```
+
+## project_transitions_get
+
+**Get Project Transitions**
+
+Get the allowed status transition graph. A null graph means every transition is allowed.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_transitions_get",
+  "arguments": {
+    "project": "mcp"
+  }
+}
+```
+
+## project_transitions_set
+
+**Set Project Transitions**
+
+Replace the allowed status transition graph. A missing from-key is unrestricted; use null to restore any-to-any. The graph must not leave a done status unreachable from the initial statuses.
+
+**Параметры:**
+
+- `project`
+- `transitions`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_transitions_set",
+  "arguments": {
+    "project": "mcp",
+    "transitions": "example"
+  }
+}
+```
+
 ## project_update
 
 **Update Project**
@@ -2759,7 +2859,7 @@ Take a lease on a task so a second agent does not start the same work. The holde
 
 **Close Task**
 
-Close a task by setting its status to 'closed'. Optionally cascade the close to all descendants (subtasks, sub-subtasks, etc.).
+Close a task by moving it to the project's close status. Optionally cascade the close to all descendants (subtasks, sub-subtasks, etc.).
 
 **Параметры:**
 
