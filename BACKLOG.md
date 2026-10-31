@@ -903,6 +903,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | DX-31 | Node.js 24: CI, Docker, engines | high | done | — | Node 20 EOL (апрель 2026). `engines.node >=22.0.0`, `.nvmrc=24`; все workflow — Node 24 (primary), `node-compat` матрица `22.x`+`24.x`; Dockerfile/web-ui/Dockerfile/compose — `node:24-bullseye` / `node:24-alpine`, base-образы `mcp-node:24-*`; подняты actions: checkout v7, setup-node v7, upload-artifact v7, docker/login 4.6.0, setup-buildx 4.3.0, build-push 7.3.0, setup-qemu 4.3.0 (inputs не менялись; checkout v7 ломает только `pull_request_target`/`workflow_run` — у нас их нет). Проверено на Node 24.22.2: build, test:types, lint, `npm test` 259 файлов/3026 тестов, web-ui `tsc`+`npm test`; нативные модули better-sqlite3 12.11 (ABI 137) и onnxruntime-node 1.30 грузятся. Осталось: опубликовать `mcp-node:24-*` через docker-build-base |
 | DX-32 | CI: пропуск загрузки CUDA-бинарей onnxruntime-node при npm ci | high | done | — | Причина: на linux/x64 у `onnxruntime-node@1.30` postinstall (`node ./script/install`) по умолчанию берёт манифест `cuda12` и качает `Microsoft.ML.OnnxRuntime.Gpu.Linux` с `api.nuget.org`; в CI дважды падал `npm ci` с ETIMEDOUT (jobs prompts-pipeline и compat 22.x), ретрай помогал. В `script/install-utils.js` флаг читается из `ONNXRUNTIME_NODE_INSTALL` (или `npm_config_onnxruntime_node_install`), значение `skip` завершает install.js до скачивания; устаревший вариант `ONNXRUNTIME_NODE_INSTALL_CUDA` не использовать. CPU-библиотеки уже в npm-пакете, не бандлятся только CUDA-провайдеры. Где выставить: workflow-уровень `env: ONNXRUNTIME_NODE_INSTALL: skip` во всех job с `npm ci` (lint, web-ui, prompts-ci, prompts-sandbox-reindex, backlog-check, markdownlint-autofix, bulk-smoke, node-compat, publish); в `Dockerfile` — только CPU-стадии (`deps`), GPU-образ `runtime-onnx-gpu` обязан НЕ ставить skip: ему нужны `libonnxruntime_providers_cuda.so` и tensorrt, поэтому отдельный install с `ONNXRUNTIME_NODE_INSTALL=cuda12` (или без переменной) и проверка наличия библиотек. DoD: лог `npm ci` в CI не содержит обращений к `api.nuget.org` и `Microsoft.ML.OnnxRuntime.Gpu.Linux`; `rg -c "nuget.org" <job-log>` → 0; GPU-образ содержит `libonnxruntime_providers_cuda.so`; доки по установке (Docker/CI) объясняют переменную Реализовано (2026-10-31): `ONNXRUNTIME_NODE_INSTALL: skip` на всех root-install шагах workflows (lint, web-ui, prompts-ci, prompts-sandbox-reindex, backlog-check, markdownlint-autofix, bulk-smoke, node-compat, onnx-cpu-selfcheck, publish); в `Dockerfile` — `ARG/ENV ONNXRUNTIME_INSTALL=skip` в стадии `deps` (CPU), GPU-стадия `base-onnx-gpu-with-models` явно получает `ONNXRUNTIME_NODE_INSTALL=cuda12` и по-прежнему делает `npm rebuild onnxruntime-node` (CUDA-провайдеры остаются). Проверка: `unshare -rn` + install.js — с `skip` exit 0, `strace` 0 connect; без переменной — `ENOTFOUND api.nuget.org`; CPU без CUDA-библиотек грузит `ort.Tensor` и 41 тест (vector guard/autodetect/warmup/config) зелёный. В CI доказательство — строка шага «ONNX CUDA providers absent (ONNXRUNTIME_NODE_INSTALL=skip) — OK» (prompts-ci, node-compat) и отсутствие `api.nuget.org`/`Microsoft.ML.OnnxRuntime.Gpu.Linux` в логе. Скрипт/доки: `docs/deployment/docker.md`. |
+| DX-33 | Убрать лишний бинарник GitHub CLI и служебное состояние агента из git | high | done | — | В `bin/` случайно закоммичен 42.7 MB ELF GitHub CLI 2.67.0 (коммит 9f949a1), не используется скриптами/workflows/Dockerfile; удалён и добавлен в `.gitignore`. Отслеживаемые `.opencode/goals/state.json.lock` и `state.json.sessions/**` сняты с индекса (`git rm --cached`), `.opencode` уже в `.gitignore`; дополнительно скрыт `.playwright-mcp/`. История не переписывалась — решение по `git filter-repo` за владельцем. Проверки: build, lint:md, backlog:check; дерево уменьшилось с 54.78 MiB до ~12.2 MiB. |
 
 ---
 
@@ -1194,7 +1195,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 > Агент обновляет после каждого изменения.
 
-**Последнее обновление:** 2026-10-31 (V-01/V-02: статусы проекта и граф переходов, сервер + клиент; осталось V-03/V-04/V-05. Ранее: UI-24 части 1–5, UI-10, UI-13, UI-22, DX-32 done)
+**Последнее обновление:** 2026-10-31 (DX-33: удалён лишний бинарник GitHub CLI и снято служебное состояние `.opencode` с индекса, история не переписана. V-01/V-02: статусы проекта и граф переходов, сервер и клиент; осталось V-03/V-04/V-05. Ранее: UI-24 части 1–5, UI-10, UI-13, UI-22, DX-32 done)
 
 | Категория | Всего | pending | in_progress | done | blocked | deferred |
 |-----------|-------|---------|-------------|------|---------|----------|
@@ -1228,7 +1229,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 18 | 0 | 0 | 0 | 0 |
-| DX/Onboarding (N) | 22 | 20 | 0 | 2 | 0 | 0 |
+| DX/Onboarding (N) | 23 | 20 | 0 | 3 | 0 | 0 |
 | Trust/Hardening (O) | 20 | 19 | 0 | 1 | 0 | 0 |
 | MCP spec compliance (P) | 10 | 8 | 0 | 2 | 0 | 0 |
 | KB hardening (Q) | 7 | 1 | 0 | 6 | 0 | 0 |
@@ -1238,7 +1239,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent convenience (U) | 5 | 4 | 0 | 1 | 0 | 0 |
 | Workflow and boards (V) | 5 | 3 | 0 | 2 | 0 | 0 |
 | Admin UI design and UX (W) | 15 | 11 | 0 | 4 | 0 | 0 |
-| **Итого** | **347** | **84** | **0** | **262** | **0** | **1** |
+| **Итого** | **348** | **84** | **0** | **263** | **0** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O

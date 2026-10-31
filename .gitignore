@@ -8,6 +8,9 @@ node_modules
 dist
 audit_bundle
 
+# Accidentally committed local tool binary (not used by scripts/CI/Docker)
+bin/gh
+
 # Local runtime data (Docker volume mount target, root-owned)
 mcpTrackerData/
 
@@ -139,6 +142,9 @@ __pycache__/
 .memory/
 .omo/
 .opencode
+
+# Browser/agent runtime state (never share)
+.playwright-mcp/
 
 # Local benchmark reports (published versions live in docs/benchmarks/)
 benchmarks/
