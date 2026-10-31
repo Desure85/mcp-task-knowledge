@@ -2,14 +2,43 @@
  * web-ui/app/projects/page.tsx — Projects management (PH-015)
  *
  * Multi-project isolation: list, create, set-current (session-scoped per
- * PH-004), update description, delete (force) / purge (wipe all data) —
- * destructive ops guarded by explicit window.confirm.
+ * PH-004), update description, delete (force) / purge (wipe all data).
+ * Destructive actions are confirmed with an accessible Dialog; purge also
+ * requires typing the project id. No server-side contract changed.
  */
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { api, type ProjectInfo } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  Dialog,
+  EmptyState,
+  Input,
+  Skeleton,
+} from '@/components/ui';
+import { IconAlert, IconProjects } from '@/components/icons';
+
+function Notice({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div
+      role="alert"
+      className="mb-4 flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface p-3 text-[12px] text-danger"
+    >
+      <span className="flex items-start gap-2">
+        <IconAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>{children}</span>
+      </span>
+      {action}
+    </div>
+  );
+}
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -19,6 +48,9 @@ export default function ProjectsPage() {
   const [newId, setNewId] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectInfo | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<ProjectInfo | null>(null);
+  const [purgeConfirm, setPurgeConfirm] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -41,9 +73,10 @@ export default function ProjectsPage() {
 
   async function createProject() {
     const id = newId.trim();
-    if (!id) return;
+    if (!id || busy) return;
     try {
       setBusy(true);
+      setError(null);
       await api.projects.create(id, newDesc.trim() || undefined);
       setNewId('');
       setNewDesc('');
@@ -58,6 +91,7 @@ export default function ProjectsPage() {
   async function setAsCurrent(id: string) {
     try {
       setBusy(true);
+      setError(null);
       const res = await api.projects.setCurrent(id);
       setCurrent(res);
       await load();
@@ -68,11 +102,13 @@ export default function ProjectsPage() {
     }
   }
 
-  async function deleteProject(id: string) {
-    if (!window.confirm(`Delete project "${id}" and all its data? This cannot be undone.`)) return;
+  async function confirmDelete() {
+    if (!deleteTarget || busy) return;
     try {
       setBusy(true);
-      await api.projects.remove(id, true);
+      setError(null);
+      await api.projects.remove(deleteTarget.id, true);
+      setDeleteTarget(null);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -81,13 +117,14 @@ export default function ProjectsPage() {
     }
   }
 
-  async function purgeProject(id: string) {
-    if (!window.confirm(
-      `PURGE "${id}"? Permanently deletes ALL tasks, knowledge and memory in this project. Type-confirm required.`,
-    )) return;
+  async function confirmPurge() {
+    if (!purgeTarget || busy || purgeConfirm.trim() !== purgeTarget.id) return;
     try {
       setBusy(true);
-      await api.projects.purge(id, true);
+      setError(null);
+      await api.projects.purge(purgeTarget.id, true);
+      setPurgeTarget(null);
+      setPurgeConfirm('');
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -98,101 +135,166 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-2">Projects</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        Multi-project isolation. &quot;Current&quot; is scoped to this browser&apos;s MCP session —
-        other sessions keep their own.
-      </p>
+      <PageHeader
+        title="Projects"
+        description="Multi-project isolation. “Current” is scoped to this browser's MCP session — other sessions keep their own."
+      />
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg flex justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500">✕</button>
+        <div className="mt-4">
+          <Notice action={<Button size="sm" variant="ghost" onClick={() => setError(null)}>Dismiss</Button>}>
+            {error}
+          </Notice>
         </div>
       )}
 
-      <div className="mb-6 p-4 bg-white rounded-lg border flex gap-2 items-end">
-        <div className="flex-1">
-          <label className="text-xs text-gray-500 block mb-1">New project id</label>
-          <input
-            type="text" value={newId} onChange={(e) => setNewId(e.target.value)}
-            placeholder="my-project" className="w-full px-3 py-2 border rounded-lg"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="text-xs text-gray-500 block mb-1">Description (optional)</label>
-          <input
-            type="text" value={newDesc} onChange={(e) => setNewDesc(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg"
-          />
-        </div>
-        <button
-          onClick={createProject} disabled={busy || !newId.trim()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
-          Create
-        </button>
-      </div>
+      <Card className="mt-4">
+        <CardHeader>
+          <h2 className="text-[13px] font-semibold text-ink">New project</h2>
+        </CardHeader>
+        <CardBody>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-end">
+            <Input
+              label="Project id"
+              value={newId}
+              onChange={(e) => setNewId(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void createProject()}
+              placeholder="my-project"
+            />
+            <Input
+              label="Description"
+              hint="Optional"
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void createProject()}
+            />
+            <Button variant="primary" onClick={() => void createProject()} loading={busy} disabled={!newId.trim()}>
+              Create
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
 
       {current && (
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <span className="text-sm text-blue-800">
-            Current: <b>{current.project}</b>
-            {current.scope && <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 rounded">{current.scope}</span>}
-          </span>
-        </div>
+        <Card className="mt-4 border-accent bg-accent-soft">
+          <CardBody className="flex flex-wrap items-center gap-2 text-[12px] text-ink">
+            <span>Current: <strong>{current.project}</strong></span>
+            {current.scope && <Badge>{current.scope}</Badge>}
+          </CardBody>
+        </Card>
       )}
 
-      {loading ? (
-        <p className="text-gray-500">Loading...</p>
-      ) : projects.length === 0 ? (
-        <p className="text-gray-500">No projects.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {projects.map((p) => (
-            <div key={p.id} className="bg-white p-4 rounded-lg border">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="font-semibold text-lg">{p.id}</h2>
-                <div className="flex gap-1">
-                  {p.isDefault && <span className="text-xs px-2 py-0.5 bg-gray-100 rounded">default</span>}
-                  {p.isCurrent && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">current</span>}
-                </div>
-              </div>
-              <div className="flex gap-3 text-xs text-gray-500 mb-3">
-                <span>{p.hasTasks ? '✓ tasks' : '· no tasks'}</span>
-                <span>{p.hasKnowledge ? '✓ knowledge' : '· no knowledge'}</span>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {!p.isCurrent && (
-                  <button
-                    onClick={() => setAsCurrent(p.id)} disabled={busy}
-                    className="text-sm px-3 py-1 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Set as current (this session)
-                  </button>
-                )}
-                {!p.isDefault && (
-                  <>
-                    <button
-                      onClick={() => deleteProject(p.id)} disabled={busy}
-                      className="text-sm px-3 py-1 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => purgeProject(p.id)} disabled={busy}
-                      className="text-sm px-3 py-1 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50"
-                      title="Permanently wipe all project data"
-                    >
-                      Purge
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="mt-4">
+        {loading ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <Card><CardBody><Skeleton className="h-4 w-1/3" /><Skeleton className="mt-3 h-3 w-2/3" /></CardBody></Card>
+            <Card><CardBody><Skeleton className="h-4 w-1/3" /><Skeleton className="mt-3 h-3 w-2/3" /></CardBody></Card>
+          </div>
+        ) : projects.length === 0 ? (
+          <EmptyState
+            title="No projects yet"
+            hint="Create a project above, or keep working in the default project."
+            icon={IconProjects}
+          />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {projects.map((p) => (
+              <Card key={p.id}>
+                <CardHeader className="flex items-center justify-between gap-2">
+                  <h2 className="truncate text-[14px] font-semibold text-ink">{p.id}</h2>
+                  <div className="flex shrink-0 gap-1">
+                    {p.isDefault && <Badge>default</Badge>}
+                    {p.isCurrent && <Badge tone="done">current</Badge>}
+                  </div>
+                </CardHeader>
+                <CardBody className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone={p.hasTasks ? 'done' : 'neutral'}>{p.hasTasks ? 'tasks' : 'no tasks'}</Badge>
+                    <Badge tone={p.hasKnowledge ? 'done' : 'neutral'}>
+                      {p.hasKnowledge ? 'knowledge' : 'no knowledge'}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!p.isCurrent && (
+                      <Button size="sm" onClick={() => void setAsCurrent(p.id)} disabled={busy}>
+                        Set as current
+                      </Button>
+                    )}
+                    {!p.isDefault && (
+                      <>
+                        <Button size="sm" variant="danger" onClick={() => setDeleteTarget(p)} disabled={busy}>
+                          Delete
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => { setPurgeConfirm(''); setPurgeTarget(p); }}
+                          disabled={busy}
+                          title="Permanently wipe all project data"
+                        >
+                          Purge
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete project?"
+        description={deleteTarget
+          ? `“${deleteTarget.id}” and all its data will be deleted. This cannot be undone.`
+          : undefined}
+        destructive
+        footer={
+          <>
+            <Button size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button size="sm" variant="danger" onClick={() => void confirmDelete()} loading={busy}>
+              Delete project
+            </Button>
+          </>
+        }
+      />
+
+      <Dialog
+        open={purgeTarget !== null}
+        onClose={() => { setPurgeTarget(null); setPurgeConfirm(''); }}
+        title="Purge project data?"
+        description={purgeTarget
+          ? `This permanently deletes ALL tasks, knowledge and memory in “${purgeTarget.id}”. The project itself stays.`
+          : undefined}
+        destructive
+        footer={
+          <>
+            <Button size="sm" onClick={() => { setPurgeTarget(null); setPurgeConfirm(''); }}>Cancel</Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => void confirmPurge()}
+              loading={busy}
+              disabled={!purgeTarget || purgeConfirm.trim() !== purgeTarget.id}
+            >
+              Purge data
+            </Button>
+          </>
+        }
+      >
+        {purgeTarget && (
+          <Input
+            label={`Type “${purgeTarget.id}” to confirm`}
+            value={purgeConfirm}
+            onChange={(e) => setPurgeConfirm(e.target.value)}
+            placeholder={purgeTarget.id}
+            autoFocus
+          />
+        )}
+      </Dialog>
     </div>
   );
 }
