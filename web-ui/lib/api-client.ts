@@ -582,6 +582,43 @@ export interface PromptCatalog {
   items?: Record<string, PromptCatalogEntry>;
 }
 
+export interface PromptRecord {
+  type: string;
+  id: string;
+  version: string;
+  metadata: {
+    title?: string;
+    description?: string;
+    domain?: string;
+    status?: string;
+    kind?: string;
+    tags?: string[];
+    [key: string]: unknown;
+  };
+  template?: string;
+  compose?: unknown[];
+  variables?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface PromptVersion {
+  version: string;
+  latest: boolean;
+  path: string;
+}
+
+export interface PromptGetData {
+  project: string;
+  prompt: PromptRecord;
+  versions: PromptVersion[];
+}
+
+export interface PromptSelector {
+  id?: string;
+  version?: string;
+  path?: string;
+}
+
 // ─── API methods ──────────────────────────────────────────────────
 
 export const api = {
@@ -735,6 +772,16 @@ export const api = {
       callTool<{ total: number; items: Array<{ id: string; version: string; kind: string; status?: string; domain?: string; tags: string[]; file?: string }> }>(
         'prompts_list', { ...(args ?? {}) }),
     catalog: (project?: string) => callTool<PromptCatalog>('prompts_catalog_get', { project }),
+    get: (id: string, version?: string, project?: string) =>
+      callTool<PromptGetData>('prompts_get', { id, ...(version ? { version } : {}), project }),
+    update: (selector: PromptSelector, patch: Record<string, unknown>, project?: string) =>
+      callTool<{ count: number; results: Array<{ id?: string; version?: string; path?: string; error?: string }> }>(
+        'prompts_bulk_update', { project, items: [{ selector, patch }] },
+      ),
+    delete: (selector: PromptSelector, project?: string) =>
+      callTool<{ count?: number; results: Array<{ id?: string; version?: string; path?: string; deleted?: boolean; error?: string }> }>(
+        'prompts_bulk_delete', { project, items: [selector] },
+      ),
     bulkCreate: (items: Array<Record<string, unknown>>, project?: string, overwrite?: boolean) =>
       callTool<unknown>('prompts_bulk_create', { items, project, overwrite }),
     variantsStats: (promptKey: string, project?: string) =>

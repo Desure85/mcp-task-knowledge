@@ -169,4 +169,49 @@ maybe('api-client vs live MCP server', () => {
     }
   }, 30_000);
 
+  it('prompt create → get → update → get → delete roundtrip', async () => {
+    const { api } = await import('./api-client');
+    const id = `webui-prompt-${Date.now()}`;
+    const created = await api.prompts.bulkCreate([{
+      type: 'prompt',
+      id,
+      version: '1.0.0',
+      metadata: { title: 'Web UI prompt', domain: 'ui-live', status: 'draft', kind: 'prompt', tags: ['live'] },
+      template: 'Original {{topic}}',
+      variables: [{ name: 'topic', type: 'string', required: true }],
+    }], 'mcp');
+    expect(created).toBeTruthy();
+
+    try {
+      const first = await api.prompts.get(id, undefined, 'mcp');
+      expect(first.prompt.id).toBe(id);
+      expect(first.prompt.template).toBe('Original {{topic}}');
+      expect(first.versions.map((v) => v.version)).toContain('1.0.0');
+      expect(first.versions.find((v) => v.version === '1.0.0')?.latest).toBe(true);
+
+      await api.prompts.update(
+        { id, version: '1.0.0' },
+        {
+          template: 'Updated {{topic}}',
+          metadata: { ...first.prompt.metadata, status: 'published' },
+        },
+        'mcp',
+      );
+      const second = await api.prompts.get(id, '1.0.0', 'mcp');
+      expect(second.prompt.template).toBe('Updated {{topic}}');
+      expect(second.prompt.metadata.status).toBe('published');
+
+      await api.prompts.delete({ id, version: '1.0.0' }, 'mcp');
+      let missing = false;
+      try {
+        await api.prompts.get(id, '1.0.0', 'mcp');
+      } catch {
+        missing = true;
+      }
+      expect(missing).toBe(true);
+    } finally {
+      await api.prompts.delete({ id, version: '1.0.0' }, 'mcp').catch(() => undefined);
+    }
+  }, 30_000);
+
 });

@@ -1,6 +1,6 @@
 # ROADMAP
 
-**Последнее обновление:** 2026-10-30 (добавлены открытые этапы R–U)
+**Последнее обновление:** 2026-10-31 (добавлены этапы Y и Z; открытые этапы R–Z)
 **Статус:** 181/182 задачи завершены (99.5%)
 
 > Полная документация: `docs/` — [Getting Started](docs/getting-started.md), [Tools](docs/features/tools.md), [Agent Memory](docs/features/agent-memory.md)
@@ -78,7 +78,7 @@ memory-recall, memory-sync, memory-context, memory-extract, memory-context-v2, m
 |----|--------|-----------|--------|
 | TD-003 | Удалить legacy-поддержку путей знаний | low | deferred |
 
-### Открытые этапы R–U
+### Открытые этапы R–Z
 
 Введены после последнего rewrite этого файла; подробные задачи и DoD — в `BACKLOG.md`.
 
@@ -87,7 +87,9 @@ memory-recall, memory-sync, memory-context, memory-extract, memory-context-v2, m
 | R | Многопользовательская целостность и история изменений | 8 | pending |
 | S | Трекер уровня YouTrack | 5 | pending |
 | T | Командная работа и вики | 6 | pending |
-| U | Удобство для агентов (claim/lease, дельта изменений, evidence, экономия токенов, memory_verify) | 5 | pending |
+| U | Удобство для агентов (claim/lease, дельта изменений, evidence, экономия токенов, memory_verify, graph_neighbors) | 6 | pending |
+| Y | Подключаемое хранилище и эмбеддинги (профили Store/Search/Vector/History/Lock/Blob, разделение эмбеддингов, миграция) | 9 | pending |
+| Z | Скиллы и плагины как пакеты, источники промптов, происхождение и слияние | 9 | pending |
 
 ---
 

@@ -9,10 +9,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, type KeyboardEvent } from 'react';
-import { api } from '@/lib/api-client';
+import { api, type PromptGetData, type ToolCallError } from '@/lib/api-client';
 import { PageHeader } from '@/components/PageHeader';
-import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Input, Select, Skeleton, Textarea, type BadgeTone } from '@/components/ui';
+import { Badge, Button, Card, CardBody, CardHeader, Dialog, EmptyState, Input, Select, Skeleton, Textarea, type BadgeTone } from '@/components/ui';
 import { IconPrompts } from '@/components/icons';
+import { buildPromptPatch, hasUnsavedChanges, promptToDraft, validatePromptDraft, type PromptDraft } from '@/lib/prompt-edit';
 
 interface PromptItem {
   id: string;
@@ -65,6 +66,16 @@ export default function PromptsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [tab, setTab] = useState<Tab>('prompts');
+  const [detail, setDetail] = useState<PromptGetData | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [draft, setDraft] = useState<PromptDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [discardAction, setDiscardAction] = useState<'view' | 'close'>('view');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // create form — matches validatePromptMinimal contract server-side
   const [newId, setNewId] = useState('');
@@ -78,6 +89,120 @@ export default function PromptsPage() {
   const [stats, setStats] = useState<VariantStat[] | null>(null);
   const [banditPick, setBanditPick] = useState<unknown>(null);
   const [expBusy, setExpBusy] = useState(false);
+
+  async function openPrompt(id: string, version?: string) {
+    setDetailLoading(true);
+    setDetailError(null);
+    setFormError(null);
+    try {
+      const data = await api.prompts.get(id, version === 'latest' ? undefined : version);
+      setDetail(data);
+      setDraft(promptToDraft(data.prompt));
+      setMode('view');
+    } catch (e) {
+      setDetail(null);
+      setDetailError((e as Error).message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeDetail() {
+    setDetail(null);
+    setDraft(null);
+    setMode('view');
+    setDetailError(null);
+    setFormError(null);
+  }
+
+  function requestCloseDetail() {
+    if (mode === 'edit' && detail && draft && hasUnsavedChanges(detail.prompt, draft)) {
+      setDiscardAction('close');
+      setCancelOpen(true);
+      return;
+    }
+    closeDetail();
+  }
+
+  function startEdit() {
+    if (!detail) return;
+    setDraft(promptToDraft(detail.prompt));
+    setFormError(null);
+    setMode('edit');
+  }
+
+  function cancelEdit() {
+    if (detail && draft && hasUnsavedChanges(detail.prompt, draft)) {
+      setDiscardAction('view');
+      setCancelOpen(true);
+      return;
+    }
+    setMode('view');
+  }
+
+  function discardChanges() {
+    setCancelOpen(false);
+    if (discardAction === 'close') {
+      closeDetail();
+      return;
+    }
+    if (detail) {
+      setDraft(promptToDraft(detail.prompt));
+      setMode('view');
+      setFormError(null);
+    }
+  }
+
+  async function savePrompt() {
+    if (!detail || !draft || saving) return;
+    const validation = validatePromptDraft(draft);
+    if (validation) {
+      setFormError(validation);
+      return;
+    }
+    const patch = buildPromptPatch(detail.prompt, draft);
+    if (Object.keys(patch).length === 0) {
+      setMode('view');
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await api.prompts.update(
+        { id: detail.prompt.id, version: detail.prompt.version },
+        patch,
+        detail.project,
+      );
+      const refreshed = await api.prompts.get(detail.prompt.id, detail.prompt.version, detail.project);
+      setDetail(refreshed);
+      setDraft(promptToDraft(refreshed.prompt));
+      setMode('view');
+      await loadPrompts();
+    } catch (e) {
+      const details = (e as ToolCallError)?.details as { results?: Array<{ error?: string }> } | undefined;
+      const serverMessage = details?.results?.find((r) => r.error)?.error;
+      setFormError(serverMessage ?? (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deletePrompt() {
+    if (!detail) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      await api.prompts.delete({ id: detail.prompt.id, version: detail.prompt.version }, detail.project);
+      setDeleteOpen(false);
+      closeDetail();
+      await loadPrompts();
+    } catch (e) {
+      setDeleteOpen(false);
+      setDetailError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const loadPrompts = useCallback(async () => {
     try {
@@ -166,6 +291,177 @@ export default function PromptsPage() {
 
   const filtered = items.filter((p) =>
     !searchQuery || p.id.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  if (detailLoading || detailError || detail) {
+    const prompt = detail?.prompt;
+    const meta = prompt?.metadata ?? {};
+    const text = typeof prompt?.template === 'string'
+      ? prompt.template
+      : Array.isArray(prompt?.compose)
+        ? JSON.stringify(prompt.compose, null, 2)
+        : '';
+    const variables = Array.isArray(prompt?.variables)
+      ? prompt.variables
+        .map((variable) => typeof variable === 'string' ? variable : (variable && typeof variable === 'object' && 'name' in variable ? String((variable as { name: unknown }).name) : ''))
+        .filter(Boolean)
+      : [];
+    const dirty = !!(detail && draft && hasUnsavedChanges(detail.prompt, draft));
+    const statusOptions = Array.from(new Set(['draft', 'review', 'published', 'deprecated', 'archived', draft?.status ?? ''].filter(Boolean)));
+    const kindOptions = Array.from(new Set(['prompt', 'rule', 'workflow', 'template', 'policy', 'skill', draft?.kind ?? ''].filter(Boolean)));
+
+    return (
+      <div>
+        <Button size="sm" variant="ghost" onClick={requestCloseDetail}>← All prompts</Button>
+
+        {detailError && (
+          <div role="alert" className="mt-4 flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface p-3 text-[12px] text-danger">
+            <span>{detailError}</span>
+            <Button size="sm" variant="ghost" onClick={closeDetail}>Back</Button>
+          </div>
+        )}
+
+        {detailLoading ? (
+          <Card className="mt-4"><CardBody className="space-y-3"><Skeleton className="h-6 w-1/3" /><Skeleton className="h-3 w-2/3" /><Skeleton className="h-40 w-full" /></CardBody></Card>
+        ) : prompt && draft ? (
+          mode === 'view' ? (
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">
+                      {typeof meta.title === 'string' && meta.title ? meta.title : prompt.id}
+                    </h1>
+                    <p className="mt-1 font-mono text-[11px] text-muted">{prompt.id} · {versionLabel(prompt.version)}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Badge>{typeof meta.kind === 'string' ? meta.kind : 'prompt'}</Badge>
+                      {typeof meta.status === 'string' && <Badge tone={STATUS_TONE[meta.status] ?? 'neutral'}>{meta.status}</Badge>}
+                      {typeof meta.domain === 'string' && <Badge>{meta.domain}</Badge>}
+                      {Array.isArray(meta.tags) && meta.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button size="sm" variant="primary" onClick={startEdit}>Edit</Button>
+                    <Button size="sm" variant="danger" onClick={() => setDeleteOpen(true)}>Delete</Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-4">
+                <dl className="grid gap-3 text-[12px] sm:grid-cols-2 lg:grid-cols-4">
+                  <div><dt className="text-[11px] text-muted">Status</dt><dd className="text-ink">{typeof meta.status === 'string' ? meta.status : '—'}</dd></div>
+                  <div><dt className="text-[11px] text-muted">Domain</dt><dd className="text-ink">{typeof meta.domain === 'string' ? meta.domain : '—'}</dd></div>
+                  <div><dt className="text-[11px] text-muted">Kind</dt><dd className="text-ink">{typeof meta.kind === 'string' ? meta.kind : 'prompt'}</dd></div>
+                  <div><dt className="text-[11px] text-muted">Variables</dt><dd className="text-ink">{variables.length > 0 ? variables.join(', ') : '—'}</dd></div>
+                </dl>
+                {typeof meta.description === 'string' && meta.description && <p className="text-[12px] text-muted">{meta.description}</p>}
+                <section>
+                  <h2 className="text-[13px] font-semibold text-ink">Template</h2>
+                  <pre className="mt-2 max-h-[55vh] overflow-auto whitespace-pre-wrap break-words rounded-[var(--radius-card)] border border-line bg-surface-2 p-3 font-mono text-[12px] leading-relaxed text-ink">{text || '—'}</pre>
+                </section>
+                <section>
+                  <h2 className="text-[13px] font-semibold text-ink">Versions</h2>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {detail?.versions.map((version) => (
+                      <Button
+                        key={version.version}
+                        size="sm"
+                        variant={version.version === prompt.version ? 'primary' : 'secondary'}
+                        onClick={() => void openPrompt(prompt.id, version.version)}
+                      >
+                        {versionLabel(version.version)}{version.latest ? ' · latest' : ''}
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              </CardBody>
+            </Card>
+          ) : (
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">Edit prompt</h1>
+                    <p className="mt-1 font-mono text-[11px] text-muted">{prompt.id} · {versionLabel(prompt.version)}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {dirty && <span className="text-[11px] text-warning">Unsaved changes</span>}
+                    <Button size="sm" onClick={cancelEdit}>Cancel</Button>
+                    <Button size="sm" variant="primary" onClick={() => void savePrompt()} loading={saving}>Save</Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-3">
+                {formError && (
+                  <div role="alert" className="rounded-[var(--radius-control)] border border-danger/40 bg-surface p-2 text-[12px] text-danger">
+                    {formError}
+                  </div>
+                )}
+                <Input
+                  label="Title"
+                  value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                />
+                <Input
+                  label="Description"
+                  value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Select label="Status" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
+                    {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </Select>
+                  <Input label="Domain" value={draft.domain} onChange={(e) => setDraft({ ...draft, domain: e.target.value })} />
+                  <Select label="Kind" value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
+                    {kindOptions.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+                  </Select>
+                  <Input
+                    label="Tags"
+                    hint="Comma-separated"
+                    value={draft.tags}
+                    onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+                  />
+                </div>
+                <Textarea
+                  label="Template"
+                  hint="Markdown/text; variables keep the {{name}} syntax"
+                  value={draft.template}
+                  onChange={(e) => setDraft({ ...draft, template: e.target.value })}
+                  className="h-[420px] resize-y font-mono text-[12px]"
+                />
+              </CardBody>
+            </Card>
+          )
+        ) : null}
+
+        <Dialog
+          open={cancelOpen}
+          onClose={() => setCancelOpen(false)}
+          title="Discard unsaved changes?"
+          description="Your edits to this prompt will be lost."
+          destructive
+          footer={
+            <>
+              <Button size="sm" onClick={() => setCancelOpen(false)}>Keep editing</Button>
+              <Button size="sm" variant="danger" onClick={discardChanges}>Discard changes</Button>
+            </>
+          }
+        />
+
+        <Dialog
+          open={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          title="Delete prompt?"
+          description={detail ? `Delete ${detail.prompt.id}@${detail.prompt.version}? This cannot be undone.` : undefined}
+          destructive
+          footer={
+            <>
+              <Button size="sm" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+              <Button size="sm" variant="danger" onClick={() => void deletePrompt()} loading={saving}>Delete prompt</Button>
+            </>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -307,19 +603,26 @@ export default function PromptsPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               {filtered.map((p) => (
                 <Card key={`${p.id}@${p.version}`}>
-                  <CardBody className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h2 className="min-w-0 text-[14px] font-semibold text-ink">{p.id}</h2>
-                      <span className="shrink-0 font-mono text-[11px] text-muted">{versionLabel(p.version)}</span>
+                  <button
+                    type="button"
+                    onClick={() => void openPrompt(p.id, p.version)}
+                    className="w-full rounded-[var(--radius-card)] p-4 text-left transition hover:bg-surface-2"
+                    aria-label={`Open prompt ${p.id}`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h2 className="min-w-0 text-[14px] font-semibold text-ink">{p.id}</h2>
+                        <span className="shrink-0 font-mono text-[11px] text-muted">{versionLabel(p.version)}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge>{p.kind}</Badge>
+                        {p.status && <Badge tone={STATUS_TONE[p.status] ?? 'neutral'}>{p.status}</Badge>}
+                        {p.domain && <Badge>{p.domain}</Badge>}
+                        {(p.tags ?? []).map((tag) => <Badge key={tag}>{tag}</Badge>)}
+                      </div>
+                      {p.file && <p className="truncate font-mono text-[11px] text-muted">{p.file}</p>}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge>{p.kind}</Badge>
-                      {p.status && <Badge tone={STATUS_TONE[p.status] ?? 'neutral'}>{p.status}</Badge>}
-                      {p.domain && <Badge>{p.domain}</Badge>}
-                      {(p.tags ?? []).map((tag) => <Badge key={tag}>{tag}</Badge>)}
-                    </div>
-                    {p.file && <p className="truncate font-mono text-[11px] text-muted">{p.file}</p>}
-                  </CardBody>
+                  </button>
                 </Card>
               ))}
             </div>

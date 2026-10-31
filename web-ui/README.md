@@ -72,7 +72,7 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 - `/knowledge` — Knowledge list, read-first document view with TOC, Markdown editor
 - `/memory` — Facts, temporal history, profiles and memory layers
 - `/analytics` — Counters, task distribution and browser-local feedback
-- `/graph` — Entities and temporal facts with legend and accessible node list
+- `/graph` — Knowledge graph with two modes (Entities / Facts & entities), collision-free labels, `Show related facts`, focus and search dimming, zoom/pan, legend and an accessible node table
 - `/prompts` — Prompt catalog, create form and A/B experiments
 - `/projects` — Project isolation, current scope, delete and purge
 - `/system` — Live sessions, embeddings and the tools catalog
@@ -85,6 +85,7 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 - `api.tasks.list/create/get/update/close`
 - `api.knowledge.list/get/exportSingle/bulkCreate/bulkUpdate/bulkTrash`
 - `api.memory.factsList/temporalQuery/profileGet/layerList`
+- `api.prompts.list/get/update/delete/bulkCreate`
 - `api.search.tasks/knowledge`
 - `api.projects.list/getCurrent/setCurrent/statuses/transitions`
 
