@@ -1,17 +1,29 @@
 /**
- * web-ui/app/graph/page.tsx — Knowledge graph viewer (NEXT2-003)
+ * web-ui/app/graph/page.tsx — Knowledge graph viewer (NEXT2-003, UI-24)
  *
  * Interactive knowledge graph:
  * - Nodes = entities + temporal facts, edges = mentions + fact relationships
  * - Data from memory_temporal_query via the typed API client
  * - Search box filters nodes, type filter narrows entity/fact
  * - Click a node to highlight its neighborhood; Expand loads more neighbors
+ *
+ * SVG colours are semantic tokens resolved at runtime; the palette is
+ * re-read when ThemeManager changes data-theme/data-mode on <html>.
  */
 
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api, type TemporalFact } from '@/lib/api-client';
+import {
+  observeThemeAttributes,
+  readCssVariable,
+  readGraphPalette,
+  type GraphPalette,
+} from '@/lib/graph-theme';
+import { PageHeader } from '@/components/PageHeader';
+import { Badge, Button, Card, CardBody, EmptyState, Input, Select, Skeleton } from '@/components/ui';
+import { IconGraph } from '@/components/icons';
 
 type NodeType = 'entity' | 'fact';
 
@@ -29,11 +41,6 @@ interface GraphEdge {
   target: string;
   label: string;
 }
-
-const NODE_COLORS: Record<NodeType, string> = {
-  entity: '#4A90D9',
-  fact: '#50C878',
-};
 
 const NODE_RADIUS: Record<NodeType, number> = {
   entity: 14,
@@ -104,9 +111,9 @@ function layout(nodes: GraphNode[], edges: GraphEdge[]): void {
     n.x = WIDTH / 2 + Math.cos(a) * (WIDTH / 3);
     n.y = HEIGHT / 2 + Math.sin(a) * (HEIGHT / 3);
   });
-  const CHARGE = -9000;
-  const LINK_DIST = 110;
-  for (let iter = 0; iter < 160; iter++) {
+  const CHARGE = -40000;
+  const LINK_DIST = 78;
+  for (let iter = 0; iter < 220; iter++) {
     for (const n of nodes) {
       let fx = 0;
       let fy = 0;
@@ -141,6 +148,18 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function useGraphPalette(): GraphPalette {
+  const [palette, setPalette] = useState<GraphPalette>(() => readGraphPalette(() => ''));
+
+  useEffect(() => {
+    const refresh = () => setPalette(readGraphPalette(readCssVariable));
+    refresh();
+    return observeThemeAttributes(document.documentElement, refresh);
+  }, []);
+
+  return palette;
+}
+
 export default function GraphPage() {
   const [facts, setFacts] = useState<TemporalFact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +168,7 @@ export default function GraphPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'' | NodeType>('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const palette = useGraphPalette();
 
   const loadGraph = useCallback(async () => {
     try {
@@ -228,50 +248,64 @@ export default function GraphPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Knowledge Graph</h1>
-        <button
-          onClick={() => { setSelectedId(null); void loadGraph(); }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          Reload
-        </button>
-      </div>
+      <PageHeader
+        title="Knowledge graph"
+        description="Entities and temporal facts, linked by mentions and relationships."
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => { setSelectedId(null); void loadGraph(); }}
+            loading={loading}
+          >
+            Reload
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg flex justify-between">
+        <div role="alert" className="mt-4 flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface p-3 text-[12px] text-danger">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500">✕</button>
+          <Button size="sm" variant="ghost" onClick={() => setError(null)}>Dismiss</Button>
         </div>
       )}
 
-      <div className="mb-4 flex gap-3 flex-wrap">
-        <input
-          type="text"
+      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+        <Input
+          label="Search nodes"
+          type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search nodes..."
-          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
+          placeholder="Label or entity"
         />
-        <select
+        <Select
+          label="Node type"
           value={filterType}
           onChange={(e) => setFilterType(e.target.value as '' | NodeType)}
-          className="px-3 py-2 border rounded-lg"
         >
           <option value="">All types</option>
           <option value="entity">Entity</option>
           <option value="fact">Fact</option>
-        </select>
+        </Select>
       </div>
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2"><CardBody><Skeleton className="h-[360px] w-full" /></CardBody></Card>
+          <Card><CardBody><Skeleton className="h-3 w-2/3" /><Skeleton className="mt-2 h-3 w-full" /><Skeleton className="mt-2 h-3 w-4/5" /></CardBody></Card>
+        </div>
       ) : nodes.length === 0 ? (
-        <p className="text-gray-500">No graph data yet. Add temporal facts via memory tools first.</p>
+        <div className="mt-4">
+          <EmptyState
+            title="No graph data yet"
+            hint="Add temporal facts via memory tools first, then reload."
+            icon={IconGraph}
+            action={<Button size="sm" variant="primary" onClick={() => void loadGraph()}>Reload</Button>}
+          />
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white rounded-lg border overflow-hidden">
-            <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto" role="img" aria-label="Knowledge graph">
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="overflow-hidden bg-canvas lg:col-span-2">
+            <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="block h-auto w-full" role="img" aria-label="Knowledge graph">
               {visibleEdges.map((e) => {
                 const s = nodes.find((n) => n.id === e.source);
                 const t = nodes.find((n) => n.id === e.target);
@@ -284,7 +318,7 @@ export default function GraphPage() {
                     y1={s.y}
                     x2={t.x}
                     y2={t.y}
-                    stroke="#94a3b8"
+                    stroke={palette.edge}
                     strokeWidth={1.5}
                     opacity={dim ? 0.1 : 0.8}
                   />
@@ -301,74 +335,127 @@ export default function GraphPage() {
                     cx={n.x}
                     cy={n.y}
                     r={NODE_RADIUS[n.type]}
-                    fill={NODE_COLORS[n.type]}
-                    stroke={n.id === selectedId ? '#1e293b' : '#ffffff'}
+                    fill={palette.nodes[n.type]}
+                    stroke={n.id === selectedId ? palette.selectedStroke : palette.nodeStroke}
                     strokeWidth={n.id === selectedId ? 3 : 1.5}
                   />
-                  <text x={n.x} y={n.y + NODE_RADIUS[n.type] + 13} textAnchor="middle" fontSize={11} fill="#475569">
-                    {escapeXml(n.label.length > 28 ? `${n.label.slice(0, 28)}…` : n.label)}
-                  </text>
+                  {(n.type === 'entity' || n.id === selectedId) && (
+                    <text x={n.x} y={n.y + NODE_RADIUS[n.type] + 13} textAnchor="middle" fontSize={11} fill={palette.label}>
+                      {escapeXml(n.label.length > 28 ? `${n.label.slice(0, 28)}…` : n.label)}
+                    </text>
+                  )}
                 </g>
               ))}
             </svg>
-            <div className="flex items-center gap-4 px-4 py-2 border-t text-xs text-gray-500">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-3 h-3 rounded-full" style={{ background: NODE_COLORS.entity }} /> Entity
+            <div className="flex flex-wrap items-center gap-4 border-t border-line px-4 py-2 text-[11px] text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: palette.nodes.entity }} aria-hidden="true" /> Entity
               </span>
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-3 h-3 rounded-full" style={{ background: NODE_COLORS.fact }} /> Fact
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: palette.nodes.fact }} aria-hidden="true" /> Fact
               </span>
               <span className="ml-auto">{visible.length} nodes / {visibleEdges.length} edges</span>
             </div>
-          </div>
+          </Card>
 
-          <div className="bg-white rounded-lg border p-4 h-fit">
-            {selectedNode ? (
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <span
-                    className="text-xs px-2 py-0.5 rounded"
-                    style={{ background: `${NODE_COLORS[selectedNode.type]}1a`, color: NODE_COLORS[selectedNode.type] }}
-                  >
-                    {selectedNode.type}
-                  </span>
-                  <button onClick={() => setSelectedId(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-                </div>
-                <h2 className="font-semibold">{selectedNode.label}</h2>
-                {selectedNode.fact && (
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><span className="text-gray-400">Category:</span> {selectedNode.fact.category}</p>
-                    <p><span className="text-gray-400">Confidence:</span> {selectedNode.fact.confidence}</p>
-                    <p><span className="text-gray-400">Valid:</span> {selectedNode.fact.valid ? 'yes' : 'no'}</p>
-                    {(selectedNode.fact.entities ?? []).length > 0 && (
-                      <div className="flex gap-1 flex-wrap pt-1">
-                        {selectedNode.fact.entities.map((e) => (
-                          <span key={e} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">{e}</span>
-                        ))}
-                      </div>
-                    )}
+          <Card className="h-fit">
+            <CardBody>
+              {selectedNode ? (
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: palette.nodes[selectedNode.type] }}
+                        aria-hidden="true"
+                      />
+                      {selectedNode.type}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label="Clear node selection"
+                      onClick={() => setSelectedId(null)}
+                    >
+                      ×
+                    </Button>
                   </div>
-                )}
-                <p className="text-xs text-gray-400">
-                  {(adjacency.get(selectedNode.id)?.size ?? 0)} neighbor(s)
-                </p>
-                <button
-                  onClick={() => void expandSelected()}
-                  disabled={expanding}
-                  className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                >
-                  {expanding ? 'Expanding…' : 'Expand neighbors'}
-                </button>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">Click a node to see details and expand its neighborhood.</p>
-            )}
-          </div>
+                  <h2 className="text-[14px] font-semibold text-ink">{selectedNode.label}</h2>
+                  {selectedNode.fact && (
+                    <div className="space-y-1 text-[12px] text-muted">
+                      <p><span className="text-muted">Category:</span> <span className="text-ink">{selectedNode.fact.category}</span></p>
+                      <p><span className="text-muted">Confidence:</span> <span className="text-ink">{selectedNode.fact.confidence}</span></p>
+                      <p><span className="text-muted">Valid:</span> <span className="text-ink">{selectedNode.fact.valid ? 'yes' : 'no'}</span></p>
+                      {(selectedNode.fact.entities ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {selectedNode.fact.entities.map((entity) => (
+                            <Badge key={entity}>{entity}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted">
+                    {adjacency.get(selectedNode.id)?.size ?? 0} neighbor(s)
+                  </p>
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    onClick={() => void expandSelected()}
+                    loading={expanding}
+                  >
+                    Expand neighbors
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-[12px] text-muted">Click a node to see details and expand its neighborhood.</p>
+              )}
+            </CardBody>
+          </Card>
         </div>
       )}
 
-      {!loading && facts.length > 0 && (
-        <p className="mt-4 text-sm text-gray-500">Showing {visible.length} of {nodes.length} nodes from {facts.length} facts</p>
+      {!loading && nodes.length > 0 && (
+        <p className="mt-4 text-[12px] text-muted">
+          Showing {visible.length} of {nodes.length} nodes from {facts.length} facts
+        </p>
+      )}
+
+      {!loading && visible.length > 0 && (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-[12px] font-medium text-ink">Node list</summary>
+          <Card className="mt-2">
+            <CardBody className="overflow-x-auto">
+              <table className="w-full text-left text-[12px]">
+                <caption className="sr-only">Graph nodes</caption>
+                <thead>
+                  <tr className="border-b border-line text-muted">
+                    <th scope="col" className="py-1.5 pr-3 font-medium">Label</th>
+                    <th scope="col" className="py-1.5 pr-3 font-medium">Type</th>
+                    <th scope="col" className="py-1.5 font-medium">Neighbors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((node) => (
+                    <tr key={node.id} className="border-b border-line last:border-0">
+                      <td className="py-1.5 pr-3">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(node.id)}
+                          className="text-left text-ink underline-offset-2 hover:text-accent hover:underline"
+                        >
+                          {node.label}
+                        </button>
+                      </td>
+                      <td className="py-1.5 pr-3"><Badge>{node.type}</Badge></td>
+                      <td className="py-1.5 text-muted">{adjacency.get(node.id)?.size ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardBody>
+          </Card>
+        </details>
       )}
     </div>
   );

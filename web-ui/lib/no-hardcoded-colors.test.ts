@@ -15,6 +15,8 @@ const MIGRATED_FILES = [
   'app/knowledge/page.tsx',
   'app/memory/page.tsx',
   'app/analytics/page.tsx',
+  'app/graph/page.tsx',
+  'app/prompts/page.tsx',
   'app/page.tsx',
   'app/access/page.tsx',
   'app/login/page.tsx',
@@ -34,6 +36,7 @@ const MIGRATED_FILES = [
   'lib/realtime.ts',
   'lib/knowledge.ts',
   'lib/markdown.ts',
+  'lib/graph-theme.ts',
 ];
 
 /** File → substrings that are intentional (keep this empty unless justified). */

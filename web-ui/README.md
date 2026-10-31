@@ -55,9 +55,9 @@ The admin UI has two independent theme axes stored in `localStorage`:
 - `mcp.theme`: `indigo` (default), `petrol` or `copper`.
 
 An inline script in `app/layout.tsx` applies `data-mode`/`data-theme` before first
-paint, so reloads do not flash. Token-migrated pages so far (UI-24 parts 1–3):
-**Tasks, Overview, Access, Login, Knowledge, Memory, Analytics** plus the shell;
-Graph, Prompts, Projects, System and Search are still being migrated page by page. Tokens live in `app/globals.css`; components must
+paint, so reloads do not flash. Token-migrated pages so far (UI-24 parts 1–4):
+**Tasks, Overview, Access, Login, Knowledge, Memory, Analytics, Graph, Prompts** plus the shell;
+Projects, System and Search are still being migrated page by page. Tokens live in `app/globals.css`; components must
 use semantic utilities (`bg-surface`, `text-ink`, `border-line`, `bg-accent`,
 `text-st-done`, …) rather than raw colours. Add a palette to `lib/theme.ts` and
 to all six `[data-theme][data-mode]` CSS blocks, then run
@@ -73,6 +73,8 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 - `/knowledge` — Knowledge list, read-first document view with TOC, Markdown editor
 - `/memory` — Facts, temporal history, profiles and memory layers
 - `/analytics` — Counters, task distribution and browser-local feedback
+- `/graph` — Entities and temporal facts with legend and accessible node list
+- `/prompts` — Prompt catalog, create form and A/B experiments
 - `/search` — Unified BM25 + vector search across tasks and knowledge
 
 ## API Client

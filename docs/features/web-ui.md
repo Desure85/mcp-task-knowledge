@@ -62,13 +62,20 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Profile static/dynamic facts and system-prompt context block
 - Layered memory view with reload
 
-### Prompt Management (UI-004)
+### Knowledge Graph (NEXT2-003, UI-24)
 
-- Prompt CRUD
-- A/B experiments tab
+- SVG graph of entities and temporal facts, with mention/relationship edges
+- Node and edge colours come from semantic tokens read at runtime; the palette is re-read on `data-theme`/`data-mode` changes
+- Search and node-type filters, selected-node details and neighbor expansion
+- Legend plus a collapsible node table as the accessible alternative
+
+### Prompt Management (UI-004, UI-24)
+
+- Prompt CRUD with labelled fields
+- Accessible Catalog / A/B Experiments tabs (`tablist`/`tab`/`tabpanel`, Arrow/Home/End)
+- Status badges by role, neutral domain/tag badges, readable `latest`/version labels
 - Template editor with `{{variables}}`
-- Variant comparison
-- Bandit-based selection info
+- Variant comparison and bandit-based selection info
 
 ### Analytics (UI-006, UI-24)
 
