@@ -3,6 +3,7 @@ import { getCurrentProject } from '../config.js';
 import { listTasks, listTasksTree, updateTask, closeTask, trashTask, restoreTask, archiveTask } from '../storage/tasks.js';
 import { listDocs } from '../storage/knowledge.js';
 import { childLogger } from '../core/logger.js';
+import { closeStatusId, isKnownStatus, loadProjectWorkflow } from '../workflow.js';
 
 const log = childLogger('resources');
 
@@ -50,8 +51,8 @@ export function registerAliases(ctx: ServerContext): void {
         if (statusM) {
           const id = decodeURIComponent(statusM[1]);
           const status = decodeURIComponent(statusM[2]);
-          const allowed = new Set(['pending','in_progress','completed','closed']);
-          if (!allowed.has(status)) return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: `invalid status: ${status}` }, null, 2), mimeType: 'application/json' }] };
+          const workflow = await loadProjectWorkflow(id);
+          if (!isKnownStatus(workflow, status)) return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: `invalid status: ${status}` }, null, 2), mimeType: 'application/json' }] };
           const items = await listTasks({ project: id, status: status as any, includeArchived: false } as any);
           return { contents: [{ uri: href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
         }
@@ -101,8 +102,8 @@ export function registerAliases(ctx: ServerContext): void {
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
         const status = String(vars?.status || '').trim();
-        const allowed = new Set(['pending','in_progress','completed','closed']);
-        if (!allowed.has(status)) {
+        const workflow = await loadProjectWorkflow(id);
+        if (!isKnownStatus(workflow, status)) {
           return { contents: [{ uri: uri.href, text: JSON.stringify({ ok: false, error: `invalid status: ${status}` }, null, 2), mimeType: 'application/json' }] };
         }
         const items = await listTasks({ project: id, status: status as any, includeArchived: false } as any);
@@ -141,8 +142,11 @@ export function registerAliases(ctx: ServerContext): void {
           const action = actM[3] as 'start'|'complete'|'close'|'trash'|'restore'|'archive';
           try {
             let payload: any = null;
-            if (action === 'start') payload = await updateTask(project, id, { status: 'in_progress' } as any);
-            else if (action === 'complete') payload = await updateTask(project, id, { status: 'completed' } as any);
+            const workflow = await loadProjectWorkflow(project);
+            const firstOf = (category: 'todo' | 'in_progress' | 'done') =>
+              workflow.statuses.find((status) => !status.archived && status.category === category)?.id;
+            if (action === 'start') payload = await updateTask(project, id, { status: firstOf('in_progress') ?? workflow.initialStatuses[0] } as any);
+            else if (action === 'complete') payload = await updateTask(project, id, { status: firstOf('done') ?? closeStatusId(workflow) } as any);
             else if (action === 'close') payload = await closeTask(project, id);
             else if (action === 'trash') payload = await trashTask(project, id);
             else if (action === 'restore') payload = await restoreTask(project, id);
@@ -158,13 +162,13 @@ export function registerAliases(ctx: ServerContext): void {
           const project = decodeURIComponent(stM[1]);
           const id = decodeURIComponent(stM[2]);
           const value = decodeURIComponent(stM[3]).toLowerCase();
-          const allowed = new Map<string, 'pending'|'in_progress'|'completed'|'closed'>([
-            ['pending','pending'],['todo','pending'],
-            ['in_progress','in_progress'],['inprogress','in_progress'],['working','in_progress'],
-            ['completed','completed'],['complete','completed'],['done','completed'],
-            ['closed','closed'],['close','closed']
-          ]);
-          const status = allowed.get(value);
+          const workflow = await loadProjectWorkflow(project);
+          const byId = workflow.statuses.find((status) => status.id === value);
+          const byLabel = workflow.statuses.find((status) => status.label.toLowerCase() === value);
+          const byCategory = value === 'todo' || value === 'in_progress' || value === 'done'
+            ? workflow.statuses.find((status) => !status.archived && status.category === value)
+            : undefined;
+          const status = byId?.id ?? byLabel?.id ?? byCategory?.id;
           if (!status) return respond({ ok: false, project, id, error: `invalid status: ${value}` });
           try {
             const payload = await updateTask(project, id, { status } as any);

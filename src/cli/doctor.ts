@@ -74,7 +74,7 @@ const TASK_REQUIRED_FIELDS: ReadonlyArray<keyof Task> = [
   'updatedAt',
 ];
 
-const VALID_STATUSES = new Set(['pending', 'in_progress', 'blocked', 'completed', 'closed']);
+const DEFAULT_STATUSES = new Set(['pending', 'in_progress', 'blocked', 'completed', 'closed']);
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high']);
 
 function rel(dataDir: string, p: string): string {
@@ -92,12 +92,29 @@ async function listSubdirs(dir: string): Promise<string[]> {
 
 // ── Tasks scan ──────────────────────────────────────────────────────
 
+async function projectStatusIds(paths: DoctorPaths, project: string | undefined): Promise<Set<string>> {
+  if (!project) return DEFAULT_STATUSES;
+  try {
+    const raw = JSON.parse(await readText(path.join(paths.projectsMetaDir, `${project}.json`))) as { statuses?: unknown };
+    if (Array.isArray(raw.statuses) && raw.statuses.length > 0) {
+      const ids = raw.statuses
+        .map((status) => (status && typeof status === 'object' ? (status as { id?: unknown }).id : undefined))
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      if (ids.length > 0) return new Set([...ids, 'blocked']);
+    }
+  } catch {
+    // No metadata / unreadable metadata: default set.
+  }
+  return DEFAULT_STATUSES;
+}
+
 async function scanTaskFile(
   filePath: string,
   projectFromDir: string | undefined,
   paths: DoctorPaths,
   fix: boolean,
   issues: DoctorIssue[],
+  statusCache: Map<string, Set<string>>,
 ): Promise<void> {
   const relFile = rel(paths.dataDir, filePath);
   const stem = path.basename(filePath, '.json');
@@ -157,9 +174,15 @@ async function scanTaskFile(
     issues.push({ level: 'warn', check: 'invalid-project-id', file: relFile, detail: `project '${task.project}' does not match ${PROJECT_ID_RE.source}` });
   }
 
-  // enum sanity
-  if (typeof task.status === 'string' && task.status.length > 0 && !VALID_STATUSES.has(task.status)) {
-    issues.push({ level: 'warn', check: 'invalid-status', file: relFile, detail: `status '${task.status}' not in ${[...VALID_STATUSES].join('|')}` });
+  // enum sanity against the project's own status set
+  const project = task.project || projectFromDir;
+  let allowedStatuses = project ? statusCache.get(project) : undefined;
+  if (project && !allowedStatuses) {
+    allowedStatuses = await projectStatusIds(paths, project);
+    statusCache.set(project, allowedStatuses);
+  }
+  if (typeof task.status === 'string' && task.status.length > 0 && allowedStatuses && !allowedStatuses.has(task.status)) {
+    issues.push({ level: 'warn', check: 'invalid-status', file: relFile, detail: `status '${task.status}' not in ${[...allowedStatuses].join('|')}` });
   }
   if (typeof task.priority === 'string' && task.priority.length > 0 && !VALID_PRIORITIES.has(task.priority)) {
     issues.push({ level: 'warn', check: 'invalid-priority', file: relFile, detail: `priority '${task.priority}' not in ${[...VALID_PRIORITIES].join('|')}` });
@@ -304,17 +327,18 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
   const scanned = { json: 0, md: 0 };
 
   // Tasks: modern per-project dirs + legacy flat files at root.
+  const statusCache = new Map<string, Set<string>>();
   if (await pathExists(paths.tasksDir)) {
     for (const project of await listSubdirs(paths.tasksDir)) {
       const dir = path.join(paths.tasksDir, project);
       for (const f of await fg('*.json', { cwd: dir, dot: false })) {
         scanned.json++;
-        await scanTaskFile(path.join(dir, f), project, paths, fix, issues);
+        await scanTaskFile(path.join(dir, f), project, paths, fix, issues, statusCache);
       }
     }
     for (const f of await fg('*.json', { cwd: paths.tasksDir, dot: false, deep: 1 })) {
       scanned.json++;
-      await scanTaskFile(path.join(paths.tasksDir, f), undefined, paths, fix, issues);
+      await scanTaskFile(path.join(paths.tasksDir, f), undefined, paths, fix, issues, statusCache);
     }
   }
 

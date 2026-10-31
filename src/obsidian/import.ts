@@ -7,7 +7,7 @@ import { listDocs, createDoc, updateDoc, deleteDocPermanent } from '../storage/k
 import { resolveUnder } from '../fs.js';
 import { listTasks, createTask, updateTask, deleteTaskPermanent } from '../storage/tasks.js';
 
-type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'closed';
+type TaskStatus = string;
 type TaskPriority = 'low' | 'medium' | 'high';
 
 interface ImportOptions {

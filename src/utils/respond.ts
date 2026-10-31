@@ -11,6 +11,11 @@ export type ErrEnvelope = {
     hint?: string;
     /** Structured context (holder, expiry, conflicts, ...). */
     details?: unknown;
+    /** Flat transition context (V-02); also mirrored inside `details`. */
+    from?: string;
+    to?: string;
+    allowed?: string[];
+    taskIds?: string[];
   };
 };
 

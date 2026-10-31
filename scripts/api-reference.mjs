@@ -22,6 +22,8 @@ async function main() {
       OBSIDIAN_VAULT_ROOT: join(dataDir, 'vault'),
       EMBEDDINGS_MODE: 'none',
       CATALOG_ENABLED: 'true',
+      RATE_LIMIT_RPM: '100000',
+      SECURITY_STACK: '0',
       MCP_TOOLS_ENABLED: 'true',
     },
   });

@@ -2,9 +2,11 @@ import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject, getCurrentProject, setCurrentProject } from '../config.js';
 import { listProjects, getProjectDetail, createProject, deleteProject, updateProjectMeta, PROJECT_ID_RE } from '../projects.js';
-import { ok, err } from '../utils/respond.js';
+import { ok, err, errWith } from '../utils/respond.js';
 import { currentSessionId } from '../core/request-context.js';
 import { scheduleProjectIndex } from '../search/warmup.js';
+import { STATUS_ID_RE, WorkflowError } from '../workflow.js';
+import { getProjectStatuses, getProjectTransitions, setProjectStatuses, setProjectTransitions } from '../workflow-service.js';
 
 // PH-004: per-session current project. When the caller has a live session
 // (http/tcp), project_set_current writes into session metadata instead of the
@@ -182,6 +184,97 @@ export function registerProjectTools(ctx: ServerContext): void {
         metadata: meta,
         message: `Project '${prj}' updated`,
       });
+    }
+  );
+
+  // project_statuses_get — statuses, close target and initial statuses
+  ctx.server.registerTool(
+    "project_statuses_get",
+    {
+      title: "Get Project Statuses",
+      description: "Get the project status set, close status and allowed initial statuses. New projects use the default four statuses.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+      },
+    },
+    async ({ project }) => {
+      const prj = resolveProject(project);
+      return ok(await getProjectStatuses(prj));
+    }
+  );
+
+  // project_statuses_set — replace the status set, optionally moving used statuses
+  ctx.server.registerTool(
+    "project_statuses_set",
+    {
+      title: "Set Project Statuses",
+      description:
+        "Replace the project status set. Statuses used by tasks cannot be removed without moveTo or moves. " +
+        "At least one active todo and one active done status are required.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+        statuses: z.array(z.object({
+          id: z.string().regex(STATUS_ID_RE, 'status id must be a lowercase slug'),
+          label: z.string().min(1),
+          category: z.enum(['todo', 'in_progress', 'done']),
+          color: z.string().min(1).max(64).optional(),
+          order: z.number().int().min(0).optional(),
+          archived: z.boolean().optional(),
+        })).min(1),
+        moveTo: z.string().optional().describe('Move tasks from every removed status to this status'),
+        moves: z.record(z.string()).optional().describe('Per-status move targets, e.g. {"old":"new"}'),
+        closeStatus: z.string().optional().describe('Target status for tasks_close; must be a done status'),
+        initialStatuses: z.array(z.string()).optional().describe('Statuses allowed for tasks_create; default all todo statuses'),
+      },
+    },
+    async ({ project, ...input }) => {
+      const prj = resolveProject(project);
+      try {
+        return ok(await setProjectStatuses(prj, input));
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
+    }
+  );
+
+  // project_transitions_get — allowed status transitions
+  ctx.server.registerTool(
+    "project_transitions_get",
+    {
+      title: "Get Project Transitions",
+      description: "Get the allowed status transition graph. A null graph means every transition is allowed.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+      },
+    },
+    async ({ project }) => {
+      const prj = resolveProject(project);
+      return ok(await getProjectTransitions(prj));
+    }
+  );
+
+  // project_transitions_set — replace the transition graph
+  ctx.server.registerTool(
+    "project_transitions_set",
+    {
+      title: "Set Project Transitions",
+      description:
+        "Replace the allowed status transition graph. A missing from-key is unrestricted; use null to restore any-to-any. " +
+        "The graph must not leave a done status unreachable from the initial statuses.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+        transitions: z.record(z.array(z.string())).nullable(),
+      },
+    },
+    async ({ project, transitions }) => {
+      const prj = resolveProject(project);
+      try {
+        return ok(await setProjectTransitions(prj, transitions));
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
     }
   );
 

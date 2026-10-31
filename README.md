@@ -108,7 +108,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 |---------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, configuration, first steps |
 | [Configuration](docs/getting-started/configuration.md) | Environment variables, JSON config, embeddings |
-| [MCP Tools](docs/features/tools.md) | 116 tools: tasks, knowledge, search, memory, prompts |
+| [MCP Tools](docs/features/tools.md) | 123 tools by default, 125 with catalog: tasks, knowledge, search, memory, prompts |
 | [Agent Memory](docs/features/agent-memory.md) | Extraction, temporal graph, profiles, context assembly |
 | [Skills & Rules](docs/features/skills-rules.md) | Skills CRUD, rules engine, workflows |
 | [Connectors](docs/features/connectors.md) | GitHub, Jira, Slack, Google Drive, Notion, Linear |
@@ -124,7 +124,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 
 ### Core
 
-- 116 MCP tools by default (118 with catalog + dynamic tools enabled)
+- 123 MCP tools by default (125 with catalog + dynamic tools enabled)
 - BM25 + ONNX vector search + hybrid + two-stage rerank
 - FTS5 full-text search (SQLite built-in)
 - File-based storage (Markdown/JSON, no external DB)
@@ -239,7 +239,7 @@ semantic channel can outrank a weak lexical match.
 
 | Metric | Value |
 |--------|-------|
-| MCP tools | 100 |
+| MCP tools | 123 |
 | Tests | 2000+ |
 | Coverage | 92.7% |
 | Tasks done (BACKLOG) | 181/182 |

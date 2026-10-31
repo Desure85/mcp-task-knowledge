@@ -3,6 +3,7 @@ import type { ServerContext } from './context.js';
 import type { Task } from '../types.js';
 import { resolveProject } from '../config.js';
 import { ok } from '../utils/respond.js';
+import { isDone, loadProjectWorkflow, statusCategory } from '../workflow.js';
 
 export function registerDashboardTools(ctx: ServerContext): void {
   const { server } = ctx;
@@ -29,6 +30,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
         listTasks({ project: prj, includeArchived: true, includeTrashed: true }),
         listDocs({ project: prj, includeArchived: true, includeTrashed: true }),
       ]);
+      const workflow = await loadProjectWorkflow(prj);
 
       // Date filter
       const filteredTasks = filterByDateRange(tasks, since, until);
@@ -36,6 +38,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
 
       // Task counts by status
       const byStatus: Record<string, number> = {};
+      const byCategory: Record<string, number> = { todo: 0, in_progress: 0, done: 0 };
       const byPriority: Record<string, number> = {};
       const byTag: Record<string, number> = {};
       const byType: Record<string, number> = {};
@@ -49,8 +52,11 @@ export function registerDashboardTools(ctx: ServerContext): void {
       for (const t of filteredTasks) {
         if (t.archived || t.trashed) continue;
 
-        // By status
+        // By status and by semantic category (custom statuses must not be
+        // counted by hard-coded ids).
         byStatus[t.status] = (byStatus[t.status] || 0) + 1;
+        const category = statusCategory(workflow, t.status);
+        if (category) byCategory[category] = (byCategory[category] || 0) + 1;
 
         // By priority
         byPriority[t.priority] = (byPriority[t.priority] || 0) + 1;
@@ -72,8 +78,8 @@ export function registerDashboardTools(ctx: ServerContext): void {
           // Not counting as "has subtasks" — need to check reverse
         }
 
-        // Days open (for non-completed/closed)
-        if (t.status !== 'completed' && t.status !== 'closed') {
+        // Days open (for non-done statuses)
+        if (!isDone(workflow, t.status)) {
           const days = (Date.now() - new Date(t.createdAt).getTime()) / (1000 * 60 * 60 * 24);
           daysOpen.push(Math.round(days * 10) / 10);
         }
@@ -90,12 +96,12 @@ export function registerDashboardTools(ctx: ServerContext): void {
         byType[type] = (byType[type] || 0) + 1;
       }
 
-      // Active tasks (not completed, not closed, not archived, not trashed)
+      // Active/done by category, so custom done statuses count as completion.
       const activeTasks = filteredTasks.filter(t =>
-        !t.archived && !t.trashed && t.status !== 'completed' && t.status !== 'closed'
+        !t.archived && !t.trashed && !isDone(workflow, t.status)
       );
       const completedTasks = filteredTasks.filter(t =>
-        !t.archived && !t.trashed && t.status === 'completed'
+        !t.archived && !t.trashed && isDone(workflow, t.status)
       );
 
       // Average days open
@@ -121,6 +127,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
         tasks: {
           total: filteredTasks.filter(t => !t.archived && !t.trashed).length,
           byStatus,
+          byCategory,
           byPriority,
           active: activeTasks.length,
           completed: completedTasks.length,
@@ -170,6 +177,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
         fetchTasks ? listTasks({ project: prj, includeArchived: false, includeTrashed: false }) : [],
         fetchDocs ? listDocs({ project: prj, includeArchived: false, includeTrashed: false }) : [],
       ]);
+      const workflow = await loadProjectWorkflow(prj);
 
       // Merge into activity items
       const items: Array<{
@@ -185,10 +193,9 @@ export function registerDashboardTools(ctx: ServerContext): void {
 
       for (const t of tasks) {
         let action = 'updated';
-        if (t.status === 'completed') action = 'completed';
-        else if (t.status === 'closed') action = 'closed';
-        else if (t.status === 'in_progress') action = 'in_progress';
+        if (isDone(workflow, t.status)) action = t.status === 'closed' ? 'closed' : 'completed';
         else if (t.status === 'blocked') action = 'blocked';
+        else if (statusCategory(workflow, t.status) === 'in_progress') action = 'in_progress';
 
         items.push({
           id: t.id,
@@ -247,6 +254,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
       since.setHours(0, 0, 0, 0);
 
       const allTasks = await listTasks({ project: prj, includeArchived: true, includeTrashed: true });
+      const workflow = await loadProjectWorkflow(prj);
 
       // Build time buckets
       const buckets: Record<string, { created: number; completed: number; closed: number }> = {};
@@ -262,12 +270,12 @@ export function registerDashboardTools(ctx: ServerContext): void {
           buckets[key].created++;
         }
 
-        // Completed — look at updatedAt when status is completed
-        if ((t.status === 'completed' || t.status === 'closed') && updated >= since) {
+        // Completed — category done (custom done ids count as completed).
+        if (isDone(workflow, t.status) && updated >= since) {
           const key = bucketKey(updated, granularity);
           if (!buckets[key]) buckets[key] = { created: 0, completed: 0, closed: 0 };
-          if (t.status === 'completed') buckets[key].completed++;
-          else buckets[key].closed++;
+          if (t.status === 'closed') buckets[key].closed++;
+          else buckets[key].completed++;
         }
       }
 
@@ -345,16 +353,22 @@ export function registerDashboardTools(ctx: ServerContext): void {
         projectStats[p] = { tasks: 0, knowledge: 0, completed: 0, inProgress: 0, blocked: 0, pending: 0 };
       }
 
+      const workflowCache = new Map<string, Awaited<ReturnType<typeof loadProjectWorkflow>>>();
       for (const t of tasks) {
         const p = t.project || 'default';
         if (!projectStats[p]) {
           projectStats[p] = { tasks: 0, knowledge: 0, completed: 0, inProgress: 0, blocked: 0, pending: 0 };
         }
+        let workflow = workflowCache.get(p);
+        if (!workflow) {
+          workflow = await loadProjectWorkflow(p);
+          workflowCache.set(p, workflow);
+        }
         projectStats[p].tasks++;
-        if (t.status === 'completed') projectStats[p].completed++;
-        else if (t.status === 'in_progress') projectStats[p].inProgress++;
+        if (isDone(workflow, t.status)) projectStats[p].completed++;
         else if (t.status === 'blocked') projectStats[p].blocked++;
-        else if (t.status === 'pending') projectStats[p].pending++;
+        else if (statusCategory(workflow, t.status) === 'in_progress') projectStats[p].inProgress++;
+        else if (statusCategory(workflow, t.status) === 'todo') projectStats[p].pending++;
       }
 
       for (const d of docs) {
@@ -382,8 +396,8 @@ export function registerDashboardTools(ctx: ServerContext): void {
         totals: {
           tasks: tasks.length,
           knowledge: docs.length,
-          completed: tasks.filter(t => t.status === 'completed').length,
-          inProgress: tasks.filter(t => t.status === 'in_progress').length,
+          completed: summary.reduce((n, p) => n + p.completed, 0),
+          inProgress: summary.reduce((n, p) => n + p.inProgress, 0),
         },
       });
     }

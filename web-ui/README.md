@@ -86,7 +86,7 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 - `api.knowledge.list/get/exportSingle/bulkCreate/bulkUpdate/bulkTrash`
 - `api.memory.factsList/temporalQuery/profileGet/layerList`
 - `api.search.tasks/knowledge`
-- `api.projects.list/getCurrent/setCurrent`
+- `api.projects.list/getCurrent/setCurrent/statuses/transitions`
 
 ## Docker (UI-007)
 

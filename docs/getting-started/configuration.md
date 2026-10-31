@@ -32,6 +32,14 @@ layers) — is stored under `DATA_DIR`. Mount that one directory as a volume in 
 Older versions kept memory in `~/.local/share/mcp-task-knowledge/`; copy `temporal-graph.json`, `profiles/` and
 `layers.json` into `$DATA_DIR/memory/` to carry it over.
 
+### Per-project workflow metadata
+
+Workflow settings live in `$DATA_DIR/projects/<project>.json`; `project_statuses_set` and
+`project_transitions_set` are the supported way to edit them. A project without these fields uses the
+built-in `pending → in_progress → completed|closed` set and allows every transition. `closeStatus`
+selects the `tasks_close` target, `initialStatuses` limits creation targets, and `transitions` is a map
+from a status id to the allowed target ids. `blocked` remains a legacy task status for dependency automation.
+
 ### Auth & Security
 
 | Variable | Default | Description |
