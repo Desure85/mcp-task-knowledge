@@ -9,9 +9,10 @@ Next.js 16 App Router + TypeScript. Connects to MCP HTTP transport.
 | `/` | Home — overview, links |
 | `/tasks` | Kanban board — drag&drop, filters, search, edit |
 | `/knowledge` | Knowledge list, read-first document view with TOC, Markdown editor, tags and types |
+| `/memory` | Facts, temporal history, profiles and memory layers |
 | `/prompts` | Prompt management — CRUD, A/B experiments, template editor |
 | `/search` | Unified search — BM25 + vector across tasks and knowledge |
-| `/analytics` | Analytics dashboard — stats, feedback, charts |
+| `/analytics` | Analytics dashboard — counters, task distribution, feedback |
 
 ## Setup
 
@@ -54,6 +55,13 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Document type selector, including legacy types already stored on a document
 - Toggle preview
 
+### Memory (NEXT2-004, UI-24)
+
+- Four accessible tabs: Facts, Temporal History, Profiles, Layers (`tablist`/`tab`/`tabpanel`, Arrow/Home/End)
+- Fact search, category/tag filter, temporal point-in-time and entity filters
+- Profile static/dynamic facts and system-prompt context block
+- Layered memory view with reload
+
 ### Prompt Management (UI-004)
 
 - Prompt CRUD
@@ -62,12 +70,11 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Variant comparison
 - Bandit-based selection info
 
-### Analytics (UI-006)
+### Analytics (UI-006, UI-24)
 
-- Task stats (by status, by priority)
-- Knowledge doc count
-- Feedback form with star ratings
-- Bar charts
+- Task, knowledge and feedback counters (tokens, no new charts)
+- Status and priority distribution bars with accessible labels and values
+- Feedback form with labelled fields and rating buttons
 - localStorage feedback storage
 
 ### Realtime (UI-005 + MR-012)
