@@ -64,12 +64,30 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Profile static/dynamic facts and system-prompt context block
 - Layered memory view with reload
 
-### Knowledge Graph (NEXT2-003, UI-24)
+### Knowledge Graph (NEXT2-003, UI-24, UI-28)
 
-- SVG graph of entities and temporal facts, with mention/relationship edges
-- Node and edge colours come from semantic tokens read at runtime; the palette is re-read on `data-theme`/`data-mode` changes
-- Search and node-type filters, selected-node details and neighbor expansion
-- Legend plus a collapsible node table as the accessible alternative
+- Two modes: **Entities** (default) — entities only, one edge per pair mentioned in
+  the same fact, thickness = number of shared facts (the number shows on hover),
+  node size = number of facts; **Facts & entities** — the bipartite fact↔entity
+  graph with `mentions` and dashed `replaces` edges (superseded facts are dashed).
+- Labels on every node: entities by their full name, facts by a 40-character
+  statement excerpt on hover/selection and from 115% zoom. Placement is greedy
+  and collision-free (labels never leave the canvas or cover a node); labels keep
+  a constant on-screen size, so collided ones reappear as the zoom steps up.
+- `Show related facts` loads more facts for the selected entity (or the first
+  entity of a selected fact) and reports `Loaded N more facts` or
+  `No more facts for «X»`; it disables itself once the entity is exhausted.
+- Details panel: an entity shows `Mentioned in N facts` (clickable facts) and
+  `Often appears with` (shared-fact counts, clickable); a fact shows its full
+  statement, category, confidence, valid dates, tags, `Replaces`/`Replaced by`
+  and clickable entities.
+- Legend under the graph; zoom (wheel, buttons, `+`/`−`/`0`) and pan (drag,
+  arrows); search highlights matches and dims the rest without removing nodes;
+  focus mode dims everything outside the selected node's direct links.
+- The always-visible node table (fact count, `Often with`, roving Arrow/Home/End
+  focus, Enter selects) is the keyboard alternative to the SVG.
+- Colours come from semantic tokens read at runtime; the palette is re-read when
+  `data-theme`/`data-mode` changes on `<html>`.
 
 ### Prompt Management (UI-004, UI-24, UI-26)
 

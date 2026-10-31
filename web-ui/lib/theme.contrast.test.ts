@@ -44,6 +44,11 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ['line-strong', 'canvas', 3],
   ['st-done', 'canvas', 3],
   ['focus-ring', 'canvas', 3],
+  // UI-28 graph: superseded (archive) nodes and non-text accents on the canvas,
+  // plus the accent on the raised row used by selected list items.
+  ['st-archive', 'canvas', 3],
+  ['danger', 'canvas', 3],
+  ['success', 'canvas', 3],
 ];
 
 function css(): string {
