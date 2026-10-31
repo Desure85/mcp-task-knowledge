@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import {
   api,
   setAuthToken,
@@ -17,6 +17,49 @@ import {
   type EmbeddingsStatus,
   type ToolListEntry,
 } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  Input,
+  Skeleton,
+} from '@/components/ui';
+import { IconAlert, IconSystem } from '@/components/icons';
+
+function Notice({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div
+      role="alert"
+      className="mb-4 flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface p-3 text-[12px] text-danger"
+    >
+      <span className="flex items-start gap-2">
+        <IconAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>{children}</span>
+      </span>
+      {action}
+    </div>
+  );
+}
+
+function LoadingCards() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading system status">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Card key={index}>
+          <CardBody>
+            <Skeleton className="h-4 w-1/4" />
+            <Skeleton className="mt-3 h-3 w-full" />
+            <Skeleton className="mt-2 h-3 w-3/4" />
+          </CardBody>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function SystemPage() {
   const [sessions, setSessions] = useState<SessionListData | null>(null);
@@ -56,9 +99,9 @@ export default function SystemPage() {
   }, [load]);
 
   function saveToken() {
-    const t = tokenInput.trim();
-    if (!t) return;
-    setAuthToken(t);
+    const token = tokenInput.trim();
+    if (!token) return;
+    setAuthToken(token);
     setAuthed(true);
     setTokenInput('');
     void load();
@@ -72,6 +115,7 @@ export default function SystemPage() {
 
   async function searchTools() {
     try {
+      setError(null);
       const tl = await api.system.toolsList(toolSearch.trim() || undefined);
       setTools(tl?.data ?? []);
       setToolsTotal(tl?.pagination?.total ?? tl?.total ?? (tl?.data?.length ?? 0));
@@ -82,140 +126,172 @@ export default function SystemPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">System</h1>
-        <button onClick={() => void load()} className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50">
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        title="System"
+        description="Sessions, embeddings and the registered tool catalog."
+        actions={<Button size="sm" onClick={() => void load()}>Refresh</Button>}
+      />
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg flex justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500">✕</button>
-        </div>
+        <Notice action={<Button size="sm" variant="ghost" onClick={() => setError(null)}>Dismiss</Button>}>
+          {error}
+        </Notice>
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <LoadingCards />
       ) : (
-        <div className="space-y-6">
-          {/* Auth (SEC-003) */}
-          <section className="bg-white p-5 rounded-lg border">
-            <h2 className="font-semibold mb-3">Authentication</h2>
-            <p className="text-xs text-gray-500 mb-3">
-              When the server enforces JWT auth, tools beyond initialize/tools_list/ping require an
-              authenticated session. The token is kept in sessionStorage for this tab only —
-              it is never sent via cookies, so cross-site requests cannot ride an ambient
-              session (no CSRF surface). Trade-off: any XSS in this origin could read the
-              token; keep the markdown preview sanitised and rotate tokens on suspicion.
-            </p>
-            {authed ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-green-700 font-medium">Token set for this session</span>
-                <button onClick={dropToken} className="px-3 py-1 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
-                  Clear token
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="JWT token…" className="flex-1 px-3 py-2 border rounded-lg text-sm font-mono"
-                  onKeyDown={(e) => e.key === 'Enter' && saveToken()}
-                />
-                <button
-                  onClick={saveToken} disabled={!tokenInput.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Authenticate
-                </button>
-              </div>
-            )}
-          </section>
-
-          {/* Sessions */}
-          <section className="bg-white p-5 rounded-lg border">
-            <h2 className="font-semibold mb-3">
-              Live Sessions
-              {sessions && (
-                <span className="ml-2 text-xs font-normal text-gray-500">
-                  total: {sessions.total}
-                  {sessions.rateLimitingEnabled ? ' · rate-limit on' : ''}
-                </span>
-              )}
-            </h2>
-            {!sessions || !sessions.available ? (
-              <p className="text-sm text-gray-400">Session manager unavailable.</p>
-            ) : sessions.sessions.length === 0 ? (
-              <p className="text-sm text-gray-400">No active sessions besides this one.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-gray-500 border-b">
-                      <th className="pb-2 pr-4">Session</th>
-                      <th className="pb-2 pr-4">Remote</th>
-                      <th className="pb-2 pr-4">User</th>
-                      <th className="pb-2 pr-4">Project</th>
-                      <th className="pb-2">Last activity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.sessions.map((s) => (
-                      <tr key={s.sessionId} className="border-b last:border-0">
-                        <td className="py-2 pr-4 font-mono text-xs">{s.sessionId.slice(0, 18)}…</td>
-                        <td className="py-2 pr-4">{s.remote ?? '—'}</td>
-                        <td className="py-2 pr-4">{(s.metadata?.userId as string) ?? '—'}</td>
-                        <td className="py-2 pr-4">{(s.metadata?.currentProject as string) ?? '—'}</td>
-                        <td className="py-2 text-xs text-gray-500">
-                          {s.lastActivityAt ? new Date(s.lastActivityAt).toLocaleTimeString() : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          {/* Embeddings */}
-          <section className="bg-white p-5 rounded-lg border">
-            <h2 className="font-semibold mb-3">Embeddings</h2>
-            {embeddings ? (
-              <div className="flex gap-6 text-sm">
-                <div><span className="text-gray-500">Mode:</span> <b>{String(embeddings.mode ?? 'unknown')}</b></div>
-                {embeddings.dim != null && <div><span className="text-gray-500">Dim:</span> {String(embeddings.dim)}</div>}
-                {embeddings.model != null && <div><span className="text-gray-500">Model:</span> {String(embeddings.model)}</div>}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">embeddings_status unavailable.</p>
-            )}
-          </section>
-
-          {/* Tools catalog */}
-          <section className="bg-white p-5 rounded-lg border">
-            <h2 className="font-semibold mb-3">Tools Catalog <span className="text-xs font-normal text-gray-500">({toolsTotal} registered)</span></h2>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text" value={toolSearch} onChange={(e) => setToolSearch(e.target.value)}
-                placeholder="Filter tools by name…" className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                onKeyDown={(e) => e.key === 'Enter' && searchTools()}
-              />
-              <button onClick={searchTools} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                Filter
-              </button>
-            </div>
-            <div className="max-h-96 overflow-y-auto space-y-1">
-              {tools.map((t) => (
-                <div key={t.name} className="flex items-baseline gap-3 py-1 border-b last:border-0">
-                  <code className="text-xs font-semibold text-blue-700 shrink-0">{t.name}</code>
-                  <span className="text-xs text-gray-500 truncate">{t.description ?? t.title ?? ''}</span>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><h2 className="text-[13px] font-semibold text-ink">Authentication</h2></CardHeader>
+            <CardBody className="space-y-3">
+              <p className="text-[12px] text-muted">
+                When the server enforces JWT auth, tools beyond initialize/tools_list/ping need an
+                authenticated session. The token is kept in sessionStorage for this tab only and is
+                never sent as a cookie, so cross-site requests cannot ride an ambient session.
+              </p>
+              <p className="text-[12px] text-muted">
+                Trade-off: any XSS in this origin could read the token. Keep Markdown sanitised and
+                rotate tokens on suspicion.
+              </p>
+              {authed ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge tone="done">Token set for this session</Badge>
+                  <Button size="sm" variant="danger" onClick={dropToken}>Clear token</Button>
                 </div>
-              ))}
-              {tools.length === 0 && <p className="text-sm text-gray-400">No tools match.</p>}
-            </div>
-          </section>
+              ) : (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Input
+                      label="JWT token"
+                      type="password"
+                      value={tokenInput}
+                      onChange={(e) => setTokenInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveToken()}
+                      placeholder="Paste a token…"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <Button variant="primary" onClick={saveToken} disabled={!tokenInput.trim()}>
+                    Authenticate
+                  </Button>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[13px] font-semibold text-ink">Live sessions</h2>
+              {sessions && (
+                <div className="flex items-center gap-2 text-[11px] text-muted">
+                  <Badge>{sessions.total} total</Badge>
+                  {sessions.rateLimitingEnabled && <span>rate-limit on</span>}
+                </div>
+              )}
+            </CardHeader>
+            <CardBody>
+              {!sessions || !sessions.available ? (
+                <p className="text-[12px] text-muted">Session manager unavailable.</p>
+              ) : sessions.sessions.length === 0 ? (
+                <p className="text-[12px] text-muted">No active sessions besides this one.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <caption className="sr-only">Active MCP sessions</caption>
+                    <thead>
+                      <tr className="border-b border-line text-left text-[11px] text-muted">
+                        <th scope="col" className="pb-2 pr-4 font-medium">Session</th>
+                        <th scope="col" className="pb-2 pr-4 font-medium">Remote</th>
+                        <th scope="col" className="pb-2 pr-4 font-medium">User</th>
+                        <th scope="col" className="pb-2 pr-4 font-medium">Project</th>
+                        <th scope="col" className="pb-2 font-medium">Last activity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessions.sessions.map((session) => (
+                        <tr key={session.sessionId} className="border-b border-line last:border-0">
+                          <td className="py-2 pr-4 font-mono text-[11px] text-ink" title={session.sessionId}>
+                            {session.sessionId.slice(0, 18)}…
+                          </td>
+                          <td className="py-2 pr-4 text-ink">{session.remote ?? '—'}</td>
+                          <td className="py-2 pr-4 text-ink">{(session.metadata?.userId as string) ?? '—'}</td>
+                          <td className="py-2 pr-4 text-ink">
+                            {(session.metadata?.currentProject as string) ?? '—'}
+                          </td>
+                          <td className="py-2 font-mono text-[11px] text-muted">
+                            {session.lastActivityAt ? new Date(session.lastActivityAt).toLocaleTimeString() : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader><h2 className="text-[13px] font-semibold text-ink">Embeddings</h2></CardHeader>
+            <CardBody>
+              {embeddings ? (
+                <dl className="grid gap-3 text-[12px] sm:grid-cols-3">
+                  <div>
+                    <dt className="text-[11px] text-muted">Mode</dt>
+                    <dd className="font-mono text-ink">{String(embeddings.mode ?? 'unknown')}</dd>
+                  </div>
+                  {embeddings.dim != null && (
+                    <div>
+                      <dt className="text-[11px] text-muted">Dimensions</dt>
+                      <dd className="font-mono text-ink">{String(embeddings.dim)}</dd>
+                    </div>
+                  )}
+                  {embeddings.model != null && (
+                    <div>
+                      <dt className="text-[11px] text-muted">Model</dt>
+                      <dd className="break-all font-mono text-ink">{String(embeddings.model)}</dd>
+                    </div>
+                  )}
+                </dl>
+              ) : (
+                <p className="text-[12px] text-muted">embeddings_status unavailable.</p>
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[13px] font-semibold text-ink">Tools catalog</h2>
+              <Badge>{toolsTotal} registered</Badge>
+            </CardHeader>
+            <CardBody>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Input
+                    label="Filter tools"
+                    value={toolSearch}
+                    onChange={(e) => setToolSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && void searchTools()}
+                    placeholder="Filter tools by name…"
+                  />
+                </div>
+                <Button onClick={() => void searchTools()}>Filter</Button>
+              </div>
+              <div className="mt-3 max-h-96 divide-y divide-line overflow-y-auto">
+                {tools.map((tool) => (
+                  <div key={tool.name} className="flex items-baseline gap-3 py-2">
+                    <code className="shrink-0 font-mono text-[11px] font-semibold text-accent">{tool.name}</code>
+                    <span className="truncate text-[11px] text-muted">{tool.description ?? tool.title ?? ''}</span>
+                  </div>
+                ))}
+                {tools.length === 0 && (
+                  <div className="py-6">
+                    <EmptyState compact title="No tools match" hint="Try another name." icon={IconSystem} />
+                  </div>
+                )}
+              </div>
+            </CardBody>
+          </Card>
         </div>
       )}
     </div>

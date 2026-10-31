@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   applyTheme,
+  formatThemeLabel,
   MODE_STORAGE_KEY,
   readStoredTheme,
   resolveMode,
@@ -66,6 +67,14 @@ describe('theme model (UI-10)', () => {
     expect(resolved).toBe('dark');
     expect(attrs).toEqual({ 'data-theme': 'petrol', 'data-mode': 'dark' });
     expect(root.style.colorScheme).toBe('dark');
+  });
+
+  it('labels the switcher with the mode actually applied, never System', () => {
+    expect(formatThemeLabel('indigo', 'light')).toBe('Indigo · Light');
+    expect(formatThemeLabel('copper', 'dark')).toBe('Copper · Dark');
+    expect(formatThemeLabel('petrol', resolveMode('system', false))).toBe('Petrol · Light');
+    expect(formatThemeLabel('petrol', resolveMode('system', true))).toBe('Petrol · Dark');
+    expect(formatThemeLabel('petrol', 'dark')).not.toContain('System');
   });
 
   it('inline script reads both keys, defaults to indigo/system and guards errors', () => {
