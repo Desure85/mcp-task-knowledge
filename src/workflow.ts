@@ -363,3 +363,90 @@ export function workflowSummary(workflow: ProjectWorkflow): {
     transitions: workflow.transitions ? Object.keys(workflow.transitions).length : null,
   };
 }
+
+// ─── Task types (V-03) ───────────────────────────────────────────────
+
+export interface ProjectType {
+  id: string;
+  label: string;
+  color: string;
+  icon?: string;
+}
+
+export const TYPE_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
+
+export const DEFAULT_PROJECT_TYPES: readonly ProjectType[] = [
+  { id: 'task', label: 'Task', color: 'ty-task', icon: 'task' },
+  { id: 'bug', label: 'Bug', color: 'ty-bug', icon: 'bug' },
+  { id: 'feature', label: 'Feature', color: 'ty-feature', icon: 'feature' },
+];
+
+export const DEFAULT_TASK_TYPE = 'task';
+
+function invalidTypes(message: string, details?: unknown): never {
+  throw new WorkflowError('INVALID_TYPES', message, undefined, details);
+}
+
+export function normalizeTypes(input: unknown): ProjectType[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    invalidTypes('types must be a non-empty array');
+  }
+  const seen = new Set<string>();
+  return (input as unknown[]).map((raw, index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      invalidTypes(`type at index ${index} must be an object`);
+    }
+    const item = raw as Record<string, unknown>;
+    const id = typeof item.id === 'string' ? item.id.trim() : '';
+    if (!TYPE_ID_RE.test(id)) {
+      invalidTypes(`type id '${id}' must match ${TYPE_ID_RE.source}`, { index, id });
+    }
+    if (seen.has(id)) invalidTypes(`duplicate type id '${id}'`, { id });
+    seen.add(id);
+    const label = typeof item.label === 'string' ? item.label.trim() : '';
+    if (!label) invalidTypes(`type '${id}' needs a non-empty label`, { id });
+    const color = typeof item.color === 'string' && item.color.trim() ? item.color.trim() : 'ty-task';
+    const icon = typeof item.icon === 'string' && item.icon.trim() ? item.icon.trim() : undefined;
+    return { id, label, color, ...(icon ? { icon } : {}) };
+  });
+}
+
+export async function loadProjectTypes(project: string): Promise<{ types: ProjectType[]; isDefault: boolean }> {
+  const meta = await readProjectMetadata(project);
+  const hasCustomTypes = Array.isArray(meta?.types) && meta.types.length > 0;
+  const types = hasCustomTypes
+    ? normalizeTypes(meta!.types)
+    : DEFAULT_PROJECT_TYPES.map((type) => ({ ...type }));
+  return { types, isDefault: !hasCustomTypes };
+}
+
+export function defaultTypeId(types: ProjectType[]): string {
+  return types.find((type) => type.id === DEFAULT_TASK_TYPE)?.id ?? types[0]?.id ?? DEFAULT_TASK_TYPE;
+}
+
+export function allowedTypeIds(types: ProjectType[]): string[] {
+  return types.map((type) => type.id);
+}
+
+export function isKnownType(types: ProjectType[], id: string): boolean {
+  return types.some((type) => type.id === id);
+}
+
+export function assertTypeAllowed(types: ProjectType[], id: string): void {
+  if (!isKnownType(types, id)) {
+    const allowed = allowedTypeIds(types);
+    throw new WorkflowError(
+      'TYPE_NOT_ALLOWED',
+      `type '${id}' is not in the project type set`,
+      `allowed: ${allowed.join(', ')}`,
+      { type: id, allowed },
+    );
+  }
+}
+
+export function resolveTaskType(types: ProjectType[], requested?: string | null): string {
+  if (requested === undefined || requested === null || requested === '') return defaultTypeId(types);
+  const id = String(requested).trim();
+  assertTypeAllowed(types, id);
+  return id;
+}

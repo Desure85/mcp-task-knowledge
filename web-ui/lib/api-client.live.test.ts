@@ -169,6 +169,53 @@ maybe('api-client vs live MCP server', () => {
     }
   }, 30_000);
 
+  it('project types: defaults, custom type, filter and TYPE_IN_USE move', async () => {
+    const { api } = await import('./api-client');
+    const project = `v03-live-${Date.now()}`;
+    await api.projects.create(project, 'V-03 live types');
+
+    try {
+      const defaults = await api.projects.types.get(project);
+      expect(defaults.types.map((type) => type.id)).toEqual(['task', 'bug', 'feature']);
+
+      const custom = [
+        { id: 'task', label: 'Task', color: 'ty-task', icon: 'task' },
+        { id: 'bug', label: 'Bug', color: 'ty-bug', icon: 'bug' },
+        { id: 'chore', label: 'Chore', color: 'ty-task', icon: 'tool' },
+      ];
+      const saved = await api.projects.types.set(project, custom);
+      expect(saved.types.map((type) => type.id)).toEqual(['task', 'bug', 'chore']);
+
+      const bug = await api.tasks.create({ project, title: 'live bug', type: 'bug' });
+      expect(bug.type).toBe('bug');
+      const chore = await api.tasks.create({ project, title: 'live chore', type: 'chore' });
+      expect(chore.type).toBe('chore');
+
+      const filtered = await api.tasks.list(project, 'bug');
+      expect(filtered.map((task) => task.id)).toEqual([bug.id]);
+
+      let inUseCode: string | undefined;
+      try {
+        await api.projects.types.set(project, [
+          { id: 'task', label: 'Task', color: 'ty-task' },
+          { id: 'bug', label: 'Bug', color: 'ty-bug' },
+        ]);
+      } catch (e) {
+        inUseCode = (e as { code?: string }).code;
+      }
+      expect(inUseCode).toBe('TYPE_IN_USE');
+
+      await api.projects.types.set(project, [
+        { id: 'task', label: 'Task', color: 'ty-task' },
+        { id: 'bug', label: 'Bug', color: 'ty-bug' },
+      ], { moveTo: 'task' });
+      const moved = await api.tasks.get(project, chore.id);
+      expect(moved.type).toBe('task');
+    } finally {
+      await api.projects.remove(project, true).catch(() => undefined);
+    }
+  }, 30_000);
+
   it('prompt create → get → update → get → delete roundtrip', async () => {
     const { api } = await import('./api-client');
     const id = `webui-prompt-${Date.now()}`;

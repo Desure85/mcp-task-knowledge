@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **126**
+Всего инструментов: **128**
 
 ## Инструменты
 
@@ -82,6 +82,8 @@
 | `project_statuses_set` | Replace the project status set. Statuses used by tasks cannot be removed without moveTo or moves. At |
 | `project_transitions_get` | Get the allowed status transition graph. A null graph means every transition is allowed. |
 | `project_transitions_set` | Replace the allowed status transition graph. A missing from-key is unrestricted; use null to restore |
+| `project_types_get` | Get the project task type set. New projects use task, bug and feature; legacy tasks without a type a |
+| `project_types_set` | Replace the project task type set. A type used by tasks cannot be removed without moveTo or moves. |
 | `project_update` | Update project metadata (description). |
 | `prompts_ab_report` | Aggregate A/B metrics and passive feedback for all prompt keys |
 | `prompts_bandit_next` | Pick next variant for a prompt using epsilon-greedy over aggregates |
@@ -2089,6 +2091,54 @@ Replace the allowed status transition graph. A missing from-key is unrestricted;
 }
 ```
 
+## project_types_get
+
+**Get Project Types**
+
+Get the project task type set. New projects use task, bug and feature; legacy tasks without a type are treated as task.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_types_get",
+  "arguments": {
+    "project": "mcp"
+  }
+}
+```
+
+## project_types_set
+
+**Set Project Types**
+
+Replace the project task type set. A type used by tasks cannot be removed without moveTo or moves.
+
+**Параметры:**
+
+- `project`
+- `types`
+- `moveTo`
+- `moves`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_types_set",
+  "arguments": {
+    "project": "mcp",
+    "types": "example",
+    "moveTo": "example",
+    "moves": "example"
+  }
+}
+```
+
 ## project_update
 
 **Update Project**
@@ -2592,6 +2642,7 @@ BM25 (and optional vector) search over tasks
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `type`
 
 **Пример вызова:**
 
@@ -2605,7 +2656,8 @@ BM25 (and optional vector) search over tasks
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "type": "note"
   }
 }
 ```
@@ -2715,6 +2767,7 @@ Create a subtask under a parent task. Shorthand for tasks_create with parentId. 
 - `title`
 - `description`
 - `priority`
+- `type`
 - `tags`
 - `links`
 
@@ -2729,6 +2782,7 @@ Create a subtask under a parent task. Shorthand for tasks_create with parentId. 
     "title": "Example Title",
     "description": "Example Description",
     "priority": "medium",
+    "type": "note",
     "tags": [
       "example"
     ],
@@ -2979,6 +3033,7 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
 - `description`
 - `priority`
 - `status`
+- `type`
 - `tags`
 - `links`
 - `parentId`
@@ -2995,6 +3050,7 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
     "description": "Example Description",
     "priority": "medium",
     "status": "pending",
+    "type": "note",
     "tags": [
       "example"
     ],
@@ -3144,6 +3200,7 @@ List tasks with optional filters, cursor pagination and field selection. Returns
 
 - `project`
 - `status`
+- `type`
 - `tag`
 - `priority`
 - `parentId`
@@ -3163,6 +3220,7 @@ List tasks with optional filters, cursor pagination and field selection. Returns
   "arguments": {
     "project": "mcp",
     "status": "pending",
+    "type": "note",
     "tag": "example",
     "priority": "medium",
     "parentId": null,
@@ -3260,6 +3318,7 @@ List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT node
 
 - `project`
 - `status`
+- `type`
 - `tag`
 - `includeArchived`
 - `limit`
@@ -3276,6 +3335,7 @@ List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT node
   "arguments": {
     "project": "mcp",
     "status": "pending",
+    "type": "note",
     "tag": "example",
     "includeArchived": false,
     "limit": 10,
@@ -3301,6 +3361,7 @@ Update a single task by id. Can change any field except id, project, createdAt. 
 - `description`
 - `priority`
 - `status`
+- `type`
 - `tags`
 - `links`
 - `parentId`
@@ -3318,6 +3379,7 @@ Update a single task by id. Can change any field except id, project, createdAt. 
     "description": "Example Description",
     "priority": "medium",
     "status": "pending",
+    "type": "note",
     "tags": [
       "example"
     ],

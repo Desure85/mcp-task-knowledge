@@ -1,15 +1,15 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject } from '../config.js';
+import { assertTypeAllowed, loadProjectTypes, WorkflowError } from '../workflow.js';
 import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
-import { ok, okWith } from '../utils/respond.js';
+import { ok, okWith, errWith } from '../utils/respond.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 import { getWarmupStatus } from '../search/warmup.js';
 import { TtlLruCache } from '../search/cache.js';
 import { PaginationError, clampLimit, encodeOffsetCursor, finalizePage, paginateRanked, rankedStart, scopeOf } from '../utils/pagination.js';
-import { errWith } from '../utils/respond.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
 
 /** Ranked id list for one query — ids only, so the cache stays tiny. */
@@ -39,13 +39,15 @@ export function registerSearchTools(ctx: ServerContext): void {
         project: z.string().optional(),
         query: z.string().min(1),
         ...pageArgsSchema,
+        type: z.string().min(1).optional(),
       },
     },
-    async ({ project, query, ...pageArgs }) => {
+    async ({ project, query, type, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
+        if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
         const request = toPageRequest(pageArgs);
-        const tasks = await listTasks({ project: prj });
+        const tasks = await listTasks({ project: prj, ...(type ? { type } : {}) });
         const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
         const pool = Math.max(request.limit ?? 50, 50);
         const results = await hybridSearch(query, items, {
@@ -53,10 +55,11 @@ export function registerSearchTools(ctx: ServerContext): void {
           vectorAdapter: await ctx.ensureVectorAdapter(),
           onVectorError: trackVectorError(),
         });
-        const paged = paginateRanked(results, request, scopeOf(prj, query));
+        const paged = paginateRanked(results, request, scopeOf(prj, query, type));
         return okWith(paged.items, paged.meta);
       } catch (e) {
         if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
         throw e;
       }
     }

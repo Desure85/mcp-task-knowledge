@@ -24,7 +24,7 @@ import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
-import { WorkflowError, assertStatusAllowed, loadProjectWorkflow } from '../workflow.js';
+import { WorkflowError, assertStatusAllowed, assertTypeAllowed, loadProjectTypes, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
 
 /** Resolve the claiming identity: SDK session > ALS request scope > local. */
@@ -58,6 +58,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tag: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
         parentId: z.string().min(1).optional().describe("Only direct children of this task"),
@@ -66,15 +67,17 @@ export function registerTasksTools(ctx: ServerContext): void {
         ...pageArgsSchema,
       },
     },
-    async ({ project, status, tag, priority, parentId, updatedSince, includeArchived, ...pageArgs }) => {
+    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
+        if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
         const request = toPageRequest(pageArgs);
         const page = await listTasksPage(prj, {
           limit: request.limit ?? 50,
           cursor: request.cursor,
           status,
+          type,
           tag,
           priority,
           parentId,
@@ -102,17 +105,19 @@ export function registerTasksTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tag: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
         ...pageArgsSchema,
       },
     },
-    async ({ project, status, tag, includeArchived, ...pageArgs }) => {
+    async ({ project, status, type, tag, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
+        if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
         const request = toPageRequest(pageArgs);
-        const roots = await listTasksTree({ project: prj, status, tag, includeArchived });
+        const roots = await listTasksTree({ project: prj, status, type, tag, includeArchived });
         const result = paginateKeyed(roots, request, (n) => n.updatedAt || '', (n) => n.id);
         return okWith(result.items, result.meta);
       } catch (e) {
@@ -151,13 +156,14 @@ export function registerTasksTools(ctx: ServerContext): void {
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().optional(),
         dependsOn: z.array(z.string()).optional().describe("Dependency task IDs (DAG edges, cycle-protected)"),
       },
     },
-    async ({ project, title, description, priority, status, tags, links, parentId }) => {
+    async ({ project, title, description, priority, status, type, tags, links, parentId }) => {
       const prj = resolveProject(project);
       try {
         const workflow = await loadProjectWorkflow(prj);
@@ -168,6 +174,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           description,
           priority,
           status,
+          type,
           tags,
           links,
           parentId,
@@ -192,6 +199,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional(),
@@ -346,11 +354,12 @@ export function registerTasksTools(ctx: ServerContext): void {
         title: z.string().min(1),
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
+        type: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
       },
     },
-    async ({ project, parentId, title, description, priority, tags, links }) => {
+    async ({ project, parentId, title, description, priority, type, tags, links }) => {
       const prj = resolveProject(project);
       try {
         const parent = await getTask(prj, parentId);
@@ -362,6 +371,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           title,
           description,
           priority,
+          type,
           tags,
           links,
           parentId,

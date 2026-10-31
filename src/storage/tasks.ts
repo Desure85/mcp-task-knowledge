@@ -5,6 +5,9 @@ import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson 
 import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
 import {
   assertStatusAllowed,
+  assertTypeAllowed,
+  loadProjectTypes,
+  resolveTaskType,
   assertTransition,
   closeStatusId,
   defaultStatusId,
@@ -52,6 +55,7 @@ export async function createTask(input: {
   description?: string;
   priority?: Priority;
   status?: Status;
+  type?: string;
   tags?: string[];
   links?: string[];
   parentId?: string;
@@ -69,6 +73,8 @@ export async function createTask(input: {
     const workflow = await loadProjectWorkflow(input.project);
     const status = input.status ?? defaultStatusId(workflow);
     assertStatusAllowed(workflow, status);
+    const projectTypes = await loadProjectTypes(input.project);
+    const type = resolveTaskType(projectTypes.types, input.type);
 
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -78,6 +84,7 @@ export async function createTask(input: {
       title: input.title,
       description: input.description,
       status,
+      type,
       priority: input.priority || 'medium',
       tags: input.tags || [],
       links: input.links || [],
@@ -155,6 +162,8 @@ export interface TaskPageOptions {
   tag?: string;
   priority?: string;
   parentId?: string;
+  /** V-03: тип задачи; старые задачи без типа считаются 'task'. */
+  type?: string;
   /** ISO-дата: только задачи с updatedAt >= значения (лексикографически, ISO сортируем). */
   updatedSince?: string;
   includeArchived?: boolean;
@@ -172,6 +181,12 @@ export interface TaskPage {
   hasMore: boolean;
 }
 
+/** V-03: старые задачи без `type` трактуются как 'task' и на постраничном пути. */
+function withDefaultType(t: Task): Task {
+  if (t.type === undefined) t.type = 'task';
+  return t;
+}
+
 function taskPasses(t: Task, opts: TaskPageOptions): boolean {
   if (!opts.includeTrashed && (t as any).trashed) return false;
   if (!opts.includeArchived && (t as any).archived) return false;
@@ -179,6 +194,7 @@ function taskPasses(t: Task, opts: TaskPageOptions): boolean {
   if (opts.tag && !(t.tags || []).includes(opts.tag)) return false;
   if (opts.priority && t.priority !== opts.priority) return false;
   if (opts.parentId && t.parentId !== opts.parentId) return false;
+  if (opts.type && (t.type ?? 'task') !== opts.type) return false;
   if (opts.updatedSince && (t.updatedAt || '') < opts.updatedSince) return false;
   return true;
 }
@@ -204,7 +220,7 @@ function startIndexAfterCursor(entries: TaskFileEntry[], cursor?: string | null)
 export async function listTasksPage(project: string, opts: TaskPageOptions): Promise<TaskPage> {
   const entries = await listTaskEntries(project);
   const hasContentFilter = Boolean(
-    opts.status || opts.tag || opts.priority || opts.parentId || opts.updatedSince,
+    opts.status || opts.tag || opts.priority || opts.parentId || opts.updatedSince || opts.type,
   );
   const start = startIndexAfterCursor(entries, opts.cursor);
 
@@ -212,7 +228,7 @@ export async function listTasksPage(project: string, opts: TaskPageOptions): Pro
     const all = await mapLimit(entries, 32, (e) => readJson<Task>(e.file));
     const matched: Array<{ task: Task; key: string }> = [];
     for (let i = 0; i < all.length; i++) {
-      const task = withoutExpiredClaim(all[i]);
+      const task = withDefaultType(withoutExpiredClaim(all[i]));
       if (taskPasses(task, opts)) matched.push({ task, key: String(entries[i].mtimeMs) });
     }
     if (opts.countOnly) {
@@ -237,7 +253,7 @@ export async function listTasksPage(project: string, opts: TaskPageOptions): Pro
     const chunk = entries.slice(index, index + chunkSize);
     const loaded = await mapLimit(chunk, 32, (e) => readJson<Task>(e.file));
     for (let i = 0; i < loaded.length; i++) {
-      const task = withoutExpiredClaim(loaded[i]);
+      const task = withDefaultType(withoutExpiredClaim(loaded[i]));
       if (!taskPasses(task, opts)) continue;
       collected.push(task);
       collectedKeys.push(String(chunk[i].mtimeMs));
@@ -258,6 +274,7 @@ export async function listTasksPage(project: string, opts: TaskPageOptions): Pro
 export async function listTasks(filter?: {
   project?: string;
   status?: Status;
+  type?: string;
   tag?: string;
   includeArchived?: boolean;
   includeTrashed?: boolean;
@@ -282,11 +299,13 @@ export async function listTasks(filter?: {
     const loaded = await mapLimit(files, 32, (f) => readJson<Task>(path.join(dir, f)));
     for (const raw of loaded) {
       const t = withoutExpiredClaim(raw);
+      t.type = t.type ?? 'task';
       // skip trashed by default unless explicitly included
       if (!filter?.includeTrashed && (t as any).trashed) continue;
       // skip archived by default unless explicitly included
       if (!filter?.includeArchived && (t as any).archived) continue;
       if (filter?.status && t.status !== filter.status) continue;
+      if (filter?.type && (t.type ?? 'task') !== filter.type) continue;
       if (filter?.tag && !(t.tags || []).includes(filter.tag)) continue;
       results.push(t);
     }
@@ -299,6 +318,7 @@ export async function listTasks(filter?: {
 export async function listTasksTree(filter?: {
   project?: string;
   status?: Status;
+  type?: string;
   tag?: string;
   includeArchived?: boolean;
 }): Promise<TaskTreeNode[]> {
@@ -332,7 +352,8 @@ export async function listTasksTree(filter?: {
 
 export async function getTask(project: string, id: string): Promise<Task | null> {
   const task = await readTaskRaw(project, id);
-  return task ? withoutExpiredClaim(task) : null;
+  if (!task) return null;
+  return { ...withoutExpiredClaim(task), type: task.type ?? 'task' };
 }
 
 // Backwards-compatible alias expected by some tests
@@ -551,6 +572,10 @@ async function updateTaskUnlocked(
     assertStatusAllowed(effectiveWorkflow, nextStatus);
     if (existing.status !== nextStatus) assertTransition(effectiveWorkflow, existing.status, nextStatus);
   }
+  if (patch.type !== undefined) {
+    const projectTypes = await loadProjectTypes(project);
+    assertTypeAllowed(projectTypes.types, String(patch.type));
+  }
 
   // If parentId is being modified, validate new parent existence and protect against cycles
   const hasParentPatch = Object.prototype.hasOwnProperty.call(patch as any, 'parentId');
@@ -626,6 +651,7 @@ async function updateTaskUnlocked(
     ...normalizedPatch,
     id: existing.id,
     project: existing.project,
+    type: (normalizedPatch as any).type ?? existing.type ?? 'task',
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
@@ -646,14 +672,34 @@ export async function closeTask(project: string, id: string): Promise<Task | nul
  * Move tasks to a status while the caller already holds the project workflow
  * lock. Used by project_statuses_set for an atomic rename/removal.
  */
+/**
+ * Move tasks to a type while the caller holds the project workflow lock.
+ * Used by project_types_set when a used type is removed.
+ */
+export async function moveTasksToType(project: string, ids: string[], type: string): Promise<Task[]> {
+  const updated: Task[] = [];
+  for (const id of ids) {
+    const next = await withFileLock(`task:${project}/${id}`, async () => {
+      const task = await readTaskRaw(project, id);
+      if (!task) return null;
+      if ((task.type ?? 'task') === type) return task;
+      const moved: Task = { ...task, type, updatedAt: new Date().toISOString() };
+      await writeJson(taskFilePath(project, id), moved);
+      return moved;
+    });
+    if (next) updated.push(next);
+  }
+  return updated;
+}
+
 export async function moveTasksToStatus(project: string, ids: string[], status: string): Promise<Task[]> {
   const updated: Task[] = [];
   for (const id of ids) {
     const next = await withFileLock(`task:${project}/${id}`, async () => {
       const task = await readTaskRaw(project, id);
       if (!task) return null;
-      if (task.status === status) return task;
-      const moved: Task = { ...task, status, updatedAt: new Date().toISOString() };
+      if (task.status === status) return { ...task, type: task.type ?? 'task' };
+      const moved: Task = { ...task, type: task.type ?? 'task', status, updatedAt: new Date().toISOString() };
       await writeJson(taskFilePath(project, id), moved);
       return moved;
     });

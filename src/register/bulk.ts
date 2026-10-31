@@ -77,6 +77,7 @@ export function registerBulkTools(ctx: ServerContext): void {
               links: z.array(z.string()).optional(),
               parentId: z.string().nullable().optional(),
               status: z.string().min(1).optional(),
+              type: z.string().min(1).optional(),
             })
           )
           .min(1)
@@ -154,6 +155,7 @@ export function registerBulkTools(ctx: ServerContext): void {
               title: z.string().min(1),
               description: z.string().optional(),
               priority: z.enum(["low", "medium", "high"]).optional(),
+              type: z.string().min(1).optional(),
               tags: z.array(z.string()).optional(),
               links: z.array(z.string()).optional(),
               parentId: z.string().optional(),

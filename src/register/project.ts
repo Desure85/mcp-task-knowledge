@@ -5,8 +5,8 @@ import { listProjects, getProjectDetail, createProject, deleteProject, updatePro
 import { ok, err, errWith } from '../utils/respond.js';
 import { currentSessionId } from '../core/request-context.js';
 import { scheduleProjectIndex } from '../search/warmup.js';
-import { STATUS_ID_RE, WorkflowError } from '../workflow.js';
-import { getProjectStatuses, getProjectTransitions, setProjectStatuses, setProjectTransitions } from '../workflow-service.js';
+import { STATUS_ID_RE, TYPE_ID_RE, WorkflowError } from '../workflow.js';
+import { getProjectStatuses, getProjectTransitions, getProjectTypes, setProjectStatuses, setProjectTransitions, setProjectTypes } from '../workflow-service.js';
 
 // PH-004: per-session current project. When the caller has a live session
 // (http/tcp), project_set_current writes into session metadata instead of the
@@ -231,6 +231,52 @@ export function registerProjectTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       try {
         return ok(await setProjectStatuses(prj, input));
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
+    }
+  );
+
+  // project_types_get — task type set
+  ctx.server.registerTool(
+    "project_types_get",
+    {
+      title: "Get Project Types",
+      description: "Get the project task type set. New projects use task, bug and feature; legacy tasks without a type are treated as task.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+      },
+    },
+    async ({ project }) => {
+      const prj = resolveProject(project);
+      return ok(await getProjectTypes(prj));
+    }
+  );
+
+  // project_types_set — replace the type set, optionally moving used types
+  ctx.server.registerTool(
+    "project_types_set",
+    {
+      title: "Set Project Types",
+      description:
+        "Replace the project task type set. A type used by tasks cannot be removed without moveTo or moves.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+        types: z.array(z.object({
+          id: z.string().regex(TYPE_ID_RE, 'type id must be a lowercase slug'),
+          label: z.string().min(1),
+          color: z.string().min(1).max(64).optional(),
+          icon: z.string().min(1).max(64).optional(),
+        })).min(1),
+        moveTo: z.string().optional().describe('Move tasks from every removed type to this type'),
+        moves: z.record(z.string()).optional().describe('Per-type move targets, e.g. {"old":"new"}'),
+      },
+    },
+    async ({ project, ...input }) => {
+      const prj = resolveProject(project);
+      try {
+        return ok(await setProjectTypes(prj, input));
       } catch (e) {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         throw e;
