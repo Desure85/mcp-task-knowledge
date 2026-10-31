@@ -8,6 +8,7 @@
 
 ### Added
 
+- UI-10 design system: semantic tokens for 3 palettes (Indigo/Petrol/Copper) × light/dark, two independent theme axes with a no-flash pre-paint script and a Topbar switcher, base primitives (`components/ui`), `/design` showcase, and a WCAG AA contrast test over all 6 variants
 - npm publish pipeline (NEXT2-008): tag-triggered GitHub Actions workflow (`.github/workflows/publish.yml`) — build + tests → npm publish with provenance → GHCR Docker image; `publishConfig` (public access, provenance) in package.json; tag ↔ version match guard
 - LAN Relay (BM-012): WebSocket + AES-256-GCM + UDP multicast discovery, инструменты `relay_status`/`share_brief`/`broadcast_rule`
 - Hot tool registration (DX-001): `tools_register`/`tools_unregister` без рестарта

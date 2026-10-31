@@ -11,15 +11,15 @@ type BrandMarkProps = {
 };
 
 const SIZES: Record<'sm' | 'md', string> = {
-  sm: 'h-7 w-7 rounded-lg text-[12px]',
-  md: 'h-10 w-10 rounded-xl text-[15px]',
+  sm: 'h-7 w-7 rounded-[var(--radius-control)] text-[12px]',
+  md: 'h-10 w-10 rounded-[var(--radius-card)] text-[15px]',
 };
 
 export function BrandMark({ size = 'sm', className }: BrandMarkProps) {
   return (
     <span
       aria-hidden="true"
-      className={`grid shrink-0 place-items-center bg-indigo-600 font-bold text-white shadow-sm ${SIZES[size]} ${className ?? ''}`}
+      className={`grid shrink-0 place-items-center bg-accent font-bold text-on-accent ${SIZES[size]} ${className ?? ''}`}
     >
       M
     </span>

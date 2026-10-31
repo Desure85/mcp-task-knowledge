@@ -15,6 +15,7 @@ import { connectionBadgeClass, connectionBadgeLabel } from '@/lib/realtime';
 import { pageMetaFor } from './nav-config';
 import { useLiveStatus } from './live-status';
 import { IconLock, IconProjects } from './icons';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 export function Topbar() {
   const pathname = usePathname();
@@ -51,18 +52,18 @@ export function Topbar() {
   }, [pathname]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-30 flex h-[var(--spacing-topbar)] items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur sm:px-6">
       <div className="min-w-0">
-        <h1 className="truncate text-[14px] font-semibold leading-tight tracking-tight text-neutral-900">
+        <h1 className="truncate text-[13px] font-semibold leading-tight tracking-tight text-ink">
           {meta.title}
         </h1>
-        <p className="truncate text-[11px] leading-tight text-neutral-500">{meta.subtitle}</p>
+        <p className="truncate text-[11px] leading-tight text-muted">{meta.subtitle}</p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <label className="hidden items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] text-neutral-600 sm:inline-flex">
-          <IconProjects className="h-3.5 w-3.5 text-neutral-400" />
-          <span className="text-neutral-400">Project</span>
+        <label className="hidden items-center gap-1.5 rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 py-1 text-[11px] text-muted sm:inline-flex">
+          <IconProjects className="h-3.5 w-3.5 text-muted" />
+          <span className="text-muted">Project</span>
           <select
             aria-label="Current project"
             value={project ?? ''}
@@ -72,7 +73,7 @@ export function Topbar() {
               // Pages load their data client-side once; a reload re-fetches everything in the new scope.
               window.location.reload();
             }}
-            className="max-w-[140px] cursor-pointer truncate bg-transparent font-medium text-neutral-700 outline-none"
+            className="max-w-[140px] cursor-pointer truncate bg-transparent font-medium text-ink outline-none"
           >
             {project && !projects.includes(project) && <option value={project}>{project}</option>}
             {projects.map((id) => (
@@ -96,10 +97,12 @@ export function Topbar() {
           </span>
         )}
 
+        <ThemeSwitcher />
+
         <Link
           href="/access"
           title={hasToken ? 'Signed in — manage access and tokens' : 'No API token set'}
-          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-500 hover:bg-neutral-50"
+          className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-1 text-[11px] text-muted hover:bg-surface-2"
         >
           <IconLock className="h-3 w-3" />
           {hasToken ? 'Auth' : 'No auth'}
@@ -111,7 +114,7 @@ export function Topbar() {
               await api.auth.logout();
               router.replace('/login');
             }}
-            className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50"
+            className="rounded-full border border-line bg-surface px-2 py-1 text-[11px] font-medium text-muted hover:bg-surface-2"
           >
             Sign out
           </button>
