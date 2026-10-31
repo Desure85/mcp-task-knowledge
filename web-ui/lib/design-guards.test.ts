@@ -73,6 +73,10 @@ const BARE_CONTROL_ALLOWLIST: Record<string, string> = {
   'app/knowledge/page.tsx': 'долг, UI-15: список документов и панель действий на нативных button',
   'app/prompts/page.tsx': 'долг, UI-15: карточки и вкладки на нативных button',
   'app/graph/page.tsx': 'долг, UI-15: поиск по узлам на нативном input',
+  'components/board/BoardColumn.tsx':
+    'долг, V-04: иконочные кнопки колонки и действие Close на карточке нативные; исправить в UI-11/UI-12',
+  'components/board/MoveMenu.tsx':
+    'долг, V-04: пункты меню Move to… внутри details/summary нативные; исправить в UI-11/UI-12',
   'components/Topbar.tsx': 'долг, UI-11: меню, выбор проекта и темы на нативных контролах',
   'components/ThemeSwitcher.tsx': 'долг, UI-11: поповер темы на нативных button',
   'components/graph/NodePanel.tsx': 'долг, UI-15: списки фактов и связей на нативных button',

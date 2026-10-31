@@ -490,6 +490,8 @@ import { Tooltip } from '@/components/ui';
 | `web-ui/app/graph/page.tsx` | нативный `input` поиска по узлам | долг, UI-15 |
 | `web-ui/components/Topbar.tsx` | нативные `button`/`select` в шапке (меню, проект, тема) | долг, UI-11 |
 | `web-ui/components/ThemeSwitcher.tsx` | нативные `button` поповера темы | долг, UI-11 |
+| `web-ui/components/board/BoardColumn.tsx` | нативные `button`: иконочные кнопки колонки и действие Close на карточке | долг, V-04 → UI-11/UI-12 |
+| `web-ui/components/board/MoveMenu.tsx` | нативные `button` пунктов меню Move to… внутри `details`/`summary` | долг, V-04 → UI-11/UI-12 |
 | `web-ui/components/graph/NodePanel.tsx` | нативные `button` списков и связей | долг, UI-15 |
 | `web-ui/components/graph/NodeTable.tsx` | нативные `button` строк таблицы узлов | долг, UI-15 |
 | `web-ui/components/graph/ModeSwitch.tsx` | настоящие `input type="radio"` сегмент-контрола | осознанно: примитива Radio нет |
