@@ -8,6 +8,9 @@ import { ok, okWith } from '../utils/respond.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 import { getWarmupStatus } from '../search/warmup.js';
 import { TtlLruCache } from '../search/cache.js';
+import { PaginationError, clampLimit, encodeOffsetCursor, finalizePage, paginateRanked, rankedStart, scopeOf } from '../utils/pagination.js';
+import { errWith } from '../utils/respond.js';
+import { pageArgsSchema, toPageRequest } from './page-args.js';
 
 /** Ranked id list for one query — ids only, so the cache stays tiny. */
 const RANKED_LIMIT = 200;
@@ -35,15 +38,27 @@ export function registerSearchTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         query: z.string().min(1),
-        limit: z.number().int().min(1).max(100).optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, query, limit }) => {
+    async ({ project, query, ...pageArgs }) => {
       const prj = resolveProject(project);
-      const tasks = await listTasks({ project: prj });
-      const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
-      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: await ctx.ensureVectorAdapter(), onVectorError: trackVectorError() });
-      return ok(results);
+      try {
+        const request = toPageRequest(pageArgs);
+        const tasks = await listTasks({ project: prj });
+        const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
+        const pool = Math.max(request.limit ?? 50, 50);
+        const results = await hybridSearch(query, items, {
+          limit: pool,
+          vectorAdapter: await ctx.ensureVectorAdapter(),
+          onVectorError: trackVectorError(),
+        });
+        const paged = paginateRanked(results, request, scopeOf(prj, query));
+        return okWith(paged.items, paged.meta);
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
+      }
     }
   );
 
@@ -55,12 +70,12 @@ export function registerSearchTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         query: z.string().min(1),
-        limit: z.number().int().min(1).max(100).optional(),
         offset: z.number().int().min(0).max(5000).optional(),
         snippet: z.boolean().optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, query, limit, offset, snippet }: { project?: string; query: string; limit?: number; offset?: number; snippet?: boolean }) => {
+    async ({ project, query, offset, snippet, ...pageArgs }: { project?: string; query: string; offset?: number; snippet?: boolean } & Record<string, any>) => {
       const prj = resolveProject(project);
       const metas = await listDocs({ project: prj });
       const cacheKey = `${prj}|${query}`;
@@ -77,26 +92,39 @@ export function registerSearchTools(ctx: ServerContext): void {
         ranked = results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({ id, score, exactMatches, bm25Score, vectorScore }));
         rankedCache.set(cacheKey, ranked);
       }
-      const start = offset ?? 0;
-      const page = ranked.slice(start, start + (limit ?? 20));
-      // Read only the requested slice: the rest of the ranking stays as ids.
-      const docs = await Promise.all(page.map((r) => readDoc(prj, r.id)));
-      const byId = new Map<string, NonNullable<typeof docs[number]>>();
-      docs.forEach((d) => { if (d) byId.set(d.id, d); });
-      const data = page.flatMap((r) => {
-        const doc = byId.get(r.id);
-        if (!doc) return [];
-        const item = snippet === false
-          ? doc
-          : { ...doc, content: undefined, snippet: String(doc.content ?? '').slice(0, SNIPPET_CHARS) };
-        return [{ ...r, item }];
-      });
-      return okWith(data, {
-        total: ranked.length,
-        offset: start,
-        hasMore: start + page.length < ranked.length,
-        nextOffset: start + page.length,
-      });
+      const scope = scopeOf(prj, query);
+      const request = toPageRequest({ ...pageArgs, offset });
+      try {
+        const limit = clampLimit(request.limit);
+        const start = rankedStart(request, scope, ranked.length);
+        const page = ranked.slice(start, start + limit);
+        if (request.countOnly) {
+          const result = finalizePage([], { total: ranked.length, totalExact: true, hasMore: false, limit }, request, () => null);
+          return okWith(result.items, result.meta);
+        }
+        // Read only the requested slice: the rest of the ranking stays as ids.
+        const docs = await Promise.all(page.map((r) => readDoc(prj, r.id)));
+        const byId = new Map<string, NonNullable<typeof docs[number]>>();
+        docs.forEach((d) => { if (d) byId.set(d.id, d); });
+        const hydrated = page.flatMap((r) => {
+          const doc = byId.get(r.id);
+          if (!doc) return [];
+          const item = snippet === false
+            ? doc
+            : { ...doc, content: undefined, snippet: String(doc.content ?? '').slice(0, SNIPPET_CHARS) };
+          return [{ ...r, item }];
+        });
+        const result = finalizePage(
+          hydrated,
+          { total: ranked.length, totalExact: true, hasMore: start + page.length < ranked.length, limit },
+          request,
+          (index) => encodeOffsetCursor(start + index + 1, scope),
+        );
+        return okWith(result.items, result.meta);
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
+      }
     }
   );
 

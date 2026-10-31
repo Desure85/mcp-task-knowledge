@@ -4,6 +4,7 @@ import { resolveProject } from '../config.js';
 import {
   createTask,
   listTasks,
+  listTasksPage,
   listTasksTree,
   getTask,
   getTaskSubtree,
@@ -19,7 +20,9 @@ import {
   MAX_TASK_DEPTH,
   type ClaimActor,
 } from '../storage/tasks.js';
-import { ok, err, errWith } from '../utils/respond.js';
+import { ok, okWith, err, errWith } from '../utils/respond.js';
+import { PaginationError, paginateKeyed } from '../utils/pagination.js';
+import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
 import { WorkflowError, assertStatusAllowed, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
@@ -48,21 +51,41 @@ export function registerTasksTools(ctx: ServerContext): void {
     "tasks_list",
     {
       title: "List Tasks",
-      description: "List tasks with optional filters. Includes the active claim/lease holder when a task is claimed.",
+      description:
+        "List tasks with optional filters, cursor pagination and field selection. " +
+        "Returns `data` (array) plus total/count/hasMore/nextCursor/truncated/limit. " +
+        "Includes the active claim/lease holder when a task is claimed.",
       inputSchema: {
         project: z.string().optional(),
         status: z.string().min(1).optional(),
         tag: z.string().optional(),
+        priority: z.enum(["low", "medium", "high"]).optional(),
+        parentId: z.string().min(1).optional().describe("Only direct children of this task"),
+        updatedSince: z.string().min(1).optional().describe("ISO date; only tasks updated at or after it"),
         includeArchived: z.boolean().default(false).optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, status, tag, includeArchived }) => {
+    async ({ project, status, tag, priority, parentId, updatedSince, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
-        const items = await listTasks({ project: prj, status, tag, includeArchived });
-        return ok(items);
+        const request = toPageRequest(pageArgs);
+        const page = await listTasksPage(prj, {
+          limit: request.limit ?? 50,
+          cursor: request.cursor,
+          status,
+          tag,
+          priority,
+          parentId,
+          updatedSince,
+          includeArchived,
+          countOnly: request.countOnly,
+        });
+        const result = pageFromStorage(page, request, (t) => t.id);
+        return okWith(result.items, result.meta);
       } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         throw e;
       }
@@ -73,21 +96,27 @@ export function registerTasksTools(ctx: ServerContext): void {
     "tasks_tree",
     {
       title: "List Tasks Tree",
-      description: "List tasks as a hierarchical tree (by parentId)",
+      description:
+        "List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes " +
+        "(children of a returned root are always included).",
       inputSchema: {
         project: z.string().optional(),
         status: z.string().min(1).optional(),
         tag: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, status, tag, includeArchived }) => {
+    async ({ project, status, tag, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
-        const items = await listTasksTree({ project: prj, status, tag, includeArchived });
-        return ok(items);
+        const request = toPageRequest(pageArgs);
+        const roots = await listTasksTree({ project: prj, status, tag, includeArchived });
+        const result = paginateKeyed(roots, request, (n) => n.updatedAt || '', (n) => n.id);
+        return okWith(result.items, result.meta);
       } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         throw e;
       }
@@ -395,16 +424,27 @@ export function registerTasksTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         id: z.string().min(1).describe("Parent task ID"),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, id }) => {
+    async ({ project, id, ...pageArgs }) => {
       const prj = resolveProject(project);
       const parent = await getTask(prj, id);
       if (!parent) {
         return err(`Task not found: ${project}/${id}`);
       }
-      const children = await getDirectChildren(prj, id);
-      return ok({ parent: { id: parent.id, title: parent.title }, children });
+      try {
+        const request = toPageRequest(pageArgs);
+        const children = await getDirectChildren(prj, id);
+        const result = paginateKeyed(children, request, (t) => t.updatedAt || '', (t) => t.id);
+        return okWith(
+          { parent: { id: parent.id, title: parent.title }, children: result.items },
+          result.meta,
+        );
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
+      }
     }
   );
 
