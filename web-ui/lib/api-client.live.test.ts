@@ -126,4 +126,47 @@ maybe('api-client vs live MCP server', () => {
     expect(got.title).toBe(`webui-${suffix}`);
     await api.tasks.close(created.project ?? 'mcp', created.id);
   });
+  it('project statuses and transitions roundtrip with a custom workflow', async () => {
+    const { api } = await import('./api-client');
+    const project = `v01-live-${Date.now()}`;
+    await api.projects.create(project, 'UI live workflow');
+
+    try {
+      const defaults = await api.projects.statuses.get(project);
+      expect(defaults.statuses.map((s) => s.id)).toEqual(['pending', 'in_progress', 'completed', 'closed']);
+      expect(defaults.closeStatus).toBe('closed');
+
+      const custom = [
+        { id: 'todo', label: 'Todo', category: 'todo' as const, color: 'st-todo', order: 0 },
+        { id: 'doing', label: 'Doing', category: 'in_progress' as const, color: 'st-doing', order: 1 },
+        { id: 'done', label: 'Done', category: 'done' as const, color: 'st-done', order: 2 },
+      ];
+      const saved = await api.projects.statuses.set(project, custom, {
+        closeStatus: 'done',
+        initialStatuses: ['todo'],
+      });
+      expect(saved.statuses.map((s) => s.id)).toEqual(['todo', 'doing', 'done']);
+
+      const transitions = await api.projects.transitions.set(project, {
+        todo: ['doing'],
+        doing: ['done'],
+        done: [],
+      });
+      expect(transitions.transitions).toEqual({ todo: ['doing'], doing: ['done'], done: [] });
+
+      const task = await api.tasks.create({ project, title: 'live custom status', status: 'todo' });
+      expect(task.status).toBe('todo');
+
+      let code: string | undefined;
+      try {
+        await api.tasks.update(project, task.id, { status: 'done' });
+      } catch (e) {
+        code = (e as { code?: string }).code;
+      }
+      expect(code).toBe('TRANSITION_NOT_ALLOWED');
+    } finally {
+      await api.projects.remove(project, true).catch(() => undefined);
+    }
+  }, 30_000);
+
 });
