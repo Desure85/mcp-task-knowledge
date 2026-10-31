@@ -25,6 +25,7 @@
 
 ### Changed
 
+- V-04 task board: columns come from the project's own statuses (ordered, coloured by the status token, archived hidden), with horizontal scrolling, sticky column headers and "N more columns" cues; columns collapse to a 48 px strip or hide behind "Show hidden" chips, persisted per project in `localStorage`; drag & drop respects the project transition graph — forbidden columns dim with a not-allowed cursor, a rejected drop shows the server's `TRANSITION_NOT_ALLOWED` reason, hint and allowed list, and an optimistic move is rolled back; each card has a keyboard "Move to…" menu with only the allowed statuses; tasks with a status outside the project get a trailing "not in project" column
 - Repo hygiene (DX-33): removed the stray 42.7 MB GitHub CLI binary from `bin/` (never referenced by scripts/workflows/Dockerfile) and untracked `.opencode` goal-lock/session state; added the binary path and `.playwright-mcp/` to `.gitignore`. History was not rewritten — `git filter-repo` decision remains with the owner.
 - UI-26: prompt catalog cards now open a full read view (template/compose, metadata, variables, versions); edit sends only changed fields through `prompts_bulk_update`, with an unsaved-changes `Dialog`; delete uses a destructive `Dialog`. Added `prompts_get` and web-ui `api.prompts.get/update/delete`.
 - UI-27: the New project form uses the shared labelled field component, both fields have hints, labels/controls align, and Create sits on the control line; the mobile layout stacks fields.
