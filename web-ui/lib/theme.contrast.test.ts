@@ -29,11 +29,17 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ...['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'].map(
     (key) => [key, 'surface', 4.5] as [string, string, number],
   ),
+  ...['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'].map(
+    (key) => [key, 'surface-2', 3] as [string, string, number],
+  ),
   ...['ty-bug', 'ty-feature', 'ty-task'].map(
     (key) => [key, 'surface', 4.5] as [string, string, number],
   ),
   ...['pr-high', 'pr-med', 'pr-low'].map(
     (key) => [key, 'surface', 4.5] as [string, string, number],
+  ),
+  ...['pr-high', 'pr-med', 'pr-low'].map(
+    (key) => [key, 'surface-2', 3] as [string, string, number],
   ),
   ['line-strong', 'canvas', 3],
   ['focus-ring', 'canvas', 3],

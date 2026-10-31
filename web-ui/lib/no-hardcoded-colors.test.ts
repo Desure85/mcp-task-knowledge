@@ -13,6 +13,8 @@ import path from 'node:path';
 const MIGRATED_FILES = [
   'app/tasks/page.tsx',
   'app/knowledge/page.tsx',
+  'app/memory/page.tsx',
+  'app/analytics/page.tsx',
   'app/page.tsx',
   'app/access/page.tsx',
   'app/login/page.tsx',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react';
 import {
   api,
   type TemporalFact,
@@ -11,6 +11,10 @@ import {
   type LayeredFact,
   type MemoryLayerName,
 } from '@/lib/api-client';
+import { PageHeader } from '@/components/PageHeader';
+import { StatTile } from '@/components/StatTile';
+import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Input, Skeleton } from '@/components/ui';
+import { IconSearch } from '@/components/icons';
 
 type Tab = 'facts' | 'temporal' | 'profiles' | 'layers';
 
@@ -25,37 +29,63 @@ const LAYERS: MemoryLayerName[] = ['conversation', 'session', 'user'];
 
 function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
-    <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg flex justify-between">
-      <span>{message}</span>
-      <button onClick={onDismiss} className="text-red-500">✕</button>
-    </div>
+    <Card className="mb-4 border-danger/40">
+      <CardBody className="flex items-start justify-between gap-3">
+        <p role="alert" className="text-[12px] text-danger">{message}</p>
+        <Button size="sm" variant="ghost" onClick={onDismiss} aria-label="Dismiss error">Dismiss</Button>
+      </CardBody>
+    </Card>
   );
 }
 
-function FactCard({ fact }: { fact: TemporalFact }) {
-  return (
-    <div className="bg-white rounded-lg border p-4">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-700">{fact.category}</span>
-        <span className="text-xs text-gray-400">conf {fact.confidence}</span>
-        <span className={`text-xs px-2 py-0.5 rounded ${fact.valid ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-          {fact.valid ? 'valid' : 'invalidated'}
-        </span>
+function FactCard({ fact, onSelect }: { fact: TemporalFact; onSelect?: () => void }) {
+  const body = (
+    <>
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
+        <Badge>{fact.category}</Badge>
+        <Badge>conf {fact.confidence}</Badge>
+        <Badge tone={fact.valid ? 'done' : 'blocked'}>{fact.valid ? 'valid' : 'invalidated'}</Badge>
       </div>
-      <p className="font-medium">{fact.statement}</p>
-      <p className="text-xs text-gray-400 mt-1 font-mono">{fact.id}</p>
-      {fact.entities.length > 0 && (
-        <div className="flex gap-1 flex-wrap mt-2">
-          {fact.entities.map((e) => (
-            <span key={e} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">{e}</span>
-          ))}
+      <p className="text-[13px] font-medium text-ink">{fact.statement}</p>
+      <p className="mt-1 font-mono text-[11px] text-muted">{fact.id}</p>
+      {(fact.entities ?? []).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {(fact.entities ?? []).map((entity) => <Badge key={entity}>{entity}</Badge>)}
         </div>
       )}
-      <div className="text-xs text-gray-500 mt-2">
+      <div className="mt-2 text-[11px] text-muted">
         validFrom {fact.validFrom}
         {fact.validTo && <span> → validTo {fact.validTo}</span>}
-        {fact.invalidationReason && <span className="text-red-500"> ({fact.invalidationReason})</span>}
+        {fact.invalidationReason && <span className="text-danger"> ({fact.invalidationReason})</span>}
       </div>
+    </>
+  );
+
+  if (onSelect) {
+    return (
+      <Card className="transition hover:border-accent">
+        <button type="button" onClick={onSelect} className="block w-full p-4 text-left">
+          {body}
+        </button>
+      </Card>
+    );
+  }
+
+  return <Card><CardBody>{body}</CardBody></Card>;
+}
+
+function LoadingCards({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Loading memory data">
+      {Array.from({ length: count }).map((_, index) => (
+        <Card key={index}>
+          <CardBody>
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="mt-2 h-3 w-full" />
+            <Skeleton className="mt-2 h-3 w-2/3" />
+          </CardBody>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -107,86 +137,89 @@ function FactsTab() {
   const visible = useMemo(() => {
     const c = category.trim().toLowerCase();
     if (!c) return facts;
-    return facts.filter((f) => (f.tags ?? []).some((t) => t.toLowerCase().includes(c)));
+    return facts.filter((fact) => (fact.tags ?? []).some((tag) => tag.toLowerCase().includes(c)));
   }, [facts, category]);
 
   return (
     <div>
-      <div className="mb-4 flex gap-3 flex-wrap">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void search();
-          }}
-          placeholder="Search facts..."
-          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
-        />
-        <button
-          onClick={() => void search()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          Search
-        </button>
-        <input
-          type="text"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Filter by category/tag..."
-          className="px-3 py-2 border rounded-lg"
-        />
-        <button
-          onClick={() => {
-            setQuery('');
-            setCategory('');
-            void load();
-          }}
-          className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
-        >
-          Reset
-        </button>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="min-w-[220px] flex-1">
+          <Input
+            label="Search facts"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void search();
+            }}
+            placeholder="Statement or keyword"
+          />
+        </div>
+        <Button variant="primary" onClick={() => void search()}>Search</Button>
+        <div className="min-w-[200px]">
+          <Input
+            label="Category or tag"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="Filter the list"
+          />
+        </div>
+        <Button onClick={() => {
+          setQuery('');
+          setCategory('');
+          void load();
+        }}>Reset</Button>
       </div>
+
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <LoadingCards />
       ) : hits !== null ? (
         hits.length === 0 ? (
-          <p className="text-gray-500">No facts match &ldquo;{query}&rdquo;.</p>
+          <EmptyState
+            title={`No facts match “${query}”.`}
+            hint="Try another keyword or reset the filters."
+            icon={IconSearch}
+            action={<Button size="sm" onClick={() => { setQuery(''); void load(); }}>Clear search</Button>}
+          />
         ) : (
           <div className="space-y-3">
-            {hits.map((h) => (
-              <div key={h.id} className="bg-white rounded-lg border p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-gray-400">score {h.score}</span>
-                  {(h.tags ?? []).map((t) => (
-                    <span key={t} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{t}</span>
-                  ))}
-                </div>
-                <p className="font-medium">{h.title}</p>
-                <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{h.content}</p>
-              </div>
+            {hits.map((hit) => (
+              <Card key={hit.id}>
+                <CardBody>
+                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                    <Badge>score {hit.score}</Badge>
+                    {(hit.tags ?? []).map((tag) => <Badge key={tag}>{tag}</Badge>)}
+                  </div>
+                  <p className="text-[13px] font-medium text-ink">{hit.title}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-[12px] text-muted">{hit.content}</p>
+                </CardBody>
+              </Card>
             ))}
           </div>
         )
       ) : visible.length === 0 ? (
-        <p className="text-gray-500">No extracted facts yet. Run memory_extract first.</p>
+        <EmptyState
+          title="No extracted facts yet."
+          hint="Run memory_extract first to populate the knowledge base."
+        />
       ) : (
         <div className="space-y-3">
-          {visible.map((f) => (
-            <div key={f.id} className="bg-white rounded-lg border p-4">
-              <p className="font-medium">{f.title}</p>
-              <p className="text-xs text-gray-400 mt-1 font-mono">{f.id}</p>
-              {(f.tags ?? []).length > 0 && (
-                <div className="flex gap-1 flex-wrap mt-2">
-                  {(f.tags ?? []).map((t) => (
-                    <span key={t} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{t}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+          {visible.map((fact) => (
+            <Card key={fact.id}>
+              <CardBody>
+                <p className="text-[13px] font-medium text-ink">{fact.title}</p>
+                <p className="mt-1 font-mono text-[11px] text-muted">{fact.id}</p>
+                {(fact.tags ?? []).length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(fact.tags ?? []).map((tag) => <Badge key={tag}>{tag}</Badge>)}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
           ))}
-          <p className="text-sm text-gray-500">Showing {visible.length} of {facts.length} facts</p>
+          <p className="text-[12px] text-muted">Showing {visible.length} of {facts.length} facts</p>
         </div>
       )}
     </div>
@@ -258,84 +291,70 @@ function TemporalTab() {
   return (
     <div>
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white rounded-lg border p-3">
-            <p className="text-xs text-gray-400">Total</p>
-            <p className="text-xl font-bold">{stats.totalFacts}</p>
-          </div>
-          <div className="bg-white rounded-lg border p-3">
-            <p className="text-xs text-gray-400">Valid</p>
-            <p className="text-xl font-bold text-green-600">{stats.validFacts}</p>
-          </div>
-          <div className="bg-white rounded-lg border p-3">
-            <p className="text-xs text-gray-400">Invalidated</p>
-            <p className="text-xl font-bold text-gray-500">{stats.invalidatedFacts}</p>
-          </div>
-          <div className="bg-white rounded-lg border p-3">
-            <p className="text-xs text-gray-400">Categories</p>
-            <p className="text-xl font-bold">{Object.keys(stats.categories ?? {}).length}</p>
-          </div>
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatTile label="Total" value={stats.totalFacts} hint="temporal facts" />
+          <StatTile label="Valid" value={stats.validFacts} hint="currently valid" />
+          <StatTile label="Invalidated" value={stats.invalidatedFacts} hint="superseded" />
+          <StatTile label="Categories" value={Object.keys(stats.categories ?? {}).length} hint="distinct" />
         </div>
       )}
-      <div className="mb-4 flex gap-3 flex-wrap">
-        <input
-          type="text"
-          value={atTime}
-          onChange={(e) => setAtTime(e.target.value)}
-          placeholder="Point in time (ISO 8601, e.g. 2026-06-01T00:00:00Z)"
-          className="flex-1 min-w-[240px] px-3 py-2 border rounded-lg font-mono text-sm"
-        />
-        <input
-          type="text"
-          value={entity}
-          onChange={(e) => setEntity(e.target.value)}
-          placeholder="Entity filter..."
-          className="px-3 py-2 border rounded-lg"
-        />
-        <button
-          onClick={() => void queryAt()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          Query
-        </button>
-        <button
-          onClick={() => {
-            setAtTime('');
-            setEntity('');
-            setHistory(null);
-            void load();
-          }}
-          className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
-        >
-          Reset
-        </button>
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="min-w-[240px] flex-1">
+          <Input
+            label="Point in time"
+            value={atTime}
+            onChange={(e) => setAtTime(e.target.value)}
+            placeholder="ISO 8601, e.g. 2026-06-01T00:00:00Z"
+            className="font-mono"
+          />
+        </div>
+        <div className="min-w-[200px]">
+          <Input
+            label="Entity"
+            value={entity}
+            onChange={(e) => setEntity(e.target.value)}
+            placeholder="Entity filter"
+          />
+        </div>
+        <Button variant="primary" onClick={() => void queryAt()}>Query</Button>
+        <Button onClick={() => {
+          setAtTime('');
+          setEntity('');
+          setHistory(null);
+          void load();
+        }}>Reset</Button>
       </div>
+
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
       {history !== null && (
-        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold">History chain ({history.length})</h2>
-            <button onClick={() => setHistory(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-          </div>
-          <div className="space-y-2">
-            {history.map((f) => (
-              <FactCard key={f.id} fact={f} />
-            ))}
-          </div>
-        </div>
+        <Card className="mb-4 border-warning/40">
+          <CardHeader className="flex items-center justify-between gap-3">
+            <h2 className="text-[13px] font-semibold text-ink">History chain ({history.length})</h2>
+            <Button size="sm" variant="ghost" onClick={() => setHistory(null)} aria-label="Close history">Close</Button>
+          </CardHeader>
+          <CardBody className="space-y-2">
+            {history.length === 0
+              ? <p className="text-[12px] text-muted">No history entries.</p>
+              : history.map((fact) => <FactCard key={fact.id} fact={fact} />)}
+          </CardBody>
+        </Card>
       )}
+
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <LoadingCards />
       ) : facts.length === 0 ? (
-        <p className="text-gray-500">No temporal facts yet. Add some via memory_temporal_add first.</p>
+        <EmptyState
+          title="No temporal facts yet."
+          hint="Add some via memory_temporal_add first."
+        />
       ) : (
         <div className="space-y-3">
-          {facts.map((f) => (
-            <div key={f.id} onClick={() => void showHistory(f.id)} className="cursor-pointer">
-              <FactCard fact={f} />
-            </div>
+          {facts.map((fact) => (
+            <FactCard key={fact.id} fact={fact} onSelect={() => void showHistory(fact.id)} />
           ))}
-          <p className="text-sm text-gray-500">{facts.length} fact(s) — click a fact to see its history chain</p>
+          <p className="text-[12px] text-muted">{facts.length} fact(s) — select a fact to see its history chain</p>
         </div>
       )}
     </div>
@@ -385,76 +404,84 @@ function ProfilesTab() {
 
   return (
     <div>
-      <div className="mb-4 flex gap-3 flex-wrap">
-        <input
-          type="text"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void load();
-          }}
-          placeholder="User ID..."
-          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg"
-        />
-        <button
-          onClick={() => void load()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          Load profile
-        </button>
-        <button
-          onClick={() => void loadContext()}
-          disabled={!profile}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-        >
-          Context block
-        </button>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="min-w-[220px] flex-1">
+          <Input
+            label="User ID"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void load();
+            }}
+            placeholder="User ID"
+          />
+        </div>
+        <Button variant="primary" onClick={() => void load()}>Load profile</Button>
+        <Button variant="secondary" onClick={() => void loadContext()} disabled={!profile}>Context block</Button>
       </div>
+
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <LoadingCards count={2} />
       ) : !profile ? (
-        <p className="text-gray-500">Enter a user ID to view their profile.</p>
+        <EmptyState title="Enter a user ID to view their profile." />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white rounded-lg border p-4">
-            <h2 className="font-semibold mb-2">Static facts ({staticEntries.length})</h2>
-            {staticEntries.length === 0 ? (
-              <p className="text-sm text-gray-500">No static facts.</p>
-            ) : (
-              <dl className="space-y-1 text-sm">
-                {staticEntries.map(([key, fact]) => (
-                  <div key={key} className="flex gap-2">
-                    <dt className="text-gray-400 min-w-[120px]">{key}</dt>
-                    <dd className="font-medium">{fact.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-          </div>
-          <div className="bg-white rounded-lg border p-4">
-            <h2 className="font-semibold mb-2">Dynamic facts ({profile.dynamic.length})</h2>
-            {profile.dynamic.length === 0 ? (
-              <p className="text-sm text-gray-500">No dynamic facts.</p>
-            ) : (
-              <div className="space-y-2">
-                {profile.dynamic.map((f) => (
-                  <div key={f.id} className="text-sm border-b pb-2 last:border-0">
-                    <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 mr-2">{f.category}</span>
-                    <span className={f.valid ? '' : 'line-through text-gray-400'}>{f.statement}</span>
-                    <p className="text-xs text-gray-400 mt-0.5">from {f.validFrom}{f.validTo ? ` → ${f.validTo}` : ''}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <h2 className="text-[13px] font-semibold text-ink">Static facts ({staticEntries.length})</h2>
+            </CardHeader>
+            <CardBody>
+              {staticEntries.length === 0 ? (
+                <p className="text-[12px] text-muted">No static facts.</p>
+              ) : (
+                <dl className="space-y-1 text-[12px]">
+                  {staticEntries.map(([key, fact]) => (
+                    <div key={key} className="flex gap-2">
+                      <dt className="min-w-[120px] text-muted">{key}</dt>
+                      <dd className="font-medium text-ink">{fact.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h2 className="text-[13px] font-semibold text-ink">Dynamic facts ({profile.dynamic.length})</h2>
+            </CardHeader>
+            <CardBody>
+              {profile.dynamic.length === 0 ? (
+                <p className="text-[12px] text-muted">No dynamic facts.</p>
+              ) : (
+                <div className="space-y-2">
+                  {profile.dynamic.map((fact) => (
+                    <div key={fact.id} className="border-b border-line pb-2 text-[12px] last:border-0 last:pb-0">
+                      <Badge className="mr-2">{fact.category}</Badge>
+                      <span className={fact.valid ? 'text-ink' : 'text-muted line-through'}>{fact.statement}</span>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        from {fact.validFrom}{fact.validTo ? ` → ${fact.validTo}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
         </div>
       )}
+
       {context !== null && (
-        <div className="mt-4 bg-white rounded-lg border p-4">
-          <h2 className="font-semibold mb-2">Context block (system-prompt injection)</h2>
-          <pre className="text-xs bg-gray-50 rounded p-3 overflow-auto whitespace-pre-wrap">{context}</pre>
-        </div>
+        <Card className="mt-4">
+          <CardHeader>
+            <h2 className="text-[13px] font-semibold text-ink">Context block (system-prompt injection)</h2>
+          </CardHeader>
+          <CardBody>
+            <pre className="overflow-auto whitespace-pre-wrap rounded-[var(--radius-control)] bg-surface-2 p-3 font-mono text-[12px] text-ink">{context}</pre>
+          </CardBody>
+        </Card>
       )}
     </div>
   );
@@ -485,51 +512,50 @@ function LayersTab() {
 
   return (
     <div>
-      <div className="mb-4 flex gap-2">
-        {LAYERS.map((l) => (
-          <button
-            key={l}
-            onClick={() => setLayer(l)}
-            className={`px-4 py-2 rounded-lg transition ${layer === l ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
-          >
-            {l}
-          </button>
-        ))}
-        <button
-          onClick={() => void load(layer)}
-          className="ml-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
-        >
-          Reload
-        </button>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Memory layer" className="flex flex-wrap gap-2">
+          {LAYERS.map((item) => (
+            <Button
+              key={item}
+              size="sm"
+              variant={layer === item ? 'primary' : 'secondary'}
+              aria-pressed={layer === item}
+              onClick={() => setLayer(item)}
+            >
+              {item}
+            </Button>
+          ))}
+        </div>
+        <Button size="sm" className="ml-auto" onClick={() => void load(layer)}>Reload</Button>
       </div>
+
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <LoadingCards />
       ) : facts.length === 0 ? (
-        <p className="text-gray-500">No facts in layer &ldquo;{layer}&rdquo; yet.</p>
+        <EmptyState title={`No facts in layer “${layer}” yet.`} />
       ) : (
         <div className="space-y-3">
-          {facts.map((f) => (
-            <div key={f.id} className="bg-white rounded-lg border p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-700">{f.category}</span>
-                <span className="text-xs text-gray-400">conf {f.confidence}</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${f.valid ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {f.valid ? 'valid' : 'invalid'}
-                </span>
-              </div>
-              <p className="font-medium">{f.statement}</p>
-              <p className="text-xs text-gray-400 mt-1 font-mono">{f.id} · {f.createdAt}</p>
-              {f.tags.length > 0 && (
-                <div className="flex gap-1 flex-wrap mt-2">
-                  {f.tags.map((t) => (
-                    <span key={t} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">{t}</span>
-                  ))}
+          {facts.map((fact) => (
+            <Card key={fact.id}>
+              <CardBody>
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <Badge>{fact.category}</Badge>
+                  <Badge>conf {fact.confidence}</Badge>
+                  <Badge tone={fact.valid ? 'done' : 'blocked'}>{fact.valid ? 'valid' : 'invalid'}</Badge>
                 </div>
-              )}
-            </div>
+                <p className="text-[13px] font-medium text-ink">{fact.statement}</p>
+                <p className="mt-1 font-mono text-[11px] text-muted">{fact.id} · {fact.createdAt}</p>
+                {(fact.tags ?? []).length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(fact.tags ?? []).map((tag) => <Badge key={tag}>{tag}</Badge>)}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
           ))}
-          <p className="text-sm text-gray-500">{facts.length} fact(s) in {layer} layer</p>
+          <p className="text-[12px] text-muted">{facts.length} fact(s) in {layer} layer</p>
         </div>
       )}
     </div>
@@ -539,24 +565,61 @@ function LayersTab() {
 export default function MemoryPage() {
   const [tab, setTab] = useState<Tab>('facts');
 
+  function moveTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % TABS.length;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + TABS.length) % TABS.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = TABS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const next = TABS[nextIndex];
+    setTab(next.id);
+    requestAnimationFrame(() => document.getElementById(`memory-tab-${next.id}`)?.focus());
+  }
+
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Memory Browser</h1>
-      <div className="mb-4 flex gap-2 border-b pb-2">
-        {TABS.map((t) => (
+      <PageHeader
+        title="Memory browser"
+        description="Facts, temporal history, profiles and memory layers."
+      />
+
+      <div role="tablist" aria-label="Memory sections" className="mb-4 mt-4 flex flex-wrap gap-1 border-b border-line">
+        {TABS.map((item, index) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-t-lg transition ${tab === t.id ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`}
+            key={item.id}
+            id={`memory-tab-${item.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === item.id}
+            aria-controls={`memory-panel-${item.id}`}
+            tabIndex={tab === item.id ? 0 : -1}
+            onClick={() => setTab(item.id)}
+            onKeyDown={(event) => moveTab(event, index)}
+            className={`-mb-px border-b-2 px-3 py-2 text-[12px] font-medium transition ${
+              tab === item.id
+                ? 'border-accent text-ink'
+                : 'border-transparent text-muted hover:bg-surface-2 hover:text-ink'
+            }`}
           >
-            {t.label}
+            {item.label}
           </button>
         ))}
       </div>
-      {tab === 'facts' && <FactsTab />}
-      {tab === 'temporal' && <TemporalTab />}
-      {tab === 'profiles' && <ProfilesTab />}
-      {tab === 'layers' && <LayersTab />}
+
+      <div
+        role="tabpanel"
+        id={`memory-panel-${tab}`}
+        aria-labelledby={`memory-tab-${tab}`}
+        tabIndex={0}
+        className="outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+      >
+        {tab === 'facts' && <FactsTab />}
+        {tab === 'temporal' && <TemporalTab />}
+        {tab === 'profiles' && <ProfilesTab />}
+        {tab === 'layers' && <LayersTab />}
+      </div>
     </div>
   );
 }
