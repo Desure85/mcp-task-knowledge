@@ -8,10 +8,16 @@ export type GraphNodeType = 'entity' | 'fact';
 
 export interface GraphPalette {
   nodes: Record<GraphNodeType, string>;
+  /** Fill for a superseded (no longer valid) fact node. */
+  superseded: string;
   edge: string;
+  /** Dashed edge between a fact and the fact that replaced it. */
+  edgeReplaces: string;
   nodeStroke: string;
   selectedStroke: string;
   label: string;
+  /** Ring around nodes that match the search query. */
+  highlight: string;
 }
 
 export const GRAPH_COLOR_TOKENS = {
@@ -19,10 +25,13 @@ export const GRAPH_COLOR_TOKENS = {
     entity: '--accent',
     fact: '--st-done',
   },
+  superseded: '--st-archive',
   edge: '--line-strong',
+  edgeReplaces: '--st-archive',
   nodeStroke: '--surface',
   selectedStroke: '--ink',
   label: '--muted',
+  highlight: '--focus',
 } as const;
 
 const FALLBACK = 'currentColor';
@@ -34,10 +43,13 @@ export function readGraphPalette(read: (token: string) => string): GraphPalette 
       entity: pick(GRAPH_COLOR_TOKENS.nodes.entity),
       fact: pick(GRAPH_COLOR_TOKENS.nodes.fact),
     },
+    superseded: pick(GRAPH_COLOR_TOKENS.superseded),
     edge: pick(GRAPH_COLOR_TOKENS.edge),
+    edgeReplaces: pick(GRAPH_COLOR_TOKENS.edgeReplaces),
     nodeStroke: pick(GRAPH_COLOR_TOKENS.nodeStroke),
     selectedStroke: pick(GRAPH_COLOR_TOKENS.selectedStroke),
     label: pick(GRAPH_COLOR_TOKENS.label),
+    highlight: pick(GRAPH_COLOR_TOKENS.highlight),
   };
 }
 

@@ -13,7 +13,13 @@ import path from 'node:path';
 
 function walkTsx(dir: string): string[] {
   const files: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return files; // optional sub-directory (e.g. a feature that is not split yet)
+  }
+  for (const entry of entries) {
     const rel = `${dir}/${entry.name}`;
     if (entry.isDirectory()) files.push(...walkTsx(rel));
     else if (entry.name.endsWith('.tsx')) files.push(rel);
@@ -22,14 +28,21 @@ function walkTsx(dir: string): string[] {
 }
 
 const APP_FILES = walkTsx('app');
-const COMPONENT_FILES = readdirSync('components', { withFileTypes: true })
-  .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx'))
-  .map((entry) => `components/${entry.name}`);
+const COMPONENT_FILES = [
+  ...readdirSync('components', { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx'))
+    .map((entry) => `components/${entry.name}`),
+  // UI-28: the graph is split into focused components.
+  ...walkTsx('components/graph'),
+];
 const LIB_FILES = [
   'lib/realtime.ts',
   'lib/knowledge.ts',
   'lib/markdown.ts',
   'lib/graph-theme.ts',
+  'lib/graph-model.ts',
+  'lib/graph-labels.ts',
+  'lib/graph-layout.ts',
 ];
 const BRAND_ASSETS = ['app/icon.svg'];
 
