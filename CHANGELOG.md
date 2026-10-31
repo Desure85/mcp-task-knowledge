@@ -25,6 +25,7 @@
 
 ### Changed
 
+- UI-24 (part 1): Tasks, Overview, Access, Login and the shell use design tokens and `components/ui` primitives only; the Live pill follows status tokens; a guard test (`lib/no-hardcoded-colors.test.ts`) blocks Tailwind palette colours/hex in migrated files
 - CI/Docker: `ONNXRUNTIME_NODE_INSTALL=skip` for CPU `npm ci`/`npm install`, so onnxruntime-node no longer downloads ~hundreds of MB of CUDA provider binaries from `api.nuget.org` (GPU stages still install them with `cuda12`)
 - Security: WebSocket auth no longer puts the JWT in the URL. `POST /auth/ws-ticket` exchanges a Bearer JWT for a single-use 30 s ticket; `/ws` accepts only `?ticket=` (legacy `?token=` rejected), tickets are bound to `sub`/`jti` and die on JWT revocation; the web UI fetches a fresh ticket per connect/reconnect
 - Node.js 24: `engines.node >=22.0.0`, `.nvmrc=24`; CI primary Node 24, compat-матрица 22.x/24.x; Docker-образы и compose на `node:24-bullseye|alpine` (`mcp-node:24-*`)
