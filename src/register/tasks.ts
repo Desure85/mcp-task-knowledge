@@ -21,7 +21,7 @@ import {
 } from '../storage/tasks.js';
 import { ok, err, errWith } from '../utils/respond.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
-import { WorkflowError, assertStatusAllowed, loadProjectWorkflow } from '../workflow.js';
+import { WorkflowError, assertStatusAllowed, assertTypeAllowed, loadProjectTypes, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
 
 /** Resolve the claiming identity: SDK session > ALS request scope > local. */
@@ -52,15 +52,17 @@ export function registerTasksTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tag: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
       },
     },
-    async ({ project, status, tag, includeArchived }) => {
+    async ({ project, status, type, tag, includeArchived }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
-        const items = await listTasks({ project: prj, status, tag, includeArchived });
+        if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
+        const items = await listTasks({ project: prj, status, type, tag, includeArchived });
         return ok(items);
       } catch (e) {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
@@ -77,15 +79,17 @@ export function registerTasksTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tag: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
       },
     },
-    async ({ project, status, tag, includeArchived }) => {
+    async ({ project, status, type, tag, includeArchived }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
-        const items = await listTasksTree({ project: prj, status, tag, includeArchived });
+        if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
+        const items = await listTasksTree({ project: prj, status, type, tag, includeArchived });
         return ok(items);
       } catch (e) {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
@@ -122,13 +126,14 @@ export function registerTasksTools(ctx: ServerContext): void {
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().optional(),
         dependsOn: z.array(z.string()).optional().describe("Dependency task IDs (DAG edges, cycle-protected)"),
       },
     },
-    async ({ project, title, description, priority, status, tags, links, parentId }) => {
+    async ({ project, title, description, priority, status, type, tags, links, parentId }) => {
       const prj = resolveProject(project);
       try {
         const workflow = await loadProjectWorkflow(prj);
@@ -139,6 +144,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           description,
           priority,
           status,
+          type,
           tags,
           links,
           parentId,
@@ -163,6 +169,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.string().min(1).optional(),
+        type: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional(),
@@ -317,11 +324,12 @@ export function registerTasksTools(ctx: ServerContext): void {
         title: z.string().min(1),
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
+        type: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
       },
     },
-    async ({ project, parentId, title, description, priority, tags, links }) => {
+    async ({ project, parentId, title, description, priority, type, tags, links }) => {
       const prj = resolveProject(project);
       try {
         const parent = await getTask(prj, parentId);
@@ -333,6 +341,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           title,
           description,
           priority,
+          type,
           tags,
           links,
           parentId,
