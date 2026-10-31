@@ -5,6 +5,9 @@ import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson 
 import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
 import {
   assertStatusAllowed,
+  assertTypeAllowed,
+  loadProjectTypes,
+  resolveTaskType,
   assertTransition,
   closeStatusId,
   defaultStatusId,
@@ -50,6 +53,7 @@ export async function createTask(input: {
   description?: string;
   priority?: Priority;
   status?: Status;
+  type?: string;
   tags?: string[];
   links?: string[];
   parentId?: string;
@@ -67,6 +71,8 @@ export async function createTask(input: {
     const workflow = await loadProjectWorkflow(input.project);
     const status = input.status ?? defaultStatusId(workflow);
     assertStatusAllowed(workflow, status);
+    const projectTypes = await loadProjectTypes(input.project);
+    const type = resolveTaskType(projectTypes.types, input.type);
 
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -76,6 +82,7 @@ export async function createTask(input: {
       title: input.title,
       description: input.description,
       status,
+      type,
       priority: input.priority || 'medium',
       tags: input.tags || [],
       links: input.links || [],
@@ -120,6 +127,7 @@ function withoutExpiredClaim(task: Task, nowMs: number = Date.now()): Task {
 export async function listTasks(filter?: {
   project?: string;
   status?: Status;
+  type?: string;
   tag?: string;
   includeArchived?: boolean;
   includeTrashed?: boolean;
@@ -141,11 +149,13 @@ export async function listTasks(filter?: {
     for (const f of files) {
       if (!f.endsWith('.json')) continue;
       const t = withoutExpiredClaim(await readJson<Task>(path.join(dir, f)));
+      t.type = t.type ?? 'task';
       // skip trashed by default unless explicitly included
       if (!filter?.includeTrashed && (t as any).trashed) continue;
       // skip archived by default unless explicitly included
       if (!filter?.includeArchived && (t as any).archived) continue;
       if (filter?.status && t.status !== filter.status) continue;
+      if (filter?.type && (t.type ?? 'task') !== filter.type) continue;
       if (filter?.tag && !(t.tags || []).includes(filter.tag)) continue;
       results.push(t);
     }
@@ -158,6 +168,7 @@ export async function listTasks(filter?: {
 export async function listTasksTree(filter?: {
   project?: string;
   status?: Status;
+  type?: string;
   tag?: string;
   includeArchived?: boolean;
 }): Promise<TaskTreeNode[]> {
@@ -191,7 +202,8 @@ export async function listTasksTree(filter?: {
 
 export async function getTask(project: string, id: string): Promise<Task | null> {
   const task = await readTaskRaw(project, id);
-  return task ? withoutExpiredClaim(task) : null;
+  if (!task) return null;
+  return { ...withoutExpiredClaim(task), type: task.type ?? 'task' };
 }
 
 // Backwards-compatible alias expected by some tests
@@ -410,6 +422,10 @@ async function updateTaskUnlocked(
     assertStatusAllowed(effectiveWorkflow, nextStatus);
     if (existing.status !== nextStatus) assertTransition(effectiveWorkflow, existing.status, nextStatus);
   }
+  if (patch.type !== undefined) {
+    const projectTypes = await loadProjectTypes(project);
+    assertTypeAllowed(projectTypes.types, String(patch.type));
+  }
 
   // If parentId is being modified, validate new parent existence and protect against cycles
   const hasParentPatch = Object.prototype.hasOwnProperty.call(patch as any, 'parentId');
@@ -485,6 +501,7 @@ async function updateTaskUnlocked(
     ...normalizedPatch,
     id: existing.id,
     project: existing.project,
+    type: (normalizedPatch as any).type ?? existing.type ?? 'task',
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
@@ -505,14 +522,34 @@ export async function closeTask(project: string, id: string): Promise<Task | nul
  * Move tasks to a status while the caller already holds the project workflow
  * lock. Used by project_statuses_set for an atomic rename/removal.
  */
+/**
+ * Move tasks to a type while the caller holds the project workflow lock.
+ * Used by project_types_set when a used type is removed.
+ */
+export async function moveTasksToType(project: string, ids: string[], type: string): Promise<Task[]> {
+  const updated: Task[] = [];
+  for (const id of ids) {
+    const next = await withFileLock(`task:${project}/${id}`, async () => {
+      const task = await readTaskRaw(project, id);
+      if (!task) return null;
+      if ((task.type ?? 'task') === type) return task;
+      const moved: Task = { ...task, type, updatedAt: new Date().toISOString() };
+      await writeJson(taskFilePath(project, id), moved);
+      return moved;
+    });
+    if (next) updated.push(next);
+  }
+  return updated;
+}
+
 export async function moveTasksToStatus(project: string, ids: string[], status: string): Promise<Task[]> {
   const updated: Task[] = [];
   for (const id of ids) {
     const next = await withFileLock(`task:${project}/${id}`, async () => {
       const task = await readTaskRaw(project, id);
       if (!task) return null;
-      if (task.status === status) return task;
-      const moved: Task = { ...task, status, updatedAt: new Date().toISOString() };
+      if (task.status === status) return { ...task, type: task.type ?? 'task' };
+      const moved: Task = { ...task, type: task.type ?? 'task', status, updatedAt: new Date().toISOString() };
       await writeJson(taskFilePath(project, id), moved);
       return moved;
     });

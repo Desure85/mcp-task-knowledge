@@ -1,6 +1,6 @@
 import { DEFAULT_PROJECT, TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from './config.js';
 import { resolveUnder, PathValidationError, withFileLock } from './fs.js';
-import type { ProjectStatus } from './workflow.js';
+import type { ProjectStatus, ProjectType } from './workflow.js';
 
 /**
  * Strict contract for NEW project ids (AUD-03): safe charset, no separators,
@@ -47,6 +47,7 @@ export interface ProjectMetadata {
   createdAt: string;
   updatedAt: string;
   statuses?: ProjectStatus[];
+  types?: ProjectType[];
   transitions?: Record<string, string[]>;
   closeStatus?: string;
   initialStatuses?: string[];
@@ -264,6 +265,7 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
 export type ProjectMetaUpdates = {
   description?: string;
   statuses?: ProjectStatus[] | null;
+  types?: ProjectType[] | null;
   transitions?: Record<string, string[]> | null;
   closeStatus?: string | null;
   initialStatuses?: string[] | null;
@@ -284,6 +286,10 @@ export async function updateProjectMeta(
     if (updates.statuses !== undefined) {
       if (updates.statuses === null) delete meta.statuses;
       else meta.statuses = updates.statuses;
+    }
+    if (updates.types !== undefined) {
+      if (updates.types === null) delete meta.types;
+      else meta.types = updates.types;
     }
     if (updates.transitions !== undefined) {
       if (updates.transitions === null) delete meta.transitions;

@@ -61,6 +61,7 @@ export function registerBriefingTools(ctx: ServerContext): void {
           title: t.title,
           priority: t.priority,
           status: t.status,
+          type: t.type ?? 'task',
           ...(t.tags?.length ? { tags: t.tags } : {}),
           ...(t.claim ? { claim: t.claim } : {}),
           updatedAt: t.updatedAt,
@@ -109,6 +110,11 @@ export function registerBriefingTools(ctx: ServerContext): void {
       }
 
       const inProgress = open.filter((t) => statusCategory(workflow, t.status) === 'in_progress' && t.status !== 'blocked').length;
+      const byType: Record<string, number> = {};
+      for (const t of open) {
+        const type = t.type ?? 'task';
+        byType[type] = (byType[type] || 0) + 1;
+      }
       const summary =
         `${open.length} open task${open.length === 1 ? '' : 's'}` +
         ` (${inProgress} in progress, ${blockers.length} blocked), ` +
@@ -125,6 +131,7 @@ export function registerBriefingTools(ctx: ServerContext): void {
           inProgress,
           blocked: blockers.length,
           docs: docs.length,
+          byType,
         },
         summary,
       });

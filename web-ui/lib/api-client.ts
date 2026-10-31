@@ -301,6 +301,8 @@ export interface Task {
   title: string;
   description?: string;
   status: string;
+  /** V-03: project-defined task type; legacy tasks are treated as task. */
+  type?: string;
   priority: 'low' | 'medium' | 'high';
   tags?: string[];
   parentId?: string | null;
@@ -371,6 +373,20 @@ export interface ProjectTransitionsData {
   project: string;
   transitions: Record<string, string[]> | null;
   unrestricted: boolean;
+}
+
+export interface ProjectType {
+  id: string;
+  label: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface ProjectTypesData {
+  project: string;
+  types: ProjectType[];
+  defaults: boolean;
+  moved?: Array<{ from: string; to: string; count: number }>;
 }
 
 export interface ProjectInfo {
@@ -657,8 +673,8 @@ export const api = {
 
   // Tasks
   tasks: {
-    list: (project?: string) => callTool<Task[]>('tasks_list', { project }),
-    create: (input: { title: string; project?: string; priority?: string; status?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
+    list: (project?: string, type?: string) => callTool<Task[]>('tasks_list', { project, ...(type ? { type } : {}) }),
+    create: (input: { title: string; project?: string; priority?: string; status?: string; type?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
       callTool<Task>('tasks_create', input),
     get: (project: string, id: string) => callTool<Task>('tasks_get', { project, id }),
     update: (project: string, id: string, patch: Partial<Task>) =>
@@ -670,7 +686,7 @@ export const api = {
     getSubtree: (project: string, id: string) => callTool<unknown>('tasks_get_subtree', { project, id }),
     bulkUpdate: (project: string, items: Array<{ id: string } & Record<string, unknown>>) =>
       callTool<{ count: number; results: Task[]; failed?: Array<{ id: string; error: Record<string, unknown> }> }>('tasks_bulk_update', { project, items }),
-    tree: (project?: string, status?: string) => callTool<unknown>('tasks_tree', { project, status }),
+    tree: (project?: string, status?: string, type?: string) => callTool<unknown>('tasks_tree', { project, status, ...(type ? { type } : {}) }),
     dag: (project?: string) => callTool<DagData>('tasks_dag', { project }),
   },
 
@@ -699,8 +715,8 @@ export const api = {
 
   // Search
   search: {
-    tasks: (query: string, project?: string, limit?: number) =>
-      callTool<SearchResult[]>('search_tasks', { query, project, limit }),
+    tasks: (query: string, project?: string, limit?: number, type?: string) =>
+      callTool<SearchResult[]>('search_tasks', { query, project, limit, ...(type ? { type } : {}) }),
     knowledge: (query: string, project?: string, limit?: number) =>
       callTool<SearchResult<KnowledgeListItem>[]>('search_knowledge', { query, project, limit }),
   },
@@ -736,6 +752,15 @@ export const api = {
       get: (project?: string) => callTool<ProjectTransitionsData>('project_transitions_get', { project }),
       set: (project: string, transitions: Record<string, string[]> | null) =>
         callTool<ProjectTransitionsData>('project_transitions_set', { project, transitions }),
+    },
+
+    types: {
+      get: (project?: string) => callTool<ProjectTypesData>('project_types_get', { project }),
+      set: (
+        project: string,
+        types: ProjectType[],
+        options: { moveTo?: string; moves?: Record<string, string> } = {},
+      ) => callTool<ProjectTypesData>('project_types_set', { project, types, ...options }),
     },
   },
 
