@@ -25,6 +25,13 @@ const SIZES: Record<Size, string> = {
   md: 'h-8 px-3 text-[12px]',
 };
 
+/**
+ * The only button in the admin UI; the variant expresses intent.
+ *
+ * `primary` — one main action per view, `secondary` — the default, `ghost` —
+ * dense toolbars and row actions, `danger` — destructive actions, always
+ * paired with a `Dialog`.
+ */
 export function Button({
   variant = 'secondary',
   size = 'md',
