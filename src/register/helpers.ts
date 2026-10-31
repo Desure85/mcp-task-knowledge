@@ -148,6 +148,44 @@ export async function listSourceJsonFiles(project: string): Promise<string[]> {
   return out;
 }
 
+export interface PromptVersionInfo {
+  version: string;
+  path: string;
+  latest: boolean;
+}
+
+function cmpSemver(a: string, b: string): number {
+  const pa = a.split('.').map((n) => parseInt(n, 10));
+  const pb = b.split('.').map((n) => parseInt(n, 10));
+  for (let i = 0; i < 3; i++) {
+    const ai = pa[i] || 0;
+    const bi = pb[i] || 0;
+    if (ai !== bi) return ai - bi;
+  }
+  return a.localeCompare(b);
+}
+
+/** All source versions of a prompt id, oldest first. */
+export async function listPromptVersions(project: string, id: string): Promise<PromptVersionInfo[]> {
+  const files = await listSourceJsonFiles(project);
+  const versions: Array<{ version: string; path: string }> = [];
+  for (const file of files) {
+    try {
+      const raw = await fs.readFile(file, 'utf8');
+      const data = JSON.parse(raw);
+      if (data?.id === id && typeof data?.version === 'string' && data.version.length > 0) {
+        if (!versions.some((v) => v.version === data.version)) {
+          versions.push({ version: data.version, path: file });
+        }
+      }
+    } catch {
+      // Skip malformed files; prompts_get reports not found or reads the selected one.
+    }
+  }
+  versions.sort((a, b) => cmpSemver(a.version, b.version));
+  return versions.map((v, index) => ({ ...v, latest: index === versions.length - 1 }));
+}
+
 export async function findFileByIdVersion(project: string, id: string, version: string): Promise<string | null> {
   const files = await listSourceJsonFiles(project);
   for (const f of files) {
