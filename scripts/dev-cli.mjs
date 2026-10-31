@@ -17,6 +17,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+/** Таймаут запроса к MCP (SDK по умолчанию 60 с — мало для list на больших данных). */
+const MCP_TIMEOUT_MS = Number(process.env.MCP_REQUEST_TIMEOUT_MS) > 0 ? Number(process.env.MCP_REQUEST_TIMEOUT_MS) : 120_000;
+
 const ROOT = resolve(process.cwd());
 
 function usage() {
@@ -59,7 +62,8 @@ async function withServer(fn) {
 }
 
 async function call(client, name, args = {}) {
-  const res = await client.callTool({ name, arguments: args });
+  // SDK default request timeout is 60 s; list ops on large projects legitimately run longer.
+  const res = await client.callTool({ name, arguments: args }, undefined, { timeout: MCP_TIMEOUT_MS });
   const text = res?.content?.[0]?.text ?? '{}';
   return JSON.parse(text);
 }
@@ -198,7 +202,7 @@ async function cmdBenchmark(args) {
   await client.connect(transport);
   // SDK Client exposes callTool directly; adapt to the benchmark client surface.
   const adapter = new MCPMemoryAdapter(
-    { callTool: (a) => client.callTool(a) },
+    { callTool: (a) => client.callTool(a, undefined, { timeout: MCP_TIMEOUT_MS }) },
     { baseProject: project },
   );
   const reports = [];

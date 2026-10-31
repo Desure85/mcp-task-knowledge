@@ -15,11 +15,43 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { AUTH_EXPIRED_EVENT, isAuthRequiredError } from './auth';
 
+/** Метаданные страницы, которые сервер кладёт рядом с `data` (SC-01). */
+export interface PageMeta {
+  total: number;
+  totalExact?: boolean;
+  count: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  truncated: boolean;
+  limit: number;
+}
+
+export interface Page<T> extends PageMeta {
+  data: T[];
+}
+
 interface McpEnvelope<T> {
   ok: boolean;
   data?: T;
   error?: { message: string; code?: string; hint?: string; details?: unknown };
+  total?: number;
+  totalExact?: boolean;
+  count?: number;
+  hasMore?: boolean;
+  nextCursor?: string | null;
+  truncated?: boolean;
+  limit?: number;
 }
+
+/**
+ * Таймаут запроса к MCP. SDK по умолчанию рвёт запрос через 60 с, а list-операции на
+ * больших данных легально дольше (docs/benchmarks/scale-2026-10.md §3.3). Поднимаем
+ * дефолт и даём переопределить через NEXT_PUBLIC_MCP_TIMEOUT_MS.
+ */
+const MCP_REQUEST_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.NEXT_PUBLIC_MCP_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 120_000;
+})();
 
 /** Resolve the MCP endpoint — read lazily so tests/SSR can set env per call. */
 export function resolveMcpApiUrl(): string {
@@ -277,7 +309,7 @@ function handleAuthFailure(): void {
 export async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
   try {
     const client = await getClient();
-    const result = await client.callTool({ name, arguments: args });
+    const result = await client.callTool({ name, arguments: args }, undefined, { timeout: MCP_REQUEST_TIMEOUT_MS });
     const env = parseEnvelope<T>(result);
     if (!env.ok) {
       throw new ToolCallError(
@@ -292,6 +324,61 @@ export async function callTool<T>(name: string, args: Record<string, unknown> = 
     if (isAuthRequiredError(e)) handleAuthFailure();
     throw e;
   }
+}
+
+/** Как `callTool`, но возвращает и метаданные страницы (total/hasMore/nextCursor). */
+export async function callToolPage<T>(name: string, args: Record<string, unknown> = {}): Promise<Page<T>> {
+  let result: unknown;
+  try {
+    const client = await getClient();
+    result = await client.callTool({ name, arguments: args }, undefined, { timeout: MCP_REQUEST_TIMEOUT_MS });
+  } catch (e) {
+    // Тот же auth-путь, что и у callTool: иначе истёкший токен оставит UI в полусостоянии.
+    if (isAuthRequiredError(e)) handleAuthFailure();
+    throw e;
+  }
+  const env = parseEnvelope<T[]>(result);
+  if (!env.ok) {
+    throw new ToolCallError(
+      env.error?.message ?? `Tool ${name} failed`,
+      env.error?.code,
+      env.error?.hint,
+      env.error?.details,
+    );
+  }
+  // Не-массив в `data` (старый мок/неожидаемый ответ) не должен ломать долистывание.
+  const items = Array.isArray(env.data) ? (env.data as T[]) : [];
+  return {
+    data: items,
+    total: env.total ?? 0,
+    totalExact: env.totalExact,
+    count: env.count ?? items.length,
+    hasMore: env.hasMore ?? false,
+    nextCursor: env.nextCursor ?? null,
+    truncated: env.truncated ?? false,
+    limit: env.limit ?? 0,
+  };
+}
+
+/**
+ * ВРЕМЕННО (до SC-04): страницы Tasks и Knowledge исторически рисуют весь список.
+ * Сервер теперь отдаёт страницы, поэтому клиент долистывает их курсором и склеивает —
+ * поведение UI не меняется, а в браузер всё равно приезжает всё (это чинит SC-04).
+ */
+export async function callToolAll<T>(
+  name: string,
+  args: Record<string, unknown> = {},
+  pageSize = 200,
+): Promise<T[]> {
+  const all: T[] = [];
+  let cursor: string | null = null;
+  for (let guard = 0; guard < 1000; guard++) {
+    const page: Page<T> = await callToolPage<T>(name, { ...args, limit: pageSize, ...(cursor ? { cursor } : {}) });
+    all.push(...page.data);
+    if (!page.hasMore || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
+  return all;
 }
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -657,7 +744,8 @@ export const api = {
 
   // Tasks
   tasks: {
-    list: (project?: string) => callTool<Task[]>('tasks_list', { project }),
+    // ВРЕМЕННО: долистывает все страницы (SC-04 заменит на серверную пагинацию в UI).
+    list: (project?: string, args?: Record<string, unknown>) => callToolAll<Task>('tasks_list', { project, ...args }),
     create: (input: { title: string; project?: string; priority?: string; status?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
       callTool<Task>('tasks_create', input),
     get: (project: string, id: string) => callTool<Task>('tasks_get', { project, id }),
@@ -676,7 +764,8 @@ export const api = {
 
   // Knowledge (single create/update are bulk-only server-side)
   knowledge: {
-    list: (project?: string) => callTool<KnowledgeListItem[]>('knowledge_list', { project }),
+    // ВРЕМЕННО: долистывает все страницы (SC-04 заменит на серверную пагинацию в UI).
+    list: (project?: string, args?: Record<string, unknown>) => callToolAll<KnowledgeListItem>('knowledge_list', { project, ...args }),
     get: (project: string, id: string) => callTool<KnowledgeDoc>('knowledge_get', { project, id }),
     exportSingle: (project: string, id: string) =>
       callTool<{ id: string; title: string; markdown: string }>('knowledge_export_single', { project, id }),
