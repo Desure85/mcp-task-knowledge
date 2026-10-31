@@ -1,5 +1,6 @@
 import { DEFAULT_PROJECT, TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from './config.js';
-import { resolveUnder, PathValidationError } from './fs.js';
+import { resolveUnder, PathValidationError, withFileLock } from './fs.js';
+import type { ProjectStatus } from './workflow.js';
 
 /**
  * Strict contract for NEW project ids (AUD-03): safe charset, no separators,
@@ -45,6 +46,10 @@ export interface ProjectMetadata {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  statuses?: ProjectStatus[];
+  transitions?: Record<string, string[]>;
+  closeStatus?: string;
+  initialStatuses?: string[];
 }
 
 const PROJECT_META_FILE = '.project.json';
@@ -256,15 +261,45 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
   return { deleted: true, message: `Project '${projectId}' deleted` };
 }
 
-export async function updateProjectMeta(projectId: string, updates: { description?: string }): Promise<ProjectMetadata | null> {
-  const existing = await readProjectMetadata(projectId);
-  const meta: ProjectMetadata = {
-    description: updates.description ?? existing?.description,
-    createdAt: existing?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  await writeProjectMetadata(projectId, meta);
-  return meta;
+export type ProjectMetaUpdates = {
+  description?: string;
+  statuses?: ProjectStatus[] | null;
+  transitions?: Record<string, string[]> | null;
+  closeStatus?: string | null;
+  initialStatuses?: string[] | null;
+};
+
+export async function updateProjectMeta(
+  projectId: string,
+  updates: ProjectMetaUpdates,
+): Promise<ProjectMetadata | null> {
+  return withFileLock(`project-meta:${projectId}`, async () => {
+    const existing = await readProjectMetadata(projectId);
+    const meta: ProjectMetadata = {
+      ...(existing ?? {}),
+      description: updates.description ?? existing?.description,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (updates.statuses !== undefined) {
+      if (updates.statuses === null) delete meta.statuses;
+      else meta.statuses = updates.statuses;
+    }
+    if (updates.transitions !== undefined) {
+      if (updates.transitions === null) delete meta.transitions;
+      else meta.transitions = updates.transitions;
+    }
+    if (updates.closeStatus !== undefined) {
+      if (updates.closeStatus === null) delete meta.closeStatus;
+      else meta.closeStatus = updates.closeStatus;
+    }
+    if (updates.initialStatuses !== undefined) {
+      if (updates.initialStatuses === null) delete meta.initialStatuses;
+      else meta.initialStatuses = updates.initialStatuses;
+    }
+    await writeProjectMetadata(projectId, meta);
+    return meta;
+  });
 }
 
 // ── Internal helpers ──────────────────────────────────────

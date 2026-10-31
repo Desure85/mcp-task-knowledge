@@ -3,7 +3,8 @@ import type { ServerContext } from './context.js';
 import { resolveProject, DATA_DIR, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, getTask} from '../storage/tasks.js';
 import { createDoc, listDocs, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
-import { ok, err } from '../utils/respond.js';
+import { ok, err, errWith } from '../utils/respond.js';
+import { WorkflowError } from '../workflow.js';
 import { createDataBackup, isBackupRequired, type BackupScope } from '../services/data-backup.js';
 import { elicitConfirm } from '../core/elicitation.js';
 import { childLogger } from '../core/logger.js';
@@ -75,7 +76,7 @@ export function registerBulkTools(ctx: ServerContext): void {
               tags: z.array(z.string()).optional(),
               links: z.array(z.string()).optional(),
               parentId: z.string().nullable().optional(),
-              status: z.enum(["pending", "in_progress", "completed", "closed"]).optional(),
+              status: z.string().min(1).optional(),
             })
           )
           .min(1)
@@ -85,12 +86,22 @@ export function registerBulkTools(ctx: ServerContext): void {
     async ({ project, items }) => {
       const prj = resolveProject(project);
       const results: any[] = [];
+      const failed: Array<{ id: string; error: Record<string, unknown> }> = [];
       for (const it of items) {
         const { id, ...patch } = it as any;
-        const t = await updateTask(prj, id, patch as any);
-        if (t) results.push(t);
+        try {
+          const t = await updateTask(prj, id, patch as any);
+          if (t) results.push(t);
+          else failed.push({ id, error: { code: 'TASK_NOT_FOUND', message: `Task not found: ${prj}/${id}` } });
+        } catch (e) {
+          if (e instanceof WorkflowError) {
+            failed.push({ id, error: e.toPayload() });
+          } else {
+            failed.push({ id, error: { code: 'UPDATE_FAILED', message: (e as Error)?.message || String(e) } });
+          }
+        }
       }
-      return ok({ count: results.length, results });
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -155,9 +166,14 @@ export function registerBulkTools(ctx: ServerContext): void {
     async ({ project, items }) => {
       const prj = resolveProject(project);
       const created = [] as any[];
-      for (const it of items) {
-        const t = await createTask({ project: prj, ...it });
-        created.push(t);
+      try {
+        for (const it of items) {
+          const t = await createTask({ project: prj, ...it });
+          created.push(t);
+        }
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
       }
       const envelope = { ok: true, data: { count: created.length, created } };
       return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
@@ -228,11 +244,21 @@ export function registerBulkTools(ctx: ServerContext): void {
     async ({ project, ids }) => {
       const prj = resolveProject(project);
       const results = [] as any[];
+      const failed: Array<{ id: string; error: Record<string, unknown> }> = [];
       for (const id of ids) {
-        const t = await closeTask(prj, id);
-        if (t) results.push(t);
+        try {
+          const t = await closeTask(prj, id);
+          if (t) results.push(t);
+          else failed.push({ id, error: { code: 'TASK_NOT_FOUND', message: `Task not found: ${prj}/${id}` } });
+        } catch (e) {
+          if (e instanceof WorkflowError) {
+            failed.push({ id, error: e.toPayload() });
+          } else {
+            failed.push({ id, error: { code: 'CLOSE_FAILED', message: (e as Error)?.message || String(e) } });
+          }
+        }
       }
-      return ok({ count: results.length, results });
+      return ok({ count: results.length, results, failed });
     }
   );
 

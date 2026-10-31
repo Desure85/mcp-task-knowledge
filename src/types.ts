@@ -1,5 +1,5 @@
 export type Priority = 'low' | 'medium' | 'high';
-export type Status = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'closed';
+export type Status = string;
 
 /**
  * Provenance of stored content (TR-16).
