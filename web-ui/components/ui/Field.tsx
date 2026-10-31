@@ -42,6 +42,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
+/** Single-line text field with a visible label, optional hint and error. */
 export function Input({ label, hint, error, id, className, ...rest }: InputProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
@@ -64,6 +65,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   error?: string;
 }
 
+/** Native select with a visible label; use it for short, known option lists. */
 export function Select({ label, hint, error, id, className, children, ...rest }: SelectProps) {
   const autoId = useId();
   const selectId = id ?? autoId;
@@ -88,6 +90,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
   error?: string;
 }
 
+/** Multi-line text field (markdown, descriptions) with a visible label. */
 export function Textarea({ label, hint, error, id, className, ...rest }: TextareaProps) {
   const autoId = useId();
   const areaId = id ?? autoId;
