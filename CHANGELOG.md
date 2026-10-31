@@ -25,6 +25,7 @@
 
 ### Changed
 
+- Repo hygiene (DX-33): removed the stray 42.7 MB GitHub CLI binary from `bin/` (never referenced by scripts/workflows/Dockerfile) and untracked `.opencode` goal-lock/session state; added the binary path and `.playwright-mcp/` to `.gitignore`. History was not rewritten — `git filter-repo` decision remains with the owner.
 - UI-24 (part 1): Tasks, Overview, Access, Login and the shell use design tokens and `components/ui` primitives only; the Live pill follows status tokens; a guard test (`lib/no-hardcoded-colors.test.ts`) blocks Tailwind palette colours/hex in migrated files
 - UI-24 (part 2): Knowledge uses design tokens and `components/ui` primitives only (labelled fields, `Dialog` instead of `window.confirm`), with a read-first document view, metadata, table of contents, Export/Edit/Trash and tokenised prose for headings, lists, quotes, code and tables; the markdown renderer stays escape-first and keeps the link-scheme allowlist
 - UI-24 (part 3): Memory and Analytics use design tokens and `components/ui` primitives only; Memory tabs expose `tablist`/`tab`/`tabpanel` roles with Arrow/Home/End navigation, Analytics bars use status/priority tokens with accessible `aria-valuetext`, all fields are labelled, and the contrast gate now covers bar colours on `surface-2`
