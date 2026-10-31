@@ -1,4 +1,4 @@
-# MCP Tools (125 with catalog; 123 by default)
+# MCP Tools (126 with catalog; 124 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -98,11 +98,12 @@ See [Agent Memory](agent-memory.md) for full reference.
 | `memory_dream` | Run dreaming agent (dedup/merge/summarise) |
 | `memory_observations` | Detect patterns from graph structure |
 
-## Prompts (14 tools)
+## Prompts (15 tools)
 
 | Tool | Description |
 |------|-------------|
 | `prompts_list` | List prompts |
+| `prompts_get` | Read one full prompt version (template/compose + metadata + version list) |
 | `prompts_search` | Search prompts |
 | `prompts_bulk_create` | Create multiple prompts |
 | `prompts_bulk_update` | Update prompts |
@@ -117,6 +118,8 @@ See [Agent Memory](agent-memory.md) for full reference.
 | `prompts_feedback_log` | Log feedback |
 | `prompts_feedback_validate` | Validate feedback |
 | `prompts_metrics_log_bulk` | Log metrics in bulk |
+
+`prompts_bulk_*` failures return `PROMPTS_BULK_FAILED` with a per-item `details.results` array; successful items still apply. `prompts_get` returns the selected version, the full prompt JSON and all source versions (version omitted → latest semver).
 
 ### MCP prompts surface (SPEC-03)
 
