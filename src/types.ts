@@ -37,6 +37,8 @@ export interface Task {
   title: string;
   description?: string;
   status: Status;
+  /** V-03: project-defined task type; legacy tasks without it are 'task'. */
+  type?: string;
   priority: Priority;
   tags?: string[];
   createdAt: string; // ISO

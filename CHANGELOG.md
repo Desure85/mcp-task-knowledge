@@ -25,6 +25,7 @@
 
 ### Changed
 
+- V-03 task types: per-project `types` metadata (`task`, `bug`, `feature` by default) with `project_types_get/set`, atomic `moveTo/moves` for used types, `TYPE_NOT_ALLOWED` validation on create/update/bulk, `type` filters in task list/tree/search, and type distributions in `briefing` and `dashboard_stats`.
 - Repo hygiene (DX-33): removed the stray 42.7 MB GitHub CLI binary from `bin/` (never referenced by scripts/workflows/Dockerfile) and untracked `.opencode` goal-lock/session state; added the binary path and `.playwright-mcp/` to `.gitignore`. History was not rewritten — `git filter-repo` decision remains with the owner.
 - UI-26: prompt catalog cards now open a full read view (template/compose, metadata, variables, versions); edit sends only changed fields through `prompts_bulk_update`, with an unsaved-changes `Dialog`; delete uses a destructive `Dialog`. Added `prompts_get` and web-ui `api.prompts.get/update/delete`.
 - UI-27: the New project form uses the shared labelled field component, both fields have hints, labels/controls align, and Create sits on the control line; the mobile layout stacks fields.
