@@ -41,6 +41,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
       const byCategory: Record<string, number> = { todo: 0, in_progress: 0, done: 0 };
       const byPriority: Record<string, number> = {};
       const byTag: Record<string, number> = {};
+      const byTaskType: Record<string, number> = {};
       const byType: Record<string, number> = {};
 
       let totalDeps = 0;
@@ -55,6 +56,8 @@ export function registerDashboardTools(ctx: ServerContext): void {
         // By status and by semantic category (custom statuses must not be
         // counted by hard-coded ids).
         byStatus[t.status] = (byStatus[t.status] || 0) + 1;
+        const taskType = t.type ?? 'task';
+        byTaskType[taskType] = (byTaskType[taskType] || 0) + 1;
         const category = statusCategory(workflow, t.status);
         if (category) byCategory[category] = (byCategory[category] || 0) + 1;
 
@@ -129,6 +132,7 @@ export function registerDashboardTools(ctx: ServerContext): void {
           byStatus,
           byCategory,
           byPriority,
+          byType: byTaskType,
           active: activeTasks.length,
           completed: completedTasks.length,
           blocked: (byStatus['blocked'] || 0),

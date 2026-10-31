@@ -61,7 +61,7 @@ for people and agents. Short version: two independent axes (`mcp.mode`: `light`/
 - `/` — Home (overview + links)
 - `/login` — Sign in
 - `/access` — Session, token and agent setup links
-- `/tasks` — Kanban board (4 columns: pending, in_progress, completed, closed)
+- `/tasks` — Kanban board by the project's statuses (scroll cues, collapsible/hideable columns, transition-aware drag & drop, keyboard “Move to…” menu)
 - `/knowledge` — Knowledge list, read-first document view with TOC, Markdown editor
 - `/memory` — Facts, temporal history, profiles and memory layers
 - `/analytics` — Counters, task distribution and browser-local feedback

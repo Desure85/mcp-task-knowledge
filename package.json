@@ -64,7 +64,11 @@
     "lint": "eslint src tests scripts --max-warnings=980",
     "lint:fix": "eslint src tests scripts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.mjs\"",
-    "memory:verify": "node scripts/verify-memory.mjs"
+    "memory:verify": "node scripts/verify-memory.mjs",
+    "bench:seed": "node scripts/bench/seed-scale.mjs",
+    "bench:scale": "node scripts/bench/run-scale.mjs",
+    "bench:ui": "node scripts/bench/ui-bench.mjs",
+    "bench:graph": "node scripts/bench/graph-bench.mjs"
   },
   "keywords": [
     "mcp",

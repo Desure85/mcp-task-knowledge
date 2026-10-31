@@ -1,10 +1,11 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject } from '../config.js';
+import { assertTypeAllowed, loadProjectTypes, WorkflowError } from '../workflow.js';
 import { listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
 import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
-import { ok, okWith } from '../utils/respond.js';
+import { ok, okWith, errWith } from '../utils/respond.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 import { getWarmupStatus } from '../search/warmup.js';
 import { TtlLruCache } from '../search/cache.js';
@@ -36,14 +37,21 @@ export function registerSearchTools(ctx: ServerContext): void {
         project: z.string().optional(),
         query: z.string().min(1),
         limit: z.number().int().min(1).max(100).optional(),
+        type: z.string().min(1).optional(),
       },
     },
-    async ({ project, query, limit }) => {
+    async ({ project, query, limit, type }) => {
       const prj = resolveProject(project);
-      const tasks = await listTasks({ project: prj });
-      const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
-      const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: await ctx.ensureVectorAdapter(), onVectorError: trackVectorError() });
-      return ok(results);
+      try {
+        if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
+        const tasks = await listTasks({ project: prj, type });
+        const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
+        const results = await hybridSearch(query, items, { limit: limit ?? 20, vectorAdapter: await ctx.ensureVectorAdapter(), onVectorError: trackVectorError() });
+        return ok(results);
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
     }
   );
 

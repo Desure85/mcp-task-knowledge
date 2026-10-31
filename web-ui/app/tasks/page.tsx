@@ -1,42 +1,56 @@
 /**
- * web-ui/app/tasks/page.tsx — Tasks board (UI-002, UI-007)
+ * web-ui/app/tasks/page.tsx — Tasks board (UI-002, UI-007, V-04)
  *
- * Full Kanban board with:
- * - Drag & drop between status columns
- * - Search/filter by title, tags, priority
- * - Create, edit, close tasks
- * - Priority markers, tag chips, subtask indicator
- * - Dependency DAG panel
+ * Full Kanban board built from the *project's own statuses*:
+ * - columns come from `project_statuses_get`, ordered, with collapse/hide prefs
+ *   persisted per project
+ * - horizontal scrolling with sticky lane headers and "N more" edge cues
+ * - transition-aware drag & drop: forbidden columns are dimmed, drops are still
+ *   sent to the server (the source of truth) and rejected moves roll back
+ * - keyboard "Move to…" menu offering only allowed statuses
+ * - Search/filter by title, tags, priority; create, edit, close tasks
+ * - Priority markers, tag chips, subtask indicator, dependency DAG panel
  */
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, type Task, type DagData } from '@/lib/api-client';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  api,
+  ToolCallError,
+  type DagData,
+  type ProjectStatus,
+  type Task,
+} from '@/lib/api-client';
 import { useRealtime, applyTaskEvent } from '@/lib/realtime';
+import {
+  COLUMN_WIDTH,
+  COLLAPSED_WIDTH,
+  allowedTargets,
+  boardColumns,
+  isAllowedTarget,
+  overflowCues,
+  readBoardPrefs,
+  statusDotClass,
+  writeBoardPrefs,
+  type BoardPrefs,
+  type OverflowCues,
+} from '@/lib/board';
 import { PageHeader } from '@/components/PageHeader';
-import { PriorityDot } from '@/components/PriorityDot';
 import { Badge, Button, EmptyState } from '@/components/ui';
 import { SkeletonColumn } from '@/components/Skeleton';
+import { BoardColumn } from '@/components/board/BoardColumn';
 import { publishLiveStatus, clearLiveStatus } from '@/components/live-status';
 import {
   IconAlert,
+  IconChevronRight,
   IconClose,
   IconDependencies,
   IconPlus,
   IconSearch,
-  IconSubtask,
 } from '@/components/icons';
 
-type Status = 'pending' | 'in_progress' | 'completed' | 'closed';
 type Priority = 'low' | 'medium' | 'high';
-
-const COLUMNS: { status: Status; label: string; dot: string }[] = [
-  { status: 'pending', label: 'Pending', dot: 'bg-st-todo' },
-  { status: 'in_progress', label: 'In progress', dot: 'bg-st-doing' },
-  { status: 'completed', label: 'Completed', dot: 'bg-st-done' },
-  { status: 'closed', label: 'Closed', dot: 'bg-st-archive' },
-];
 
 const INPUT_CLASS =
   'h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface px-3 text-[13px] text-ink placeholder:text-muted transition duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-focus-ring/30';
@@ -45,7 +59,26 @@ const SELECT_CLASS =
 const GHOST_ICON_BUTTON =
   'grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted transition duration-150 hover:bg-surface-2 hover:text-ink';
 
+interface MoveNotice {
+  message: string;
+  hint?: string;
+  allowed: string[];
+}
+
+interface DraggingCard {
+  taskId: string;
+  from: string;
+}
+
+const EDGE_SCROLL_ZONE = 80;
+const EDGE_SCROLL_STEP = 24;
+
 export default function TasksPage() {
+  const [project, setProject] = useState<string | null>(null);
+  const [statuses, setStatuses] = useState<ProjectStatus[]>([]);
+  const [closeStatus, setCloseStatus] = useState<string | null>(null);
+  const [transitions, setTransitions] = useState<Record<string, string[]> | null>(null);
+  const [prefs, setPrefs] = useState<BoardPrefs>({ collapsed: [], hidden: [] });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,11 +90,19 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterTag, setFilterTag] = useState<string>('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<Status | null>(null);
+  const [dragging, setDragging] = useState<DraggingCard | null>(null);
+  const [hoverCol, setHoverCol] = useState<string | null>(null);
+  const [moveNotice, setMoveNotice] = useState<MoveNotice | null>(null);
   const [showDag, setShowDag] = useState(false);
   const [dag, setDag] = useState<DagData | null>(null);
+  const [cues, setCues] = useState<OverflowCues>({
+    left: false,
+    right: false,
+    hiddenLeft: 0,
+    hiddenRight: 0,
+  });
   const dragCounter = useRef(0);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // NEXT2-005: live-updates — merge task.* events from other clients;
   // publish our own mutations so other tabs update instantly.
@@ -79,69 +120,256 @@ export default function TasksPage() {
 
   useEffect(() => () => clearLiveStatus(), []);
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (currentProject: string, quiet = false) => {
     try {
-      setLoading(true);
-      const data = await api.tasks.list();
+      if (!quiet) setLoading(true);
+      const data = await api.tasks.list(currentProject);
       setTasks(Array.isArray(data) ? data : []);
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, []);
 
+  // Load the project first, then tasks/statuses/transitions for it. Statuses
+  // failing must not hide the tasks: the board still renders a column per task
+  // status (marked "not in project") so the page stays usable.
   useEffect(() => {
-    void loadTasks();
-  }, [loadTasks]);
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const current = await api.projects.getCurrent();
+        const currentProject = current.project;
+        if (!alive) return;
+        setProject(currentProject);
+
+        const [taskResult, statusResult, transitionResult] = await Promise.allSettled([
+          api.tasks.list(currentProject),
+          api.projects.statuses.get(currentProject),
+          api.projects.transitions.get(currentProject),
+        ]);
+        if (!alive) return;
+
+        if (taskResult.status === 'fulfilled') {
+          setTasks(Array.isArray(taskResult.value) ? taskResult.value : []);
+        } else {
+          setError((taskResult.reason as Error).message);
+        }
+
+        if (statusResult.status === 'fulfilled') {
+          setStatuses(statusResult.value.statuses);
+          setCloseStatus(statusResult.value.closeStatus);
+        } else {
+          setStatuses([]);
+          setError((statusResult.reason as Error).message);
+        }
+
+        setTransitions(
+          transitionResult.status === 'fulfilled' ? transitionResult.value.transitions : null,
+        );
+      } catch (e) {
+        if (!alive) return;
+        setError((e as Error).message);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Hydrate column prefs once the project is known. Writes happen only from
+  // the collapse/hide handlers, never during hydration.
+  useEffect(() => {
+    if (!project) return;
+    setPrefs(readBoardPrefs(project));
+  }, [project]);
+
+  const columns = useMemo(() => boardColumns(statuses, prefs), [statuses, prefs]);
+
+  const unknownStatuses = useMemo<ProjectStatus[]>(() => {
+    const known = new Set(statuses.map((status) => status.id));
+    const ids: string[] = [];
+    for (const task of tasks) {
+      if (!known.has(task.status) && !ids.includes(task.status)) ids.push(task.status);
+    }
+    return ids.map((id, index) => ({
+      id,
+      label: `${id} (not in project)`,
+      category: 'todo' as const,
+      order: 1000 + index,
+    }));
+  }, [tasks, statuses]);
+
+  const visibleColumns = useMemo(
+    () => [...columns.visible, ...unknownStatuses],
+    [columns.visible, unknownStatuses],
+  );
+
+  const statusById = useMemo(
+    () => new Map(statuses.map((status) => [status.id, status])),
+    [statuses],
+  );
+
+  const moveTargets = useCallback(
+    (task: Task): ProjectStatus[] =>
+      allowedTargets(transitions, task.status, statuses)
+        .map((id) => statusById.get(id))
+        .filter((status): status is ProjectStatus => Boolean(status)),
+    [transitions, statuses, statusById],
+  );
+
+  const dragTargets = useMemo(
+    () => new Set(dragging ? allowedTargets(transitions, dragging.from, statuses) : []),
+    [dragging, transitions, statuses],
+  );
+
+  const draggingAllowedLabels = useMemo(
+    () =>
+      dragging
+        ? allowedTargets(transitions, dragging.from, statuses).map(
+            (id) => statusById.get(id)?.label ?? id,
+          )
+        : [],
+    [dragging, transitions, statuses, statusById],
+  );
+
+  const columnWidths = useMemo(
+    () =>
+      visibleColumns.map((status) =>
+        columns.collapsed.has(status.id) ? COLLAPSED_WIDTH : COLUMN_WIDTH,
+      ),
+    [visibleColumns, columns.collapsed],
+  );
+
+  const recomputeCues = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCues(overflowCues(el.scrollLeft, el.clientWidth, columnWidths));
+  }, [columnWidths]);
+
+  useEffect(() => {
+    recomputeCues();
+  }, [recomputeCues, loading]);
+
+  useEffect(() => {
+    const onResize = () => recomputeCues();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [recomputeCues]);
+
+  function persistPrefs(next: BoardPrefs) {
+    setPrefs(next);
+    if (project) writeBoardPrefs(project, next);
+  }
+
+  function toggleCollapse(id: string) {
+    const collapsed = prefs.collapsed.includes(id)
+      ? prefs.collapsed.filter((value) => value !== id)
+      : [...prefs.collapsed, id];
+    persistPrefs({ ...prefs, collapsed });
+  }
+
+  function hideColumn(id: string) {
+    persistPrefs({
+      collapsed: prefs.collapsed.filter((value) => value !== id),
+      hidden: prefs.hidden.includes(id) ? prefs.hidden : [...prefs.hidden, id],
+    });
+  }
+
+  function showColumn(id: string) {
+    persistPrefs({ ...prefs, hidden: prefs.hidden.filter((value) => value !== id) });
+  }
 
   async function createTask() {
     if (!newTitle.trim()) return;
     try {
       const tags = newTags.split(',').map((t) => t.trim()).filter(Boolean);
-      const created = await api.tasks.create({ title: newTitle, priority: newPriority, tags });
+      const created = await api.tasks.create({
+        project: project ?? undefined,
+        title: newTitle,
+        priority: newPriority,
+        tags,
+      });
       publish('task.created', created as unknown as Record<string, unknown>);
       setNewTitle('');
       setNewTags('');
       setNewPriority('medium');
       setShowCreate(false);
-      await loadTasks();
+      if (project) await loadTasks(project, true);
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
   async function closeTask(id: string) {
+    if (!project) return;
     try {
-      const closed = await api.tasks.close('mcp', id);
+      const closed = await api.tasks.close(project, id);
       publish('task.closed', closed as unknown as Record<string, unknown>);
-      await loadTasks();
+      await loadTasks(project, true);
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
-  async function updateTaskStatus(id: string, status: Status) {
+  /**
+   * The single move path for drag & drop and the keyboard menu. The server is
+   * the source of truth: a locally allowed move is applied optimistically and
+   * reconciled with the response; a rejection (local or server) rolls the card
+   * back, shows the server's reason + allowed list and refetches once.
+   */
+  async function moveTask(task: Task, to: string, droppable = true) {
+    if (!project) return;
+    const from = task.status;
+    if (from === to) return;
+    const locallyAllowed = droppable && isAllowedTarget(transitions, from, to, statuses);
+
+    setMoveNotice(null);
+    if (locallyAllowed) {
+      setTasks((prev) => prev.map((item) => (item.id === task.id ? { ...item, status: to } : item)));
+    }
+
     try {
-      const updated = await api.tasks.update('mcp', id, { status });
+      const updated = await api.tasks.update(project, task.id, { status: to });
       publish('task.updated', updated as unknown as Record<string, unknown>);
-      await loadTasks();
+      setTasks((prev) => prev.map((item) => (item.id === task.id ? updated : item)));
     } catch (e) {
-      setError((e as Error).message);
+      if (locallyAllowed) {
+        setTasks((prev) =>
+          prev.map((item) => (item.id === task.id ? { ...item, status: from } : item)),
+        );
+      }
+      const toolError = e instanceof ToolCallError ? e : null;
+      const details = toolError?.details as { allowed?: unknown } | undefined;
+      const serverAllowed = Array.isArray(details?.allowed)
+        ? details.allowed.filter((value): value is string => typeof value === 'string')
+        : [];
+      const allowedIds =
+        serverAllowed.length > 0 ? serverAllowed : allowedTargets(transitions, from, statuses);
+      setMoveNotice({
+        message: toolError?.message ?? (e as Error).message,
+        hint: toolError?.hint,
+        allowed: allowedIds.map((id) => statusById.get(id)?.label ?? id),
+      });
+      await loadTasks(project, true);
     }
   }
 
   async function saveEdit() {
-    if (!editingTask) return;
+    if (!editingTask || !project) return;
     try {
-      const updated = await api.tasks.update('mcp', editingTask.id, {
+      const updated = await api.tasks.update(project, editingTask.id, {
         title: editingTask.title,
         priority: editingTask.priority,
         tags: editingTask.tags,
       });
       publish('task.updated', updated as unknown as Record<string, unknown>);
       setEditingTask(null);
-      await loadTasks();
+      await loadTasks(project, true);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -150,7 +378,7 @@ export default function TasksPage() {
   async function toggleDag() {
     if (!showDag && !dag) {
       try {
-        setDag(await api.tasks.dag());
+        setDag(await api.tasks.dag(project ?? undefined));
       } catch (e) {
         setError((e as Error).message);
         return;
@@ -159,34 +387,78 @@ export default function TasksPage() {
     setShowDag(!showDag);
   }
 
-  function handleDragStart(e: React.DragEvent, id: string) {
-    setDraggedId(id);
-    e.dataTransfer.effectAllowed = 'move';
+  function handleDragStart(event: React.DragEvent<HTMLElement>, task: Task) {
+    setDragging({ taskId: task.id, from: task.status });
+    setMoveNotice(null);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', task.id);
   }
 
-  function handleDragOver(e: React.DragEvent, col: Status) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverCol(col);
+  function handleDragEnd() {
+    dragCounter.current = 0;
+    setDragging(null);
+    setHoverCol(null);
   }
 
   function handleDragEnter() {
-    dragCounter.current++;
+    dragCounter.current += 1;
   }
 
   function handleDragLeave() {
-    dragCounter.current--;
-    if (dragCounter.current === 0) setDragOverCol(null);
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setHoverCol(null);
+    }
   }
 
-  function handleDrop(e: React.DragEvent, col: Status) {
-    e.preventDefault();
-    dragCounter.current = 0;
-    setDragOverCol(null);
-    if (draggedId) {
-      void updateTaskStatus(draggedId, col);
-      setDraggedId(null);
+  function autoScrollBoard(event: React.DragEvent<HTMLElement>) {
+    const el = scrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (event.clientX - rect.left < EDGE_SCROLL_ZONE) el.scrollLeft -= EDGE_SCROLL_STEP;
+    else if (rect.right - event.clientX < EDGE_SCROLL_ZONE) el.scrollLeft += EDGE_SCROLL_STEP;
+  }
+
+  function handleColumnDragOver(
+    event: React.DragEvent<HTMLElement>,
+    columnId: string,
+    droppable: boolean,
+  ) {
+    if (!dragging) return;
+    autoScrollBoard(event);
+    setHoverCol(columnId);
+    const allowed = droppable && dragTargets.has(columnId);
+    if (allowed) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+    } else {
+      // No preventDefault: the browser shows the no-drop cursor for forbidden
+      // columns. The drop handler still runs if a drop is forced.
+      event.dataTransfer.dropEffect = 'none';
     }
+  }
+
+  function handleColumnDrop(
+    event: React.DragEvent<HTMLElement>,
+    columnId: string,
+    droppable: boolean,
+  ) {
+    event.preventDefault();
+    dragCounter.current = 0;
+    setHoverCol(null);
+    const current = dragging;
+    setDragging(null);
+    if (!current || current.from === columnId) return;
+    const task = tasks.find((item) => item.id === current.taskId);
+    if (!task) return;
+    void moveTask(task, columnId, droppable);
+  }
+
+  function scrollBoard(direction: -1 | 1) {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
   }
 
   const allTags = Array.from(new Set(tasks.flatMap((t) => t.tags ?? []))).sort();
@@ -199,6 +471,8 @@ export default function TasksPage() {
   });
 
   const filtersActive = Boolean(searchQuery) || filterPriority !== 'all' || Boolean(filterTag);
+  const countFor = (statusId: string) => filtered.filter((task) => task.status === statusId).length;
+  const skeletonStatuses = statuses.filter((status) => !status.archived).slice(0, 6);
 
   return (
     <div className="space-y-5">
@@ -247,7 +521,7 @@ export default function TasksPage() {
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="Task title…"
             className={INPUT_CLASS}
-            onKeyDown={(e) => e.key === 'Enter' && createTask()}
+            onKeyDown={(e) => e.key === 'Enter' && void createTask()}
             autoFocus
           />
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -269,7 +543,7 @@ export default function TasksPage() {
               className={`${INPUT_CLASS} sm:flex-1`}
               aria-label="Tags"
             />
-            <Button type="button" variant="primary" onClick={createTask}>
+            <Button type="button" variant="primary" onClick={() => void createTask()}>
               Create
             </Button>
           </div>
@@ -301,7 +575,9 @@ export default function TasksPage() {
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <select
               value={editingTask.priority}
-              onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value as Priority })}
+              onChange={(e) =>
+                setEditingTask({ ...editingTask, priority: e.target.value as Priority })
+              }
               className={SELECT_CLASS}
               aria-label="Priority"
             >
@@ -315,14 +591,17 @@ export default function TasksPage() {
               onChange={(e) =>
                 setEditingTask({
                   ...editingTask,
-                  tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
+                  tags: e.target.value
+                    .split(',')
+                    .map((t) => t.trim())
+                    .filter(Boolean),
                 })
               }
               placeholder="tags"
               className={`${INPUT_CLASS} sm:flex-1`}
               aria-label="Tags"
             />
-            <Button type="button" variant="primary" onClick={saveEdit}>
+            <Button type="button" variant="primary" onClick={() => void saveEdit()}>
               Save
             </Button>
           </div>
@@ -420,7 +699,9 @@ export default function TasksPage() {
         >
           <option value="">All tags</option>
           {allTags.map((tag) => (
-            <option key={tag} value={tag}>{tag}</option>
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
           ))}
         </select>
         {!loading && (
@@ -431,115 +712,169 @@ export default function TasksPage() {
         )}
       </div>
 
+      {columns.hidden.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-3 py-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+            Show hidden
+          </span>
+          {columns.hidden.map((status) => (
+            <button
+              key={status.id}
+              type="button"
+              onClick={() => showColumn(status.id)}
+              aria-label={`Show ${status.label} column`}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 py-1 text-[11px] text-ink transition duration-150 hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${statusDotClass(status)}`}
+                aria-hidden="true"
+              />
+              {status.label}
+              <span className="font-mono tabular-nums text-muted">· {countFor(status.id)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {moveNotice && (
+        <div
+          role="alert"
+          className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface-2 px-3 py-2.5 text-[12px]"
+        >
+          <div className="flex items-start gap-2">
+            <IconAlert className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+            <div>
+              <p className="font-semibold text-danger">{moveNotice.message}</p>
+              {moveNotice.hint && <p className="mt-0.5 text-muted">{moveNotice.hint}</p>}
+              {moveNotice.allowed.length > 0 && (
+                <p className="mt-0.5 text-muted">Allowed: {moveNotice.allowed.join(', ')}</p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMoveNotice(null)}
+            aria-label="Dismiss move notice"
+            className="rounded-[var(--radius-control)] p-0.5 text-muted transition duration-150 hover:bg-surface hover:text-ink"
+          >
+            <IconClose className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {loading ? (
-        <div className="flex gap-4 overflow-hidden xl:grid xl:grid-cols-4">
-          {COLUMNS.map((col) => (
-            <div key={col.status} className="w-[300px] shrink-0 xl:w-auto">
+        <div className="flex gap-3 overflow-hidden">
+          {(skeletonStatuses.length > 0
+            ? skeletonStatuses
+            : [
+                { id: 'one', label: 'One', category: 'todo' as const },
+                { id: 'two', label: 'Two', category: 'todo' as const },
+                { id: 'three', label: 'Three', category: 'todo' as const },
+                { id: 'four', label: 'Four', category: 'todo' as const },
+              ]
+          ).map((status) => (
+            <div key={status.id} className="w-[264px] shrink-0">
               <SkeletonColumn />
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex snap-x gap-4 overflow-x-auto pb-2 xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0">
-          {COLUMNS.map((col) => {
-            const colTasks = filtered.filter((t) => t.status === col.status);
-            const isOver = dragOverCol === col.status;
-            return (
-              <div
-                key={col.status}
-                className={`flex w-[300px] shrink-0 snap-start flex-col rounded-[var(--radius-card)] border transition duration-150 xl:w-auto ${
-                  isOver
-                    ? 'border-accent bg-accent-soft ring-2 ring-accent/40'
-                    : 'border-line bg-surface-2'
-                }`}
-                onDragOver={(e) => handleDragOver(e, col.status)}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, col.status)}
-              >
-                <div className="z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-line bg-surface-2 px-3 py-2.5 backdrop-blur lg:sticky lg:top-14">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className={`h-1.5 w-1.5 rounded-full ${col.dot}`} aria-hidden="true" />
-                    <h3 className="truncate text-[12px] font-semibold text-ink">{col.label}</h3>
-                  </div>
-                  <Badge className="tabular-nums">{colTasks.length}</Badge>
-                </div>
+        <div className="relative">
+          <div
+            ref={scrollRef}
+            onScroll={recomputeCues}
+            tabIndex={0}
+            role="region"
+            aria-label="Task board columns"
+            className="flex max-h-[calc(100dvh-21rem)] min-h-[360px] snap-x gap-3 overflow-auto overscroll-contain pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring sm:max-h-[calc(100dvh-18rem)]"
+          >
+            {visibleColumns.map((column) => {
+              const columnTasks = filtered.filter((task) => task.status === column.id);
+              const unknown = unknownStatuses.some((status) => status.id === column.id);
+              const droppable = !unknown;
+              const isSource = dragging?.from === column.id;
+              const dropAllowed =
+                Boolean(dragging) && !isSource && droppable && dragTargets.has(column.id);
+              const dropDenied = Boolean(dragging) && !isSource && !dropAllowed;
+              return (
+                <BoardColumn
+                  key={column.id}
+                  status={column}
+                  tasks={columnTasks}
+                  collapsed={columns.collapsed.has(column.id)}
+                  dragActive={Boolean(dragging)}
+                  dropAllowed={dropAllowed}
+                  dropDenied={dropDenied}
+                  hovered={hoverCol === column.id}
+                  draggingTaskId={dragging?.taskId ?? null}
+                  droppable={droppable}
+                  allowedLabels={draggingAllowedLabels}
+                  moveTargets={moveTargets}
+                  onCollapse={() => toggleCollapse(column.id)}
+                  onExpand={() => toggleCollapse(column.id)}
+                  onHide={() => hideColumn(column.id)}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={(event) =>
+                    handleColumnDragOver(event, column.id, droppable)
+                  }
+                  onDrop={(event) => handleColumnDrop(event, column.id, droppable)}
+                  onMove={(task, to) => void moveTask(task, to, droppable)}
+                  onEdit={(task) => setEditingTask({ ...task })}
+                  onClose={(task) => void closeTask(task.id)}
+                  closeStatusId={closeStatus}
+                  filtersActive={filtersActive}
+                  totalTasks={tasks.length}
+                />
+              );
+            })}
 
-                <div className="flex-1 space-y-2 p-2.5">
-                  {colTasks.map((task) => {
-                    const tags = task.tags ?? [];
-                    return (
-                      <article
-                        key={task.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, task.id)}
-                        onDragEnd={() => setDraggedId(null)}
-                        className={`group/card cursor-grab rounded-[var(--radius-control)] border border-line bg-surface p-3 transition duration-150 hover:border-line-strong  active:cursor-grabbing ${
-                          draggedId === task.id ? 'opacity-60' : ''
-                        }`}
-                      >
-                        <p
-                          role="button"
-                          tabIndex={0}
-                          className="line-clamp-2 cursor-pointer rounded text-[13px] font-medium leading-snug text-ink transition duration-150 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-                          onClick={() => setEditingTask({ ...task })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setEditingTask({ ...task });
-                            }
-                          }}
-                        >
-                          {task.title}
-                        </p>
-
-                        {tags.length > 0 && (
-                          <div className="mt-2 flex flex-wrap items-center gap-1">
-                            {tags.slice(0, 3).map((tag) => (
-                              <Badge key={tag}>{tag}</Badge>
-                            ))}
-                            {tags.length > 3 && <Badge className="text-muted">+{tags.length - 3}</Badge>}
-                          </div>
-                        )}
-
-                        <div className="mt-2.5 flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <PriorityDot priority={task.priority} />
-                            {task.parentId && (
-                              <span
-                                className="inline-flex items-center gap-1 text-[11px] text-muted"
-                                title="Subtask"
-                              >
-                                <IconSubtask className="h-3 w-3" />
-                                Subtask
-                              </span>
-                            )}
-                          </div>
-                          {col.status !== 'closed' && (
-                            <button
-                              type="button"
-                              onClick={() => closeTask(task.id)}
-                              className="shrink-0 rounded-[var(--radius-control)] px-1.5 py-1 text-[11px] font-medium text-muted opacity-0 transition duration-150 hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 group-hover/card:opacity-100"
-                            >
-                              Close
-                            </button>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
-
-                  {colTasks.length === 0 && (
-                    <EmptyState
-                      compact
-                      title="No tasks"
-                      hint={filtersActive && tasks.length > 0 ? 'No matches for current filters' : undefined}
-                    />
-                  )}
-                </div>
+            {visibleColumns.length === 0 && (
+              <div className="w-full">
+                <EmptyState
+                  title="No columns to show"
+                  hint={
+                    columns.hidden.length > 0
+                      ? 'Every column is hidden — restore one from “Show hidden”.'
+                      : 'This project has no statuses yet.'
+                  }
+                />
               </div>
-            );
-          })}
+            )}
+          </div>
+
+          {cues.left && (
+            <button
+              type="button"
+              onClick={() => scrollBoard(-1)}
+              aria-label={
+                cues.hiddenLeft > 0 ? `Scroll left: ${cues.hiddenLeft} more columns` : 'Scroll left'
+              }
+              className="absolute bottom-0 left-0 top-0 z-20 flex w-9 items-center justify-center gap-0.5 rounded-l-[var(--radius-card)] bg-gradient-to-r from-canvas to-transparent text-muted transition duration-150 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            >
+              <IconChevronRight className="h-4 w-4 rotate-180" />
+              {cues.hiddenLeft > 0 && (
+                <span className="font-mono text-[11px] tabular-nums">{cues.hiddenLeft}</span>
+              )}
+            </button>
+          )}
+          {cues.right && (
+            <button
+              type="button"
+              onClick={() => scrollBoard(1)}
+              aria-label={
+                cues.hiddenRight > 0 ? `Scroll right: ${cues.hiddenRight} more columns` : 'Scroll right'
+              }
+              className="absolute bottom-0 right-4 top-0 z-20 flex w-9 items-center justify-center gap-0.5 rounded-r-[var(--radius-card)] bg-gradient-to-l from-canvas to-transparent text-muted transition duration-150 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            >
+              {cues.hiddenRight > 0 && (
+                <span className="font-mono text-[11px] tabular-nums">{cues.hiddenRight}</span>
+              )}
+              <IconChevronRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
     </div>

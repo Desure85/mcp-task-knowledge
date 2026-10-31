@@ -426,9 +426,9 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-10-31
 **Session ID:** ses_e6cd1f9fcffes9PwNIHtPttsF7 (UI-34 DESIGN.md и стражи дизайна)
-**Текущая ветка:** docs/design-guide (worktree `/home/dm/work/mcp-tk-designdoc`, от origin/master 0cc8afc)
+**Текущая ветка:** docs/design-guide (worktree `/home/dm/work/mcp-tk-designdoc`, от origin/master 0cc8afc; влит master 55e96ad)
 **Текущий этап:** Stage W — админка: дизайн и UX. UI-34: единый стилевой гайд и охранные тесты.
-**Статус:** UI-34 done (документация, генератор, стражи), UI-33 добавлен как pending. Поведение интерфейса не менялось.
+**Статус:** UI-34 done (документация, генератор, стражи), UI-33 добавлен как pending. Поведение интерфейса не менялось; ветка синхронизирована с master 55e96ad (V-03/V-04), файлы доски внесены в allowlist долга.
 
 ### Сессия ses_e6cd1f9fcffes9PwNIHtPttsF7 (UI-34 DESIGN.md и стражи дизайна, 2026-10-31)
 
