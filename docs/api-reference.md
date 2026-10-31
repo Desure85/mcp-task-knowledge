@@ -35,7 +35,7 @@
 | `knowledge_import_markdown` | Import .md files from a directory into the knowledge base. Files can have YAML frontmatter (title, t |
 | `knowledge_import_multimodal` | Extract text chunks from a file (pdf/text/code/image/video/audio) via the multimodal ingestion pipel |
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
-| `knowledge_list` | List knowledge documents metadata |
+| `knowledge_list` | List knowledge document metadata with cursor pagination and field selection. Returns `data` (array)  |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
 | `mcp.authenticate` | Authenticate this session with a token. Required before calling any other tool on http/tcp transport |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
@@ -121,11 +121,11 @@
 | `tasks_get_children` | Get direct children of a task (one level deep, not recursive). |
 | `tasks_get_deps` | Get the dependency graph for a specific task: what it depends on and what depends on it. |
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
-| `tasks_list` | List tasks with optional filters. Includes the active claim/lease holder when a task is claimed. |
+| `tasks_list` | List tasks with optional filters, cursor pagination and field selection. Returns `data` (array) plus |
 | `tasks_release` | Release your lease so another agent can pick the task up. Only the holder may release before expiry; |
 | `tasks_renew` | Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not  |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
-| `tasks_tree` | List tasks as a hierarchical tree (by parentId) |
+| `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 | `tool_help` | Short help for a tool with an example call |
 | `tool_schema` | Return metadata and example payload for a tool name |
@@ -798,12 +798,20 @@ Import a single markdown document into the knowledge base. The markdown can cont
 
 **List Knowledge Docs**
 
-List knowledge documents metadata
+List knowledge document metadata with cursor pagination and field selection. Returns `data` (array) plus total/count/hasMore/nextCursor/truncated/limit.
 
 **Параметры:**
 
 - `project`
 - `tag`
+- `type`
+- `parentId`
+- `includeArchived`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -812,7 +820,15 @@ List knowledge documents metadata
   "name": "knowledge_list",
   "arguments": {
     "project": "mcp",
-    "tag": "example"
+    "tag": "example",
+    "type": "note",
+    "parentId": null,
+    "includeArchived": false,
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -827,6 +843,11 @@ List knowledge documents as a hierarchical tree (by parentId)
 
 - `project`
 - `includeArchived`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -835,7 +856,12 @@ List knowledge documents as a hierarchical tree (by parentId)
   "name": "knowledge_tree",
   "arguments": {
     "project": "mcp",
-    "includeArchived": false
+    "includeArchived": false,
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -1203,6 +1229,10 @@ List extracted memory facts from the knowledge base. Filters by type=memory_fact
 - `tag`
 - `category`
 - `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -1213,7 +1243,11 @@ List extracted memory facts from the knowledge base. Filters by type=memory_fact
     "project": "mcp",
     "tag": "example",
     "category": "example",
-    "limit": 10
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -2377,6 +2411,11 @@ List prompts from prompts catalog with optional filters
 - `status`
 - `domain`
 - `tag`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -2389,7 +2428,12 @@ List prompts from prompts catalog with optional filters
     "kind": "example",
     "status": "pending",
     "domain": "example",
-    "tag": "example"
+    "tag": "example",
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -2506,9 +2550,13 @@ BM25 (and optional vector) search over knowledge docs
 
 - `project`
 - `query`
-- `limit`
 - `offset`
 - `snippet`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -2518,9 +2566,13 @@ BM25 (and optional vector) search over knowledge docs
   "arguments": {
     "project": "mcp",
     "query": "example",
-    "limit": 10,
     "offset": "example",
-    "snippet": "example"
+    "snippet": "example",
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -2536,6 +2588,10 @@ BM25 (and optional vector) search over tasks
 - `project`
 - `query`
 - `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -2545,7 +2601,11 @@ BM25 (and optional vector) search over tasks
   "arguments": {
     "project": "mcp",
     "query": "example",
-    "limit": 10
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -3003,6 +3063,11 @@ Get direct children of a task (one level deep, not recursive).
 
 - `project`
 - `id`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -3011,7 +3076,12 @@ Get direct children of a task (one level deep, not recursive).
   "name": "tasks_get_children",
   "arguments": {
     "project": "mcp",
-    "id": "00000000-0000-0000-0000-000000000000"
+    "id": "00000000-0000-0000-0000-000000000000",
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -3068,14 +3138,22 @@ Get a specific task and all its descendants as a hierarchical tree. Useful for i
 
 **List Tasks**
 
-List tasks with optional filters. Includes the active claim/lease holder when a task is claimed.
+List tasks with optional filters, cursor pagination and field selection. Returns `data` (array) plus total/count/hasMore/nextCursor/truncated/limit. Includes the active claim/lease holder when a task is claimed.
 
 **Параметры:**
 
 - `project`
 - `status`
 - `tag`
+- `priority`
+- `parentId`
+- `updatedSince`
 - `includeArchived`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -3086,7 +3164,15 @@ List tasks with optional filters. Includes the active claim/lease holder when a 
     "project": "mcp",
     "status": "pending",
     "tag": "example",
-    "includeArchived": false
+    "priority": "medium",
+    "parentId": null,
+    "updatedSince": "example",
+    "includeArchived": false,
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```
@@ -3168,7 +3254,7 @@ Set or replace dependency list for a task. Validates no cycles. Tasks with unmet
 
 **List Tasks Tree**
 
-List tasks as a hierarchical tree (by parentId)
+List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a returned root are always included).
 
 **Параметры:**
 
@@ -3176,6 +3262,11 @@ List tasks as a hierarchical tree (by parentId)
 - `status`
 - `tag`
 - `includeArchived`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -3186,7 +3277,12 @@ List tasks as a hierarchical tree (by parentId)
     "project": "mcp",
     "status": "pending",
     "tag": "example",
-    "includeArchived": false
+    "includeArchived": false,
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```

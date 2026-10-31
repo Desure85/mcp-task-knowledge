@@ -8,6 +8,9 @@
 
 ### Added
 
+- SC-01 list pagination contract: every list/search tool (`tasks_list`, `tasks_tree`, `tasks_get_children`, `knowledge_list`, `knowledge_tree`, `search_tasks`, `search_knowledge`, `prompts_list`, `memory_facts_list`) accepts `limit` (default 50, max 500), opaque `cursor`, `fields`, `countOnly` and `maxBytes`, and returns `total`/`totalExact`/`count`/`hasMore`/`nextCursor`/`truncated`/`limit` next to `data`. Cursors are stable across inserts, query-scoped for ranked search, and chunked so the egress scanner does not flag them as base64 payloads. Codes: `INVALID_CURSOR`
+- SC-01 server filters: `tasks_list` gained `priority`, `parentId`, `updatedSince`; `knowledge_list` gained `type` and `parentId`
+- SC-01 HTTP transport serves tool results as `application/json` by default (opt out with `MCP_JSON_RESPONSES=0`): SSE framing inside the MCP SDK is quadratic in payload size (20 MB: ~4.2 s over SSE vs 246 ms as JSON)
 - UI-10 design system: semantic tokens for 3 palettes (Indigo/Petrol/Copper) × light/dark, two independent theme axes with a no-flash pre-paint script and a Topbar switcher, base primitives (`components/ui`), `/design` showcase, and a WCAG AA contrast test over all 6 variants
 - npm publish pipeline (NEXT2-008): tag-triggered GitHub Actions workflow (`.github/workflows/publish.yml`) — build + tests → npm publish with provenance → GHCR Docker image; `publishConfig` (public access, provenance) in package.json; tag ↔ version match guard
 - LAN Relay (BM-012): WebSocket + AES-256-GCM + UDP multicast discovery, инструменты `relay_status`/`share_brief`/`broadcast_rule`
@@ -24,6 +27,9 @@
 - BACKLOG CI validation (AI-004): `npm run backlog:check`
 
 ### Changed
+
+- SC-01 performance: file reads in `listTasks`/`listDocs` are now bounded-parallel (32 at a time) instead of sequential, and unpaginated list calls read only the files that land on the page (`readdir` + `stat`, ordered by mtime). On a 10k dataset `tasks_list` went from ~897 ms / 5.9 MB to ~145 ms / 30 KB, `knowledge_list` from ~968 ms / 4.3 MB to ~142 ms / 22 KB, `tasks_tree` from ~725 ms / 6.2 MB to ~190 ms / 35 KB
+- SC-01 clients: Web UI `api.tasks.list()` / `api.knowledge.list()` follow `nextCursor` until the last page (temporary compatibility until SC-04 adds server-side pagination in the UI); the Web UI, dev CLI and VS Code extension raise the request timeout to 120 s (`NEXT_PUBLIC_MCP_TIMEOUT_MS` / `MCP_REQUEST_TIMEOUT_MS`)
 
 - Repo hygiene (DX-33): removed the stray 42.7 MB GitHub CLI binary from `bin/` (never referenced by scripts/workflows/Dockerfile) and untracked `.opencode` goal-lock/session state; added the binary path and `.playwright-mcp/` to `.gitignore`. History was not rewritten — `git filter-repo` decision remains with the owner.
 - UI-26: prompt catalog cards now open a full read view (template/compose, metadata, variables, versions); edit sends only changed fields through `prompts_bulk_update`, with an unsaved-changes `Dialog`; delete uses a destructive `Dialog`. Added `prompts_get` and web-ui `api.prompts.get/update/delete`.

@@ -2,12 +2,56 @@
 
 All tools registered in the MCP server, grouped by category.
 
+## Pagination, fields and payload caps (SC-01)
+
+Every list/search tool returns pages instead of whole collections. The `data` field keeps its
+old shape (array of items, or the same object as before), and pagination metadata rides next to it:
+
+```json
+{
+  "ok": true,
+  "data": [{ "id": "t-1", "title": "Example task" }],
+  "total": 120,
+  "totalExact": false,
+  "count": 50,
+  "hasMore": true,
+  "nextCursor": "eyJ2IjoxLCJrIjoiMTc2MTk0ODAwMDAwMCIsImlkIjoiYWJjIn0",
+  "truncated": false,
+  "limit": 50
+}
+```
+
+| Parameter | Default | Meaning |
+|-----------|---------|---------|
+| `limit` | 50 (max 500) | Page size |
+| `cursor` | — | Opaque cursor from the previous response (`nextCursor`). Omit for the first page |
+| `fields` | all | Subset of item fields (`["id","title"]`); unknown names are ignored |
+| `countOnly` | `false` | Return only `total`, no items |
+| `maxBytes` | 1 MiB | Hard cap on the payload; extra items are dropped and `truncated: true` is set |
+
+Rules that matter for clients:
+
+- **`total`** is exact whenever filters force a full read (`totalExact: true`). On the unfiltered
+  fast path it is the number of files in the project, including archived/trashed (`totalExact: false`),
+  because those flags live inside the files and reading them all would defeat the fast path.
+- **Cursor is stable across inserts**: items newer than the cursor belong to an earlier page, so a
+  concurrent write never duplicates a record. Ordering is `(updatedAt desc, id asc)`; the server derives
+  the position from file mtime, which every write updates together with `updatedAt`.
+- **Search cursors are query-scoped**: reusing a cursor with a different `query`/filters returns
+  `INVALID_CURSOR` instead of silently shifting the page window.
+- **`maxBytes` points the cursor at the last kept item**, so truncation never skips records.
+- `tasks_tree`/`knowledge_tree` paginate **root nodes**; children always travel with their root.
+- `tasks_dag`, `briefing` and `dashboard_stats` are aggregations, not lists: they still compute over
+  the full project internally (an index for that is SC-02).
+
+Error codes: `INVALID_CURSOR` (malformed, tampered, or issued for another query).
+
 ## Tasks (22 tools)
 
 | Tool | Description |
 |------|-------------|
 | `tasks_create` | Create a task with title, priority, tags, parentId |
-| `tasks_list` | List tasks with filters (project, status, tag) |
+| `tasks_list` | List tasks with filters (project, status, tag, priority, parentId, updatedSince) + pagination |
 | `tasks_get` | Get task by ID |
 | `tasks_update` | Update task fields (title, status, priority, tags) |
 | `tasks_close` | Close a task into the project `closeStatus` |
@@ -44,7 +88,7 @@ holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
 
 | Tool | Description |
 |------|-------------|
-| `knowledge_list` | List documents with filters |
+| `knowledge_list` | List documents with filters (tag, type, parentId) + pagination |
 | `knowledge_get` | Get document by ID (with content) |
 | `knowledge_tree` | Get document tree |
 | `knowledge_import_markdown` | Import Markdown file as knowledge doc |
