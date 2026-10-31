@@ -1,20 +1,17 @@
 /**
- * web-ui/app/graph/page.tsx — Knowledge graph viewer (NEXT2-003, UI-24)
+ * web-ui/app/graph/page.tsx — Knowledge graph viewer (NEXT2-003, UI-24, UI-28).
  *
- * Interactive knowledge graph:
- * - Nodes = entities + temporal facts, edges = mentions + fact relationships
- * - Data from memory_temporal_query via the typed API client
- * - Search box filters nodes, type filter narrows entity/fact
- * - Click a node to highlight its neighborhood; Expand loads more neighbors
- *
- * SVG colours are semantic tokens resolved at runtime; the palette is
- * re-read when ThemeManager changes data-theme/data-mode on <html>.
+ * Orchestrates the graph: facts, mode, selection, search, focus, related-fact
+ * loading, zoom/pan and the accessible table. Topology and label placement
+ * live in the pure lib modules; the SVG/pieces live under components/graph.
  */
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type TemporalFact } from '@/lib/api-client';
+import { buildGraph, type GraphMode } from '@/lib/graph-model';
+import { layoutGraph } from '@/lib/graph-layout';
 import {
   observeThemeAttributes,
   readCssVariable,
@@ -22,131 +19,26 @@ import {
   type GraphPalette,
 } from '@/lib/graph-theme';
 import { PageHeader } from '@/components/PageHeader';
-import { Badge, Button, Card, CardBody, EmptyState, Input, Select, Skeleton } from '@/components/ui';
+import { Button, Card, CardBody, EmptyState, Input, Skeleton } from '@/components/ui';
 import { IconGraph } from '@/components/icons';
+import {
+  GRAPH_CENTRE,
+  GRAPH_HEIGHT,
+  GRAPH_PADDING,
+  GRAPH_WIDTH,
+  GraphCanvas,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  type PositionedNode,
+} from '@/components/graph/GraphCanvas';
+import { Legend } from '@/components/graph/Legend';
+import { ModeSwitch } from '@/components/graph/ModeSwitch';
+import { NodePanel } from '@/components/graph/NodePanel';
+import { NodeTable } from '@/components/graph/NodeTable';
 
-type NodeType = 'entity' | 'fact';
-
-interface GraphNode {
-  id: string;
-  label: string;
-  type: NodeType;
-  x: number;
-  y: number;
-  fact?: TemporalFact;
-}
-
-interface GraphEdge {
-  source: string;
-  target: string;
-  label: string;
-}
-
-const NODE_RADIUS: Record<NodeType, number> = {
-  entity: 14,
-  fact: 10,
-};
-
-const WIDTH = 960;
-const HEIGHT = 560;
-
-function buildGraph(facts: TemporalFact[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const nodes = new Map<string, GraphNode>();
-  const edges: GraphEdge[] = [];
-  const edgeKeys = new Set<string>();
-
-  const link = (source: string, target: string, label: string) => {
-    const key = `${source}>${target}:${label}`;
-    if (source !== target && nodes.has(source) && nodes.has(target) && !edgeKeys.has(key)) {
-      edgeKeys.add(key);
-      edges.push({ source, target, label });
-    }
-  };
-
-  for (const f of facts) {
-    const factId = `fact:${f.id}`;
-    nodes.set(factId, {
-      id: factId,
-      label: f.statement.length > 42 ? `${f.statement.slice(0, 42)}…` : f.statement,
-      type: 'fact',
-      x: 0,
-      y: 0,
-      fact: f,
-    });
-    for (const e of f.entities ?? []) {
-      const entityId = `entity:${e}`;
-      if (!nodes.has(entityId)) {
-        nodes.set(entityId, { id: entityId, label: e, type: 'entity', x: 0, y: 0 });
-      }
-      link(factId, entityId, 'mentions');
-    }
-  }
-
-  const factIds = new Set(facts.map((f) => `fact:${f.id}`));
-  for (const f of facts) {
-    for (const r of f.relationships ?? []) {
-      const targetId = `fact:${r.targetId}`;
-      if (factIds.has(targetId)) link(`fact:${f.id}`, targetId, r.type);
-    }
-    if (f.supersededBy && factIds.has(`fact:${f.supersededBy}`)) {
-      link(`fact:${f.id}`, `fact:${f.supersededBy}`, 'supersededBy');
-    }
-  }
-
-  const nodeArr = Array.from(nodes.values());
-  layout(nodeArr, edges);
-  return { nodes: nodeArr, edges };
-}
-
-function layout(nodes: GraphNode[], edges: GraphEdge[]): void {
-  const adj = new Map<string, string[]>();
-  for (const n of nodes) adj.set(n.id, []);
-  for (const e of edges) {
-    adj.get(e.source)?.push(e.target);
-    adj.get(e.target)?.push(e.source);
-  }
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  nodes.forEach((n, i) => {
-    const a = (2 * Math.PI * i) / Math.max(1, nodes.length);
-    n.x = WIDTH / 2 + Math.cos(a) * (WIDTH / 3);
-    n.y = HEIGHT / 2 + Math.sin(a) * (HEIGHT / 3);
-  });
-  const CHARGE = -40000;
-  const LINK_DIST = 78;
-  for (let iter = 0; iter < 220; iter++) {
-    for (const n of nodes) {
-      let fx = 0;
-      let fy = 0;
-      for (const m of nodes) {
-        if (n === m) continue;
-        const dx = n.x - m.x;
-        const dy = n.y - m.y;
-        const d = Math.max(12, Math.sqrt(dx * dx + dy * dy));
-        const f = CHARGE / (d * d);
-        fx += (dx / d) * f;
-        fy += (dy / d) * f;
-      }
-      for (const id of adj.get(n.id) ?? []) {
-        const m = byId.get(id);
-        if (!m) continue;
-        const dx = m.x - n.x;
-        const dy = m.y - n.y;
-        const d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
-        const f = (d - LINK_DIST) * 0.02;
-        fx += (dx / d) * f;
-        fy += (dy / d) * f;
-      }
-      n.x += fx;
-      n.y += fy;
-      n.x = Math.max(20, Math.min(WIDTH - 20, n.x));
-      n.y = Math.max(20, Math.min(HEIGHT - 20, n.y));
-    }
-  }
-}
-
-function escapeXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+const MODE_STORAGE_KEY = 'graph.mode';
+/** Fact labels join the collision set at this zoom, not on every wheel tick. */
+const SHOW_FACT_LABELS_ZOOM = 1.15;
 
 function useGraphPalette(): GraphPalette {
   const [palette, setPalette] = useState<GraphPalette>(() => readGraphPalette(() => ''));
@@ -160,21 +52,30 @@ function useGraphPalette(): GraphPalette {
   return palette;
 }
 
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
 export default function GraphPage() {
   const [facts, setFacts] = useState<TemporalFact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expanding, setExpanding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<GraphMode>('entities');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'' | NodeType>('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusOnSelection, setFocusOnSelection] = useState(true);
+  const [viewport, setViewport] = useState({ zoom: 1, pan: { x: 0, y: 0 } });
+  const [expanding, setExpanding] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [exhausted, setExhausted] = useState<Set<string>>(new Set());
   const palette = useGraphPalette();
 
   const loadGraph = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.memory.temporalQuery({ limit: 200 });
+      const data = await api.memory.temporalQuery({ limit: 200, includeInvalidated: true });
       setFacts(Array.isArray(data.facts) ? data.facts : []);
+      setError(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -186,64 +87,176 @@ export default function GraphPage() {
     void loadGraph();
   }, [loadGraph]);
 
-  const { nodes, edges } = useMemo(() => buildGraph(facts), [facts]);
-
-  const adjacency = useMemo(() => {
-    const adj = new Map<string, Set<string>>();
-    for (const n of nodes) adj.set(n.id, new Set());
-    for (const e of edges) {
-      adj.get(e.source)?.add(e.target);
-      adj.get(e.target)?.add(e.source);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+      if (stored === 'entities' || stored === 'facts') setMode(stored);
+    } catch {
+      /* storage blocked — the default mode still works */
     }
-    return adj;
-  }, [nodes, edges]);
+  }, []);
 
-  const visible = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return nodes.filter((n) => {
-      if (filterType && n.type !== filterType) return false;
-      if (q && !n.label.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [nodes, searchQuery, filterType]);
+  const graph = useMemo(() => buildGraph(facts, mode), [facts, mode]);
 
-  const visibleIds = useMemo(() => new Set(visible.map((n) => n.id)), [visible]);
-  const visibleEdges = useMemo(
-    () => edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target)),
-    [edges, visibleIds],
+  const layout = useMemo(
+    () => layoutGraph(graph, { width: GRAPH_WIDTH, height: GRAPH_HEIGHT, padding: GRAPH_PADDING }),
+    [graph],
   );
 
-  const neighborhood = useMemo(() => {
-    if (!selectedId) return null;
-    const set = new Set<string>([selectedId]);
-    for (const id of adjacency.get(selectedId) ?? []) set.add(id);
-    return set;
-  }, [selectedId, adjacency]);
+  const positionedNodes = useMemo<PositionedNode[]>(
+    () =>
+      graph.nodes.map((node) => {
+        const point = layout.positions.get(node.id);
+        return {
+          ...node,
+          x: point?.x ?? GRAPH_WIDTH / 2,
+          y: point?.y ?? GRAPH_HEIGHT / 2,
+        };
+      }),
+    [graph, layout],
+  );
 
-  const selectedNode = selectedId ? (nodes.find((n) => n.id === selectedId) ?? null) : null;
+  const selectedNode = useMemo(
+    () => (selectedId ? (graph.nodes.find((node) => node.id === selectedId) ?? null) : null),
+    [graph.nodes, selectedId],
+  );
 
-  async function expandSelected() {
-    if (!selectedNode) return;
-    const entity = selectedNode.type === 'entity'
-      ? selectedNode.label
-      : (selectedNode.fact?.entities ?? [])[0];
-    if (!entity) return;
+  const selectedFact = useMemo(
+    () =>
+      selectedNode?.type === 'fact' && selectedNode.factId
+        ? (facts.find((fact) => fact.id === selectedNode.factId) ?? null)
+        : null,
+    [facts, selectedNode],
+  );
+
+  const relatedEntity = selectedNode
+    ? selectedNode.type === 'entity'
+      ? (selectedNode.entity ?? selectedNode.label)
+      : (selectedFact?.entities[0] ?? null)
+    : null;
+
+  const relatedDisabledReason = !relatedEntity
+    ? 'Select a node that mentions an entity to load more facts.'
+    : exhausted.has(relatedEntity)
+      ? `All facts for «${relatedEntity}» are loaded.`
+      : null;
+
+  const showFactLabels = viewport.zoom >= SHOW_FACT_LABELS_ZOOM;
+
+  const matchIds = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return null;
+    return new Set(
+      graph.nodes
+        .filter((node) => node.label.toLowerCase().includes(query))
+        .map((node) => node.id),
+    );
+  }, [graph.nodes, searchQuery]);
+
+  const focusIds = useMemo(() => {
+    if (!focusOnSelection || !selectedId || !graph.nodes.some((node) => node.id === selectedId)) {
+      return null;
+    }
+    const ids = new Set<string>([selectedId]);
+    for (const edge of graph.edges) {
+      if (edge.source === selectedId) ids.add(edge.target);
+      else if (edge.target === selectedId) ids.add(edge.source);
+    }
+    return ids;
+  }, [focusOnSelection, selectedId, graph]);
+
+  const tableNodes = useMemo(
+    () => (matchIds ? graph.nodes.filter((node) => matchIds.has(node.id)) : graph.nodes),
+    [graph.nodes, matchIds],
+  );
+
+  const zoomAt = useCallback((nextZoom: number, pivot: { x: number; y: number }) => {
+    setViewport((current) => {
+      const zoom = clampZoom(nextZoom);
+      const ratio = zoom / current.zoom;
+      return {
+        zoom,
+        pan: {
+          x: pivot.x - (pivot.x - current.pan.x) * ratio,
+          y: pivot.y - (pivot.y - current.pan.y) * ratio,
+        },
+      };
+    });
+  }, []);
+
+  const panBy = useCallback((delta: { x: number; y: number }) => {
+    setViewport((current) => ({
+      ...current,
+      pan: { x: current.pan.x + delta.x, y: current.pan.y + delta.y },
+    }));
+  }, []);
+
+  const resetViewport = useCallback(() => {
+    setViewport({ zoom: 1, pan: { x: 0, y: 0 } });
+  }, []);
+
+  const selectNode = useCallback((id: string | null) => {
+    setSelectedId(id);
+    setStatus(null);
+  }, []);
+
+  const chooseMode = useCallback((next: GraphMode) => {
+    setMode(next);
+    setStatus(null);
     try {
-      setExpanding(true);
-      const data = await api.memory.temporalQuery({ entity, limit: 100 });
-      const known = new Set(facts.map((f) => f.id));
-      const fresh = (data.facts ?? []).filter((f) => !known.has(f.id));
-      if (fresh.length > 0) setFacts((prev) => [...prev, ...fresh]);
+      window.localStorage.setItem(MODE_STORAGE_KEY, next);
+    } catch {
+      /* storage blocked — the in-memory mode still works */
+    }
+  }, []);
+
+  const selectFact = useCallback(
+    (factId: string) => {
+      chooseMode('facts');
+      setSelectedId(`fact:${factId}`);
+      setStatus(null);
+    },
+    [chooseMode],
+  );
+
+  useEffect(() => {
+    if (selectedId && !graph.nodes.some((node) => node.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [graph.nodes, selectedId]);
+
+  const loadRelated = useCallback(async () => {
+    if (!relatedEntity) return;
+    setStatus(null);
+    setExpanding(true);
+    try {
+      const data = await api.memory.temporalQuery({ entity: relatedEntity, limit: 100 });
+      const known = new Set(facts.map((fact) => fact.id));
+      const fresh = (data.facts ?? []).filter((fact) => !known.has(fact.id));
+      if (fresh.length > 0) {
+        setFacts((previous) => [...previous, ...fresh]);
+        setStatus(`Loaded ${fresh.length} more facts`);
+      } else {
+        setStatus(`No more facts for «${relatedEntity}»`);
+        setExhausted((previous) => {
+          const next = new Set(previous);
+          next.add(relatedEntity);
+          return next;
+        });
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setExpanding(false);
     }
-  }
+  }, [facts, relatedEntity]);
 
-  function nodeOpacity(id: string): number {
-    if (!neighborhood) return 1;
-    return neighborhood.has(id) ? 1 : 0.15;
+  function reload() {
+    setSelectedId(null);
+    setStatus(null);
+    setExhausted(new Set());
+    resetViewport();
+    void loadGraph();
   }
 
   return (
@@ -252,210 +265,157 @@ export default function GraphPage() {
         title="Knowledge graph"
         description="Entities and temporal facts, linked by mentions and relationships."
         actions={
-          <Button
-            variant="primary"
-            onClick={() => { setSelectedId(null); void loadGraph(); }}
-            loading={loading}
-          >
+          <Button variant="primary" onClick={reload} loading={loading}>
             Reload
           </Button>
         }
       />
 
       {error && (
-        <div role="alert" className="mt-4 flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface p-3 text-[12px] text-danger">
+        <div
+          role="alert"
+          className="mt-4 flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface p-3 text-[12px] text-danger"
+        >
           <span>{error}</span>
-          <Button size="sm" variant="ghost" onClick={() => setError(null)}>Dismiss</Button>
+          <Button size="sm" variant="ghost" onClick={() => setError(null)}>
+            Dismiss
+          </Button>
         </div>
       )}
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+      <div className="mt-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ModeSwitch mode={mode} onChange={chooseMode} />
+          <label className="flex items-center gap-2 text-[12px] text-ink">
+            <input
+              type="checkbox"
+              checked={focusOnSelection}
+              onChange={(event) => setFocusOnSelection(event.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            />
+            Focus on selection
+          </label>
+        </div>
         <Input
           label="Search nodes"
           type="search"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Label or entity"
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Entity or fact text"
         />
-        <Select
-          label="Node type"
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value as '' | NodeType)}
-        >
-          <option value="">All types</option>
-          <option value="entity">Entity</option>
-          <option value="fact">Fact</option>
-        </Select>
       </div>
 
       {loading ? (
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2"><CardBody><Skeleton className="h-[360px] w-full" /></CardBody></Card>
-          <Card><CardBody><Skeleton className="h-3 w-2/3" /><Skeleton className="mt-2 h-3 w-full" /><Skeleton className="mt-2 h-3 w-4/5" /></CardBody></Card>
+          <Card className="lg:col-span-2">
+            <CardBody>
+              <Skeleton className="h-[360px] w-full" />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <Skeleton className="h-3 w-2/3" />
+              <Skeleton className="mt-2 h-3 w-full" />
+              <Skeleton className="mt-2 h-3 w-4/5" />
+            </CardBody>
+          </Card>
         </div>
-      ) : nodes.length === 0 ? (
+      ) : graph.nodes.length === 0 ? (
         <div className="mt-4">
           <EmptyState
             title="No graph data yet"
             hint="Add temporal facts via memory tools first, then reload."
             icon={IconGraph}
-            action={<Button size="sm" variant="primary" onClick={() => void loadGraph()}>Reload</Button>}
+            action={
+              <Button size="sm" variant="primary" onClick={reload}>
+                Reload
+              </Button>
+            }
           />
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card className="overflow-hidden bg-canvas lg:col-span-2">
-            <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="block h-auto w-full" role="img" aria-label="Knowledge graph">
-              {visibleEdges.map((e) => {
-                const s = nodes.find((n) => n.id === e.source);
-                const t = nodes.find((n) => n.id === e.target);
-                if (!s || !t) return null;
-                const dim = neighborhood && (!neighborhood.has(e.source) || !neighborhood.has(e.target));
-                return (
-                  <line
-                    key={`${e.source}>${e.target}:${e.label}`}
-                    x1={s.x}
-                    y1={s.y}
-                    x2={t.x}
-                    y2={t.y}
-                    stroke={palette.edge}
-                    strokeWidth={1.5}
-                    opacity={dim ? 0.1 : 0.8}
-                  />
-                );
-              })}
-              {visible.map((n) => (
-                <g
-                  key={n.id}
-                  opacity={nodeOpacity(n.id)}
-                  onClick={() => setSelectedId(n.id === selectedId ? null : n.id)}
-                  className="cursor-pointer"
+          <Card className="min-w-0 overflow-hidden bg-canvas lg:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Zoom out"
+                  onClick={() => zoomAt(viewport.zoom / 1.25, GRAPH_CENTRE)}
                 >
-                  <circle
-                    cx={n.x}
-                    cy={n.y}
-                    r={NODE_RADIUS[n.type]}
-                    fill={palette.nodes[n.type]}
-                    stroke={n.id === selectedId ? palette.selectedStroke : palette.nodeStroke}
-                    strokeWidth={n.id === selectedId ? 3 : 1.5}
-                  />
-                  {(n.type === 'entity' || n.id === selectedId) && (
-                    <text x={n.x} y={n.y + NODE_RADIUS[n.type] + 13} textAnchor="middle" fontSize={11} fill={palette.label}>
-                      {escapeXml(n.label.length > 28 ? `${n.label.slice(0, 28)}…` : n.label)}
-                    </text>
-                  )}
-                </g>
-              ))}
-            </svg>
-            <div className="flex flex-wrap items-center gap-4 border-t border-line px-4 py-2 text-[11px] text-muted">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: palette.nodes.entity }} aria-hidden="true" /> Entity
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: palette.nodes.fact }} aria-hidden="true" /> Fact
-              </span>
-              <span className="ml-auto">{visible.length} nodes / {visibleEdges.length} edges</span>
+                  −
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Zoom in"
+                  onClick={() => zoomAt(viewport.zoom * 1.25, GRAPH_CENTRE)}
+                >
+                  +
+                </Button>
+                <Button size="sm" variant="ghost" aria-label="Reset zoom" onClick={resetViewport}>
+                  Reset
+                </Button>
+              </div>
+              <span className="text-[11px] text-muted">Zoom {Math.round(viewport.zoom * 100)}%</span>
             </div>
+
+            <GraphCanvas
+              nodes={positionedNodes}
+              edges={graph.edges}
+              mode={mode}
+              palette={palette}
+              selectedId={selectedId}
+              focusIds={focusIds}
+              matchIds={matchIds}
+              showFactLabels={showFactLabels}
+              zoom={viewport.zoom}
+              pan={viewport.pan}
+              onSelect={selectNode}
+              onZoomAt={zoomAt}
+              onPan={panBy}
+              onReset={resetViewport}
+            />
+
+            <Legend mode={mode} palette={palette} />
           </Card>
 
-          <Card className="h-fit">
+          <Card className="h-fit min-w-0">
             <CardBody>
-              {selectedNode ? (
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                      <span
-                        className="inline-block h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: palette.nodes[selectedNode.type] }}
-                        aria-hidden="true"
-                      />
-                      {selectedNode.type}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label="Clear node selection"
-                      onClick={() => setSelectedId(null)}
-                    >
-                      ×
-                    </Button>
-                  </div>
-                  <h2 className="text-[14px] font-semibold text-ink">{selectedNode.label}</h2>
-                  {selectedNode.fact && (
-                    <div className="space-y-1 text-[12px] text-muted">
-                      <p><span className="text-muted">Category:</span> <span className="text-ink">{selectedNode.fact.category}</span></p>
-                      <p><span className="text-muted">Confidence:</span> <span className="text-ink">{selectedNode.fact.confidence}</span></p>
-                      <p><span className="text-muted">Valid:</span> <span className="text-ink">{selectedNode.fact.valid ? 'yes' : 'no'}</span></p>
-                      {(selectedNode.fact.entities ?? []).length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {selectedNode.fact.entities.map((entity) => (
-                            <Badge key={entity}>{entity}</Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-[11px] text-muted">
-                    {adjacency.get(selectedNode.id)?.size ?? 0} neighbor(s)
-                  </p>
-                  <Button
-                    variant="primary"
-                    className="w-full"
-                    onClick={() => void expandSelected()}
-                    loading={expanding}
-                  >
-                    Expand neighbors
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-[12px] text-muted">Click a node to see details and expand its neighborhood.</p>
-              )}
+              <NodePanel
+                node={selectedNode}
+                facts={facts}
+                relatedEntity={relatedEntity}
+                relatedLoading={expanding}
+                relatedDisabled={expanding || !relatedEntity || (relatedEntity ? exhausted.has(relatedEntity) : false)}
+                relatedDisabledReason={relatedDisabledReason}
+                status={status}
+                onLoadRelated={() => void loadRelated()}
+                onSelectNode={selectNode}
+                onSelectFact={selectFact}
+                onClear={() => selectNode(null)}
+              />
             </CardBody>
           </Card>
         </div>
       )}
 
-      {!loading && nodes.length > 0 && (
+      {!loading && graph.nodes.length > 0 && (
         <p className="mt-4 text-[12px] text-muted">
-          Showing {visible.length} of {nodes.length} nodes from {facts.length} facts
+          Showing {graph.nodes.length} nodes and {graph.edges.length} edges from {facts.length} facts
         </p>
       )}
 
-      {!loading && visible.length > 0 && (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-[12px] font-medium text-ink">Node list</summary>
-          <Card className="mt-2">
-            <CardBody className="overflow-x-auto">
-              <table className="w-full text-left text-[12px]">
-                <caption className="sr-only">Graph nodes</caption>
-                <thead>
-                  <tr className="border-b border-line text-muted">
-                    <th scope="col" className="py-1.5 pr-3 font-medium">Label</th>
-                    <th scope="col" className="py-1.5 pr-3 font-medium">Type</th>
-                    <th scope="col" className="py-1.5 font-medium">Neighbors</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((node) => (
-                    <tr key={node.id} className="border-b border-line last:border-0">
-                      <td className="py-1.5 pr-3">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedId(node.id)}
-                          className="text-left text-ink underline-offset-2 hover:text-accent hover:underline"
-                        >
-                          {node.label}
-                        </button>
-                      </td>
-                      <td className="py-1.5 pr-3"><Badge>{node.type}</Badge></td>
-                      <td className="py-1.5 text-muted">{adjacency.get(node.id)?.size ?? 0}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardBody>
-          </Card>
-        </details>
+      {!loading && graph.nodes.length > 0 && (
+        <div className="mt-4">
+          <NodeTable
+            nodes={tableNodes}
+            facts={facts}
+            selectedId={selectedId}
+            onSelect={selectNode}
+          />
+        </div>
       )}
     </div>
   );
