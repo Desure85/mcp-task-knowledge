@@ -42,7 +42,7 @@ interface ExportOptions {
   includeTypes?: string[];
   excludeTypes?: string[];
   // Tasks-only
-  includeStatus?: Array<'pending' | 'in_progress' | 'completed' | 'closed'>;
+  includeStatus?: string[];
   includePriority?: Array<'low' | 'medium' | 'high'>;
   // Structure control
   keepOrphans?: boolean; // default false: export only selected + their ancestors

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { resolveProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
+import { defaultStatusId, isDone, loadProjectWorkflow, statusCategory } from '../workflow.js';
 
 export function registerDependencyTools(ctx: ServerContext): void {
   const { server } = ctx;
@@ -22,6 +23,7 @@ export function registerDependencyTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const { listTasks, updateTask, isTaskBlocked } = await import('../storage/tasks.js');
 
+      const workflow = await loadProjectWorkflow(prj);
       const allTasks = await listTasks({ project: prj, includeArchived: true, includeTrashed: true });
       const existing = allTasks.find(t => t.id === id);
       if (!existing) {
@@ -35,9 +37,9 @@ export function registerDependencyTools(ctx: ServerContext): void {
 
       const byId = new Map(allTasks.map(t => [t.id, t] as const));
       byId.set(updated.id, updated);
-      const { blocked, blockingDeps } = isTaskBlocked(updated, byId);
+      const { blocked, blockingDeps } = isTaskBlocked(updated, byId, (status) => isDone(workflow, status));
 
-      if (blocked && updated.status === 'pending') {
+      if (blocked && statusCategory(workflow, updated.status) === 'todo') {
         const blockedTask = await updateTask(prj, id, { status: 'blocked' as any } as any);
         return ok({
           task: blockedTask,
@@ -47,7 +49,7 @@ export function registerDependencyTools(ctx: ServerContext): void {
       }
 
       if (!blocked && updated.status === 'blocked') {
-        const unblockedTask = await updateTask(prj, id, { status: 'pending' as any } as any);
+        const unblockedTask = await updateTask(prj, id, { status: defaultStatusId(workflow) } as any);
         return ok({
           task: unblockedTask,
           status: 'unblocked',
@@ -84,12 +86,13 @@ export function registerDependencyTools(ctx: ServerContext): void {
         return err(`Task not found: ${prj}/${id}`);
       }
 
+      const workflow = await loadProjectWorkflow(prj);
       const allTasks = await listTasks({ project: prj, includeArchived: true, includeTrashed: true });
       const byId = new Map(allTasks.map(t => [t.id, t] as const));
 
       const blocking = getBlockingTasks(task, byId);
       const blocked = getBlockedByTask(id, byId);
-      const { blocked: isBlocked, blockingDeps } = isTaskBlocked(task, byId);
+      const { blocked: isBlocked, blockingDeps } = isTaskBlocked(task, byId, (status) => isDone(workflow, status));
 
       return ok({
         task: { id: task.id, title: task.title, status: task.status },
@@ -117,6 +120,7 @@ export function registerDependencyTools(ctx: ServerContext): void {
       const { listTasks, topologicalSort, getCriticalPath, buildDAG } = await import('../storage/tasks.js');
 
       const tasks = await listTasks({ project: prj, includeArchived });
+      const workflow = await loadProjectWorkflow(prj);
       const sorted = topologicalSort(tasks);
       const criticalPath = getCriticalPath(tasks);
       const dag = buildDAG(tasks);
@@ -125,7 +129,7 @@ export function registerDependencyTools(ctx: ServerContext): void {
       let blockedCount = 0;
       for (const t of tasks) {
         const deps = (t.dependsOn || []).map(depId => byId.get(depId)).filter(Boolean);
-        const unmet = deps.filter((d: any) => d.status !== 'completed' && d.status !== 'closed');
+        const unmet = deps.filter((d: any) => !isDone(workflow, d.status));
         if (unmet.length > 0) blockedCount++;
       }
 

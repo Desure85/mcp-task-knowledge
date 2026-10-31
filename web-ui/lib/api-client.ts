@@ -18,7 +18,7 @@ import { AUTH_EXPIRED_EVENT, isAuthRequiredError } from './auth';
 interface McpEnvelope<T> {
   ok: boolean;
   data?: T;
-  error?: { message: string };
+  error?: { message: string; code?: string; hint?: string; details?: unknown };
 }
 
 /** Resolve the MCP endpoint — read lazily so tests/SSR can set env per call. */
@@ -137,6 +137,19 @@ export class AuthError extends Error {
     this.name = 'AuthError';
     this.code = code;
     this.status = status;
+  }
+}
+
+/** Tool failure carrying the server's stable error code. */
+export class ToolCallError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+    readonly hint?: string,
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ToolCallError';
   }
 }
 
@@ -266,7 +279,14 @@ export async function callTool<T>(name: string, args: Record<string, unknown> = 
     const client = await getClient();
     const result = await client.callTool({ name, arguments: args });
     const env = parseEnvelope<T>(result);
-    if (!env.ok) throw new Error(env.error?.message ?? `Tool ${name} failed`);
+    if (!env.ok) {
+      throw new ToolCallError(
+        env.error?.message ?? `Tool ${name} failed`,
+        env.error?.code,
+        env.error?.hint,
+        env.error?.details,
+      );
+    }
     return env.data as T;
   } catch (e) {
     if (isAuthRequiredError(e)) handleAuthFailure();
@@ -280,7 +300,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'closed';
+  status: string;
   priority: 'low' | 'medium' | 'high';
   tags?: string[];
   parentId?: string | null;
@@ -325,6 +345,32 @@ export interface SearchResult<T = unknown> {
   id: string;
   score: number;
   item: T;
+}
+
+export type StatusCategory = 'todo' | 'in_progress' | 'done';
+
+export interface ProjectStatus {
+  id: string;
+  label: string;
+  category: StatusCategory;
+  color?: string;
+  order?: number;
+  archived?: boolean;
+}
+
+export interface ProjectStatusesData {
+  project: string;
+  statuses: ProjectStatus[];
+  closeStatus: string;
+  initialStatuses: string[];
+  defaults: boolean;
+  moved?: Array<{ from: string; to: string; count: number }>;
+}
+
+export interface ProjectTransitionsData {
+  project: string;
+  transitions: Record<string, string[]> | null;
+  unrestricted: boolean;
 }
 
 export interface ProjectInfo {
@@ -575,7 +621,7 @@ export const api = {
   // Tasks
   tasks: {
     list: (project?: string) => callTool<Task[]>('tasks_list', { project }),
-    create: (input: { title: string; project?: string; priority?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
+    create: (input: { title: string; project?: string; priority?: string; status?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
       callTool<Task>('tasks_create', input),
     get: (project: string, id: string) => callTool<Task>('tasks_get', { project, id }),
     update: (project: string, id: string, patch: Partial<Task>) =>
@@ -586,7 +632,7 @@ export const api = {
     getChildren: (project: string, id: string) => callTool<Task[]>('tasks_get_children', { project, id }),
     getSubtree: (project: string, id: string) => callTool<unknown>('tasks_get_subtree', { project, id }),
     bulkUpdate: (project: string, items: Array<{ id: string } & Record<string, unknown>>) =>
-      callTool<{ count: number; results: Task[] }>('tasks_bulk_update', { project, items }),
+      callTool<{ count: number; results: Task[]; failed?: Array<{ id: string; error: Record<string, unknown> }> }>('tasks_bulk_update', { project, items }),
     tree: (project?: string, status?: string) => callTool<unknown>('tasks_tree', { project, status }),
     dag: (project?: string) => callTool<DagData>('tasks_dag', { project }),
   },
@@ -636,6 +682,24 @@ export const api = {
     info: (project: string) => callTool<unknown>('project_info', { project }),
     remove: (project: string, force?: boolean) => callTool<unknown>('project_delete', { project, force }),
     purge: (project: string, confirm: boolean) => callTool<unknown>('project_purge', { project, confirm }),
+    statuses: {
+      get: (project?: string) => callTool<ProjectStatusesData>('project_statuses_get', { project }),
+      set: (
+        project: string,
+        statuses: ProjectStatus[],
+        options: {
+          moveTo?: string;
+          moves?: Record<string, string>;
+          closeStatus?: string;
+          initialStatuses?: string[];
+        } = {},
+      ) => callTool<ProjectStatusesData>('project_statuses_set', { project, statuses, ...options }),
+    },
+    transitions: {
+      get: (project?: string) => callTool<ProjectTransitionsData>('project_transitions_get', { project }),
+      set: (project: string, transitions: Record<string, string[]> | null) =>
+        callTool<ProjectTransitionsData>('project_transitions_set', { project, transitions }),
+    },
   },
 
   // Memory (NEXT2-004)

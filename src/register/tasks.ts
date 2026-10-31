@@ -21,6 +21,7 @@ import {
 } from '../storage/tasks.js';
 import { ok, err, errWith } from '../utils/respond.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
+import { WorkflowError, assertStatusAllowed, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
 
 /** Resolve the claiming identity: SDK session > ALS request scope > local. */
@@ -50,15 +51,21 @@ export function registerTasksTools(ctx: ServerContext): void {
       description: "List tasks with optional filters. Includes the active claim/lease holder when a task is claimed.",
       inputSchema: {
         project: z.string().optional(),
-        status: z.enum(["pending", "in_progress", "completed", "closed"]).optional(),
+        status: z.string().min(1).optional(),
         tag: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
       },
     },
     async ({ project, status, tag, includeArchived }) => {
       const prj = resolveProject(project);
-      const items = await listTasks({ project: prj, status, tag, includeArchived });
-      return ok(items);
+      try {
+        if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
+        const items = await listTasks({ project: prj, status, tag, includeArchived });
+        return ok(items);
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
     }
   );
 
@@ -69,15 +76,21 @@ export function registerTasksTools(ctx: ServerContext): void {
       description: "List tasks as a hierarchical tree (by parentId)",
       inputSchema: {
         project: z.string().optional(),
-        status: z.enum(["pending", "in_progress", "completed", "closed"]).optional(),
+        status: z.string().min(1).optional(),
         tag: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
       },
     },
     async ({ project, status, tag, includeArchived }) => {
       const prj = resolveProject(project);
-      const items = await listTasksTree({ project: prj, status, tag, includeArchived });
-      return ok(items);
+      try {
+        if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
+        const items = await listTasksTree({ project: prj, status, tag, includeArchived });
+        return ok(items);
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
     }
   );
 
@@ -108,7 +121,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         title: z.string().min(1),
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
-        status: z.enum(["pending", "in_progress", "completed", "closed"]).optional(),
+        status: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().optional(),
@@ -118,6 +131,8 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, title, description, priority, status, tags, links, parentId }) => {
       const prj = resolveProject(project);
       try {
+        const workflow = await loadProjectWorkflow(prj);
+        if (status) assertStatusAllowed(workflow, status, { initial: true });
         const task = await createTask({
           project: prj,
           title,
@@ -130,6 +145,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         });
         return ok(task);
       } catch (e: any) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
         return err(`Failed to create task: ${e?.message || String(e)}`);
       }
     }
@@ -146,7 +162,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         title: z.string().optional(),
         description: z.string().optional(),
         priority: z.enum(["low", "medium", "high"]).optional(),
-        status: z.enum(["pending", "in_progress", "completed", "closed"]).optional(),
+        status: z.string().min(1).optional(),
         tags: z.array(z.string()).optional(),
         links: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional(),
@@ -162,6 +178,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         }
         return ok(task);
       } catch (e: any) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
         return err(`Failed to update task: ${e?.message || String(e)}`);
       }
     }
@@ -322,6 +339,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         });
         return ok({ parent: { id: parent.id, title: parent.title }, subtask: task });
       } catch (e: any) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
         return err(`Failed to add subtask: ${e?.message || String(e)}`);
       }
     }
@@ -394,7 +412,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     "tasks_close",
     {
       title: "Close Task",
-      description: "Close a task by setting its status to 'closed'. Optionally cascade the close to all descendants (subtasks, sub-subtasks, etc.).",
+      description: "Close a task by moving it to the project's close status. Optionally cascade the close to all descendants (subtasks, sub-subtasks, etc.).",
       inputSchema: {
         project: z.string().optional(),
         id: z.string().min(1),
@@ -414,6 +432,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           cascaded: result.cascaded.length > 0 ? result.cascaded : undefined,
         });
       } catch (e: any) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
         return err(`Failed to close task: ${e?.message || String(e)}`);
       }
     }

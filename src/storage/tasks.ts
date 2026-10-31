@@ -3,6 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { TASKS_DIR } from '../config.js';
 import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson } from '../fs.js';
 import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
+import {
+  assertStatusAllowed,
+  assertTransition,
+  closeStatusId,
+  defaultStatusId,
+  isDone,
+  loadProjectWorkflow,
+  type ProjectWorkflow,
+} from '../workflow.js';
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
@@ -54,26 +63,32 @@ export async function createTask(input: {
     await validateParentDepth(input.project, '__new__', input.parentId);
   }
 
-  const id = randomUUID();
-  const now = new Date().toISOString();
-  const task: Task = {
-    id,
-    project: input.project,
-    title: input.title,
-    description: input.description,
-    status: input.status || 'pending',
-    priority: input.priority || 'medium',
-    tags: input.tags || [],
-    links: input.links || [],
-    createdAt: now,
-    updatedAt: now,
-    parentId: input.parentId,
-    archived: false,
-    trashed: false,
-  };
-  const filePath = path.join(await tasksProjectDir(input.project), `${id}.json`);
-  await writeJson(filePath, task);
-  return task;
+  return withFileLock(`workflow:${input.project}`, async () => {
+    const workflow = await loadProjectWorkflow(input.project);
+    const status = input.status ?? defaultStatusId(workflow);
+    assertStatusAllowed(workflow, status);
+
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const task: Task = {
+      id,
+      project: input.project,
+      title: input.title,
+      description: input.description,
+      status,
+      priority: input.priority || 'medium',
+      tags: input.tags || [],
+      links: input.links || [],
+      createdAt: now,
+      updatedAt: now,
+      parentId: input.parentId,
+      archived: false,
+      trashed: false,
+    };
+    const filePath = path.join(await tasksProjectDir(input.project), `${id}.json`);
+    await writeJson(filePath, task);
+    return task;
+  });
 }
 
 function taskFilePath(project: string, id: string): string {
@@ -374,12 +389,27 @@ export function stopClaimSweeper(): void {
 }
 
 export async function updateTask(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {
-  return withFileLock(`task:${project}/${id}`, () => updateTaskUnlocked(project, id, patch));
+  return withFileLock(`workflow:${project}`, async () => {
+    const workflow = await loadProjectWorkflow(project);
+    return withFileLock(`task:${project}/${id}`, () => updateTaskUnlocked(project, id, patch, workflow));
+  });
 }
 
-async function updateTaskUnlocked(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {
+async function updateTaskUnlocked(
+  project: string,
+  id: string,
+  patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>,
+  workflow?: ProjectWorkflow,
+): Promise<Task | null> {
   const existing = await getTask(project, id);
   if (!existing) return null;
+
+  if (patch.status !== undefined) {
+    const nextStatus = String(patch.status);
+    const effectiveWorkflow = workflow ?? await loadProjectWorkflow(project);
+    assertStatusAllowed(effectiveWorkflow, nextStatus);
+    if (existing.status !== nextStatus) assertTransition(effectiveWorkflow, existing.status, nextStatus);
+  }
 
   // If parentId is being modified, validate new parent existence and protect against cycles
   const hasParentPatch = Object.prototype.hasOwnProperty.call(patch as any, 'parentId');
@@ -464,7 +494,31 @@ async function updateTaskUnlocked(project: string, id: string, patch: Partial<Om
 }
 
 export async function closeTask(project: string, id: string): Promise<Task | null> {
-  return updateTask(project, id, { status: 'closed' as Status });
+  return withFileLock(`workflow:${project}`, async () => {
+    const workflow = await loadProjectWorkflow(project);
+    return withFileLock(`task:${project}/${id}`, () =>
+      updateTaskUnlocked(project, id, { status: closeStatusId(workflow) }, workflow));
+  });
+}
+
+/**
+ * Move tasks to a status while the caller already holds the project workflow
+ * lock. Used by project_statuses_set for an atomic rename/removal.
+ */
+export async function moveTasksToStatus(project: string, ids: string[], status: string): Promise<Task[]> {
+  const updated: Task[] = [];
+  for (const id of ids) {
+    const next = await withFileLock(`task:${project}/${id}`, async () => {
+      const task = await readTaskRaw(project, id);
+      if (!task) return null;
+      if (task.status === status) return task;
+      const moved: Task = { ...task, status, updatedAt: new Date().toISOString() };
+      await writeJson(taskFilePath(project, id), moved);
+      return moved;
+    });
+    if (next) updated.push(next);
+  }
+  return updated;
 }
 
 /**
@@ -484,17 +538,14 @@ export async function closeTaskAndUnblock(project: string, id: string): Promise<
   const byId = new Map(allTasks.map(t => [t.id, t] as const));
   const dependents = getBlockedByTask(id, byId);
 
+  const workflow = await loadProjectWorkflow(project);
   const unblocked: Task[] = [];
   for (const dep of dependents) {
-    // Skip if already closed/completed
-    if (dep.status === 'closed' || dep.status === 'completed') continue;
-    const { blocked } = isTaskBlocked(dep, byId);
-    if (!blocked) {
-      // Auto-transition: blocked -> pending
-      if (dep.status === 'blocked') {
-        const updated = await updateTask(project, dep.id, { status: 'pending' as Status });
-        if (updated) unblocked.push(updated);
-      }
+    if (isDone(workflow, dep.status)) continue;
+    const { blocked } = isTaskBlocked(dep, byId, (status) => isDone(workflow, status));
+    if (!blocked && dep.status === 'blocked') {
+      const updated = await updateTask(project, dep.id, { status: defaultStatusId(workflow) });
+      if (updated) unblocked.push(updated);
     }
   }
 
@@ -812,9 +863,13 @@ export function getBlockedByTask(taskId: string, allTasks: Map<string, Task>): T
  * A task is blocked if it has dependsOn entries and any of them
  * are not completed/closed.
  */
-export function isTaskBlocked(task: Task, allTasks: Map<string, Task>): { blocked: boolean; blockingDeps: Task[] } {
+export function isTaskBlocked(
+  task: Task,
+  allTasks: Map<string, Task>,
+  isDoneStatus: (status: string) => boolean = (status) => status === 'completed' || status === 'closed',
+): { blocked: boolean; blockingDeps: Task[] } {
   const deps = (task.dependsOn || []).map(id => allTasks.get(id)).filter((t): t is Task => !!t);
-  const unmet = deps.filter(d => d.status !== 'completed' && d.status !== 'closed');
+  const unmet = deps.filter(d => !isDoneStatus(d.status));
   return { blocked: unmet.length > 0, blockingDeps: unmet };
 }
 

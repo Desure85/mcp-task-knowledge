@@ -1,4 +1,4 @@
-# MCP Tools (119)
+# MCP Tools (125 with catalog; 123 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -10,7 +10,7 @@ All tools registered in the MCP server, grouped by category.
 | `tasks_list` | List tasks with filters (project, status, tag) |
 | `tasks_get` | Get task by ID |
 | `tasks_update` | Update task fields (title, status, priority, tags) |
-| `tasks_close` | Close a task |
+| `tasks_close` | Close a task into the project `closeStatus` |
 | `tasks_claim` | Take a lease on a task (TTL, default 30 min); foreign active claims are rejected with `TASK_CLAIMED` |
 | `tasks_renew` | Extend your lease (heartbeat); does not change `updatedAt`/version, so no false MU-02 conflicts |
 | `tasks_release` | Release your lease; idempotent when the task is already free |
@@ -132,7 +132,7 @@ from the catalog — new prompts appear after a server restart (`listChanged` is
 SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 (never `-32601`).
 
-## Projects (8 tools)
+## Projects (12 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -144,6 +144,20 @@ SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 | `project_set_current` | Set current project |
 | `project_info` | Get project info |
 | `project_purge` | Purge project data |
+| `project_statuses_get` | Get the project status set, close status and initial statuses |
+| `project_statuses_set` | Replace the status set; moving/removing used statuses requires `moveTo` or `moves` |
+| `project_transitions_get` | Get the status transition graph (`null` = any-to-any) |
+| `project_transitions_set` | Replace the transition graph; validates references and done-status reachability |
+
+### Project statuses and transitions (V-01/V-02)
+
+The default project workflow is `pending → in_progress → completed|closed` (four statuses, `blocked` remains a legacy task status for dependency automation).
+
+- `project_statuses_set` validates unique lowercase slug ids, at least one active `todo` and one active `done` status, and returns `STATUS_IN_USE` with up to 20 task ids when a used status is removed without a move target.
+- `closeStatus` selects the `tasks_close` target (default `closed`, otherwise the first done status). `initialStatuses` limits statuses accepted by `tasks_create` (default every active todo status).
+- `project_transitions_set` accepts `{from: [to...]}`, `null` restores any-to-any, rejects unknown ids and returns `TRANSITIONS_UNREACHABLE_DONE` when the initial statuses cannot reach every done status.
+- Task status changes return `{ok:false, error:{code:"TRANSITION_NOT_ALLOWED", message, from, to, allowed, hint, details}}`. Bulk update/close return `failed` entries per task while allowed tasks still run.
+- `tasks_list`/`tasks_tree` reject an unknown status filter with `STATUS_NOT_ALLOWED`; task creation returns `INITIAL_STATUS_NOT_ALLOWED` when the requested status is not in `initialStatuses`.
 
 ## Sessions (2 tools)
 

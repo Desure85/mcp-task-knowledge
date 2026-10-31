@@ -3,6 +3,7 @@ import type { ServerContext } from './context.js';
 import type { Task } from '../types.js';
 import { resolveProject } from '../config.js';
 import { ok } from '../utils/respond.js';
+import { isDone, loadProjectWorkflow, statusCategory } from '../workflow.js';
 
 /**
  * DX-13: `briefing` — one-call session-start context.
@@ -39,11 +40,11 @@ export function registerBriefingTools(ctx: ServerContext): void {
         listTasks({ project: prj, includeArchived: false, includeTrashed: false }),
         listDocs({ project: prj, includeArchived: false, includeTrashed: false }),
       ]);
+      const workflow = await loadProjectWorkflow(prj);
 
       const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
-      const OPEN_STATUSES = new Set(['pending', 'in_progress', 'blocked']);
 
-      const open = tasks.filter((t) => OPEN_STATUSES.has(t.status));
+      const open = tasks.filter((t) => !isDone(workflow, t.status));
       const byId = new Map<string, Task>(tasks.map((t) => [t.id, t]));
 
       // Sort: priority (high→low), then most recently updated first.
@@ -85,7 +86,7 @@ export function registerBriefingTools(ctx: ServerContext): void {
       }> = [];
 
       for (const t of open) {
-        const { blocked, blockingDeps } = isTaskBlocked(t, byId);
+        const { blocked, blockingDeps } = isTaskBlocked(t, byId, (status) => isDone(workflow, status));
         if (t.status === 'blocked') {
           blockers.push({
             type: 'task',
@@ -107,7 +108,7 @@ export function registerBriefingTools(ctx: ServerContext): void {
         }
       }
 
-      const inProgress = open.filter((t) => t.status === 'in_progress').length;
+      const inProgress = open.filter((t) => statusCategory(workflow, t.status) === 'in_progress' && t.status !== 'blocked').length;
       const summary =
         `${open.length} open task${open.length === 1 ? '' : 's'}` +
         ` (${inProgress} in progress, ${blockers.length} blocked), ` +

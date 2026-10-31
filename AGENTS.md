@@ -411,11 +411,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-10-30
-**Session ID:** ses_e72dfcc40ffezuSMVsJt9RRyXI (chore: Node.js 24)
-**Текущая ветка:** chore/node-24 (worktree `/home/dm/work/mcp-tk-node24`, от origin/master 40b6050)
-**Текущий этап:** Infra — переход на Node.js 24 (CI, Docker, engines) и снятие Node 20 deprecation в Actions.
-**Статус:** DX-31 done. `engines >=22.0.0`, `.nvmrc=24`, CI primary 24 + compat 22/24, Docker `node:24-*`, actions checkout/setup-node/upload-artifact v7 + docker actions 4.x/7.x. Проверено на Node 24.22.2: build/test:types/lint/lint:md/backlog:check, `npm test` 259 файлов / 3026 тестов, web-ui tsc + 69 тестов, docker build (основной образ и web-ui). Осталось: опубликовать `mcp-node:24-*` через workflow_dispatch docker-build-base.
+**Дата последнего обновления:** 2026-10-31
+**Session ID:** ses_e72dfcc40ffezuSMVsJt9RRyXI (V-01/V-02 statuses and transitions)
+**Текущая ветка:** feat/project-statuses-transitions (worktree `/home/dm/work/mcp-tk-v01`, от origin/master 3672e2e)
+**Текущий этап:** Stage V — project statuses and transition graph (server + web-ui client).
+**Статус:** V-01/V-02 done, V-03/V-04/V-05 pending. Default four statuses + legacy `blocked`, `project_statuses_get/set`, `project_transitions_get/set`, category-based dashboard/briefing/DAG, transition errors and bulk failures, API reference regenerated.
+
+### Сессия ses_e72dfcc40ffezuSMVsJt9RRyXI (V-01/V-02 statuses and transitions, 2026-10-31)
+
+- `src/workflow.ts`: `ProjectStatus`/`ProjectWorkflow`, default four statuses, legacy `blocked`, validation of status ids/categories/transitions and done reachability.
+- `src/workflow-service.ts`: `project_statuses_get/set` and `project_transitions_get/set`; status removal is atomic under `withFileLock`, supports `moveTo`/`moves` and reports up to 20 task ids.
+- `src/projects.ts`: workflow fields in `.project.json`, `updateProjectMeta` serialized; `src/storage/tasks.ts`: status/transition checks on create/update/close and per-project close target.
+- Dashboard/briefing/DAG count by category; bulk update/close return per-task `failed` entries. Client adds `api.projects.statuses/transitions` and `ToolCallError.code`.
+- Tests: `tests/project-statuses.test.ts` (5), `tests/task-transitions.test.ts` (5), `tests/project-statuses-concurrency.test.ts` (1); live web-ui client test 5 passed. API reference regenerated.
 
 ### Сессия ses_e72dfcc40ffezuSMVsJt9RRyXI (Node.js 24 + CI hygiene, 2026-10-30)
 
