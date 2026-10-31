@@ -15,9 +15,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, type Task, type DagData } from '@/lib/api-client';
 import { useRealtime, applyTaskEvent } from '@/lib/realtime';
 import { PageHeader } from '@/components/PageHeader';
-import { Badge } from '@/components/Badge';
 import { PriorityDot } from '@/components/PriorityDot';
-import { EmptyState } from '@/components/EmptyState';
+import { Badge, Button, EmptyState } from '@/components/ui';
 import { SkeletonColumn } from '@/components/Skeleton';
 import { publishLiveStatus, clearLiveStatus } from '@/components/live-status';
 import {
@@ -33,22 +32,18 @@ type Status = 'pending' | 'in_progress' | 'completed' | 'closed';
 type Priority = 'low' | 'medium' | 'high';
 
 const COLUMNS: { status: Status; label: string; dot: string }[] = [
-  { status: 'pending', label: 'Pending', dot: 'bg-neutral-400' },
-  { status: 'in_progress', label: 'In progress', dot: 'bg-indigo-500' },
-  { status: 'completed', label: 'Completed', dot: 'bg-emerald-500' },
-  { status: 'closed', label: 'Closed', dot: 'bg-neutral-300' },
+  { status: 'pending', label: 'Pending', dot: 'bg-st-todo' },
+  { status: 'in_progress', label: 'In progress', dot: 'bg-st-doing' },
+  { status: 'completed', label: 'Completed', dot: 'bg-st-done' },
+  { status: 'closed', label: 'Closed', dot: 'bg-st-archive' },
 ];
 
 const INPUT_CLASS =
-  'h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 placeholder:text-neutral-400 transition duration-150 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100';
+  'h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface px-3 text-[13px] text-ink placeholder:text-muted transition duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-focus-ring/30';
 const SELECT_CLASS =
-  'h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-[13px] text-neutral-700 transition duration-150 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100';
-const PRIMARY_BUTTON =
-  'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-[13px] font-medium text-white shadow-sm transition duration-150 hover:bg-indigo-700 active:bg-indigo-800';
-const SECONDARY_BUTTON =
-  'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 text-[13px] font-medium text-neutral-700 transition duration-150 hover:bg-neutral-50 active:bg-neutral-100';
+  'h-9 rounded-[var(--radius-control)] border border-line bg-surface px-2.5 text-[13px] text-ink transition duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-focus-ring/30';
 const GHOST_ICON_BUTTON =
-  'grid h-7 w-7 place-items-center rounded-md text-neutral-400 transition duration-150 hover:bg-neutral-100 hover:text-neutral-700';
+  'grid h-7 w-7 place-items-center rounded-[var(--radius-control)] text-muted transition duration-150 hover:bg-surface-2 hover:text-ink';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -212,20 +207,20 @@ export default function TasksPage() {
         description="Drag cards between columns to change status. Click a title to edit."
         actions={
           <>
-            <button type="button" onClick={() => void toggleDag()} className={SECONDARY_BUTTON}>
-              <IconDependencies className="h-4 w-4 text-neutral-400" />
+            <Button type="button" variant="secondary" onClick={() => void toggleDag()}>
+              <IconDependencies className="h-4 w-4 text-muted" />
               {showDag ? 'Hide DAG' : 'Dependencies'}
-            </button>
-            <button type="button" onClick={() => setShowCreate(!showCreate)} className={PRIMARY_BUTTON}>
+            </Button>
+            <Button type="button" variant="primary" onClick={() => setShowCreate(!showCreate)}>
               <IconPlus className="h-4 w-4" />
               New task
-            </button>
+            </Button>
           </>
         }
       />
 
       {error && (
-        <div className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] text-red-700">
+        <div className="flex items-start justify-between gap-3 rounded-[var(--radius-card)] border border-danger/40 bg-surface-2 px-3 py-2.5 text-[12px] text-danger">
           <div className="flex items-start gap-2">
             <IconAlert className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
@@ -234,7 +229,7 @@ export default function TasksPage() {
             type="button"
             onClick={() => setError(null)}
             aria-label="Dismiss error"
-            className="rounded-md p-0.5 text-red-500 transition duration-150 hover:bg-red-100"
+            className="rounded-[var(--radius-control)] p-0.5 text-danger transition duration-150 hover:bg-surface-2"
           >
             <IconClose className="h-3.5 w-3.5" />
           </button>
@@ -242,8 +237,8 @@ export default function TasksPage() {
       )}
 
       {showCreate && (
-        <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500">
+        <div className="rounded-[var(--radius-card)] border border-line bg-surface p-4">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
             New task
           </p>
           <input
@@ -274,17 +269,17 @@ export default function TasksPage() {
               className={`${INPUT_CLASS} sm:flex-1`}
               aria-label="Tags"
             />
-            <button type="button" onClick={createTask} className={PRIMARY_BUTTON}>
+            <Button type="button" variant="primary" onClick={createTask}>
               Create
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {editingTask && (
-        <div className="rounded-xl border border-indigo-200 bg-white p-4 shadow-sm ring-1 ring-indigo-100">
+        <div className="rounded-[var(--radius-card)] border border-accent bg-surface p-4 ring-1 ring-focus-ring/30">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-indigo-600">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
               Edit task
             </p>
             <button
@@ -327,37 +322,37 @@ export default function TasksPage() {
               className={`${INPUT_CLASS} sm:flex-1`}
               aria-label="Tags"
             />
-            <button type="button" onClick={saveEdit} className={PRIMARY_BUTTON}>
+            <Button type="button" variant="primary" onClick={saveEdit}>
               Save
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {showDag && dag && (
-        <div className="rounded-xl border border-neutral-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-200 px-4 py-3">
-            <h3 className="mr-1 text-[13px] font-semibold text-neutral-900">Dependencies</h3>
+        <div className="rounded-[var(--radius-card)] border border-line bg-surface">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-3">
+            <h3 className="mr-1 text-[13px] font-semibold text-ink">Dependencies</h3>
             <Badge>{dag.totalTasks} tasks</Badge>
             <Badge>{dag.tasksWithDeps} with deps</Badge>
             <Badge>{dag.edges.length} edges</Badge>
-            <Badge tone="danger">Blocked {dag.blockedCount}</Badge>
-            <Badge tone="indigo">Critical path {dag.criticalPath.length}</Badge>
+            <Badge tone="blocked">Blocked {dag.blockedCount}</Badge>
+            <Badge tone="doing">Critical path {dag.criticalPath.length}</Badge>
           </div>
           <div className="grid grid-cols-1 gap-5 p-4 text-[11px] md:grid-cols-3">
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Critical path
               </p>
-              {dag.criticalPath.length === 0 && <p className="text-neutral-400">—</p>}
+              {dag.criticalPath.length === 0 && <p className="text-muted">—</p>}
               {dag.criticalPath.map((t) => (
-                <p key={t.id} className="truncate text-neutral-600">
-                  {t.id} — {t.title} <span className="text-neutral-400">({t.status})</span>
+                <p key={t.id} className="truncate text-muted">
+                  {t.id} — {t.title} <span className="text-muted">({t.status})</span>
                 </p>
               ))}
             </div>
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Topological order
               </p>
               {dag.topologicalOrder.slice(0, 30).map((t, i) => (
@@ -365,45 +360,45 @@ export default function TasksPage() {
                   key={t.id}
                   className={`truncate ${
                     t.status === 'completed' || t.status === 'closed'
-                      ? 'text-neutral-400 line-through'
-                      : 'text-neutral-600'
+                      ? 'text-muted line-through'
+                      : 'text-muted'
                   }`}
                 >
-                  {i + 1}. {t.title} <span className="text-neutral-400">({t.status})</span>
+                  {i + 1}. {t.title} <span className="text-muted">({t.status})</span>
                 </p>
               ))}
               {dag.topologicalOrder.length > 30 && (
-                <p className="text-neutral-400">… +{dag.topologicalOrder.length - 30} more</p>
+                <p className="text-muted">… +{dag.topologicalOrder.length - 30} more</p>
               )}
             </div>
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Edges (depends on →)
               </p>
-              {dag.edges.length === 0 && <p className="text-neutral-400">No dependencies.</p>}
+              {dag.edges.length === 0 && <p className="text-muted">No dependencies.</p>}
               {dag.edges.slice(0, 30).map((e, i) => (
-                <p key={i} className="truncate font-mono text-neutral-600">
+                <p key={i} className="truncate font-mono text-muted">
                   {e.to} ← {e.from}
                 </p>
               ))}
               {dag.edges.length > 30 && (
-                <p className="text-neutral-400">… +{dag.edges.length - 30} more</p>
+                <p className="text-muted">… +{dag.edges.length - 30} more</p>
               )}
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-2 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-line bg-surface p-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tasks…"
             aria-label="Search tasks"
-            className="h-9 w-full rounded-lg border border-transparent bg-neutral-50 pl-8 pr-3 text-[13px] text-neutral-900 placeholder:text-neutral-400 transition duration-150 focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="h-9 w-full rounded-[var(--radius-control)] border border-transparent bg-surface-2 pl-8 pr-3 text-[13px] text-ink placeholder:text-muted transition duration-150 focus:border-accent focus:bg-surface focus:outline-none focus:ring-2 focus:ring-focus-ring/30"
           />
         </div>
         <select
@@ -429,8 +424,8 @@ export default function TasksPage() {
           ))}
         </select>
         {!loading && (
-          <p className="px-1 text-[11px] text-neutral-500 sm:shrink-0">
-            Showing <span className="font-medium text-neutral-700">{filtered.length}</span> of{' '}
+          <p className="px-1 text-[11px] text-muted sm:shrink-0">
+            Showing <span className="font-medium text-ink">{filtered.length}</span> of{' '}
             {tasks.length} tasks
           </p>
         )}
@@ -452,20 +447,20 @@ export default function TasksPage() {
             return (
               <div
                 key={col.status}
-                className={`flex w-[300px] shrink-0 snap-start flex-col rounded-xl border transition duration-150 xl:w-auto ${
+                className={`flex w-[300px] shrink-0 snap-start flex-col rounded-[var(--radius-card)] border transition duration-150 xl:w-auto ${
                   isOver
-                    ? 'border-indigo-300 bg-indigo-50/40 ring-2 ring-indigo-300'
-                    : 'border-neutral-200 bg-neutral-100/60'
+                    ? 'border-accent bg-accent-soft ring-2 ring-accent/40'
+                    : 'border-line bg-surface-2'
                 }`}
                 onDragOver={(e) => handleDragOver(e, col.status)}
                 onDragEnter={handleDragEnter}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, col.status)}
               >
-                <div className="z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-neutral-200/80 bg-neutral-100/95 px-3 py-2.5 backdrop-blur lg:sticky lg:top-14">
+                <div className="z-10 flex items-center justify-between gap-2 rounded-t-xl border-b border-line bg-surface-2 px-3 py-2.5 backdrop-blur lg:sticky lg:top-14">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${col.dot}`} aria-hidden="true" />
-                    <h3 className="truncate text-[12px] font-semibold text-neutral-700">{col.label}</h3>
+                    <h3 className="truncate text-[12px] font-semibold text-ink">{col.label}</h3>
                   </div>
                   <Badge className="tabular-nums">{colTasks.length}</Badge>
                 </div>
@@ -479,14 +474,14 @@ export default function TasksPage() {
                         draggable
                         onDragStart={(e) => handleDragStart(e, task.id)}
                         onDragEnd={() => setDraggedId(null)}
-                        className={`group/card cursor-grab rounded-lg border border-neutral-200 bg-white p-3 shadow-sm transition duration-150 hover:border-neutral-300 hover:shadow active:cursor-grabbing ${
+                        className={`group/card cursor-grab rounded-[var(--radius-control)] border border-line bg-surface p-3 transition duration-150 hover:border-line-strong  active:cursor-grabbing ${
                           draggedId === task.id ? 'opacity-60' : ''
                         }`}
                       >
                         <p
                           role="button"
                           tabIndex={0}
-                          className="line-clamp-2 cursor-pointer rounded text-[13px] font-medium leading-snug text-neutral-900 transition duration-150 hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                          className="line-clamp-2 cursor-pointer rounded text-[13px] font-medium leading-snug text-ink transition duration-150 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                           onClick={() => setEditingTask({ ...task })}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -503,7 +498,7 @@ export default function TasksPage() {
                             {tags.slice(0, 3).map((tag) => (
                               <Badge key={tag}>{tag}</Badge>
                             ))}
-                            {tags.length > 3 && <Badge className="text-neutral-400">+{tags.length - 3}</Badge>}
+                            {tags.length > 3 && <Badge className="text-muted">+{tags.length - 3}</Badge>}
                           </div>
                         )}
 
@@ -512,7 +507,7 @@ export default function TasksPage() {
                             <PriorityDot priority={task.priority} />
                             {task.parentId && (
                               <span
-                                className="inline-flex items-center gap-1 text-[11px] text-neutral-400"
+                                className="inline-flex items-center gap-1 text-[11px] text-muted"
                                 title="Subtask"
                               >
                                 <IconSubtask className="h-3 w-3" />
@@ -524,7 +519,7 @@ export default function TasksPage() {
                             <button
                               type="button"
                               onClick={() => closeTask(task.id)}
-                              className="shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium text-neutral-500 opacity-0 transition duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus-visible:opacity-100 group-hover/card:opacity-100"
+                              className="shrink-0 rounded-[var(--radius-control)] px-1.5 py-1 text-[11px] font-medium text-muted opacity-0 transition duration-150 hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 group-hover/card:opacity-100"
                             >
                               Close
                             </button>

@@ -570,14 +570,14 @@ export function applyKnowledgeEvent<T extends EntityShape>(docs: T[], event: Rea
 export function connectionBadgeClass(status: ConnectionStatus): string {
   switch (status) {
     case 'connected':
-      return 'bg-green-100 text-green-700 border-green-200';
+      return 'border-st-done/40 bg-surface-2 text-st-done';
     case 'connecting':
     case 'reconnecting':
-      return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      return 'border-st-doing/40 bg-surface-2 text-st-doing';
     case 'unavailable':
-      return 'bg-gray-100 text-gray-500 border-gray-200';
+      return 'border-line bg-surface-2 text-muted';
     case 'closed':
-      return 'bg-gray-100 text-gray-500 border-gray-200';
+      return 'border-line bg-surface-2 text-muted';
   }
 }
 

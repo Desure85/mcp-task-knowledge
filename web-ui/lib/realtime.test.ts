@@ -116,9 +116,9 @@ describe('applyKnowledgeEvent', () => {
 
 describe('connectionBadge', () => {
   it('maps statuses to distinct classes', () => {
-    expect(connectionBadgeClass('connected')).toContain('green');
-    expect(connectionBadgeClass('reconnecting')).toContain('yellow');
-    expect(connectionBadgeClass('unavailable')).toContain('gray');
+    expect(connectionBadgeClass('connected')).toContain('st-done');
+    expect(connectionBadgeClass('reconnecting')).toContain('st-doing');
+    expect(connectionBadgeClass('unavailable')).toContain('text-muted');
   });
 
   it('label includes presence count when connected', () => {
