@@ -12,6 +12,7 @@ import path from 'node:path';
 
 const MIGRATED_FILES = [
   'app/tasks/page.tsx',
+  'app/knowledge/page.tsx',
   'app/page.tsx',
   'app/access/page.tsx',
   'app/login/page.tsx',
@@ -29,6 +30,8 @@ const MIGRATED_FILES = [
   'components/ThemeSwitcher.tsx',
   'components/ThemeManager.tsx',
   'lib/realtime.ts',
+  'lib/knowledge.ts',
+  'lib/markdown.ts',
 ];
 
 /** File → substrings that are intentional (keep this empty unless justified). */

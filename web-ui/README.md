@@ -55,8 +55,8 @@ The admin UI has two independent theme axes stored in `localStorage`:
 - `mcp.theme`: `indigo` (default), `petrol` or `copper`.
 
 An inline script in `app/layout.tsx` applies `data-mode`/`data-theme` before first
-paint, so reloads do not flash. Token-migrated pages so far (UI-24 part 1):
-**Tasks, Overview, Access, Login** plus the shell; Knowledge, Memory, Analytics,
+paint, so reloads do not flash. Token-migrated pages so far (UI-24 parts 1–2):
+**Tasks, Overview, Access, Login, Knowledge** plus the shell; Memory, Analytics,
 Graph, Prompts, Projects, System and Search are still being migrated page by page. Tokens live in `app/globals.css`; components must
 use semantic utilities (`bg-surface`, `text-ink`, `border-line`, `bg-accent`,
 `text-st-done`, …) rather than raw colours. Add a palette to `lib/theme.ts` and
@@ -70,7 +70,7 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 - `/login` — Sign in
 - `/access` — Session, token and agent setup links
 - `/tasks` — Kanban board (4 columns: pending, in_progress, completed, closed)
-- `/knowledge` — Knowledge document list with tags
+- `/knowledge` — Knowledge list, read-first document view with TOC, Markdown editor
 - `/search` — Unified BM25 + vector search across tasks and knowledge
 
 ## API Client
@@ -78,7 +78,7 @@ to all six `[data-theme][data-mode]` CSS blocks, then run
 `lib/api-client.ts` — typed wrapper around MCP HTTP transport:
 
 - `api.tasks.list/create/get/update/close`
-- `api.knowledge.list/get/bulkCreate`
+- `api.knowledge.list/get/exportSingle/bulkCreate/bulkUpdate/bulkTrash`
 - `api.search.tasks/knowledge`
 - `api.projects.list/getCurrent/setCurrent`
 

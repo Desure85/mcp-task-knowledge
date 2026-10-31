@@ -595,6 +595,8 @@ export const api = {
   knowledge: {
     list: (project?: string) => callTool<KnowledgeListItem[]>('knowledge_list', { project }),
     get: (project: string, id: string) => callTool<KnowledgeDoc>('knowledge_get', { project, id }),
+    exportSingle: (project: string, id: string) =>
+      callTool<{ id: string; title: string; markdown: string }>('knowledge_export_single', { project, id }),
     bulkCreate: (project: string, items: Array<{ title: string; content: string; tags?: string[]; type?: string }>) =>
       callTool<{ created: KnowledgeDoc[] }>('knowledge_bulk_create', { project, items }),
     bulkUpdate: (project: string, items: Array<{ id: string; title?: string; content?: string; tags?: string[]; source?: string; parentId?: string | null; type?: string }>) =>
