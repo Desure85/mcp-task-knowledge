@@ -1,47 +1,61 @@
 /**
- * UI-24 guard: migrated pages/shell files must use semantic tokens only.
+ * UI-24 guard: every app page/component and top-level shell component must
+ * use semantic tokens only. Files are discovered dynamically so a new page
+ * cannot silently escape the scan.
  *
- * Add a file here when its page(s) are migrated. The allowlist exists for
- * intentional exceptions (e.g. an inline SVG brand logo with a fixed colour);
+ * The allowlist exists for intentional exceptions (the static brand favicon);
  * keep entries narrow and add a comment why.
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
-const MIGRATED_FILES = [
+function walkTsx(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...walkTsx(rel));
+    else if (entry.name.endsWith('.tsx')) files.push(rel);
+  }
+  return files;
+}
+
+const APP_FILES = walkTsx('app');
+const COMPONENT_FILES = readdirSync('components', { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx'))
+  .map((entry) => `components/${entry.name}`);
+const LIB_FILES = [
+  'lib/realtime.ts',
+  'lib/knowledge.ts',
+  'lib/markdown.ts',
+  'lib/graph-theme.ts',
+];
+const BRAND_ASSETS = ['app/icon.svg'];
+
+const MIGRATED_FILES = [...new Set([...APP_FILES, ...COMPONENT_FILES, ...LIB_FILES, ...BRAND_ASSETS])].sort();
+
+const REQUIRED_UI24_PAGES = [
+  'app/page.tsx',
   'app/tasks/page.tsx',
   'app/knowledge/page.tsx',
   'app/memory/page.tsx',
   'app/analytics/page.tsx',
   'app/graph/page.tsx',
   'app/prompts/page.tsx',
-  'app/page.tsx',
+  'app/projects/page.tsx',
+  'app/system/page.tsx',
+  'app/search/page.tsx',
   'app/access/page.tsx',
   'app/login/page.tsx',
-  'components/AppShell.tsx',
-  'components/Sidebar.tsx',
-  'components/Topbar.tsx',
-  'components/PageHeader.tsx',
-  'components/EmptyState.tsx',
-  'components/Skeleton.tsx',
-  'components/Badge.tsx',
-  'components/PriorityDot.tsx',
-  'components/StatTile.tsx',
-  'components/HomeStats.tsx',
-  'components/BrandMark.tsx',
-  'components/ThemeSwitcher.tsx',
-  'components/ThemeManager.tsx',
-  'lib/realtime.ts',
-  'lib/knowledge.ts',
-  'lib/markdown.ts',
-  'lib/graph-theme.ts',
+  'app/error.tsx',
+  'app/global-error.tsx',
 ];
 
 /** File → substrings that are intentional (keep this empty unless justified). */
 const ALLOWLIST: Record<string, string[]> = {
-  // Example: 'components/BrandMark.tsx': ['#4f46e5'], // inline brand mark
+  // Fixed brand favicon; loaded as a static image, so CSS tokens do not apply.
+  'app/icon.svg': ['#4f46e5', '#fff'],
 };
 
 const TAILWIND_COLOR =
@@ -49,6 +63,10 @@ const TAILWIND_COLOR =
 const HEX_COLOR = /#[0-9a-fA-F]{3,8}\b/g;
 
 describe('UI-24: no hardcoded colours in migrated files', () => {
+  it('covers the final UI-24 pages and error boundaries', () => {
+    for (const file of REQUIRED_UI24_PAGES) expect(MIGRATED_FILES).toContain(file);
+  });
+
   it('lists real migrated files (guards against a silently empty scan)', () => {
     for (const file of MIGRATED_FILES) {
       expect(() => readFileSync(path.join(process.cwd(), file), 'utf8')).not.toThrow();

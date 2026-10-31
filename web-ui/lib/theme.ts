@@ -35,6 +35,14 @@ export const MODE_LABELS: Record<ModeChoice, string> = {
   system: 'System',
 };
 
+/**
+ * Visible switcher label. It reflects the mode actually applied to
+ * `<html data-mode>` — including `system`, which resolves to light/dark.
+ */
+export function formatThemeLabel(theme: ThemeName, resolvedMode: ResolvedMode): string {
+  return `${THEME_LABELS[theme]} · ${MODE_LABELS[resolvedMode]}`;
+}
+
 export function isThemeName(value: unknown): value is ThemeName {
   return typeof value === 'string' && (THEMES as readonly string[]).includes(value);
 }

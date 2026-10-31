@@ -9,15 +9,20 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   applyTheme,
+  formatThemeLabel,
   isModeChoice,
   isThemeName,
   MODE_LABELS,
+  MODE_STORAGE_KEY,
   MODES,
   readStoredTheme,
+  resolveMode,
   saveTheme,
   THEME_LABELS,
+  THEME_STORAGE_KEY,
   THEMES,
   type ModeChoice,
+  type ResolvedMode,
   type ThemeName,
 } from '@/lib/theme';
 
@@ -29,6 +34,7 @@ export function ThemeSwitcher() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeName>('indigo');
   const [mode, setMode] = useState<ModeChoice>('system');
+  const [resolvedMode, setResolvedMode] = useState<ResolvedMode>('light');
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +42,30 @@ export function ThemeSwitcher() {
     const stored = readStoredTheme(typeof window === 'undefined' ? undefined : window.localStorage);
     setTheme(stored.theme);
     setMode(stored.mode);
-    applyTheme(document.documentElement, stored.theme, stored.mode, prefersDark());
+    setResolvedMode(applyTheme(document.documentElement, stored.theme, stored.mode, prefersDark()));
+
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const onSystemChange = () => {
+      const current = readStoredTheme(window.localStorage);
+      if (current.mode === 'system') {
+        setResolvedMode(media?.matches === true ? 'dark' : 'light');
+      }
+    };
+    media?.addEventListener?.('change', onSystemChange);
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== THEME_STORAGE_KEY && event.key !== MODE_STORAGE_KEY) return;
+      const current = readStoredTheme(window.localStorage);
+      setTheme(current.theme);
+      setMode(current.mode);
+      setResolvedMode(resolveMode(current.mode, prefersDark()));
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      media?.removeEventListener?.('change', onSystemChange);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -67,10 +96,11 @@ export function ThemeSwitcher() {
 
   function choose(nextTheme: ThemeName, nextMode: ModeChoice) {
     saveTheme(window.localStorage, { theme: nextTheme, mode: nextMode });
-    applyTheme(document.documentElement, nextTheme, nextMode, prefersDark());
+    const resolved = applyTheme(document.documentElement, nextTheme, nextMode, prefersDark());
     window.dispatchEvent(new CustomEvent('mcp:theme-change', { detail: { theme: nextTheme, mode: nextMode } }));
     setTheme(nextTheme);
     setMode(nextMode);
+    setResolvedMode(resolved);
     setOpen(false);
   }
 
@@ -86,7 +116,7 @@ export function ThemeSwitcher() {
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        aria-label={`Theme: ${THEME_LABELS[theme]}, ${MODE_LABELS[mode]}`}
+        aria-label={`Theme: ${formatThemeLabel(theme, resolvedMode)}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -96,8 +126,7 @@ export function ThemeSwitcher() {
           aria-hidden="true"
           className="h-2.5 w-2.5 rounded-full border border-line-strong bg-accent"
         />
-        <span className="hidden sm:inline">{THEME_LABELS[theme]}</span>
-        <span className="hidden text-muted sm:inline">· {MODE_LABELS[mode]}</span>
+        <span className="hidden sm:inline">{formatThemeLabel(theme, resolvedMode)}</span>
         <span aria-hidden="true" className="text-muted">▾</span>
       </button>
 
