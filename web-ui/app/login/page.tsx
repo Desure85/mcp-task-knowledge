@@ -13,6 +13,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { api, AuthError, hasStoredAuthToken } from '@/lib/api-client';
 import { sanitizeNextPath } from '@/lib/auth';
 import { BrandMark } from '@/components/BrandMark';
+import { Button, Input } from '@/components/ui';
 
 function LoginForm() {
   const router = useRouter();
@@ -49,58 +50,54 @@ function LoginForm() {
 
   return (
     <div className="grid min-h-screen place-items-center bg-canvas px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-7 shadow-sm">
+      <div className="w-full max-w-sm rounded-[var(--radius-card)] border border-line bg-surface p-7">
         <div className="mb-6 flex items-center gap-3">
           <BrandMark size="md" />
           <div>
-            <h1 className="text-[16px] font-semibold tracking-tight text-neutral-900">Sign in</h1>
-            <p className="text-[12px] text-neutral-500">MCP Task &amp; Knowledge</p>
+            <h1 className="text-[16px] font-semibold tracking-tight text-ink">Sign in</h1>
+            <p className="text-[12px] text-muted">MCP Task &amp; Knowledge</p>
           </div>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">Username</span>
-            <input
-              autoFocus
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={busy || disabled}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-[14px] outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-neutral-50"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">Password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={busy || disabled}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-[14px] outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-neutral-50"
-            />
-          </label>
+          <Input
+            label="Username"
+            autoFocus
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={busy || disabled}
+          />
+          <Input
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy || disabled}
+          />
 
           {error && (
-            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+            <p role="alert" className="rounded-[var(--radius-control)] border border-danger/40 bg-surface-2 px-3 py-2 text-[12px] text-danger">
               {error}
             </p>
           )}
           {disabled && (
-            <p className="text-[12px] text-neutral-500">
+            <p className="text-[12px] text-muted">
               Set <code>MCP_LOGIN_USER</code>, <code>MCP_LOGIN_PASSWORD</code> and <code>JWT_SECRET</code> on the
               server, or paste a token on the System page.
             </p>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={busy || disabled || !username.trim() || !password}
-            className="w-full rounded-lg bg-indigo-600 px-3 py-2 text-[14px] font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            variant="primary"
+            loading={busy}
+            disabled={disabled || !username.trim() || !password}
+            className="w-full"
           >
             {busy ? 'Signing in…' : 'Sign in'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

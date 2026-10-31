@@ -23,7 +23,7 @@ export default function Home() {
       <div className="space-y-8">
         {NAV_SECTIONS.map((section) => (
           <section key={section.id}>
-            <h3 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-neutral-500">
+            <h3 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-muted">
               {section.label}
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -33,17 +33,17 @@ export default function Home() {
                   <a
                     key={item.href}
                     href={item.href}
-                    className="group flex items-start gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition duration-150 hover:border-indigo-200 hover:shadow"
+                    className="group flex items-start gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4 transition duration-150 hover:border-accent "
                   >
-                    <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-neutral-100 text-neutral-500 transition duration-150 group-hover:bg-indigo-50 group-hover:text-indigo-600">
+                    <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-control)] bg-surface-2 text-muted transition duration-150 group-hover:bg-accent-soft group-hover:text-accent">
                       <Icon className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
-                        <span className="text-[13px] font-semibold text-neutral-900">{item.label}</span>
-                        <IconChevronRight className="h-4 w-4 text-neutral-300 transition duration-150 group-hover:text-indigo-500" />
+                        <span className="text-[13px] font-semibold text-ink">{item.label}</span>
+                        <IconChevronRight className="h-4 w-4 text-muted transition duration-150 group-hover:text-accent" />
                       </span>
-                      <span className="mt-1 block text-[12px] leading-relaxed text-neutral-500">
+                      <span className="mt-1 block text-[12px] leading-relaxed text-muted">
                         {item.description}
                       </span>
                     </span>
