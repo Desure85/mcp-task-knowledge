@@ -1,0 +1,863 @@
+{
+  "generatedAt": "2026-10-31",
+  "environment": {
+    "cpu": "72 vCPU",
+    "ram": "47 GiB",
+    "node": "v26.8.1",
+    "sdk": "@modelcontextprotocol/sdk 1.17.4",
+    "fs": "ext4 /dev/sda2",
+    "embeddings": "none"
+  },
+  "runs": {
+    "1000-ext4": {
+      "coldStartMs": 626,
+      "idleRssMb": 100,
+      "rssAfterLoadMb": 236,
+      "ops": {
+        "tasks_get": {
+          "medianMs": 5,
+          "p95Ms": 5,
+          "responseBytes": 984,
+          "status": "ok",
+          "allMs": [
+            5,
+            5,
+            5
+          ]
+        },
+        "tasks_create": {
+          "medianMs": 5,
+          "p95Ms": 7,
+          "responseBytes": 387,
+          "status": "ok",
+          "allMs": [
+            7,
+            5,
+            5
+          ]
+        },
+        "tasks_update": {
+          "medianMs": 5,
+          "p95Ms": 6,
+          "responseBytes": 974,
+          "status": "ok",
+          "allMs": [
+            6,
+            4,
+            5
+          ]
+        },
+        "tasks_list": {
+          "medianMs": 74,
+          "p95Ms": 96,
+          "responseBytes": 586502,
+          "status": "ok",
+          "allMs": [
+            96,
+            68,
+            74
+          ]
+        },
+        "tasks_list_filtered_status": {
+          "medianMs": 56,
+          "p95Ms": 65,
+          "responseBytes": 228558,
+          "status": "ok",
+          "allMs": [
+            55,
+            56,
+            65
+          ]
+        },
+        "tasks_list_filtered_tag": {
+          "medianMs": 258,
+          "p95Ms": 269,
+          "responseBytes": 39989,
+          "status": "ok",
+          "allMs": [
+            258,
+            269,
+            186
+          ]
+        },
+        "tasks_tree": {
+          "medianMs": 88,
+          "p95Ms": 104,
+          "responseBytes": 619708,
+          "status": "ok",
+          "allMs": [
+            104,
+            88,
+            76
+          ]
+        },
+        "tasks_dag": {
+          "medianMs": 70,
+          "p95Ms": 79,
+          "responseBytes": 174850,
+          "status": "ok",
+          "allMs": [
+            79,
+            70,
+            55
+          ]
+        },
+        "search_tasks": {
+          "medianMs": 83,
+          "p95Ms": 107,
+          "responseBytes": 13942,
+          "status": "ok",
+          "allMs": [
+            83,
+            75,
+            107
+          ]
+        },
+        "dashboard_stats": {
+          "medianMs": 83,
+          "p95Ms": 177,
+          "responseBytes": 1737,
+          "status": "ok",
+          "allMs": [
+            177,
+            83,
+            75
+          ]
+        },
+        "briefing": {
+          "medianMs": 72,
+          "p95Ms": 81,
+          "responseBytes": 27315,
+          "status": "ok",
+          "allMs": [
+            81,
+            72,
+            70
+          ]
+        },
+        "knowledge_list": {
+          "medianMs": 88,
+          "p95Ms": 92,
+          "responseBytes": 432588,
+          "status": "ok",
+          "allMs": [
+            88,
+            92,
+            84
+          ]
+        },
+        "knowledge_get": {
+          "medianMs": 5,
+          "p95Ms": 7,
+          "responseBytes": 2509,
+          "status": "ok",
+          "allMs": [
+            5,
+            2,
+            7
+          ]
+        },
+        "knowledge_tree": {
+          "medianMs": 89,
+          "p95Ms": 92,
+          "responseBytes": 474840,
+          "status": "ok",
+          "allMs": [
+            92,
+            82,
+            89
+          ]
+        },
+        "search_knowledge": {
+          "medianMs": 80,
+          "p95Ms": 434,
+          "responseBytes": 18027,
+          "status": "ok",
+          "allMs": [
+            434,
+            66,
+            80
+          ]
+        }
+      }
+    },
+    "10000-ext4": {
+      "coldStartMs": 626,
+      "idleRssMb": 100,
+      "rssAfterLoadMb": 641,
+      "ops": {
+        "tasks_get": {
+          "medianMs": 5,
+          "p95Ms": 5,
+          "responseBytes": 508,
+          "status": "ok",
+          "allMs": [
+            5,
+            5,
+            4
+          ]
+        },
+        "tasks_create": {
+          "medianMs": 7,
+          "p95Ms": 9,
+          "responseBytes": 387,
+          "status": "ok",
+          "allMs": [
+            9,
+            5,
+            7
+          ]
+        },
+        "tasks_update": {
+          "medianMs": 4,
+          "p95Ms": 5,
+          "responseBytes": 952,
+          "status": "ok",
+          "allMs": [
+            5,
+            4,
+            3
+          ]
+        },
+        "tasks_list": {
+          "medianMs": 897,
+          "p95Ms": 1116,
+          "responseBytes": 5876270,
+          "status": "ok",
+          "allMs": [
+            1116,
+            843,
+            897
+          ]
+        },
+        "tasks_list_filtered_status": {
+          "medianMs": 460,
+          "p95Ms": 478,
+          "responseBytes": 2244620,
+          "status": "ok",
+          "allMs": [
+            478,
+            460,
+            437
+          ]
+        },
+        "tasks_list_filtered_tag": {
+          "medianMs": 371,
+          "p95Ms": 375,
+          "responseBytes": 390539,
+          "status": "ok",
+          "allMs": [
+            375,
+            369,
+            371
+          ]
+        },
+        "tasks_tree": {
+          "medianMs": 725,
+          "p95Ms": 758,
+          "responseBytes": 6215476,
+          "status": "ok",
+          "allMs": [
+            725,
+            709,
+            758
+          ]
+        },
+        "tasks_dag": {
+          "medianMs": 476,
+          "p95Ms": 492,
+          "responseBytes": 1725308,
+          "status": "ok",
+          "allMs": [
+            476,
+            492,
+            465
+          ]
+        },
+        "search_tasks": {
+          "medianMs": 562,
+          "p95Ms": 581,
+          "responseBytes": 13971,
+          "status": "ok",
+          "allMs": [
+            581,
+            558,
+            562
+          ]
+        },
+        "dashboard_stats": {
+          "medianMs": 716,
+          "p95Ms": 1223,
+          "responseBytes": 1779,
+          "status": "ok",
+          "allMs": [
+            1223,
+            716,
+            676
+          ]
+        },
+        "briefing": {
+          "medianMs": 679,
+          "p95Ms": 752,
+          "responseBytes": 247291,
+          "status": "ok",
+          "allMs": [
+            673,
+            752,
+            679
+          ]
+        },
+        "knowledge_list": {
+          "medianMs": 968,
+          "p95Ms": 983,
+          "responseBytes": 4301379,
+          "status": "ok",
+          "allMs": [
+            983,
+            960,
+            968
+          ]
+        },
+        "knowledge_get": {
+          "medianMs": 3,
+          "p95Ms": 5,
+          "responseBytes": 2604,
+          "status": "ok",
+          "allMs": [
+            5,
+            2,
+            3
+          ]
+        },
+        "knowledge_tree": {
+          "medianMs": 1029,
+          "p95Ms": 1053,
+          "responseBytes": 4704349,
+          "status": "ok",
+          "allMs": [
+            1029,
+            1007,
+            1053
+          ]
+        },
+        "search_knowledge": {
+          "medianMs": 676,
+          "p95Ms": 4072,
+          "responseBytes": 18096,
+          "status": "ok",
+          "allMs": [
+            4072,
+            676,
+            626
+          ]
+        }
+      }
+    },
+    "10000-graph": {
+      "coldStartMs": 625,
+      "idleRssMb": 99,
+      "rssAfterLoadMb": 148,
+      "ops": {
+        "memory_temporal_query": {
+          "medianMs": 52,
+          "p95Ms": 89,
+          "responseBytes": 23826,
+          "status": "ok",
+          "allMs": [
+            89,
+            32,
+            52
+          ]
+        },
+        "memory_temporal_stats": {
+          "medianMs": 10,
+          "p95Ms": 11,
+          "responseBytes": 294,
+          "status": "ok",
+          "allMs": [
+            11,
+            9,
+            10
+          ]
+        },
+        "memory_temporal_add": {
+          "medianMs": 32,
+          "p95Ms": 46,
+          "responseBytes": 443,
+          "status": "ok",
+          "allMs": [
+            46,
+            32,
+            31
+          ]
+        }
+      }
+    },
+    "100000-graph": {
+      "coldStartMs": 628,
+      "idleRssMb": 99,
+      "rssAfterLoadMb": 319,
+      "ops": {
+        "memory_temporal_query": {
+          "medianMs": 439,
+          "p95Ms": 888,
+          "responseBytes": 23937,
+          "status": "ok",
+          "allMs": [
+            888,
+            439,
+            407
+          ]
+        },
+        "memory_temporal_stats": {
+          "medianMs": 66,
+          "p95Ms": 71,
+          "responseBytes": 304,
+          "status": "ok",
+          "allMs": [
+            71,
+            66,
+            61
+          ]
+        },
+        "memory_temporal_add": {
+          "medianMs": 451,
+          "p95Ms": 507,
+          "responseBytes": 443,
+          "status": "ok",
+          "allMs": [
+            507,
+            451,
+            434
+          ]
+        }
+      }
+    },
+    "100000-heap8g": {
+      "coldStartMs": 476,
+      "idleRssMb": 100,
+      "rssAfterLoadMb": 2135,
+      "ops": {
+        "tasks_list": {
+          "medianMs": 37357,
+          "p95Ms": 38972,
+          "responseBytes": 59069742,
+          "status": "ok",
+          "allMs": [
+            37357,
+            38972,
+            36278
+          ]
+        },
+        "knowledge_list": {
+          "medianMs": 44596,
+          "p95Ms": 48787,
+          "responseBytes": 43171057,
+          "status": "ok",
+          "allMs": [
+            48787,
+            44596,
+            43082
+          ]
+        }
+      }
+    },
+    "100000-knowledge": {
+      "coldStartMs": 476,
+      "idleRssMb": 101,
+      "rssAfterLoadMb": 2166,
+      "ops": {
+        "tasks_get": {
+          "medianMs": 4,
+          "p95Ms": 6,
+          "responseBytes": 900,
+          "status": "ok",
+          "allMs": [
+            4,
+            6,
+            3
+          ]
+        },
+        "tasks_create": {
+          "medianMs": 6,
+          "p95Ms": 8,
+          "responseBytes": 387,
+          "status": "ok",
+          "allMs": [
+            8,
+            5,
+            6
+          ]
+        },
+        "tasks_update": {
+          "medianMs": 5,
+          "p95Ms": 6,
+          "responseBytes": 899,
+          "status": "ok",
+          "allMs": [
+            6,
+            5,
+            4
+          ]
+        },
+        "tasks_dag": {
+          "medianMs": 12123,
+          "p95Ms": 77460,
+          "responseBytes": 17388391,
+          "status": "ok",
+          "allMs": [
+            77460,
+            12123,
+            11430
+          ]
+        },
+        "knowledge_list": {
+          "medianMs": 60476,
+          "p95Ms": 73779,
+          "responseBytes": 43171057,
+          "status": "ok",
+          "allMs": [
+            73779,
+            60476,
+            57790
+          ]
+        },
+        "knowledge_get": {
+          "medianMs": 3,
+          "p95Ms": 9,
+          "responseBytes": 5953,
+          "status": "ok",
+          "allMs": [
+            9,
+            3,
+            3
+          ]
+        },
+        "knowledge_tree": {
+          "medianMs": 62856,
+          "p95Ms": 68074,
+          "responseBytes": 47170719,
+          "status": "ok",
+          "allMs": [
+            62856,
+            61299,
+            68074
+          ]
+        }
+      }
+    },
+    "100000-lists": {
+      "coldStartMs": 1235,
+      "idleRssMb": 100,
+      "rssAfterLoadMb": 2203,
+      "ops": {
+        "tasks_list": {
+          "medianMs": 38015,
+          "p95Ms": 39701,
+          "responseBytes": 59068564,
+          "status": "ok",
+          "allMs": [
+            39701,
+            37016,
+            38015
+          ]
+        },
+        "tasks_list_filtered_status": {
+          "medianMs": 9281,
+          "p95Ms": 9288,
+          "responseBytes": 22492376,
+          "status": "ok",
+          "allMs": [
+            9288,
+            9281,
+            9204
+          ]
+        },
+        "tasks_list_filtered_tag": {
+          "medianMs": 4232,
+          "p95Ms": 4355,
+          "responseBytes": 3910171,
+          "status": "ok",
+          "allMs": [
+            4232,
+            4174,
+            4355
+          ]
+        },
+        "tasks_tree": {
+          "medianMs": 41298,
+          "p95Ms": 42183,
+          "responseBytes": 62458694,
+          "status": "ok",
+          "allMs": [
+            41199,
+            41298,
+            42183
+          ]
+        },
+        "tasks_dag": {
+          "medianMs": 13354,
+          "p95Ms": 60002,
+          "responseBytes": 17387953,
+          "status": "transport_error",
+          "allMs": [
+            11915,
+            60002,
+            13354
+          ]
+        },
+        "knowledge_list": {
+          "medianMs": 60007,
+          "p95Ms": 62451,
+          "responseBytes": 0,
+          "status": "transport_error",
+          "allMs": [
+            60003,
+            60007,
+            62451
+          ]
+        },
+        "knowledge_tree": {
+          "medianMs": 60396,
+          "p95Ms": 61804,
+          "responseBytes": 0,
+          "status": "transport_error",
+          "allMs": [
+            61804,
+            60396,
+            60006
+          ]
+        }
+      }
+    },
+    "100000-search": {
+      "coldStartMs": 627,
+      "idleRssMb": 100,
+      "rssAfterLoadMb": 2081,
+      "ops": {
+        "search_tasks": {
+          "medianMs": 6912,
+          "p95Ms": 19236,
+          "responseBytes": 12234,
+          "status": "ok",
+          "allMs": [
+            19236,
+            6912,
+            6449
+          ]
+        },
+        "dashboard_stats": {
+          "medianMs": 9676,
+          "p95Ms": 13822,
+          "responseBytes": 1815,
+          "status": "ok",
+          "allMs": [
+            13822,
+            9676,
+            7614
+          ]
+        },
+        "briefing": {
+          "medianMs": 8681,
+          "p95Ms": 10058,
+          "responseBytes": 2554295,
+          "status": "ok",
+          "allMs": [
+            8681,
+            10058,
+            8512
+          ]
+        }
+      }
+    },
+    "100000-searchkb": {
+      "coldStartMs": 477,
+      "idleRssMb": 100,
+      "rssAfterLoadMb": 2008,
+      "ops": {
+        "search_knowledge": {
+          "medianMs": 6862,
+          "p95Ms": 43995,
+          "responseBytes": 18474,
+          "status": "ok",
+          "allMs": [
+            43995,
+            6862,
+            6595
+          ]
+        }
+      }
+    },
+    "ui-1000": {
+      "pages": {
+        "tasks": {
+          "domSettledMs": 2447,
+          "firstMcpMs": 1183,
+          "domNodes": 10959,
+          "cards": 950,
+          "longTaskTotalMs": 1076,
+          "longTaskMaxMs": 469,
+          "usedHeapMb": 100
+        },
+        "knowledge": {
+          "domSettledMs": 2435,
+          "firstMcpMs": 1103,
+          "domNodes": 8904,
+          "cards": 0,
+          "longTaskTotalMs": 933,
+          "longTaskMaxMs": 418,
+          "usedHeapMb": 133
+        }
+      }
+    },
+    "ui-5000": {
+      "pages": {
+        "tasks": {
+          "domSettledMs": 3770,
+          "firstMcpMs": 1159,
+          "domNodes": 53032,
+          "cards": 4690,
+          "longTaskTotalMs": 3431,
+          "longTaskMaxMs": 1029,
+          "usedHeapMb": 177
+        },
+        "knowledge": {
+          "domSettledMs": 4002,
+          "firstMcpMs": 1090,
+          "domNodes": 43132,
+          "cards": 0,
+          "longTaskTotalMs": 2392,
+          "longTaskMaxMs": 1147,
+          "usedHeapMb": 229
+        }
+      }
+    },
+    "ui-10000": {
+      "pages": {
+        "tasks": {
+          "domSettledMs": 5996,
+          "firstMcpMs": 1149,
+          "domNodes": 105187,
+          "cards": 9360,
+          "longTaskTotalMs": 2566,
+          "longTaskMaxMs": 1914,
+          "usedHeapMb": 150
+        },
+        "knowledge": {
+          "domSettledMs": 6809,
+          "firstMcpMs": 1117,
+          "domNodes": 85837,
+          "cards": 0,
+          "longTaskTotalMs": 2792,
+          "longTaskMaxMs": 2129,
+          "usedHeapMb": 230
+        }
+      }
+    }
+  },
+  "graphRender": {
+    "76": {
+      "nodes": 76,
+      "edges": 110,
+      "htmlBytes": 18277,
+      "generateMs": 0,
+      "settleMs": 1740,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 294,
+      "svgNodes": 262,
+      "svgCircles": 76,
+      "svgLines": 110,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "longTaskMaxMs": 0,
+      "heapMb": 10
+    },
+    "200": {
+      "nodes": 200,
+      "edges": 293,
+      "htmlBytes": 36604,
+      "generateMs": 0,
+      "settleMs": 1742,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 725,
+      "svgNodes": 693,
+      "svgCircles": 200,
+      "svgLines": 293,
+      "longTasks": 0,
+      "longTaskTotalMs": 0,
+      "longTaskMaxMs": 0,
+      "heapMb": 10
+    },
+    "1000": {
+      "nodes": 1000,
+      "edges": 1474,
+      "htmlBytes": 155847,
+      "generateMs": 0,
+      "settleMs": 2301,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 3506,
+      "svgNodes": 3474,
+      "svgCircles": 1000,
+      "svgLines": 1474,
+      "longTasks": 14,
+      "longTaskTotalMs": 2028,
+      "longTaskMaxMs": 183,
+      "heapMb": 16
+    },
+    "5000": {
+      "nodes": 5000,
+      "edges": 7379,
+      "htmlBytes": 771525,
+      "generateMs": 2,
+      "settleMs": 13728,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 17411,
+      "svgNodes": 17379,
+      "svgCircles": 5000,
+      "svgLines": 7379,
+      "longTasks": 7,
+      "longTaskTotalMs": 16269,
+      "longTaskMaxMs": 3388,
+      "heapMb": 17
+    }
+  },
+  "fs1m": {
+    "createMs": 103087,
+    "readdirWarmMs": [
+      1063,
+      1089
+    ],
+    "stat1000Ms": 17,
+    "readFile1000Ms": [
+      72,
+      151
+    ],
+    "rmRfMs": 24800,
+    "readdir100kWarmMs": 99,
+    "readFile1000ColdMs": 25846,
+    "readFile1000WarmMs": [
+      233,
+      243
+    ]
+  },
+  "sdkFraming": {
+    "wireBytes": 64635885,
+    "bufferConcat64kMs": 22434,
+    "jsonParseMs": 150,
+    "zodParseMs": 2
+  },
+  "inProcess100k": {
+    "listTasksMs": 4272,
+    "listTasksTreeMs": 4636,
+    "stringify59mbMs": 291,
+    "listDocsMs": 11614,
+    "readDocAllMs": 5828,
+    "bm25TasksMs": 1734,
+    "bm25DocsMs": 23631,
+    "rssAfterDocsMb": 4128
+  }
+}
