@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { api, resolveMcpApiUrl, resolveToken, type SetupLink } from '@/lib/api-client';
 import { decodeJwtClaims, formatRemaining } from '@/lib/auth';
 import { PageHeader } from '@/components/PageHeader';
+import { Button, Card, Input } from '@/components/ui';
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -26,18 +27,19 @@ async function copyText(text: string): Promise<boolean> {
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
-    <button
+    <Button
       type="button"
+      variant="secondary"
+      size="sm"
       onClick={async () => {
         if (await copyText(text)) {
           setDone(true);
           setTimeout(() => setDone(false), 1500);
         }
       }}
-      className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-[12px] font-medium text-neutral-700 hover:bg-neutral-50"
     >
       {done ? 'Copied' : label}
-    </button>
+    </Button>
   );
 }
 
@@ -114,124 +116,94 @@ export default function AccessPage() {
         description="Your session, and one-time links that let an agent configure itself."
         actions={
           token ? (
-            <button
-              type="button"
-              onClick={signOut}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-[13px] font-medium text-neutral-700 hover:bg-neutral-50"
-            >
+            <Button type="button" variant="secondary" onClick={signOut}>
               Sign out
-            </button>
+            </Button>
           ) : undefined
         }
       />
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="text-[14px] font-semibold text-neutral-900">Your session</h3>
+      <Card className="p-5">
+        <h3 className="text-[14px] font-semibold text-ink">Your session</h3>
         {!token ? (
-          <p className="mt-2 text-[13px] text-neutral-500">
+          <p className="mt-2 text-[13px] text-muted">
             No token in this tab. The server is either open (no auth) or you are using a build-time token.
           </p>
         ) : (
           <dl className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 text-[13px] sm:grid-cols-3">
             <div>
-              <dt className="text-neutral-500">User</dt>
-              <dd className="font-medium text-neutral-900">{claims?.sub ?? 'unknown'}</dd>
+              <dt className="text-muted">User</dt>
+              <dd className="font-medium text-ink">{claims?.sub ?? 'unknown'}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Roles</dt>
-              <dd className="font-medium text-neutral-900">{claims?.roles.join(', ') || '—'}</dd>
+              <dt className="text-muted">Roles</dt>
+              <dd className="font-medium text-ink">{claims?.roles.join(', ') || '—'}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Expires in</dt>
-              <dd className="font-medium text-neutral-900">{formatRemaining(claims?.exp, now)}</dd>
+              <dt className="text-muted">Expires in</dt>
+              <dd className="font-medium text-ink">{formatRemaining(claims?.exp, now)}</dd>
             </div>
           </dl>
         )}
         {token && (
           <div className="mt-4">
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => setShowToken((v) => !v)}
-                className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-[12px] font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 {showToken ? 'Hide token' : 'Reveal token'}
-              </button>
+              </Button>
               <CopyButton text={token} label="Copy token" />
             </div>
             {showToken && (
-              <code className="mt-2 block break-all rounded-lg bg-neutral-50 p-3 text-[11px] text-neutral-700">
+              <code className="mt-2 block break-all rounded-[var(--radius-control)] bg-surface-2 p-3 text-[11px] text-ink">
                 {token}
               </code>
             )}
-            <p className="mt-2 text-[12px] text-neutral-500">
+            <p className="mt-2 text-[12px] text-muted">
               This is your admin JWT — it grants the same access you have here. For an agent, prefer a scoped
               setup link below.
             </p>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-5">
-        <h3 className="text-[14px] font-semibold text-neutral-900">Create agent setup link</h3>
-        <p className="mt-1 text-[12px] text-neutral-500">
+      <Card className="p-5">
+        <h3 className="text-[14px] font-semibold text-ink">Create agent setup link</h3>
+        <p className="mt-1 text-[12px] text-muted">
           The link works once and expires. It reveals the server URL and a token limited to the role and project
           below.
         </p>
         <form onSubmit={onGenerate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">Project</span>
-            <input
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-[13px] outline-none focus:border-indigo-500"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">Role</span>
-            <input
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-[13px] outline-none focus:border-indigo-500"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">Link lifetime (minutes, 1–60)</span>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={ttlMin}
-              onChange={(e) => setTtlMin(Number(e.target.value) || 15)}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-[13px] outline-none focus:border-indigo-500"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">Public server URL</span>
-            <input
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://mcp.example.com"
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-[13px] outline-none focus:border-indigo-500"
-            />
-            <span className="mt-1 block text-[11px] text-neutral-500">
-              Address the agent can reach. Leave empty for the server default (localhost) — set it when the agent
-              runs on another machine.
-            </span>
-          </label>
+          <Input label="Project" value={project} onChange={(e) => setProject(e.target.value)} />
+          <Input label="Role" value={role} onChange={(e) => setRole(e.target.value)} />
+          <Input
+            label="Link lifetime (minutes, 1–60)"
+            type="number"
+            min={1}
+            max={60}
+            value={ttlMin}
+            onChange={(e) => setTtlMin(Number(e.target.value) || 15)}
+          />
+          <Input
+            label="Public server URL"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://mcp.example.com"
+            hint="Address the agent can reach. Leave empty for the server default (localhost) — set it when the agent runs on another machine."
+          />
           <div className="sm:col-span-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-[13px] font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
+            <Button type="submit" variant="primary" loading={busy} disabled={busy}>
               {busy ? 'Creating…' : 'Create link'}
-            </button>
+            </Button>
           </div>
         </form>
 
         {error && (
-          <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+          <p role="alert" className="mt-4 rounded-[var(--radius-control)] border border-danger/40 bg-surface-2 px-3 py-2 text-[12px] text-danger">
             {/admin/i.test(error) ? 'Your account needs the admin role to create setup links.' : error}
           </p>
         )}
@@ -239,9 +211,9 @@ export default function AccessPage() {
         {links.length > 0 && (
           <ul className="mt-5 space-y-3">
             {links.map((l) => (
-              <li key={l.otp} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-                <code className="block break-all text-[12px] text-neutral-800">{l.url}</code>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-neutral-500">
+              <li key={l.otp} className="rounded-[var(--radius-control)] border border-line bg-surface-2 p-3">
+                <code className="block break-all text-[12px] text-ink">{l.url}</code>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
                   <CopyButton text={l.url} label="Copy link" />
                   <span>project: {l.project}</span>
                   <span>role: {l.role}</span>
@@ -251,7 +223,7 @@ export default function AccessPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </div>
   );
 }
