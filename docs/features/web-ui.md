@@ -8,7 +8,7 @@ Next.js 16 App Router + TypeScript. Connects to MCP HTTP transport.
 |-------|-------------|
 | `/` | Home — overview, links |
 | `/tasks` | Kanban board — drag&drop, filters, search, edit |
-| `/knowledge` | Knowledge editor — Markdown with live preview, tags, types |
+| `/knowledge` | Knowledge list, read-first document view with TOC, Markdown editor, tags and types |
 | `/prompts` | Prompt management — CRUD, A/B experiments, template editor |
 | `/search` | Unified search — BM25 + vector across tasks and knowledge |
 | `/analytics` | Analytics dashboard — stats, feedback, charts |
@@ -44,14 +44,14 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Task count per column
 - Responsive grid
 
-### Knowledge Editor (UI-003)
+### Knowledge (UI-003, UI-13, UI-24)
 
-- Markdown editor with live preview
-- Search/filter by title, tags, type
-- Create, edit documents
-- Tag management
-- Document type selector (note, fact, decision, pattern, warning, memory_fact)
-- Syntax-aware content area
+- Server-side search and tag/type filters over frontmatter-only list items
+- Read-first document view: title, metadata, table of contents, Export/Edit/Trash
+- Markdown editor with live preview and `Dialog`-based trash confirmation
+- Tokenised prose for headings, lists, quotes, fenced code, tables and rules;
+  links stay scheme-allowlisted and HTML is escaped first
+- Document type selector, including legacy types already stored on a document
 - Toggle preview
 
 ### Prompt Management (UI-004)
@@ -108,7 +108,7 @@ The admin shell uses a token-based design system in `web-ui/app/globals.css`:
 ```typescript
 api.tasks.list()                    // → Task[]
 api.tasks.create({ title, ... })    // → Task
-api.knowledge.list()                // → KnowledgeDoc[]
+api.knowledge.list()                // → KnowledgeListItem[]
 api.search.knowledge(query)         // → SearchResult[]
 api.projects.list()                 // → { projects, current }
 ```
