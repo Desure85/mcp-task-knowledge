@@ -13,6 +13,8 @@ Next.js 16 App Router + TypeScript. Connects to MCP HTTP transport.
 | `/prompts` | Prompt management — CRUD, A/B experiments, template editor |
 | `/search` | Unified search — BM25 + vector across tasks and knowledge |
 | `/analytics` | Analytics dashboard — counters, task distribution, feedback |
+| `/projects` | Project isolation, current scope, delete/purge confirmation |
+| `/system` | Live sessions, embeddings status and tools catalog |
 
 ## Setup
 
@@ -83,6 +85,24 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Status and priority distribution bars with accessible labels and values
 - Feedback form with labelled fields and rating buttons
 - localStorage feedback storage
+
+### Projects (PH-015, UI-24)
+
+- Project list with default/current badges and task/knowledge presence
+- Create form with labelled fields; set-current scope for this browser session
+- Delete and purge are `Dialog`-confirmed; purge additionally requires typing the project id
+
+### System (PH-015, UI-24)
+
+- Authentication section keeps the sessionStorage/no-cookie/CSRF trade-off and XSS caveat in two short paragraphs
+- Semantic sessions table with column headers and horizontally scrollable mobile layout
+- Embeddings status and a labelled tools-catalog filter with an empty state
+
+### Search (UI-001, UI-24)
+
+- One labelled query across tasks and knowledge, submit by button or Enter
+- Results in Cards with counts and scores, per-column empty states
+- Initial and loading states use `EmptyState`/`Skeleton`
 
 ### Realtime (UI-005 + MR-012)
 
