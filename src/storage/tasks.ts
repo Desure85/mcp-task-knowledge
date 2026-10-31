@@ -139,7 +139,7 @@ export async function listTaskEntries(project: string): Promise<TaskFileEntry[]>
   const dir = await resolveTasksDir(project);
   if (!dir) return [];
   const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json'));
-  const entries = await mapLimit(files, 64, async (f) => {
+  const entries = await mapLimit(files, 256, async (f) => {
     const file = path.join(dir, f);
     const st = await fs.stat(file);
     return { id: f.slice(0, -'.json'.length), file, mtimeMs: st.mtimeMs };

@@ -127,7 +127,7 @@ export async function listDocEntries(project: string): Promise<DocFileEntry[]> {
   const dir = await resolveKnowledgeDir(project);
   if (!dir) return [];
   const files = await fg('*.md', { cwd: dir, dot: false });
-  const entries = await mapLimit(files, 64, async (f) => {
+  const entries = await mapLimit(files, 256, async (f) => {
     const file = path.join(dir, f);
     const st = await fsp.stat(file);
     return { id: f.slice(0, -'.md'.length), file, mtimeMs: st.mtimeMs };
