@@ -21,7 +21,10 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ['ink', 'surface', 4.5],
   ['muted', 'canvas', 4.5],
   ['muted', 'surface', 4.5],
+  ['muted', 'surface-2', 4.5],
+  ['ink', 'surface-2', 4.5],
   ['accent', 'canvas', 4.5],
+  ['accent', 'surface', 4.5],
   ['on-accent', 'accent', 4.5],
   ...['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'].map(
     (key) => [key, 'surface', 4.5] as [string, string, number],
