@@ -92,6 +92,17 @@ describe('tasks_list', () => {
     expect(byPriority.env.total).toBe(6);
   });
 
+  it('returns an empty page with zeroed metadata when nothing matches', async () => {
+    const { env } = await srv.callTool('tasks_list', { project, tag: 'definitely-no-such-tag', limit: 5 });
+    expect(env.data).toEqual([]);
+    expect(env.total).toBe(0);
+    expect(env.totalExact).toBe(true);
+    expect(env.count).toBe(0);
+    expect(env.hasMore).toBe(false);
+    expect(env.nextCursor).toBeNull();
+    expect(env.truncated).toBe(false);
+  });
+
   it('rejects an invalid cursor with a stable code', async () => {
     const res = await srv.callTool('tasks_list', { project, cursor: 'garbage' });
     expect(res.isError).toBe(true);
