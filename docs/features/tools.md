@@ -1,4 +1,4 @@
-# MCP Tools (126 with catalog; 124 by default)
+# MCP Tools (128 with catalog; 126 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -6,10 +6,10 @@ All tools registered in the MCP server, grouped by category.
 
 | Tool | Description |
 |------|-------------|
-| `tasks_create` | Create a task with title, priority, tags, parentId |
-| `tasks_list` | List tasks with filters (project, status, tag) |
+| `tasks_create` | Create a task with title, priority, type, tags, parentId |
+| `tasks_list` | List tasks with filters (project, status, type, tag) |
 | `tasks_get` | Get task by ID |
-| `tasks_update` | Update task fields (title, status, priority, tags) |
+| `tasks_update` | Update task fields (title, status, type, priority, tags) |
 | `tasks_close` | Close a task into the project `closeStatus` |
 | `tasks_claim` | Take a lease on a task (TTL, default 30 min); foreign active claims are rejected with `TASK_CLAIMED` |
 | `tasks_renew` | Extend your lease (heartbeat); does not change `updatedAt`/version, so no false MU-02 conflicts |
@@ -135,7 +135,7 @@ from the catalog — new prompts appear after a server restart (`listChanged` is
 SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 (never `-32601`).
 
-## Projects (12 tools)
+## Projects (14 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -151,6 +151,8 @@ SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 | `project_statuses_set` | Replace the status set; moving/removing used statuses requires `moveTo` or `moves` |
 | `project_transitions_get` | Get the status transition graph (`null` = any-to-any) |
 | `project_transitions_set` | Replace the transition graph; validates references and done-status reachability |
+| `project_types_get` | Get the project task type set (default task, bug, feature) |
+| `project_types_set` | Replace the type set; removing a used type requires `moveTo` or `moves` |
 
 ### Project statuses and transitions (V-01/V-02)
 
@@ -161,6 +163,13 @@ The default project workflow is `pending → in_progress → completed|closed` (
 - `project_transitions_set` accepts `{from: [to...]}`, `null` restores any-to-any, rejects unknown ids and returns `TRANSITIONS_UNREACHABLE_DONE` when the initial statuses cannot reach every done status.
 - Task status changes return `{ok:false, error:{code:"TRANSITION_NOT_ALLOWED", message, from, to, allowed, hint, details}}`. Bulk update/close return `failed` entries per task while allowed tasks still run.
 - `tasks_list`/`tasks_tree` reject an unknown status filter with `STATUS_NOT_ALLOWED`; task creation returns `INITIAL_STATUS_NOT_ALLOWED` when the requested status is not in `initialStatuses`.
+
+### Task types (V-03)
+
+- Default project types are `task`, `bug`, `feature`; legacy tasks without `type` are treated as `task` and are not rewritten.
+- `project_types_set` validates unique lowercase slug ids and rejects removing a type used by tasks with `TYPE_IN_USE` (up to 20 task ids), unless `moveTo` or `moves` names a type in the new set.
+- `tasks_create`, `tasks_update`, `tasks_bulk_create` and `tasks_bulk_update` reject an unknown type with `TYPE_NOT_ALLOWED` and an `allowed` list.
+- `tasks_list`, `tasks_tree` and `search_tasks` accept `type`; `briefing` returns `counts.byType` and each open task carries `type`; `dashboard_stats` returns `tasks.byType`.
 
 ## Sessions (2 tools)
 
