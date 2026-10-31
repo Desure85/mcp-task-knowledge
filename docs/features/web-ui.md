@@ -89,8 +89,11 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Colours come from semantic tokens read at runtime; the palette is re-read when
   `data-theme`/`data-mode` changes on `<html>`.
 
-### Prompt Management (UI-004, UI-24)
+### Prompt Management (UI-004, UI-24, UI-26)
 
+- Catalog cards open a read view with full template, metadata, variables and version list
+- Edit writes only changed fields through `prompts_bulk_update`; unsaved changes use a confirm `Dialog`
+- Delete is destructive with a confirm `Dialog`; `prompts_get` supplies the full prompt text
 - Prompt CRUD with labelled fields
 - Accessible Catalog / A/B Experiments tabs (`tablist`/`tab`/`tabpanel`, Arrow/Home/End)
 - Status badges by role, neutral domain/tag badges, readable `latest`/version labels
@@ -107,7 +110,7 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 ### Projects (PH-015, UI-24)
 
 - Project list with default/current badges and task/knowledge presence
-- Create form with labelled fields; set-current scope for this browser session
+- Create form with labelled fields and aligned hints/actions; set-current scope for this browser session
 - Delete and purge are `Dialog`-confirmed; purge additionally requires typing the project id
 
 ### System (PH-015, UI-24)

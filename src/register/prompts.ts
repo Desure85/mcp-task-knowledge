@@ -2,9 +2,9 @@ import type { ServerContext } from './context.js';
 import { z } from 'zod';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { resolveUnder } from '../fs.js';
-import { ok, err } from '../utils/respond.js';
+import { ok, err, errWith } from '../utils/respond.js';
 
-import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion, ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
+import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion, listPromptVersions, ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
 import { appendAssignments, appendEvents, listBuildVariants, readExperiment, readAggregates, updateAggregates } from '../ab-testing/storage.js';
 import { pickWithEpsilonGreedy } from '../ab-testing/bandits.js';
 import { hybridSearch } from '../search/index.js';
@@ -94,6 +94,42 @@ export function registerPromptsTools(ctx: ServerContext) {
   }
 
   ctx.server.registerTool(
+    "prompts_get",
+    {
+      title: "Get Prompt",
+      description: "Read one prompt version with full template/compose and metadata; version defaults to the latest semver.",
+      inputSchema: {
+        project: z.string().optional(),
+        id: z.string().min(1),
+        version: z.string().min(1).optional().describe("Version to read; omit (or pass 'latest') for the newest"),
+      },
+    },
+    async ({ project, id, version }: { project?: string; id: string; version?: string }) => {
+      const prj = resolveProject(project);
+      const versions = await listPromptVersions(prj, id);
+      if (versions.length === 0) return err(`Prompt not found: ${prj}/${id}`);
+      const selected = !version || version === 'latest'
+        ? versions[versions.length - 1]
+        : versions.find((entry) => entry.version === version);
+      if (!selected) return err(`Prompt version not found: ${prj}/${id}@${version}`);
+      try {
+        const prompt = JSON.parse(await fs.readFile(selected.path, 'utf8'));
+        return ok({
+          project: prj,
+          prompt,
+          versions: versions.map((entry) => ({
+            version: entry.version,
+            latest: entry.latest,
+            path: entry.path,
+          })),
+        });
+      } catch (e: any) {
+        return err(`Failed to read prompt: ${e?.message || String(e)}`);
+      }
+    }
+  );
+
+  ctx.server.registerTool(
     "prompts_bulk_create",
     {
       title: "Prompts Bulk Create",
@@ -133,7 +169,9 @@ export function registerPromptsTools(ctx: ServerContext) {
       if (results.some((r) => r.path && !r.error) && ctx.triggerPromptsReindex) {
         void ctx.triggerPromptsReindex(prj);
       }
-      return allOk ? ok({ project: prj, results }) : err('some items failed; see results');
+      return allOk
+        ? ok({ project: prj, results })
+        : errWith({ code: 'PROMPTS_BULK_FAILED', message: 'some items failed; see results', details: { project: prj, results } });
     }
   );
 
@@ -185,7 +223,9 @@ export function registerPromptsTools(ctx: ServerContext) {
       if (results.some((r) => r.path && !r.error) && ctx.triggerPromptsReindex) {
         void ctx.triggerPromptsReindex(prj);
       }
-      return allOk ? ok({ project: prj, results }) : err('some items failed; see results');
+      return allOk
+        ? ok({ project: prj, results })
+        : errWith({ code: 'PROMPTS_BULK_FAILED', message: 'some items failed; see results', details: { project: prj, results } });
     }
   );
 
@@ -221,7 +261,9 @@ export function registerPromptsTools(ctx: ServerContext) {
       if (!dryRun && results.some((r) => r.deleted && !r.error) && ctx.triggerPromptsReindex) {
         void ctx.triggerPromptsReindex(prj);
       }
-      return allOk ? ok({ project: prj, results, dryRun: !!dryRun }) : err('some items failed; see results');
+      return allOk
+        ? ok({ project: prj, results, dryRun: !!dryRun })
+        : errWith({ code: 'PROMPTS_BULK_FAILED', message: 'some items failed; see results', details: { project: prj, results, dryRun: !!dryRun } });
     }
   );
 

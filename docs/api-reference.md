@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **125**
+Всего инструментов: **126**
 
 ## Инструменты
 
@@ -93,6 +93,7 @@
 | `prompts_exports_get` | List exported prompt artifacts under exports/ |
 | `prompts_feedback_log` | Append passive user feedback for prompts (JSONL store) |
 | `prompts_feedback_validate` | Validate feedback JSONL file and return stats/samples |
+| `prompts_get` | Read one prompt version with full template/compose and metadata; version defaults to the latest semv |
 | `prompts_list` | List prompts from prompts catalog with optional filters |
 | `prompts_metrics_log_bulk` | Append events and update aggregates for prompts (bulk) |
 | `prompts_search` | Semantic/lexical search across prompt builds and markdown |
@@ -2333,6 +2334,31 @@ Validate feedback JSONL file and return stats/samples
   "arguments": {
     "project": "mcp",
     "strict": "example"
+  }
+}
+```
+
+## prompts_get
+
+**Get Prompt**
+
+Read one prompt version with full template/compose and metadata; version defaults to the latest semver.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `version`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "prompts_get",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "version": "example"
   }
 }
 ```
