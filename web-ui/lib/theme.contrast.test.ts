@@ -42,6 +42,7 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
     (key) => [key, 'surface-2', 3] as [string, string, number],
   ),
   ['line-strong', 'canvas', 3],
+  ['st-done', 'canvas', 3],
   ['focus-ring', 'canvas', 3],
 ];
 
