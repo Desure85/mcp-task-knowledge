@@ -18,6 +18,8 @@ import {
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
+import { mapLimit } from '../utils/concurrency.js';
+import { decodeKeyCursor } from '../utils/pagination.js';
 
 const log = childLogger('storage:tasks');
 
@@ -124,6 +126,151 @@ function withoutExpiredClaim(task: Task, nowMs: number = Date.now()): Task {
   return task;
 }
 
+/** Каталог задач проекта с учётом legacy-раскладки (плоский TASKS_DIR). */
+async function resolveTasksDir(project: string): Promise<string | null> {
+  const modern = resolveUnder(TASKS_DIR, project);
+  if (await pathExists(modern)) return modern;
+  if (await pathExists(TASKS_DIR)) return TASKS_DIR;
+  return null;
+}
+
+interface TaskFileEntry {
+  id: string;
+  file: string;
+  /** mtime пишется тем же вызовом, что и updatedAt (`writeJson`), поэтому годится как ключ страницы. */
+  mtimeMs: number;
+}
+
+/** Файлы задач, отсортированные по (mtime desc, id asc) — без чтения содержимого. */
+export async function listTaskEntries(project: string): Promise<TaskFileEntry[]> {
+  const dir = await resolveTasksDir(project);
+  if (!dir) return [];
+  const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json'));
+  const entries = await mapLimit(files, 256, async (f) => {
+    const file = path.join(dir, f);
+    const st = await fs.stat(file);
+    return { id: f.slice(0, -'.json'.length), file, mtimeMs: st.mtimeMs };
+  });
+  entries.sort((a, b) => (b.mtimeMs - a.mtimeMs) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return entries;
+}
+
+export interface TaskPageOptions {
+  limit: number;
+  cursor?: string | null;
+  status?: string;
+  tag?: string;
+  priority?: string;
+  parentId?: string;
+  /** V-03: тип задачи; старые задачи без типа считаются 'task'. */
+  type?: string;
+  /** ISO-дата: только задачи с updatedAt >= значения (лексикографически, ISO сортируем). */
+  updatedSince?: string;
+  includeArchived?: boolean;
+  includeTrashed?: boolean;
+  countOnly?: boolean;
+}
+
+export interface TaskPage {
+  items: Task[];
+  /** Ключ страницы для каждого item (mtime как строка) — из него строится nextCursor. */
+  keys: string[];
+  total: number;
+  /** `false` — total по файлам проекта (архив/корзина включены), содержимое не читалось. */
+  totalExact: boolean;
+  hasMore: boolean;
+}
+
+/** V-03: старые задачи без `type` трактуются как 'task' и на постраничном пути. */
+function withDefaultType(t: Task): Task {
+  if (t.type === undefined) t.type = 'task';
+  return t;
+}
+
+function taskPasses(t: Task, opts: TaskPageOptions): boolean {
+  if (!opts.includeTrashed && (t as any).trashed) return false;
+  if (!opts.includeArchived && (t as any).archived) return false;
+  if (opts.status && t.status !== opts.status) return false;
+  if (opts.tag && !(t.tags || []).includes(opts.tag)) return false;
+  if (opts.priority && t.priority !== opts.priority) return false;
+  if (opts.parentId && t.parentId !== opts.parentId) return false;
+  if (opts.type && (t.type ?? 'task') !== opts.type) return false;
+  if (opts.updatedSince && (t.updatedAt || '') < opts.updatedSince) return false;
+  return true;
+}
+
+/** Индекс первого элемента строго после курсора (mtime desc, id asc). */
+function startIndexAfterCursor(entries: TaskFileEntry[], cursor?: string | null): number {
+  if (!cursor) return 0;
+  const decoded = decodeKeyCursor(cursor);
+  const key = Number(decoded.k);
+  const index = entries.findIndex((e) => e.mtimeMs < key || (e.mtimeMs === key && e.id > decoded.id));
+  return index < 0 ? entries.length : index;
+}
+
+/**
+ * Страница задач без чтения всего каталога (SC-01).
+ *
+ * Быстрый путь (нет содержательных фильтров): `readdir` + `stat` дают порядок по mtime,
+ * затем читаются только файлы, попавшие в страницу (плюс редкие архивные). `total` в этом
+ * режиме — число файлов проекта (`totalExact: false`), потому что архив/корзина лежат
+ * внутри файлов. Любой содержательный фильтр или `countOnly` требует полного чтения —
+ * это и есть аргумент за индекс из SC-02.
+ */
+export async function listTasksPage(project: string, opts: TaskPageOptions): Promise<TaskPage> {
+  const entries = await listTaskEntries(project);
+  const hasContentFilter = Boolean(
+    opts.status || opts.tag || opts.priority || opts.parentId || opts.updatedSince || opts.type,
+  );
+  const start = startIndexAfterCursor(entries, opts.cursor);
+
+  if (opts.countOnly || hasContentFilter) {
+    const all = await mapLimit(entries, 32, (e) => readJson<Task>(e.file));
+    const matched: Array<{ task: Task; key: string }> = [];
+    for (let i = 0; i < all.length; i++) {
+      const task = withDefaultType(withoutExpiredClaim(all[i]));
+      if (taskPasses(task, opts)) matched.push({ task, key: String(entries[i].mtimeMs) });
+    }
+    if (opts.countOnly) {
+      return { items: [], keys: [], total: matched.length, totalExact: true, hasMore: false };
+    }
+    const sliced = matched.slice(start, start + opts.limit);
+    return {
+      items: sliced.map((m) => m.task),
+      keys: sliced.map((m) => m.key),
+      total: matched.length,
+      totalExact: true,
+      hasMore: start + sliced.length < matched.length,
+    };
+  }
+
+  // Read one extra matching item so `hasMore` is exact instead of "maybe".
+  const collected: Task[] = [];
+  const collectedKeys: string[] = [];
+  let index = start;
+  const chunkSize = Math.max(32, opts.limit * 2);
+  while (collected.length <= opts.limit && index < entries.length) {
+    const chunk = entries.slice(index, index + chunkSize);
+    const loaded = await mapLimit(chunk, 32, (e) => readJson<Task>(e.file));
+    for (let i = 0; i < loaded.length; i++) {
+      const task = withDefaultType(withoutExpiredClaim(loaded[i]));
+      if (!taskPasses(task, opts)) continue;
+      collected.push(task);
+      collectedKeys.push(String(chunk[i].mtimeMs));
+      if (collected.length > opts.limit) break;
+    }
+    index += chunk.length;
+  }
+  const hasMore = collected.length > opts.limit;
+  return {
+    items: collected.slice(0, opts.limit),
+    keys: collectedKeys.slice(0, opts.limit),
+    total: entries.length,
+    totalExact: false,
+    hasMore,
+  };
+}
+
 export async function listTasks(filter?: {
   project?: string;
   status?: Status;
@@ -145,10 +292,13 @@ export async function listTasks(filter?: {
         continue;
       }
     }
-    const files = await (await import('node:fs/promises')).readdir(dir);
-    for (const f of files) {
-      if (!f.endsWith('.json')) continue;
-      const t = withoutExpiredClaim(await readJson<Task>(path.join(dir, f)));
+    const files = (await (await import('node:fs/promises')).readdir(dir)).filter((f) => f.endsWith('.json'));
+    // Parallel reads: sequential `await` in a loop was the dominant cost at scale
+    // (100k tasks = 4.3 s warm, docs/benchmarks/scale-2026-10.md §3.1). mapLimit keeps
+    // descriptor usage bounded and preserves the original "first error wins" semantics.
+    const loaded = await mapLimit(files, 32, (f) => readJson<Task>(path.join(dir, f)));
+    for (const raw of loaded) {
+      const t = withoutExpiredClaim(raw);
       t.type = t.type ?? 'task';
       // skip trashed by default unless explicitly included
       if (!filter?.includeTrashed && (t as any).trashed) continue;

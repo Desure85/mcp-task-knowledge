@@ -98,7 +98,8 @@ describe('callTool envelope', () => {
     mocks.impl = () => okResult([{ id: 't1' }]);
     const tasks = await api.tasks.list();
     expect(tasks).toEqual([{ id: 't1' }]);
-    expect(mocks.calls[0]).toEqual({ name: 'tasks_list', arguments: { project: undefined } });
+    // SC-01: list долистывает страницы, поэтому клиент всегда передаёт limit.
+    expect(mocks.calls[0]).toEqual({ name: 'tasks_list', arguments: { project: undefined, limit: 200 } });
   });
 
   it('throws error.message on !ok envelope', async () => {
@@ -140,7 +141,7 @@ describe('session singleton', () => {
     await expect(api.tasks.list()).rejects.toThrow('connect failed');
     mocks.connectShouldFail = false;
     okAll();
-    await expect(api.tasks.list()).resolves.toEqual({});
+    await expect(api.tasks.list()).resolves.toEqual([]);
     expect(mocks.connectCount).toBe(2);
   });
 });

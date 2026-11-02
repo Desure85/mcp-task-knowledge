@@ -13,6 +13,8 @@
 | `HOST` | `0.0.0.0` | Bind address |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT` | `json` | `json` or `pretty` |
+| `MCP_JSON_RESPONSES` | on | HTTP transport answers tool calls with `application/json` instead of SSE, because SSE framing is quadratic in payload size inside the MCP SDK (20 MB: ~4.2 s vs 246 ms). Per-request opt-out is automatic: a request carrying `params._meta.progressToken` is served over SSE so progress notifications keep working. Set `0` to force SSE for every request. See `docs/adr/0007-json-responses-vs-sse.md` |
+| `MCP_REQUEST_TIMEOUT_MS` | `120000` | Client-side request timeout used by the bundled dev CLI and the VS Code extension (the SDK default of 60 s is too short for large lists) |
 
 ### Search & Embeddings
 

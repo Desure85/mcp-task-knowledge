@@ -7,6 +7,8 @@ import { ensureDir, pathExists, readText, resolveUnder, withFileLock, writeText 
 import type { KnowledgeDoc, KnowledgeDocMeta, TrustLevel } from '../types.js';
 import { promises as fsp } from 'node:fs';
 import { emitKnowledgeChanged } from './knowledge-events.js';
+import { mapLimit } from '../utils/concurrency.js';
+import { decodeKeyCursor } from '../utils/pagination.js';
 
 function fileFor(project: string, id: string) {
   return resolveUnder(KNOWLEDGE_DIR, project, `${id}.md`);
@@ -78,10 +80,12 @@ export async function listDocs(filter?: { project?: string; tag?: string; includ
       }
     }
     const files = await fg('*.md', { cwd: dir, dot: false });
-    for (const f of files) {
-      const full = path.join(dir, f);
-      const raw = await readText(full);
-      const fm = matter(raw);
+    // Parallel read+parse: YAML parsing 100k frontmatters serially cost 11.6 s (§3.1).
+    const parsed = await mapLimit(files, 32, async (f) => {
+      const raw = await readText(path.join(dir, f));
+      return { f, fm: matter(raw) };
+    });
+    for (const { f, fm } of parsed) {
       const meta = fm.data as any as KnowledgeDocMeta;
       if (!meta) continue;
       // Fallback: if id missing in frontmatter, derive from filename
@@ -103,6 +107,132 @@ export async function listDocs(filter?: { project?: string; tag?: string; includ
   }
   metas.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   return metas;
+}
+
+async function resolveKnowledgeDir(project: string): Promise<string | null> {
+  const modern = resolveUnder(KNOWLEDGE_DIR, project);
+  if (await pathExists(modern)) return modern;
+  if (await pathExists(KNOWLEDGE_DIR)) return KNOWLEDGE_DIR;
+  return null;
+}
+
+interface DocFileEntry {
+  id: string;
+  file: string;
+  mtimeMs: number;
+}
+
+/** Файлы документов, отсортированные по (mtime desc, id asc) — без разбора frontmatter. */
+export async function listDocEntries(project: string): Promise<DocFileEntry[]> {
+  const dir = await resolveKnowledgeDir(project);
+  if (!dir) return [];
+  const files = await fg('*.md', { cwd: dir, dot: false });
+  const entries = await mapLimit(files, 256, async (f) => {
+    const file = path.join(dir, f);
+    const st = await fsp.stat(file);
+    return { id: f.slice(0, -'.md'.length), file, mtimeMs: st.mtimeMs };
+  });
+  entries.sort((a, b) => (b.mtimeMs - a.mtimeMs) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return entries;
+}
+
+export interface DocPageOptions {
+  limit: number;
+  cursor?: string | null;
+  tag?: string;
+  type?: string;
+  parentId?: string;
+  includeArchived?: boolean;
+  includeTrashed?: boolean;
+  countOnly?: boolean;
+}
+
+export interface DocPage {
+  items: KnowledgeDocMeta[];
+  keys: string[];
+  total: number;
+  totalExact: boolean;
+  hasMore: boolean;
+}
+
+function docPasses(meta: KnowledgeDocMeta, opts: DocPageOptions): boolean {
+  if (!opts.includeTrashed && (meta as any).trashed) return false;
+  if (!opts.includeArchived && (meta as any).archived) return false;
+  if (opts.tag && !(meta.tags || []).includes(opts.tag)) return false;
+  if (opts.type && meta.type !== opts.type) return false;
+  if (opts.parentId && meta.parentId !== opts.parentId) return false;
+  return true;
+}
+
+async function readDocMetaAt(project: string, entry: DocFileEntry): Promise<KnowledgeDocMeta> {
+  const raw = await readText(entry.file);
+  const fm = matter(raw);
+  const meta = fm.data as any as KnowledgeDocMeta;
+  if (!meta) return { id: entry.id, project, title: entry.id, createdAt: '', updatedAt: '' } as KnowledgeDocMeta;
+  if (!meta.id) (meta as any).id = entry.id;
+  if (!(meta as any).project) (meta as any).project = project;
+  return meta;
+}
+
+function startIndexAfterCursor(entries: DocFileEntry[], cursor?: string | null): number {
+  if (!cursor) return 0;
+  const decoded = decodeKeyCursor(cursor);
+  const key = Number(decoded.k);
+  const index = entries.findIndex((e) => e.mtimeMs < key || (e.mtimeMs === key && e.id > decoded.id));
+  return index < 0 ? entries.length : index;
+}
+
+/**
+ * Страница документов без чтения всего каталога (SC-01). Семантика `total`/`totalExact`
+ * та же, что у `listTasksPage`: быстрый путь считает файлы, содержательные фильтры
+ * требуют полного разбора frontmatter.
+ */
+export async function listDocsPage(project: string, opts: DocPageOptions): Promise<DocPage> {
+  const entries = await listDocEntries(project);
+  const hasContentFilter = Boolean(opts.tag || opts.type || opts.parentId);
+  const start = startIndexAfterCursor(entries, opts.cursor);
+
+  if (opts.countOnly || hasContentFilter) {
+    const metas = await mapLimit(entries, 32, (e) => readDocMetaAt(project, e));
+    const matched: Array<{ meta: KnowledgeDocMeta; key: string }> = [];
+    for (let i = 0; i < metas.length; i++) {
+      if (docPasses(metas[i], opts)) matched.push({ meta: metas[i], key: String(entries[i].mtimeMs) });
+    }
+    if (opts.countOnly) {
+      return { items: [], keys: [], total: matched.length, totalExact: true, hasMore: false };
+    }
+    const sliced = matched.slice(start, start + opts.limit);
+    return {
+      items: sliced.map((m) => m.meta),
+      keys: sliced.map((m) => m.key),
+      total: matched.length,
+      totalExact: true,
+      hasMore: start + sliced.length < matched.length,
+    };
+  }
+
+  const collected: KnowledgeDocMeta[] = [];
+  const collectedKeys: string[] = [];
+  let index = start;
+  const chunkSize = Math.max(32, opts.limit * 2);
+  while (collected.length <= opts.limit && index < entries.length) {
+    const chunk = entries.slice(index, index + chunkSize);
+    const metas = await mapLimit(chunk, 32, (e) => readDocMetaAt(project, e));
+    for (let i = 0; i < metas.length; i++) {
+      if (!docPasses(metas[i], opts)) continue;
+      collected.push(metas[i]);
+      collectedKeys.push(String(chunk[i].mtimeMs));
+      if (collected.length > opts.limit) break;
+    }
+    index += chunk.length;
+  }
+  return {
+    items: collected.slice(0, opts.limit),
+    keys: collectedKeys.slice(0, opts.limit),
+    total: entries.length,
+    totalExact: false,
+    hasMore: collected.length > opts.limit,
+  };
 }
 
 export async function readDoc(project: string, id: string): Promise<KnowledgeDoc | null> {
