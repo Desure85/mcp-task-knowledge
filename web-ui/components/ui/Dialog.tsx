@@ -14,8 +14,10 @@ export interface DialogProps {
 }
 
 /**
- * Accessible modal (replaces window.confirm): labelled dialog, focus trap,
- * Escape to close, focus restored to the opener.
+ * Accessible modal that replaces `window.confirm`.
+ *
+ * Labelled dialog with a focus trap, Escape to close and focus restored to
+ * the opener.
  */
 export function Dialog({ open, onClose, title, description, children, footer, destructive }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);

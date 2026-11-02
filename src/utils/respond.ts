@@ -31,7 +31,7 @@ export function json(envelope: OkEnvelope | ErrEnvelope, isError = false) {
 export const ok = <T = unknown>(data: T) => json({ ok: true, data } as OkEnvelope<T>);
 
 /** Success envelope with sibling fields kept next to `data` (e.g. pagination). */
-export const okWith = <T = unknown>(data: T, extra: Record<string, unknown>) =>
+export const okWith = <T = unknown>(data: T, extra: object) =>
   json({ ok: true, data, ...extra } as OkEnvelope<T> & Record<string, unknown>);
 
 /** Error envelope: { ok: false, error: { message } } with isError. */

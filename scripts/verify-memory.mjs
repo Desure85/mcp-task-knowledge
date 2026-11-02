@@ -282,8 +282,23 @@ async function main() {
   await rpc.call('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'verify-memory', version: '2.0' } });
   child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
 
-  const listed = payloadOf(await rpc.call('tools/call', { name: 'knowledge_list', arguments: { project: PROJECT } }), { data: [] });
-  const docs = (listed.data ?? []).filter((d) => ['memory_facts', 'memory_fact', 'memory_pattern'].includes(d.type ?? '')).slice(0, LIMIT);
+  // SC-01: knowledge_list is paginated — walk the cursor, otherwise only the first
+  // page (~50 docs) is ever verified and the report silently under-counts facts.
+  const listedDocs = [];
+  let listedCursor;
+  for (let guard = 0; guard < 1000; guard++) {
+    const listed = payloadOf(
+      await rpc.call('tools/call', {
+        name: 'knowledge_list',
+        arguments: { project: PROJECT, limit: 200, ...(listedCursor ? { cursor: listedCursor } : {}) },
+      }),
+      { data: [] },
+    );
+    listedDocs.push(...(listed.data ?? []));
+    if (!listed.hasMore || !listed.nextCursor) break;
+    listedCursor = listed.nextCursor;
+  }
+  const docs = listedDocs.filter((d) => ['memory_facts', 'memory_fact', 'memory_pattern'].includes(d.type ?? '')).slice(0, LIMIT);
 
   const stats = { verified: 0, 'pending-merge': 0, stale: 0, 'no-anchor': 0, skipped: 0 };
   const samples = { stale: [], 'pending-merge': [], 'no-anchor': [], skipped: [] };

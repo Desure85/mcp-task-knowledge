@@ -16,6 +16,15 @@ Next.js 16 App Router + TypeScript. Connects to MCP HTTP transport.
 | `/projects` | Project isolation, current scope, delete/purge confirmation |
 | `/system` | Live sessions, embeddings status and tools catalog |
 
+## Design system
+
+Before changing the UI, read [`DESIGN.md`](../../DESIGN.md) — the single style guide for people and agents
+(two theme axes, tokens, primitives, page contract, forbidden patterns, known debt). Values live in
+`web-ui/app/globals.css`, the theme model in `web-ui/lib/theme.ts`, primitives in `web-ui/components/ui`;
+`npm run design:doc` refreshes the generated tables in `DESIGN.md`. Guards:
+`web-ui/lib/design-guards.test.ts`, `web-ui/lib/no-hardcoded-colors.test.ts`,
+`web-ui/lib/design-doc.test.ts`.
+
 ## Setup
 
 ```bash
@@ -34,18 +43,49 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 
 ## Features
 
-### Tasks Board (UI-002)
+### Tasks Board (UI-002, V-04)
 
-- 4-column Kanban (pending → in_progress → completed → closed)
-- Drag & drop between columns
-- Search by title
-- Filter by priority and tags
-- Create with priority + tags
-- Inline edit (title, priority, tags)
-- Priority badges, tag chips
-- Subtask indicator
-- Task count per column
-- Responsive grid
+- Columns come from the project's own statuses (`project_statuses_get`, ordered,
+  dotted with the status token colour); archived statuses stay off the board and
+  tasks whose status is not in the project set get a trailing
+  `"(not in project)"` column so nothing disappears.
+- Horizontal scrolling for many columns with sticky column headers, "N more
+  columns" cues on both edges (click to scroll) and edge auto-scroll while a card
+  is being dragged.
+- A column collapses to a 48 px strip (vertical label + count) or can be hidden;
+  the "Show hidden" chips restore it. The choice is stored per project in
+  `localStorage` (`mcp.tasksBoard.<project>`), read with a safe fallback.
+- Drag & drop follows the project's transition graph: forbidden columns are
+  dimmed, show `cursor: not-allowed` and an inline reason, and their `dragover`
+  is not accepted. A rejected drop is reported with the server's
+  `TRANSITION_NOT_ALLOWED` message, hint and allowed list; an optimistic move is
+  rolled back, so the server stays the source of truth.
+- Keyboard move: every card has a "Move to…" menu listing only the statuses the
+  graph allows for its current status (native `<details>`/buttons).
+- Search by title, priority/tag filters, create, inline edit, close, the
+  dependency DAG panel, live updates and per-column counts are unchanged.
+
+### Type lanes and the type filter (V-03, V-05)
+
+- The board groups task cards into **lanes by task type**. A multi-select above
+  the board (all types by default) drives it: one type selected renders a single
+  board without lane headers and asks the server for that type
+  (`tasks_list` with `type`, all pages); several types (or all) render one lane
+  per type, in the project's type order.
+- Lanes share **one sticky column-header row and one horizontal scroll**: the
+  status columns are aligned across every lane (measured 0 px difference), each
+  lane header shows the type icon, token colour, count and a collapse toggle;
+  empty lanes are hidden unless `Show empty lanes` is enabled.
+- The type selection, collapsed lanes and the empty-lane option are stored per
+  project in `localStorage` (`mcp.tasksBoardLanes.<project>`, safe fallback).
+  Phones start with every lane folded and keep the compact `Types` switcher.
+- The create and edit forms have a **Type** select (project types from
+  `project_types_get`, default `task`), and every card shows a type badge with
+  the type icon and token colour. Tasks without a type count as `task`.
+- Dragging changes only the status **inside the card's own lane** (same
+  transition graph, rollback and server message as V-04); dropping a card into
+  another lane is rejected with `Change the type in the card form` — changing
+  the type is done through the form, never by drag.
 
 ### Knowledge (UI-003, UI-13, UI-24)
 

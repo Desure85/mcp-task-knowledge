@@ -1,24 +1,47 @@
 import { z } from "zod";
 import type { ServerContext } from './context.js';
 import { resolveProject } from '../config.js';
-import { listDocs, readDoc } from '../storage/knowledge.js';
-import { ok, err } from '../utils/respond.js';
+import { listDocs, listDocsPage, readDoc } from '../storage/knowledge.js';
+import { ok, okWith, err, errWith } from '../utils/respond.js';
+import { PaginationError, paginateKeyed } from '../utils/pagination.js';
+import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
 
 export function registerKnowledgeTools(ctx: ServerContext): void {
   ctx.server.registerTool(
     "knowledge_list",
     {
       title: "List Knowledge Docs",
-      description: "List knowledge documents metadata",
+      description:
+        "List knowledge document metadata with cursor pagination and field selection. " +
+        "Returns `data` (array) plus total/count/hasMore/nextCursor/truncated/limit.",
       inputSchema: {
         project: z.string().optional(),
         tag: z.string().optional(),
+        type: z.string().optional().describe("Document type (component, api, adr, ...)"),
+        parentId: z.string().optional().describe("Only direct children of this document"),
+        includeArchived: z.boolean().default(false).optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, tag }) => {
+    async ({ project, tag, type, parentId, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
-      const items = await listDocs({ project: prj, tag });
-      return ok(items);
+      try {
+        const request = toPageRequest(pageArgs);
+        const page = await listDocsPage(prj, {
+          limit: request.limit ?? 50,
+          cursor: request.cursor,
+          tag,
+          type,
+          parentId,
+          includeArchived,
+          countOnly: request.countOnly,
+        });
+        const result = pageFromStorage(page, request, (m) => m.id);
+        return okWith(result.items, result.meta);
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
+      }
     }
   );
 
@@ -30,22 +53,30 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         includeArchived: z.boolean().default(false).optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, includeArchived }) => {
+    async ({ project, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
-      const metas = await listDocs({ project: prj });
-      const filtered = metas.filter((m) => !m.trashed && (includeArchived ? true : !m.archived));
-      const byId = new Map(filtered.map((m) => [m.id, { ...m, children: [] as any[] }]));
-      const roots: any[] = [];
-      for (const m of byId.values()) {
-        if (m.parentId && byId.has(m.parentId)) {
-          byId.get(m.parentId)!.children.push(m);
-        } else {
-          roots.push(m);
+      try {
+        const request = toPageRequest(pageArgs);
+        const metas = await listDocs({ project: prj });
+        const filtered = metas.filter((m) => !m.trashed && (includeArchived ? true : !m.archived));
+        const byId = new Map(filtered.map((m) => [m.id, { ...m, children: [] as any[] }]));
+        const roots: any[] = [];
+        for (const m of byId.values()) {
+          if (m.parentId && byId.has(m.parentId)) {
+            byId.get(m.parentId)!.children.push(m);
+          } else {
+            roots.push(m);
+          }
         }
+        const result = paginateKeyed(roots, request, (n) => n.updatedAt || '', (n) => n.id);
+        return okWith(result.items, result.meta);
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
       }
-      return ok(roots);
     }
   );
 
