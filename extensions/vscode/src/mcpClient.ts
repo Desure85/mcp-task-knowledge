@@ -178,7 +178,9 @@ export class MCPClient {
     }
 
     try {
-      const result = await this.client.callTool({ name, arguments: args });
+      const result = await this.client.callTool({ name, arguments: args }, undefined, {
+        timeout: Number(process.env.MCP_REQUEST_TIMEOUT_MS) > 0 ? Number(process.env.MCP_REQUEST_TIMEOUT_MS) : 120_000,
+      });
 
       // MCP SDK returns content array
       const content = (result as any).content;

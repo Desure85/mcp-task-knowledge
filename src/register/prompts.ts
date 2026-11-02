@@ -2,7 +2,9 @@ import type { ServerContext } from './context.js';
 import { z } from 'zod';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { resolveUnder } from '../fs.js';
-import { ok, err, errWith } from '../utils/respond.js';
+import { ok, okWith, err, errWith } from '../utils/respond.js';
+import { PaginationError, paginateRanked, scopeOf } from '../utils/pagination.js';
+import { pageArgsSchema, toPageRequest } from './page-args.js';
 
 import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion, listPromptVersions, ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
 import { appendAssignments, appendEvents, listBuildVariants, readExperiment, readAggregates, updateAggregates } from '../ab-testing/storage.js';
@@ -352,22 +354,34 @@ export function registerPromptsTools(ctx: ServerContext) {
     {
       title: "Prompts List",
       description: "List prompts from prompts catalog with optional filters",
-      inputSchema: { project: z.string().optional(), latest: z.boolean().optional(), kind: z.string().optional(), status: z.string().optional(), domain: z.string().optional(), tag: z.array(z.string()).optional() },
+      inputSchema: { project: z.string().optional(), latest: z.boolean().optional(), kind: z.string().optional(), status: z.string().optional(), domain: z.string().optional(), tag: z.array(z.string()).optional(), ...pageArgsSchema },
     },
-    async ({ project, _latest, kind, status, domain, tag }: { project?: string; _latest?: boolean; kind?: string; status?: string; domain?: string; tag?: string[] }) => {
+    async ({ project, _latest, kind, status, domain, tag, ...pageArgs }: { project?: string; _latest?: boolean; kind?: string; status?: string; domain?: string; tag?: string[] } & Record<string, any>) => {
       const prj = resolveProject(project);
-      const catalog = await readPromptsCatalog(prj);
-      const items: any[] = [];
-      const tagSet = tag && tag.length ? new Set(tag) : undefined;
-      for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
-        const rec = { id: key, version: meta.version || meta.buildVersion || 'latest', kind: meta.kind || meta.type || 'prompt', status: meta.status || undefined, domain: meta.domain || undefined, tags: Array.isArray(meta.tags) ? meta.tags : [], file: meta.path || undefined };
-        if (kind && rec.kind !== kind) continue;
-        if (status && rec.status !== status) continue;
-        if (domain && rec.domain !== domain) continue;
-        if (tagSet && !(rec.tags || []).some((t: string) => tagSet.has(t))) continue;
-        items.push(rec);
+      try {
+        const request = toPageRequest(pageArgs);
+        const catalog = await readPromptsCatalog(prj);
+        const items: any[] = [];
+        const tagSet = tag && tag.length ? new Set(tag) : undefined;
+        for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
+          const rec = { id: key, version: meta.version || meta.buildVersion || 'latest', kind: meta.kind || meta.type || 'prompt', status: meta.status || undefined, domain: meta.domain || undefined, tags: Array.isArray(meta.tags) ? meta.tags : [], file: meta.path || undefined };
+          if (kind && rec.kind !== kind) continue;
+          if (status && rec.status !== status) continue;
+          if (domain && rec.domain !== domain) continue;
+          if (tagSet && !(rec.tags || []).some((t: string) => tagSet.has(t))) continue;
+          items.push(rec);
+        }
+        const paged = paginateRanked(items, request, scopeOf(prj, kind, status, domain, (tag || []).join(',')));
+        // `data` keeps its previous shape ({generatedAt, items}) so existing clients do not break;
+        // pagination metadata rides alongside as siblings.
+        return okWith(
+          { generatedAt: new Date().toISOString(), items: paged.items, total: paged.meta.total },
+          paged.meta,
+        );
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
       }
-      return ok({ generatedAt: new Date().toISOString(), total: items.length, items });
     }
   );
 
