@@ -145,6 +145,56 @@ function handleCorsPreflight(req: IncomingMessage, res: ServerResponse): boolean
 
 // ─── Adapter ──────────────────────────────────────────────────────────
 
+/**
+ * MCP clients ask for progress via `params._meta.progressToken`. Progress
+ * notifications can only be delivered while the response is still an open SSE
+ * stream, so such requests must NOT be answered with a single JSON body.
+ */
+export function requestWantsProgress(body: unknown): boolean {
+  const messages = Array.isArray(body) ? body : [body];
+  return messages.some((message) => {
+    const token = (message as { params?: { _meta?: { progressToken?: unknown } } } | null)
+      ?.params?._meta?.progressToken;
+    return token !== undefined && token !== null;
+  });
+}
+
+/**
+ * SC-01: the transport answers with `application/json` (linear framing) except when the
+ * caller asked for progress — then that one request is served over SSE. The SDK reads
+ * the flag per `handleRequest`, but exposes it only as a private field, hence the cast.
+ * Clients talk to a session sequentially, so flipping the flag around a single call is safe
+ * in practice; if two requests in one session ever overlap, the SSE one just takes longer.
+ */
+async function callWithResponseMode<T>(
+  transport: SdkHttpTransport,
+  body: unknown,
+  res: ServerResponse,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const flags = transport as unknown as { _enableJsonResponse?: boolean };
+  if (flags._enableJsonResponse !== true || !requestWantsProgress(body)) return fn();
+  flags._enableJsonResponse = false;
+  // `handleRequest` resolves as soon as the message is dispatched — the response is
+  // written later by transport.send(). Restoring the flag in `finally` would therefore
+  // race the actual write (the reply would try JSON headers on an SSE stream). Restore
+  // only when this response is finished/closed.
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    flags._enableJsonResponse = true;
+  };
+  res.once('finish', restore);
+  res.once('close', restore);
+  try {
+    return await fn();
+  } catch (err) {
+    restore();
+    throw err;
+  }
+}
+
 export class HttpTransportAdapter implements TransportAdapter {
   readonly type = 'http';
   private httpServer?: HttpServer | HttpsServer;
@@ -357,7 +407,7 @@ export class HttpTransportAdapter implements TransportAdapter {
           return;
         }
         if (existing) {
-          await existing.handleRequest(req, res, parsedBody);
+          await callWithResponseMode(existing, parsedBody, res, () => existing.handleRequest(req, res, parsedBody));
           this.heartbeatSession(req);
           return;
         }
@@ -377,7 +427,7 @@ export class HttpTransportAdapter implements TransportAdapter {
         // parallel initialize POSTs could attribute the wrong remote IP to
         // a session, and a failed init leaked the queue entry forever).
         const transport = await this.createSessionTransport(req.socket.remoteAddress ?? 'http');
-        await transport.handleRequest(req, res, parsedBody);
+        await callWithResponseMode(transport, parsedBody, res, () => transport.handleRequest(req, res, parsedBody));
         return;
       }
 

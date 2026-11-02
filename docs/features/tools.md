@@ -46,6 +46,13 @@ Rules that matter for clients:
 
 Error codes: `INVALID_CURSOR` (malformed, tampered, or issued for another query).
 
+### Transport and progress
+
+HTTP responses are `application/json` by default (SSE framing in the MCP SDK is quadratic in
+payload size). A request that carries `params._meta.progressToken` is automatically served over
+`text/event-stream`, so `notifications/progress` keeps working for the caller that asked for it.
+`MCP_JSON_RESPONSES=0` forces SSE for all requests (`docs/adr/0007-json-responses-vs-sse.md`).
+
 ## Tasks (22 tools)
 
 | Tool | Description |
