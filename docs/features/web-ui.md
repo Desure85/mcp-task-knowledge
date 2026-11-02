@@ -65,6 +65,28 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Search by title, priority/tag filters, create, inline edit, close, the
   dependency DAG panel, live updates and per-column counts are unchanged.
 
+### Type lanes and the type filter (V-03, V-05)
+
+- The board groups task cards into **lanes by task type**. A multi-select above
+  the board (all types by default) drives it: one type selected renders a single
+  board without lane headers and asks the server for that type
+  (`tasks_list` with `type`, all pages); several types (or all) render one lane
+  per type, in the project's type order.
+- Lanes share **one sticky column-header row and one horizontal scroll**: the
+  status columns are aligned across every lane (measured 0 px difference), each
+  lane header shows the type icon, token colour, count and a collapse toggle;
+  empty lanes are hidden unless `Show empty lanes` is enabled.
+- The type selection, collapsed lanes and the empty-lane option are stored per
+  project in `localStorage` (`mcp.tasksBoardLanes.<project>`, safe fallback).
+  Phones start with every lane folded and keep the compact `Types` switcher.
+- The create and edit forms have a **Type** select (project types from
+  `project_types_get`, default `task`), and every card shows a type badge with
+  the type icon and token colour. Tasks without a type count as `task`.
+- Dragging changes only the status **inside the card's own lane** (same
+  transition graph, rollback and server message as V-04); dropping a card into
+  another lane is rejected with `Change the type in the card form` — changing
+  the type is done through the form, never by drag.
+
 ### Knowledge (UI-003, UI-13, UI-24)
 
 - Server-side search and tag/type filters over frontmatter-only list items
