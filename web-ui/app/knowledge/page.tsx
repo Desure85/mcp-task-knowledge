@@ -18,12 +18,7 @@ import {
 } from 'react';
 import { api, type KnowledgeDoc, type KnowledgeListItem } from '@/lib/api-client';
 import { normalizeKnowledgeItems } from '@/lib/knowledge';
-import {
-  useRealtime,
-  applyKnowledgeEvent,
-  connectionBadgeClass,
-  connectionBadgeLabel,
-} from '@/lib/realtime';
+import { useRealtime, applyKnowledgeEvent } from '@/lib/realtime';
 import { buildToc, renderMarkdown, stripLeadingH1, type TocEntry } from '@/lib/markdown';
 import { PageHeader } from '@/components/PageHeader';
 import { Badge, Button, Card, CardBody, Dialog, EmptyState, Input, Select, Skeleton, Textarea } from '@/components/ui';
@@ -113,7 +108,7 @@ export default function KnowledgePage() {
   const [activeHeading, setActiveHeading] = useState('');
   const readerRef = useRef<HTMLDivElement>(null);
 
-  const { status: liveStatus, presence, publish } = useRealtime({
+  const { publish } = useRealtime({
     eventTypes: ['knowledge.created', 'knowledge.updated', 'knowledge.deleted'],
     onEvent: (event) => {
       setDocs((prev) => applyKnowledgeEvent(prev, event));
@@ -369,15 +364,6 @@ export default function KnowledgePage() {
     }
   }
 
-  const liveBadge = (
-    <span
-      title={liveStatus === 'unavailable' ? 'Realtime server unreachable — polling fallback' : 'Realtime connection'}
-      className={`inline-flex items-center rounded-[var(--radius-control)] border px-2 py-1 text-[11px] ${connectionBadgeClass(liveStatus)}`}
-    >
-      {connectionBadgeLabel(liveStatus, presence.length)}
-    </span>
-  );
-
   if (view === 'edit') {
     return (
       <div>
@@ -566,7 +552,7 @@ export default function KnowledgePage() {
       <PageHeader
         title="Knowledge base"
         description="Documents, decisions and references, searchable from the server."
-        actions={<>{liveBadge}<Button variant="primary" onClick={startCreate}>New document</Button></>}
+        actions={<Button variant="primary" onClick={startCreate}>New document</Button>}
       />
 
       {error && <div className="mt-4"><Alert tone="danger" action={<Button size="sm" variant="ghost" onClick={() => setError(null)}>Dismiss</Button>}>{error}</Alert></div>}

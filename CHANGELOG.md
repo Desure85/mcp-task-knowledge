@@ -25,6 +25,7 @@
 
 ### Changed
 
+- UI-14 realtime indicator: one Topbar status for every route with Live, Connecting, Reconnecting (countdown), Offline (Retry now) and Realtime off, an accessible explanation popover, a 5 s connect/ticket timeout, and owner-safe status publishing; page data remains available when realtime is unavailable. Setup guide: `docs/deployment/realtime.md`.
 - V-03 task types: per-project `types` metadata (`task`, `bug`, `feature` by default) with `project_types_get/set`, atomic `moveTo/moves` for used types, `TYPE_NOT_ALLOWED` validation on create/update/bulk, `type` filters in task list/tree/search, and type distributions in `briefing` and `dashboard_stats`.
 - Repo hygiene (DX-33): removed the stray 42.7 MB GitHub CLI binary from `bin/` (never referenced by scripts/workflows/Dockerfile) and untracked `.opencode` goal-lock/session state; added the binary path and `.playwright-mcp/` to `.gitignore`. History was not rewritten — `git filter-repo` decision remains with the owner.
 - UI-26: prompt catalog cards now open a full read view (template/compose, metadata, variables, versions); edit sends only changed fields through `prompts_bulk_update`, with an unsaved-changes `Dialog`; delete uses a destructive `Dialog`. Added `prompts_get` and web-ui `api.prompts.get/update/delete`.
