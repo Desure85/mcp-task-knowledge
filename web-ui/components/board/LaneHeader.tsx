@@ -10,6 +10,7 @@
 import type { CSSProperties } from 'react';
 import type { ProjectType } from '../../lib/api-client';
 import { typeDotClass } from '../../lib/board-lanes';
+import { Button } from '../ui';
 import { IconChevronDown } from '../icons';
 import { TypeIcon } from './TypeIcon';
 
@@ -44,12 +45,13 @@ export function LaneHeader({
       data-collapsed={collapsed || undefined}
       className="sticky left-0 z-10 flex h-8 items-center gap-2 border-b border-line bg-surface px-1"
     >
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-expanded={!collapsed}
         aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${label} lane`}
         onClick={onToggle}
-        className="inline-flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-1.5 py-1 text-left transition duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        className="h-7 min-w-0 justify-start gap-2 px-1.5 text-left text-[12px] font-semibold"
       >
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
         <TypeIcon type={type?.id ?? laneId} icon={type?.icon} className="h-3.5 w-3.5 text-muted" />
@@ -60,7 +62,7 @@ export function LaneHeader({
         <IconChevronDown
           className={`h-3.5 w-3.5 text-muted transition duration-150 ${collapsed ? '-rotate-90' : ''}`}
         />
-      </button>
+      </Button>
     </div>
   );
 }

@@ -32,11 +32,11 @@ export function TypeBadge({ type, task, compact = false }: TypeBadgeProps) {
     <span
       data-type={type?.id ?? task?.type ?? DEFAULT_TASK_TYPE}
       title={`Type: ${label}`}
-      className={`inline-flex min-w-0 items-center gap-1 rounded-[var(--radius-control)] border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] leading-4 ${tone}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--radius-control)] border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] leading-4 ${tone}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
       <TypeIcon type={type?.id} icon={type?.icon} />
-      {!compact && <span className="truncate">{label}</span>}
+      {!compact && <span>{label}</span>}
     </span>
   );
 }

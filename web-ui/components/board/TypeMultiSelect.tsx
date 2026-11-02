@@ -10,6 +10,7 @@
 
 import type { ProjectType } from '../../lib/api-client';
 import { typeDotClass } from '../../lib/board-lanes';
+import { Button } from '../ui';
 import { IconChevronDown } from '../icons';
 import { TypeIcon } from './TypeIcon';
 
@@ -51,7 +52,7 @@ export function TypeMultiSelect({
       <summary className="inline-flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-[var(--radius-control)] border border-line bg-surface px-2.5 text-[13px] text-ink transition duration-150 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring [&::-webkit-details-marker]:hidden">
         <span className="hidden sm:inline">{desktopLabel}</span>
         <span className="sm:hidden">{compactLabel}</span>
-        <span className="inline-flex items-center rounded-[var(--radius-control)] border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] leading-4 tabular-nums text-muted">
+        <span className="hidden items-center rounded-[var(--radius-control)] border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] leading-4 tabular-nums text-muted sm:inline-flex">
           {resolved.length}
         </span>
         <IconChevronDown className="h-3.5 w-3.5 text-muted" />
@@ -90,13 +91,9 @@ export function TypeMultiSelect({
         </ul>
 
         <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-line pt-1.5">
-          <button
-            type="button"
-            onClick={onSelectAll}
-            className="rounded-[var(--radius-control)] px-2 py-1 text-[11px] font-medium text-muted transition duration-150 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-          >
+          <Button variant="ghost" size="sm" onClick={onSelectAll} className="h-6 px-2 text-[11px]">
             All types
-          </button>
+          </Button>
           <label className="flex cursor-pointer items-center gap-1.5 px-1 text-[11px] text-muted">
             <input
               type="checkbox"

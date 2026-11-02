@@ -10,6 +10,7 @@
 import type { CSSProperties } from 'react';
 import type { ProjectStatus } from '../../lib/api-client';
 import { statusDotClass } from '../../lib/board';
+import { Button } from '../ui';
 import { IconChevronRight } from '../icons';
 
 const STRIP_BUTTON =
@@ -33,15 +34,16 @@ export function CollapsedStatusStrip({ status, count, style, onExpand }: Collaps
       aria-label={`${status.label} column (collapsed)`}
       className="z-20 flex flex-col items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface-2 py-2"
     >
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-label={`Expand ${status.label} column`}
         aria-expanded="false"
         onClick={onExpand}
         className={STRIP_BUTTON}
       >
         <IconChevronRight className="h-3.5 w-3.5" />
-      </button>
+      </Button>
       <span
         className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDotClass(status)}`}
         aria-hidden="true"

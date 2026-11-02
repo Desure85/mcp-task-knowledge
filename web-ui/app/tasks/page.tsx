@@ -735,18 +735,24 @@ export default function TasksPage() {
             autoFocus
           />
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <select
-              value={newType}
-              onChange={(e) => setNewType(e.target.value)}
-              className={SELECT_CLASS}
-              aria-label="Type"
-            >
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+            <div className="inline-flex items-center gap-1.5">
+              <label htmlFor="new-task-type" className="text-[11px] text-muted">
+                Type
+              </label>
+              <select
+                id="new-task-type"
+                value={newType}
+                onChange={(e) => setNewType(e.target.value)}
+                className={SELECT_CLASS}
+                aria-label="Type"
+              >
+                {types.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <select
               value={newPriority}
               onChange={(e) => setNewPriority(e.target.value as Priority)}
@@ -795,18 +801,24 @@ export default function TasksPage() {
             aria-label="Task title"
           />
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <select
-              value={editingTask.type ?? DEFAULT_TASK_TYPE}
-              onChange={(e) => setEditingTask({ ...editingTask, type: e.target.value })}
-              className={SELECT_CLASS}
-              aria-label="Type"
-            >
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+            <div className="inline-flex items-center gap-1.5">
+              <label htmlFor="edit-task-type" className="text-[11px] text-muted">
+                Type
+              </label>
+              <select
+                id="edit-task-type"
+                value={editingTask.type ?? DEFAULT_TASK_TYPE}
+                onChange={(e) => setEditingTask({ ...editingTask, type: e.target.value })}
+                className={SELECT_CLASS}
+                aria-label="Type"
+              >
+                {types.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <select
               value={editingTask.priority}
               onChange={(e) =>

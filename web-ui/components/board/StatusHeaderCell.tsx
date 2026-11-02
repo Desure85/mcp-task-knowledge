@@ -10,6 +10,7 @@
 import type { CSSProperties } from 'react';
 import type { ProjectStatus } from '../../lib/api-client';
 import { statusDotClass } from '../../lib/board';
+import { Button } from '../ui';
 import { IconChevronRight, IconEyeOff } from '../icons';
 
 const HEADER_BUTTON =
@@ -40,23 +41,25 @@ export function StatusHeaderCell({ status, count, style, onCollapse, onHide }: S
       <span className="inline-flex items-center rounded-[var(--radius-control)] border border-line bg-surface px-1.5 py-0.5 text-[11px] leading-4 tabular-nums text-muted">
         {count}
       </span>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-label={`Collapse ${status.label} column`}
         aria-expanded="true"
         onClick={onCollapse}
         className={HEADER_BUTTON}
       >
         <IconChevronRight className="h-3.5 w-3.5 rotate-180" />
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
         aria-label={`Hide ${status.label} column`}
         onClick={onHide}
         className={HEADER_BUTTON}
       >
         <IconEyeOff className="h-3.5 w-3.5" />
-      </button>
+      </Button>
     </div>
   );
 }

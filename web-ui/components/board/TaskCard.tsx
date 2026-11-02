@@ -11,6 +11,7 @@ import type { DragEvent } from 'react';
 import type { ProjectStatus, ProjectType, Task } from '../../lib/api-client';
 import { PriorityDot } from '../PriorityDot';
 import { IconSubtask } from '../icons';
+import { Button } from '../ui';
 import { MoveMenu } from './MoveMenu';
 import { TypeBadge } from './TypeBadge';
 
@@ -54,6 +55,16 @@ export function TaskCard({
         dragging ? 'opacity-60' : ''
       }`}
     >
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <TypeBadge type={type} task={task} />
+        {task.parentId && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted" title="Subtask">
+            <IconSubtask className="h-3 w-3" />
+            Subtask
+          </span>
+        )}
+      </div>
+
       <p
         role="button"
         tabIndex={0}
@@ -89,25 +100,19 @@ export function TaskCard({
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <TypeBadge type={type} task={task} />
           <PriorityDot priority={task.priority} />
-          {task.parentId && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted" title="Subtask">
-              <IconSubtask className="h-3 w-3" />
-              Subtask
-            </span>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <MoveMenu taskTitle={task.title} targets={targets} onMove={(to) => onMove(task, to)} />
           {closeStatusId !== task.status && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onClose(task)}
-              className="rounded-[var(--radius-control)] px-1.5 py-1 text-[11px] font-medium text-muted opacity-0 transition duration-150 hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring group-hover/card:opacity-100"
+              className="h-6 px-1.5 text-[11px] opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
             >
               Close
-            </button>
+            </Button>
           )}
         </div>
       </div>
