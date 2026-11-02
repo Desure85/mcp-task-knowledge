@@ -68,6 +68,19 @@ async function call(client, name, args = {}) {
   return JSON.parse(text);
 }
 
+/** SC-01: list tools are paginated — walk nextCursor when a caller needs every item. */
+async function callAll(client, name, args = {}) {
+  const items = [];
+  let cursor;
+  for (let guard = 0; guard < 1000; guard++) {
+    const page = await call(client, name, { ...args, ...(cursor ? { cursor } : {}) });
+    if (Array.isArray(page?.data)) items.push(...page.data);
+    if (!page?.hasMore || !page?.nextCursor) break;
+    cursor = page.nextCursor;
+  }
+  return items;
+}
+
 async function cmdDiagnose() {
   await withServer(async (client) => {
     console.log('=== Diagnose ===');
@@ -121,10 +134,10 @@ async function cmdExport(outDir) {
     const list = projects.data?.projects ?? [];
     console.log(`=== Export (${list.length} projects) → ${abs} ===`);
     for (const p of list) {
-      const tasks = await call(client, 'tasks_list', { project: p.id, includeArchived: true });
-      const docs = await call(client, 'knowledge_list', { project: p.id });
-      const taskCount = Array.isArray(tasks.data) ? tasks.data.length : tasks.data?.count ?? 0;
-      const docCount = Array.isArray(docs.data) ? docs.data.length : docs.data?.count ?? 0;
+      const tasks = await callAll(client, 'tasks_list', { project: p.id, includeArchived: true });
+      const docs = await callAll(client, 'knowledge_list', { project: p.id });
+      const taskCount = tasks.length;
+      const docCount = docs.length;
       console.log(`  ${p.id}: ${taskCount} tasks, ${docCount} docs`);
     }
     console.log('Note: export uses MCP read tools; files are copied via server storage.');

@@ -778,7 +778,9 @@ export const api = {
     getSubtree: (project: string, id: string) => callTool<unknown>('tasks_get_subtree', { project, id }),
     bulkUpdate: (project: string, items: Array<{ id: string } & Record<string, unknown>>) =>
       callTool<{ count: number; results: Task[]; failed?: Array<{ id: string; error: Record<string, unknown> }> }>('tasks_bulk_update', { project, items }),
-    tree: (project?: string, status?: string, type?: string) => callTool<unknown>('tasks_tree', { project, status, ...(type ? { type } : {}) }),
+    // ВРЕМЕННО: дерево отдаёт корневые узлы страницами (SC-04 сделает это в UI).
+    tree: (project?: string, status?: string, type?: string) =>
+      callToolAll<unknown>('tasks_tree', { project, status, ...(type ? { type } : {}) }),
     dag: (project?: string) => callTool<DagData>('tasks_dag', { project }),
   },
 
@@ -801,7 +803,7 @@ export const api = {
       callTool<{ count: number; results: KnowledgeDoc[] }>('knowledge_bulk_archive', { project, ids }),
     bulkDeletePermanent: (project: string, ids: string[]) =>
       callTool<{ count: number; results: KnowledgeDoc[] }>('knowledge_bulk_delete_permanent', { project, ids }),
-    tree: (project?: string) => callTool<unknown>('knowledge_tree', { project }),
+    tree: (project?: string) => callToolAll<unknown>('knowledge_tree', { project }),
     exportMarkdown: (project?: string) => callTool<unknown>('knowledge_export_markdown', { project }),
     exportBundle: (project?: string) => callTool<unknown>('knowledge_export_bundle', { project }),
   },
@@ -888,7 +890,9 @@ export const api = {
   prompts: {
     list: (args?: { project?: string; kind?: string; status?: string; domain?: string; tag?: string[] }) =>
       callTool<{ total: number; items: Array<{ id: string; version: string; kind: string; status?: string; domain?: string; tags: string[]; file?: string }> }>(
-        'prompts_list', { ...(args ?? {}) }),
+        // prompts_list пагинирован (дефолт 50); каталог небольшой, явный максимум
+        // сохраняет прежнее «весь список» без отдельного цикла (SC-04 решит иначе).
+        'prompts_list', { limit: 500, ...(args ?? {}) }),
     catalog: (project?: string) => callTool<PromptCatalog>('prompts_catalog_get', { project }),
     get: (id: string, version?: string, project?: string) =>
       callTool<PromptGetData>('prompts_get', { id, ...(version ? { version } : {}), project }),
