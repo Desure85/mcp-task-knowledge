@@ -106,3 +106,79 @@ export function Textarea({ label, hint, error, id, className, ...rest }: Textare
     </FieldShell>
   );
 }
+
+export interface ColorFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+  error?: string;
+  id?: string;
+}
+
+/** Colour value as a native swatch plus a text field for hex/rgb()/hsl(). */
+export function ColorField({ label, value, onChange, hint, error, id }: ColorFieldProps) {
+  const autoId = useId();
+  const textId = id ?? autoId;
+  const swatchId = `${textId}-swatch`;
+  const hasSwatch = /^#[0-9a-fA-F]{6}$/.test(value);
+  return (
+    <FieldShell label={label} hint={hint} error={error} htmlFor={textId}>
+      <div className="flex items-center gap-1">
+        {hasSwatch ? (
+          <input
+            id={swatchId}
+            type="color"
+            aria-label={`${label}: colour picker`}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="h-8 w-9 shrink-0 cursor-pointer rounded-[var(--radius-control)] border border-line bg-surface p-0.5"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="h-8 w-9 shrink-0 rounded-[var(--radius-control)] border border-line bg-surface-2"
+          />
+        )}
+        <input
+          id={textId}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={[hint ? `${textId}-hint` : null, error ? `${textId}-error` : null].filter(Boolean).join(' ') || undefined}
+          placeholder="hex, rgb() or hsl()"
+          spellCheck={false}
+          autoComplete="off"
+          className={cn(CONTROL, error ? 'border-danger' : 'border-line')}
+        />
+      </div>
+    </FieldShell>
+  );
+}
+
+export interface FileInputProps {
+  label: string;
+  onFile: (file: File) => void;
+  accept?: string;
+  hint?: string;
+}
+
+/** File picker with a visible label; the callback gets the chosen file once. */
+export function FileInput({ label, onFile, accept = '.json,application/json', hint }: FileInputProps) {
+  const fileId = useId();
+  return (
+    <FieldShell label={label} hint={hint} htmlFor={fileId}>
+      <input
+        id={fileId}
+        type="file"
+        accept={accept}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+          event.currentTarget.value = '';
+        }}
+        className="w-full rounded-[var(--radius-control)] border border-line bg-surface px-2 py-1 text-[12px] text-ink file:mr-2 file:rounded-[var(--radius-control)] file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-[11px] file:text-ink"
+      />
+    </FieldShell>
+  );
+}

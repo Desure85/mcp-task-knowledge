@@ -28,13 +28,9 @@ function walkTsx(dir: string): string[] {
 }
 
 const APP_FILES = walkTsx('app');
-const COMPONENT_FILES = [
-  ...readdirSync('components', { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.tsx'))
-    .map((entry) => `components/${entry.name}`),
-  // UI-28: the graph is split into focused components.
-  ...walkTsx('components/graph'),
-];
+// UI-33: scan every component directory (board, graph, themes, ui) so a new
+// feature cannot ship raw colours by living in a sub-folder.
+const COMPONENT_FILES = walkTsx('components');
 const LIB_FILES = [
   'lib/realtime.ts',
   'lib/knowledge.ts',

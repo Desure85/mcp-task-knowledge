@@ -7,8 +7,10 @@ import {
   Card,
   CardBody,
   CardHeader,
+  ColorField,
   Dialog,
   EmptyState,
+  FileInput,
   Input,
   Select,
   Skeleton,
@@ -17,6 +19,7 @@ import {
   Tooltip,
 } from '@/components/ui';
 import { THEMES, THEME_LABELS, MODE_LABELS, type ModeChoice, type ThemeName } from '@/lib/theme';
+import { DEFAULT_BASE } from '@/lib/custom-theme';
 
 const SHOWCASE_MODES: Array<Extract<ModeChoice, 'light' | 'dark'>> = ['light', 'dark'];
 
@@ -37,6 +40,7 @@ const BADGES = [
 
 function Variant({ theme, mode }: { theme: ThemeName; mode: ModeChoice }) {
   const [dialog, setDialog] = useState(false);
+  const [color, setColor] = useState(DEFAULT_BASE.light.accent);
   return (
     <section
       data-theme={theme}
@@ -73,6 +77,13 @@ function Variant({ theme, mode }: { theme: ThemeName; mode: ModeChoice }) {
             <option value="low">Low</option>
           </Select>
           <Textarea label="Notes" placeholder="Markdown is fine" hint="Focus ring uses the palette token." />
+          <ColorField
+            label="Accent colour"
+            value={color}
+            onChange={setColor}
+            hint="Swatch or text: hex, rgb() or hsl()."
+          />
+          <FileInput label="Theme JSON" onFile={() => undefined} hint="Import a theme file." />
 
           <div className="flex items-center gap-3">
             <Tooltip label="Tooltip on hover and focus">
