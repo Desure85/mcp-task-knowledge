@@ -113,13 +113,18 @@ function parseThemeModel(themeTs) {
 }
 
 function parseVariant(css, theme, mode) {
-  const re = new RegExp(
-    `\\[data-theme="${theme}"\\]\\[data-mode="${mode}"\\]\\s*\\{([^}]*)\\}`,
+  // Selector lists may carry extra selectors (e.g. the UI-33 `custom`
+  // fallback), so match by substring instead of an exact selector.
+  const selector = `[data-theme="${theme}"]`;
+  const modeAttr = `[data-mode="${mode}"]`;
+  const blocks = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
+    (block) => block[1].includes(selector) && block[1].includes(modeAttr),
   );
-  const block = re.exec(css);
-  if (!block) throw new Error(`globals.css: no block for ${theme}/${mode}`);
+  if (blocks.length !== 1) {
+    throw new Error(`globals.css: expected one block for ${theme}/${mode}, found ${blocks.length}`);
+  }
   const tokens = {};
-  for (const line of block[1].split('\n')) {
+  for (const line of blocks[0][2].split('\n')) {
     const match = /--([a-z0-9-]+)\s*:\s*([^;]+);/.exec(line);
     if (!match) continue;
     const comment = /\/\*\s*([^*]+?)\s*\*\//.exec(line);
@@ -153,16 +158,16 @@ function parsePrimitives() {
   const seen = new Set();
   const primitives = [];
 
-  for (const line of index.split('\n')) {
-    const exports = /^export\s+\{([^}]+)\}\s+from\s+'\.\/([^']+)';/.exec(line.trim());
-    if (!exports) continue;
-    for (const entry of exports[1].split(',')) {
+  // One `export { ... } from './File'` may span several lines.
+  const exportBlocks = index.matchAll(/export\s*\{([\s\S]*?)\}\s*from\s*'(\.\/[^']+)';/g);
+  for (const block of exportBlocks) {
+    const file = `${block[2].replace(/^\.\//, '')}.tsx`;
+    for (const entry of block[1].split(',')) {
       const trimmed = entry.trim();
       // `type X` is a prop type, not a renderable primitive.
       if (!trimmed || trimmed.startsWith('type ')) continue;
       const name = trimmed.split(/\s+as\s+/).pop();
       if (!name || seen.has(name)) continue;
-      const file = `${exports[2]}.tsx`;
       const source = sources.get(file);
       if (!source) throw new Error(`components/ui/index.ts points to missing ${file}`);
       seen.add(name);
@@ -173,6 +178,7 @@ function parsePrimitives() {
       });
     }
   }
+
   if (primitives.length === 0) throw new Error('components/ui/index.ts: no exports found');
   return primitives;
 }

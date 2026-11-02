@@ -171,6 +171,41 @@
 6. Приложи в PR скриншоты: новая палитра в светлом и тёмном режиме, плюс Indigo light, Petrol dark,
    Copper dark и 390 px.
 
+### 3.6 Пользовательские темы (UI-33)
+
+Пользователь задаёт **3–5 базовых цветов на режим**: акцент, фон, текст и, при желании, предупреждение и
+опасность. Остальные 27 токенов вычисляются, а не вводятся руками.
+
+- **AA по построению.** Для каждого токена берётся его цветовой тон и насыщенность, а светлота подбирается
+  до тех пор, пока все пары из `web-ui/lib/theme-pairs.ts`, где он участвует, не пройдут порог. Важно:
+  токен обязан пройти **все** свои фоны сразу (canvas, surface, surface-2), поэтому поиск совместный, а не
+  по одной паре. Если фон попал в «мёртвую зону» (светлота ≈ 0.18, где максимум контраста ≈ 4.5:1), фон
+  сдвигается на минимальную величину, а редактор показывает это предупреждением.
+- **Критичные пары блокируют сохранение:** текст/фон, текст/поверхность, акцент/фон, акцент/поверхность,
+  подпись на кнопке/акцент. Остальные пары показываются как предупреждение. Если акцент и фон совпадают —
+  сохранение запрещено с понятным сообщением.
+- **Расчёт контраста — одна функция:** `web-ui/lib/contrast.ts` (`contrastRatio`) используют и CI-тест, и
+  деривация, и живая таблица редактора. Форматы ввода: hex (3/4/6/8), `rgb()`, `hsl()`; альфа игнорируется.
+- **Применение до отрисовки.** Inline-скрипт `THEME_INIT_SCRIPT` (`web-ui/lib/theme.ts`) читает
+  `mcp.customActive` + `mcp.customThemes`, проверяет версию схемы и что все значения — `#rrggbb`, и только
+  потом ставит `data-theme="custom"` и CSS-переменные через `style.setProperty`. Любая ошибка — палитра по
+  умолчанию без вспышки. Цветовые токены применяются только через `setProperty`; строки от пользователя
+  никогда не попадают в CSS.
+- **Fallback в CSS.** Блоки `[data-theme="custom"][data-mode="light|dark"]` наследуют Indigo
+  (`web-ui/app/globals.css`), поэтому при сбое применения страница остаётся читаемой.
+- **Формат JSON (экспорт/импорт).** `{ "format": "mcp-custom-theme", "version": 1, "theme": { "name": ...,
+  "base": { "light": {...}, "dark": {...} } } }`. При импорте токены **пересчитываются** из базовых цветов,
+  поэтому подменённые в файле значения не применяются.
+- **Ограничения и безопасность:** не больше 20 тем, имя ≤ 40 символов (буквы, цифры, пробел, точка, дефис,
+  подчёркивание), значение цвета ≤ 48 символов, store ≤ 64 КБ, неизвестные токены и поля отклоняются,
+  произвольный CSS и `url()` невозможны по схеме.
+- **Где код:** `web-ui/lib/custom-theme.ts` (модель, деривация, валидация, store, импорт/экспорт,
+  apply/rollback), `web-ui/lib/theme-tokens.ts` (имена токенов и лимиты), `web-ui/lib/theme-pairs.ts`
+  (матрица пар), `web-ui/components/themes/*` (редактор), `web-ui/app/themes/page.tsx`.
+- **Тесты:** `web-ui/lib/custom-theme.test.ts` (деривация на 20 детерминированных наборах × 2 режима,
+  крайние случаи, инъекции, импорт/экспорт, apply/rollback), `web-ui/lib/theme-init.test.ts` (pre-paint:
+  валидная тема, битый JSON, чужая версия схемы, битый localStorage, подменённый токен).
+
 ## 4. Каталог примитивов
 
 Примитивы — единственный разрешённый способ рисовать контролы. Лежат в `web-ui/components/ui`, реэкспорт —
@@ -179,11 +214,13 @@
 ### 4.1 Список (генерируется)
 
 <!-- BEGIN:generated primitives -->
-Список собран из `web-ui/components/ui/index.ts`: **13** примитивов. Описание — первая строка JSDoc определения (язык кода — английский); правила «когда использовать» — в разделе 4.2.
+Список собран из `web-ui/components/ui/index.ts`: **15** примитивов. Описание — первая строка JSDoc определения (язык кода — английский); правила «когда использовать» — в разделе 4.2.
 
 | Примитив | Файл | Назначение |
 |----------|------|------------|
 | `Button` | `web-ui/components/ui/Button.tsx` | The only button in the admin UI; the variant expresses intent. |
+| `ColorField` | `web-ui/components/ui/Field.tsx` | Colour value as a native swatch plus a text field for hex/rgb()/hsl(). |
+| `FileInput` | `web-ui/components/ui/Field.tsx` | File picker with a visible label; the callback gets the chosen file once. |
 | `Input` | `web-ui/components/ui/Field.tsx` | Single-line text field with a visible label, optional hint and error. |
 | `Select` | `web-ui/components/ui/Field.tsx` | Native select with a visible label; use it for short, known option lists. |
 | `Textarea` | `web-ui/components/ui/Field.tsx` | Multi-line text field (markdown, descriptions) with a visible label. |
@@ -264,6 +301,39 @@ import { Select } from '@/components/ui';
 import { Textarea } from '@/components/ui';
 
 <Textarea label="Description" rows={6} value={body} onChange={(event) => setBody(event.target.value)} />
+```
+
+### 4.5.1 ColorField
+
+- **Когда:** выбор цвета токена темы (акцент, фон, текст). Даёт свотч и текстовое поле с hex/rgb()/hsl().
+- **Когда нет:** для цветов, которые не являются темой (графики с собственными палитрами — пока их нет);
+  для выбора из готовых палитр — список тем в меню.
+- **Не делай:** `input type="color"` руками вне примитива; `#hex` в стилях страницы; валидацию цвета в JSX
+  вместо `isColor()` из `lib/contrast`.
+
+```tsx
+import { ColorField } from '@/components/ui';
+
+<ColorField
+  label="Accent"
+  value={accent}
+  onChange={setAccent}
+  error={isColor(accent) ? undefined : 'Нужен hex, rgb() или hsl()'}
+/>
+```
+
+### 4.5.2 FileInput
+
+- **Когда:** импорт небольшого файла (тема в JSON), где содержимое разбирает вызывающий код.
+- **Когда нет:** для загрузки больших бинарников (это отдельный сценарий и прогресс); для нескольких файлов
+  сразу.
+- **Не делай:** нативный `input type="file"` вне примитива; чтение файла без `try/catch` на стороне
+  вызывающего.
+
+```tsx
+import { FileInput } from '@/components/ui';
+
+<FileInput label="Theme file" onFile={(file) => file.text().then(setText).catch(() => setText(''))} />
 ```
 
 ### 4.6 Card, CardHeader, CardBody
@@ -441,6 +511,10 @@ import { Tooltip } from '@/components/ui';
 Единственные исключения по цветам: `web-ui/app/globals.css` (источник токенов) и `web-ui/app/icon.svg`
 (статический брендовый favicon).
 
+Пользовательские темы — это **данные**, а не стили: цвета живут в `localStorage`, применяются как CSS-переменные
+через `style.setProperty`, а затравочные константы деривации (цвета статусов по умолчанию) — в
+`web-ui/lib/custom-theme.ts`. В страницах и компонентах по-прежнему нет ни hex, ни классов палитры Tailwind.
+
 ## 8. Процесс добавления в интерфейс
 
 1. **Найди примитив.** Открой раздел 4 и `web-ui/components/ui`. В 9 случаях из 10 нужное уже есть.
@@ -469,6 +543,7 @@ import { Tooltip } from '@/components/ui';
 | 2026-10-31 | **Дерево задач и документов планируется** | общий `TreeView` и вложенность — UI-25 |
 | 2026-10-31 | **Пользовательские темы планируются** | редактор тем из базовых цветов — UI-33, зависит от UI-10 и UI-34 |
 | 2026-10-31 | Интерфейс — **для команды**; для агентов — **API и MCP-инструменты** | агентские сценарии не рисуются отдельными экранами, а идут через инструменты |
+| 2026-10-31 | **Пользовательские темы** (UI-33): 3–5 базовых цветов на режим, AA по построению, критичные пары блокируют сохранение | редактор на `/themes`, список тем в меню «Тема», импорт/экспорт JSON; серверный профиль и темы команды — UI-33a/UI-33b |
 
 **Как записать новое решение:** добавь строку в таблицу с датой, решением и следствием; не переписывай
 старые строки — история важна. Если решение меняет правило разделов 2–8, в том же PR обнови правило,
@@ -508,7 +583,10 @@ import { Tooltip } from '@/components/ui';
 - UX-аудит и находки: `docs/ui/ux-audit-2026-10.md`.
 - Витрина примитивов: страница `/design` (`web-ui/app/design/`, в production 404).
 - Токены и модель темы: `web-ui/app/globals.css`, `web-ui/lib/theme.ts`, `web-ui/lib/contrast.ts`.
-- Тесты: `web-ui/lib/theme.contrast.test.ts`, `web-ui/lib/design-doc.test.ts`,
+- Пользовательские темы: страница `/themes` (`web-ui/app/themes/`), `web-ui/lib/custom-theme.ts`,
+  `web-ui/lib/theme-pairs.ts`, `web-ui/lib/theme-tokens.ts`.
+- Тесты: `web-ui/lib/theme.contrast.test.ts`, `web-ui/lib/custom-theme.test.ts`,
+  `web-ui/lib/theme-init.test.ts`, `web-ui/lib/design-doc.test.ts`,
   `web-ui/lib/design-guards.test.ts`, `web-ui/lib/no-hardcoded-colors.test.ts`.
 - Правила работы агентов: `AGENTS.md` (раздел 7) и `CLAUDE.md`.
 - Задачи: `BACKLOG.md`, этап W (UI-10, UI-11, UI-12, UI-15, UI-16, UI-25, UI-33, UI-34).

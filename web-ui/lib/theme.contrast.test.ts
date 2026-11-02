@@ -10,46 +10,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { contrastRatio } from './contrast';
+import { TEXT_PAIRS } from './theme-pairs';
 
 type Tokens = Record<string, string>;
 
 const THEMES = ['indigo', 'petrol', 'copper'] as const;
 const MODES = ['light', 'dark'] as const;
 
-const TEXT_PAIRS: Array<[string, string, number]> = [
-  ['ink', 'canvas', 4.5],
-  ['ink', 'surface', 4.5],
-  ['muted', 'canvas', 4.5],
-  ['muted', 'surface', 4.5],
-  ['muted', 'surface-2', 4.5],
-  ['ink', 'surface-2', 4.5],
-  ['accent', 'canvas', 4.5],
-  ['accent', 'surface', 4.5],
-  ['on-accent', 'accent', 4.5],
-  ...['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'].map(
-    (key) => [key, 'surface', 4.5] as [string, string, number],
-  ),
-  ...['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'].map(
-    (key) => [key, 'surface-2', 3] as [string, string, number],
-  ),
-  ...['ty-bug', 'ty-feature', 'ty-task'].map(
-    (key) => [key, 'surface', 4.5] as [string, string, number],
-  ),
-  ...['pr-high', 'pr-med', 'pr-low'].map(
-    (key) => [key, 'surface', 4.5] as [string, string, number],
-  ),
-  ...['pr-high', 'pr-med', 'pr-low'].map(
-    (key) => [key, 'surface-2', 3] as [string, string, number],
-  ),
-  ['line-strong', 'canvas', 3],
-  ['st-done', 'canvas', 3],
-  ['focus-ring', 'canvas', 3],
-  // UI-28 graph: superseded (archive) nodes and non-text accents on the canvas,
-  // plus the accent on the raised row used by selected list items.
-  ['st-archive', 'canvas', 3],
-  ['danger', 'canvas', 3],
-  ['success', 'canvas', 3],
-];
 
 function css(): string {
   return readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');

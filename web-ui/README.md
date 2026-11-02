@@ -56,6 +56,12 @@ for people and agents. Short version: two independent axes (`mcp.mode`: `light`/
 `npm run design:doc` (repo root) refreshes the generated tables in `DESIGN.md`; guards live in
 `lib/design-guards.test.ts` and `lib/no-hardcoded-colors.test.ts`.
 
+Custom themes (UI-33) add a third source: `/themes` derives the full token set from 3–5 base colours per mode
+so every WCAG AA pair holds by construction, blocks saving when a critical pair fails, and stores the result in
+`localStorage` (`mcp.customThemes`, `mcp.customActive`) with a versioned schema. The pre-paint script applies a
+saved theme before first paint; `lib/custom-theme.test.ts` and `lib/theme-init.test.ts` cover derivation,
+validation, import/export and rollback.
+
 ## Pages
 
 - `/` — Home (overview + links)
@@ -70,6 +76,7 @@ for people and agents. Short version: two independent axes (`mcp.mode`: `light`/
 - `/projects` — Project isolation, current scope, delete and purge
 - `/system` — Live sessions, embeddings and the tools catalog
 - `/search` — Unified BM25 + vector search across tasks and knowledge
+- `/themes` — Built-in palettes and custom colour themes (AA by construction, live preview, import/export JSON)
 
 ## API Client
 

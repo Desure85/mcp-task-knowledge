@@ -77,6 +77,7 @@ const PAGE_META: Record<string, PageMeta> = {
   '/projects': { title: 'Projects', subtitle: 'Isolation and current scope' },
   '/system': { title: 'System', subtitle: 'Sessions, embeddings and tools' },
   '/access': { title: 'Access', subtitle: 'Session, setup links and tokens' },
+  '/themes': { title: 'Themes', subtitle: 'Palettes and custom colour themes' },
 };
 
 export function pageMetaFor(pathname: string): PageMeta {

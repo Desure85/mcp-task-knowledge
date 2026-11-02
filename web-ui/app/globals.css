@@ -40,8 +40,11 @@
 }
 
 /* ── Indigo (Workbench) — default palette ─────────────────────────── */
+/* `custom` is the UI-33 axis: a stored theme overrides the colour tokens and
+   inherits the rest of this block, so a failed application still paints. */
 :root,
-[data-theme="indigo"][data-mode="light"] {
+[data-theme="indigo"][data-mode="light"],
+[data-theme="custom"][data-mode="light"] {
   color-scheme: light;
   --canvas: #fbfbfc;
   --surface: #ffffff;
@@ -73,7 +76,8 @@
   --shadow-pop: 0 8px 24px rgb(20 23 28 / 0.14);
 }
 
-[data-theme="indigo"][data-mode="dark"] {
+[data-theme="indigo"][data-mode="dark"],
+[data-theme="custom"][data-mode="dark"] {
   color-scheme: dark;
   --canvas: #101216;
   --surface: #171a20;
