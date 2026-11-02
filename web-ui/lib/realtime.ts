@@ -31,6 +31,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { resolveAuthEndpoint, resolveToken } from './api-client';
 import { AUTH_EXPIRED_EVENT } from './auth';
+import { publishRealtimeState, clearRealtimeState } from '../components/live-status';
+import {
+  createRealtimeState,
+  reduceRealtimeState,
+  statusForPhase,
+  type RealtimeStateEvent,
+  type RealtimeUiState,
+} from './realtime-state';
 
 // ─── Event types (mirror of server RealtimeEvent + control frames) ──
 
@@ -133,15 +141,25 @@ export class WsTicketAuthError extends Error {
  * Authorization header; the WebSocket URL receives `?ticket=`, never the JWT.
  * No token → open realtime server, connect without a ticket.
  */
+export const TICKET_TIMEOUT_MS = 5_000;
+
 export async function fetchWsTicket(): Promise<string | undefined> {
   const token = resolveToken();
   if (!token) return undefined;
 
-  const res = await fetch(resolveAuthEndpoint('/ws-ticket'), {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TICKET_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(resolveAuthEndpoint('/ws-ticket'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 401 || res.status === 403) throw new WsTicketAuthError();
   if (!res.ok) throw new Error(`ws ticket request failed: ${res.status}`);
 
@@ -154,8 +172,11 @@ export async function fetchWsTicket(): Promise<string | undefined> {
 
 // ─── Backoff (pure helper — unit-testable) ──────────────────────────
 
-/** Consecutive failed connects after which the UI reports "Offline". */
-export const OFFLINE_AFTER_ATTEMPTS = 3;
+/** A failed initial connect is reported as Offline immediately (within the 5s timeout). */
+export const OFFLINE_AFTER_ATTEMPTS = 1;
+
+/** How long a WebSocket may stay in CONNECTING before it is treated as failed. */
+export const CONNECT_TIMEOUT_MS = TICKET_TIMEOUT_MS;
 
 /** Exponential backoff with cap: 1s, 2s, 4s, … capped at `maxMs`. */
 export function backoffDelay(attempt: number, baseMs = 1000, maxMs = 30_000): number {
@@ -171,10 +192,14 @@ export interface RealtimeClientOpts {
   userId?: string;
   /** Heartbeat interval ms (default 25s, below server 30s timeout window). */
   heartbeatMs?: number;
+  /** Explicit configuration flag for diagnostics; inferred from env/url by default. */
+  configured?: boolean;
 }
 
 type Listener = (event: RealtimeEvent) => void;
 type StatusListener = (status: ConnectionStatus) => void;
+type StateListener = (state: RealtimeUiState) => void;
+type FailureReason = 'connection-lost' | 'connect-failed' | 'timeout' | 'ticket-network' | 'socket-error';
 
 export class RealtimeClient {
   private url: string;
@@ -184,23 +209,44 @@ export class RealtimeClient {
   private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
   private statusListeners = new Set<StatusListener>();
+  private stateListeners = new Set<StateListener>();
   private status: ConnectionStatus = 'closed';
+  private uiState: RealtimeUiState;
+  private configured: boolean;
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private manualClose = false;
   private connecting = false;
+  private failureReason: FailureReason | null = null;
   private clientId: string | null = null;
 
   constructor(opts: RealtimeClientOpts = {}) {
+    const explicitWs = opts.url ?? process.env.NEXT_PUBLIC_MCP_WS_URL;
     this.url = opts.url ?? defaultRealtimeUrl();
     this.project = opts.project;
     this.userId = opts.userId;
     this.heartbeatMs = opts.heartbeatMs ?? 25_000;
+    this.configured = opts.configured ?? Boolean(
+      explicitWs || /^https?:\/\//i.test(process.env.NEXT_PUBLIC_MCP_API_URL ?? ''),
+    );
+    this.uiState = createRealtimeState({ configured: this.configured });
   }
 
   getStatus(): ConnectionStatus {
     return this.status;
+  }
+
+  getState(): RealtimeUiState {
+    return this.uiState;
+  }
+
+  onStateChange(cb: StateListener): () => void {
+    this.stateListeners.add(cb);
+    return () => {
+      this.stateListeners.delete(cb);
+    };
   }
 
   getClientId(): string | null {
@@ -233,6 +279,28 @@ export class RealtimeClient {
     }
   }
 
+  private setUiState(next: RealtimeUiState): void {
+    const same = this.uiState.phase === next.phase
+      && this.uiState.attempt === next.attempt
+      && this.uiState.retryAt === next.retryAt
+      && this.uiState.reason === next.reason
+      && this.uiState.authExpired === next.authExpired;
+    this.uiState = next;
+    this.setStatus(statusForPhase(next.phase));
+    if (same) return;
+    for (const cb of this.stateListeners) {
+      try {
+        cb(next);
+      } catch {
+        // listener errors must never break the client (TD-011)
+      }
+    }
+  }
+
+  private transition(event: RealtimeStateEvent): void {
+    this.setUiState(reduceRealtimeState(this.uiState, event));
+  }
+
   /** Open the connection (idempotent). Never throws — degrades to `unavailable`. */
   connect(): void {
     void this.open();
@@ -240,7 +308,7 @@ export class RealtimeClient {
 
   private async open(): Promise<void> {
     if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
-      this.setStatus('unavailable');
+      this.transition({ type: 'not-configured' });
       return;
     }
     if (this.connecting) return;
@@ -249,10 +317,12 @@ export class RealtimeClient {
     }
     this.manualClose = false;
     this.connecting = true;
-    // Once retries have failed OFFLINE_AFTER times keep saying so instead of flickering
-    // back to "Connecting…" on every attempt (we still keep retrying in the background).
-    if (this.attempt < OFFLINE_AFTER_ATTEMPTS) {
-      this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
+    this.failureReason = null;
+    // Keep the last failure state while an automatic retry is in flight, so the
+    // pill does not flicker Connecting/Offline every second. A manual retry
+    // transitions explicitly in retryNow().
+    if (this.attempt === 0) {
+      this.transition({ type: 'attempt', attempt: 1 });
     }
 
     let ticket: string | undefined;
@@ -261,13 +331,12 @@ export class RealtimeClient {
     } catch (error) {
       this.connecting = false;
       if (error instanceof WsTicketAuthError) {
-        // Invalid/expired JWT: stop retrying (a loop of 401s), send the user to
-        // the existing login flow instead.
-        this.setStatus('unavailable');
+        // Invalid/expired JWT: stop retrying, send the user to the login flow.
+        this.transition({ type: 'ticket-auth' });
         this.notifyAuthExpired();
         return;
       }
-      this.scheduleReconnect();
+      this.scheduleReconnect('ticket-network', false);
       return;
     }
 
@@ -278,14 +347,28 @@ export class RealtimeClient {
     try {
       ws = new WebSocket(this.buildUrl(ticket));
     } catch {
-      this.scheduleReconnect();
+      this.scheduleReconnect('connect-failed', false);
       return;
     }
     this.ws = ws;
 
+    this.connectTimer = setTimeout(() => {
+      if (this.ws !== ws) return;
+      this.failureReason = 'timeout';
+      try {
+        ws.close();
+      } catch {
+        this.handleSocketClosed(ws, 'timeout', false);
+      }
+    }, CONNECT_TIMEOUT_MS);
+
     ws.onopen = () => {
+      if (this.connectTimer) {
+        clearTimeout(this.connectTimer);
+        this.connectTimer = null;
+      }
       this.attempt = 0;
-      this.setStatus('connected');
+      this.transition({ type: 'open' });
       this.startHeartbeat();
       if (this.project) {
         this.send({ type: 'subscribe', project: this.project } as unknown as Record<string, unknown>);
@@ -316,6 +399,7 @@ export class RealtimeClient {
     };
 
     ws.onerror = () => {
+      if (!this.failureReason) this.failureReason = 'socket-error';
       // onclose follows — reconnect is scheduled there; keep this quiet.
       try {
         ws.close();
@@ -325,11 +409,40 @@ export class RealtimeClient {
     };
 
     ws.onclose = () => {
-      this.stopHeartbeat();
-      if (this.ws === ws) this.ws = null;
-      if (!this.manualClose) this.scheduleReconnect();
-      else this.setStatus('closed');
+      const wasLive = this.uiState.phase === 'live';
+      this.handleSocketClosed(ws, this.failureReason ?? (wasLive ? 'connection-lost' : 'connect-failed'), wasLive);
     };
+  }
+
+  private handleSocketClosed(ws: WebSocket, reason: FailureReason, wasLive: boolean): void {
+    if (this.ws !== ws) return;
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
+    this.stopHeartbeat();
+    this.ws = null;
+    if (this.manualClose) {
+      this.setStatus('closed');
+      return;
+    }
+    this.scheduleReconnect(reason, wasLive);
+  }
+
+  /** Retry an offline connection immediately (the auto-retry keeps running otherwise). */
+  retryNow(): void {
+    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
+      this.transition({ type: 'not-configured' });
+      return;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.manualClose = false;
+    this.attempt = 0;
+    this.transition({ type: 'retry' });
+    this.connect();
   }
 
   /** Relay an event to other connected clients via the server broadcast relay. */
@@ -349,6 +462,10 @@ export class RealtimeClient {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
     }
     this.stopHeartbeat();
     try {
@@ -400,14 +517,19 @@ export class RealtimeClient {
     }
   }
 
-  private scheduleReconnect(): void {
+  private scheduleReconnect(reason: FailureReason, wasLive: boolean): void {
     if (this.manualClose) return;
-    this.setStatus(this.attempt >= OFFLINE_AFTER_ATTEMPTS ? 'unavailable' : 'reconnecting');
     const delay = backoffDelay(this.attempt);
     this.attempt += 1;
+    const retryAt = Date.now() + delay;
+    this.transition({ type: 'failure', reason, attempt: this.attempt + 1, retryAt });
+    // "Not configured" is a terminal diagnosis until the page/config changes;
+    // do not hammer the same-origin endpoint forever.
+    if (this.uiState.phase === 'disabled') return;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      this.setUiState({ ...this.uiState, retryAt: null });
       this.connect();
     }, delay);
   }
@@ -419,6 +541,10 @@ export interface UseRealtimeOpts {
   project?: string;
   userId?: string;
   url?: string;
+  /** If false, keep the hook mounted but do not open a socket. */
+  enabled?: boolean;
+  /** Publish state into the global Topbar bridge (default true). */
+  publishGlobal?: boolean;
   /** If provided, only matching event types reach `onEvent`. */
   eventTypes?: RealtimeEventType[];
   onEvent?: (event: RealtimeEvent) => void;
@@ -426,41 +552,79 @@ export interface UseRealtimeOpts {
 
 export interface UseRealtimeResult {
   status: ConnectionStatus;
+  state: RealtimeUiState;
   lastEvent: RealtimeEvent | null;
   presence: PresenceEntry[];
   /** Publish to other clients (stable ref). */
   publish: (eventType: RealtimeEventType, data: Record<string, unknown>) => void;
+  /** Retry an offline connection immediately. */
+  retryNow: () => void;
 }
 
 export function useRealtime(opts: UseRealtimeOpts = {}): UseRealtimeResult {
-  const { project, userId, url, eventTypes, onEvent } = opts;
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const {
+    project,
+    userId,
+    url,
+    eventTypes,
+    onEvent,
+    enabled = true,
+    publishGlobal = true,
+  } = opts;
+  const [state, setState] = useState<RealtimeUiState>(() => createRealtimeState({ configured: enabled }));
+  const [status, setStatus] = useState<ConnectionStatus>(enabled ? 'connecting' : 'closed');
   const [lastEvent, setLastEvent] = useState<RealtimeEvent | null>(null);
   const [presence, setPresence] = useState<PresenceEntry[]>([]);
   const clientRef = useRef<RealtimeClient | null>(null);
+  const presenceRef = useRef<PresenceEntry[]>([]);
+  const ownerRef = useRef<string | null>(null);
+  if (!ownerRef.current) ownerRef.current = `rt-${Math.random().toString(36).slice(2)}`;
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
   const typesRef = useRef(eventTypes);
   typesRef.current = eventTypes;
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus('closed');
+      return;
+    }
+    const owner = ownerRef.current!;
     const client = new RealtimeClient({ url, project, userId });
     clientRef.current = client;
+
+    const publishState = (next: RealtimeUiState) => {
+      setState(next);
+      setStatus(statusForPhase(next.phase));
+      if (publishGlobal) publishRealtimeState(owner, next, presenceRef.current.length);
+    };
+
+    const offState = client.onStateChange(publishState);
     const offStatus = client.onStatusChange(setStatus);
     const offEvent = client.onEvent((event) => {
       const types = typesRef.current;
       if (event.type === 'presence.join') {
         const clientId = String(event.data?.clientId ?? event.clientId ?? '');
         if (clientId) {
-          setPresence((prev) =>
-            prev.some((p) => p.clientId === clientId)
+          setPresence((prev) => {
+            const next = prev.some((p) => p.clientId === clientId)
               ? prev
-              : [...prev, { clientId, userId: event.data?.userId as string | undefined }],
-          );
+              : [...prev, { clientId, userId: event.data?.userId as string | undefined }];
+            presenceRef.current = next;
+            if (publishGlobal) publishRealtimeState(owner, client.getState(), next.length);
+            return next;
+          });
         }
       } else if (event.type === 'presence.leave') {
         const clientId = String(event.data?.clientId ?? event.clientId ?? '');
-        if (clientId) setPresence((prev) => prev.filter((p) => p.clientId !== clientId));
+        if (clientId) {
+          setPresence((prev) => {
+            const next = prev.filter((p) => p.clientId !== clientId);
+            presenceRef.current = next;
+            if (publishGlobal) publishRealtimeState(owner, client.getState(), next.length);
+            return next;
+          });
+        }
       }
       setLastEvent(event);
       if (!types || types.includes(event.type)) {
@@ -471,22 +635,31 @@ export function useRealtime(opts: UseRealtimeOpts = {}): UseRealtimeResult {
         }
       }
     });
-    // SSR-safe initial status (no WebSocket on server / unsupported env).
+
+    const onRetry = () => client.retryNow();
+    if (typeof window !== 'undefined') window.addEventListener('mcp:realtime-retry', onRetry);
+
+    publishState(client.getState());
     if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
-      setStatus('unavailable');
+      // The client maps this to the disabled/not-configured state.
+      client.connect();
     } else {
       client.connect();
-      setStatus(client.getStatus());
+      publishState(client.getState());
     }
+
     return () => {
+      offState();
       offStatus();
       offEvent();
+      if (typeof window !== 'undefined') window.removeEventListener('mcp:realtime-retry', onRetry);
       client.disconnect();
       clientRef.current = null;
+      if (publishGlobal) clearRealtimeState(owner);
     };
-    // Reconnect only when identity changes — not on every handler change.
+    // Reconnect only when identity/availability changes — not on every handler change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, userId, url]);
+  }, [enabled, project, userId, url, publishGlobal]);
 
   const publishRef = useRef((eventType: RealtimeEventType, data: Record<string, unknown>) => {
     try {
@@ -496,7 +669,14 @@ export function useRealtime(opts: UseRealtimeOpts = {}): UseRealtimeResult {
     }
   });
 
-  return { status, lastEvent, presence, publish: publishRef.current };
+  return {
+    status,
+    state,
+    lastEvent,
+    presence,
+    publish: publishRef.current,
+    retryNow: () => clientRef.current?.retryNow(),
+  };
 }
 
 // ─── List-merge helpers (pure — unit-testable) ──────────────────────

@@ -274,4 +274,46 @@ describe('UI-22: WebSocket auth ticket', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
     await expect(fetchWsTicket()).rejects.toBeInstanceOf(WsTicketAuthError);
   });
+
+  it('goes Offline after the 5s connection timeout and can retry now', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'timeout-ticket' }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'retry-ticket' }) });
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(client.getStatus()).toBe('unavailable');
+    expect(client.getState().phase).toBe('offline');
+    expect(client.getState().reason).toBe('timeout');
+
+    client.retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getState().phase).toBe('connecting');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it('reports Disabled when realtime is unconfigured and the endpoint fails', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('same-origin unavailable'));
+    const client = new RealtimeClient({ url: '/ws', configured: false });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getState().phase).toBe('disabled');
+    expect(client.getStatus()).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports Disabled when the WebSocket API is unavailable', async () => {
+    vi.stubGlobal('WebSocket', undefined);
+    const client = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    client.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getState().phase).toBe('disabled');
+    expect(client.getState().reason).toBe('not-configured');
+  });
+
 });

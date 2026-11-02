@@ -11,17 +11,15 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { api, hasAuthToken, hasStoredAuthToken } from '@/lib/api-client';
-import { connectionBadgeClass, connectionBadgeLabel } from '@/lib/realtime';
 import { pageMetaFor } from './nav-config';
-import { useLiveStatus } from './live-status';
 import { IconLock, IconProjects } from './icons';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { RealtimeIndicator } from './RealtimeIndicator';
 
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const meta = pageMetaFor(pathname);
-  const live = useLiveStatus();
 
   const [project, setProject] = useState<string | null>(null);
   const [projects, setProjects] = useState<string[]>([]);
@@ -84,18 +82,7 @@ export function Topbar() {
           </select>
         </label>
 
-        {live.status && (
-          <span
-            title={
-              live.status === 'unavailable'
-                ? 'Realtime server unreachable — polling fallback'
-                : 'Realtime connection'
-            }
-            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${connectionBadgeClass(live.status)}`}
-          >
-            {connectionBadgeLabel(live.status, live.presence)}
-          </span>
-        )}
+        <RealtimeIndicator />
 
         <ThemeSwitcher />
 
