@@ -99,19 +99,20 @@ export function RealtimeIndicator() {
   return (
     <div ref={wrapRef} className="relative">
       <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         aria-label={realtimeAriaLabel(state, presence, now)}
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex h-7 max-w-[260px] items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium transition hover:bg-surface-2 ${connectionBadgeClass(status)}`}
+        className={`max-w-[260px] rounded-full border px-2 ${connectionBadgeClass(status)}`}
       >
         <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
         <span className="hidden truncate sm:inline">{label}</span>
         <span className="truncate sm:hidden">{shortLabel}</span>
-      </button>
+      </Button>
 
       {open && (
         <div
