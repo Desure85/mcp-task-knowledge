@@ -1,25 +1,30 @@
 /**
- * web-ui/app/tasks/page.tsx — Tasks board (UI-002, UI-007, V-04)
+ * web-ui/app/tasks/page.tsx — Tasks board (UI-002, UI-007, V-04, V-05)
  *
  * Full Kanban board built from the *project's own statuses*:
  * - columns come from `project_statuses_get`, ordered, with collapse/hide prefs
- *   persisted per project
- * - horizontal scrolling with sticky lane headers and "N more" edge cues
- * - transition-aware drag & drop: forbidden columns are dimmed, drops are still
- *   sent to the server (the source of truth) and rejected moves roll back
+ *   persisted per project (`mcp.tasksBoard.<project>`)
+ * - V-05: lanes per task type from `project_types_get`, one shared sticky
+ *   status header row, one horizontal scroller for every lane, per-lane
+ *   collapse persisted under `mcp.tasksBoardLanes.<project>`
+ * - transition-aware drag & drop *inside one lane*: forbidden columns are
+ *   dimmed, cross-lane drops are refused with a plain reason (type changes go
+ *   through the card form), server rejections roll back
  * - keyboard "Move to…" menu offering only allowed statuses
- * - Search/filter by title, tags, priority; create, edit, close tasks
- * - Priority markers, tag chips, subtask indicator, dependency DAG panel
+ * - Search/filter by title, tags, priority and type; create, edit, close tasks
+ * - Priority markers, type badges, tag chips, subtask indicator, DAG panel
  */
 
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   api,
   ToolCallError,
   type DagData,
   type ProjectStatus,
+  type ProjectType,
   type Task,
 } from '@/lib/api-client';
 import { useRealtime, applyTaskEvent } from '@/lib/realtime';
@@ -36,10 +41,26 @@ import {
   type BoardPrefs,
   type OverflowCues,
 } from '@/lib/board';
+import {
+  DEFAULT_TASK_TYPE,
+  OTHER_LANE_ID,
+  buildLanes,
+  defaultCollapsedLanes,
+  readLanePrefs,
+  resolveSelectedTypes,
+  taskTypeId,
+  writeLanePrefs,
+  type Lane,
+  type LanePrefs,
+} from '@/lib/board-lanes';
 import { PageHeader } from '@/components/PageHeader';
 import { Badge, Button, EmptyState } from '@/components/ui';
 import { SkeletonColumn } from '@/components/Skeleton';
-import { BoardColumn } from '@/components/board/BoardColumn';
+import { CollapsedStatusStrip } from '@/components/board/CollapsedStatusStrip';
+import { LaneSection } from '@/components/board/LaneSection';
+import { StatusCell } from '@/components/board/StatusCell';
+import { StatusHeaderCell } from '@/components/board/StatusHeaderCell';
+import { TypeMultiSelect } from '@/components/board/TypeMultiSelect';
 import { publishLiveStatus, clearLiveStatus } from '@/components/live-status';
 import {
   IconAlert,
@@ -68,10 +89,36 @@ interface MoveNotice {
 interface DraggingCard {
   taskId: string;
   from: string;
+  /** Lane the card lives in — the only lane a drop may target. */
+  laneId: string;
 }
 
 const EDGE_SCROLL_ZONE = 80;
 const EDGE_SCROLL_STEP = 24;
+/** Height of the shared sticky status header row, in px. */
+const HEADER_HEIGHT = 42;
+
+/** Types the board falls back to when `project_types_get` fails. */
+const FALLBACK_TYPES: ProjectType[] = [
+  { id: 'task', label: 'Task', color: 'ty-task', icon: 'task' },
+  { id: 'bug', label: 'Bug', color: 'ty-bug', icon: 'bug' },
+  { id: 'feature', label: 'Feature', color: 'ty-feature', icon: 'feature' },
+];
+
+const EMPTY_LANE_PREFS: LanePrefs = {
+  selectedTypes: [],
+  collapsedLanes: [],
+  showEmptyLanes: false,
+};
+
+/** Lane ids in board order for the row template (header + lanes). */
+interface LaneRow {
+  lane: Lane;
+  /** Grid row of the lane band, or null in single-board mode. */
+  headerRow: number | null;
+  /** Grid row of the status cells for this lane. */
+  cellRow: number;
+}
 
 export default function TasksPage() {
   const [project, setProject] = useState<string | null>(null);
@@ -79,19 +126,22 @@ export default function TasksPage() {
   const [closeStatus, setCloseStatus] = useState<string | null>(null);
   const [transitions, setTransitions] = useState<Record<string, string[]> | null>(null);
   const [prefs, setPrefs] = useState<BoardPrefs>({ collapsed: [], hidden: [] });
+  const [lanePrefs, setLanePrefs] = useState<LanePrefs>(EMPTY_LANE_PREFS);
+  const [types, setTypes] = useState<ProjectType[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Priority>('medium');
+  const [newType, setNewType] = useState(DEFAULT_TASK_TYPE);
   const [newTags, setNewTags] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterTag, setFilterTag] = useState<string>('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [dragging, setDragging] = useState<DraggingCard | null>(null);
-  const [hoverCol, setHoverCol] = useState<string | null>(null);
+  const [hoverCell, setHoverCell] = useState<string | null>(null);
   const [moveNotice, setMoveNotice] = useState<MoveNotice | null>(null);
   const [showDag, setShowDag] = useState(false);
   const [dag, setDag] = useState<DagData | null>(null);
@@ -103,6 +153,11 @@ export default function TasksPage() {
   });
   const dragCounter = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** Status filter actually used by the last `tasks_list` call. */
+  const loadedServerType = useRef<string | null>(null);
+  const serverTypeRef = useRef<string | null>(null);
+  const lanePrefsStored = useRef(false);
+  const mobileDefaultFor = useRef<string | null>(null);
 
   // NEXT2-005: live-updates — merge task.* events from other clients;
   // publish our own mutations so other tabs update instantly.
@@ -123,7 +178,9 @@ export default function TasksPage() {
   const loadTasks = useCallback(async (currentProject: string, quiet = false) => {
     try {
       if (!quiet) setLoading(true);
-      const data = await api.tasks.list(currentProject);
+      const type = serverTypeRef.current;
+      const data = await api.tasks.list(currentProject, type ?? undefined);
+      loadedServerType.current = type;
       setTasks(Array.isArray(data) ? data : []);
     } catch (e) {
       setError((e as Error).message);
@@ -132,9 +189,10 @@ export default function TasksPage() {
     }
   }, []);
 
-  // Load the project first, then tasks/statuses/transitions for it. Statuses
-  // failing must not hide the tasks: the board still renders a column per task
-  // status (marked "not in project") so the page stays usable.
+  // Load the project first, then tasks/statuses/transitions/types for it.
+  // Failures degrade instead of blanking the page: statuses failing keeps the
+  // board (columns marked "not in project"), types failing falls back to the
+  // three default types so lanes still render.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -145,14 +203,16 @@ export default function TasksPage() {
         if (!alive) return;
         setProject(currentProject);
 
-        const [taskResult, statusResult, transitionResult] = await Promise.allSettled([
+        const [taskResult, statusResult, transitionResult, typeResult] = await Promise.allSettled([
           api.tasks.list(currentProject),
           api.projects.statuses.get(currentProject),
           api.projects.transitions.get(currentProject),
+          api.projects.types.get(currentProject),
         ]);
         if (!alive) return;
 
         if (taskResult.status === 'fulfilled') {
+          loadedServerType.current = null;
           setTasks(Array.isArray(taskResult.value) ? taskResult.value : []);
         } else {
           setError((taskResult.reason as Error).message);
@@ -164,6 +224,14 @@ export default function TasksPage() {
         } else {
           setStatuses([]);
           setError((statusResult.reason as Error).message);
+        }
+
+        if (typeResult.status === 'fulfilled') {
+          const loaded = Array.isArray(typeResult.value.types) ? typeResult.value.types : [];
+          setTypes(loaded.length > 0 ? loaded : FALLBACK_TYPES);
+        } else {
+          setTypes(FALLBACK_TYPES);
+          setError((typeResult.reason as Error).message);
         }
 
         setTransitions(
@@ -188,7 +256,31 @@ export default function TasksPage() {
     setPrefs(readBoardPrefs(project));
   }, [project]);
 
+  // Hydrate lane prefs (selection, collapsed lanes, empty lanes). The `stored`
+  // flag decides whether the mobile default may collapse lanes on first visit.
+  useEffect(() => {
+    if (!project) return;
+    const read = readLanePrefs(project);
+    lanePrefsStored.current = read.stored;
+    setLanePrefs(read.prefs);
+  }, [project]);
+
   const columns = useMemo(() => boardColumns(statuses, prefs), [statuses, prefs]);
+
+  const resolvedTypes = useMemo(
+    () => resolveSelectedTypes(types, lanePrefs.selectedTypes),
+    [types, lanePrefs.selectedTypes],
+  );
+  const serverType = resolvedTypes.length === 1 ? resolvedTypes[0] : null;
+  serverTypeRef.current = serverType;
+
+  // A single selected type is filtered server-side; broader selections load all
+  // tasks once and are split into lanes in memory.
+  useEffect(() => {
+    if (!project || loading) return;
+    if (loadedServerType.current === serverType) return;
+    void loadTasks(project, true);
+  }, [project, serverType, loading, loadTasks]);
 
   const unknownStatuses = useMemo<ProjectStatus[]>(() => {
     const known = new Set(statuses.map((status) => status.id));
@@ -266,6 +358,11 @@ export default function TasksPage() {
     if (project) writeBoardPrefs(project, next);
   }
 
+  function persistLanePrefs(next: LanePrefs) {
+    setLanePrefs(next);
+    if (project) writeLanePrefs(project, next);
+  }
+
   function toggleCollapse(id: string) {
     const collapsed = prefs.collapsed.includes(id)
       ? prefs.collapsed.filter((value) => value !== id)
@@ -284,6 +381,31 @@ export default function TasksPage() {
     persistPrefs({ ...prefs, hidden: prefs.hidden.filter((value) => value !== id) });
   }
 
+  function toggleLane(lane: Lane) {
+    const collapsedLanes = lanePrefs.collapsedLanes.includes(lane.id)
+      ? lanePrefs.collapsedLanes.filter((value) => value !== lane.id)
+      : [...lanePrefs.collapsedLanes, lane.id];
+    persistLanePrefs({ ...lanePrefs, collapsedLanes });
+  }
+
+  function toggleType(id: string) {
+    const current =
+      lanePrefs.selectedTypes.length === 0 ? types.map((type) => type.id) : resolvedTypes;
+    const nextIds = current.includes(id)
+      ? current.filter((value) => value !== id)
+      : types.map((type) => type.id).filter((value) => current.includes(value) || value === id);
+    const allSelected = nextIds.length === types.length || nextIds.length === 0;
+    persistLanePrefs({ ...lanePrefs, selectedTypes: allSelected ? [] : nextIds });
+  }
+
+  function selectAllTypes() {
+    persistLanePrefs({ ...lanePrefs, selectedTypes: [] });
+  }
+
+  function toggleShowEmptyLanes() {
+    persistLanePrefs({ ...lanePrefs, showEmptyLanes: !lanePrefs.showEmptyLanes });
+  }
+
   async function createTask() {
     if (!newTitle.trim()) return;
     try {
@@ -292,12 +414,14 @@ export default function TasksPage() {
         project: project ?? undefined,
         title: newTitle,
         priority: newPriority,
+        type: newType,
         tags,
       });
       publish('task.created', created as unknown as Record<string, unknown>);
       setNewTitle('');
       setNewTags('');
       setNewPriority('medium');
+      setNewType(DEFAULT_TASK_TYPE);
       setShowCreate(false);
       if (project) await loadTasks(project, true);
     } catch (e) {
@@ -365,6 +489,7 @@ export default function TasksPage() {
       const updated = await api.tasks.update(project, editingTask.id, {
         title: editingTask.title,
         priority: editingTask.priority,
+        type: editingTask.type ?? DEFAULT_TASK_TYPE,
         tags: editingTask.tags,
       });
       publish('task.updated', updated as unknown as Record<string, unknown>);
@@ -387,8 +512,13 @@ export default function TasksPage() {
     setShowDag(!showDag);
   }
 
+  function laneIdForTask(task: Task): string {
+    const typeId = taskTypeId(task);
+    return types.some((type) => type.id === typeId) ? typeId : OTHER_LANE_ID;
+  }
+
   function handleDragStart(event: React.DragEvent<HTMLElement>, task: Task) {
-    setDragging({ taskId: task.id, from: task.status });
+    setDragging({ taskId: task.id, from: task.status, laneId: laneIdForTask(task) });
     setMoveNotice(null);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', task.id);
@@ -397,7 +527,7 @@ export default function TasksPage() {
   function handleDragEnd() {
     dragCounter.current = 0;
     setDragging(null);
-    setHoverCol(null);
+    setHoverCell(null);
   }
 
   function handleDragEnter() {
@@ -408,7 +538,7 @@ export default function TasksPage() {
     dragCounter.current -= 1;
     if (dragCounter.current <= 0) {
       dragCounter.current = 0;
-      setHoverCol(null);
+      setHoverCell(null);
     }
   }
 
@@ -420,39 +550,53 @@ export default function TasksPage() {
     else if (rect.right - event.clientX < EDGE_SCROLL_ZONE) el.scrollLeft += EDGE_SCROLL_STEP;
   }
 
-  function handleColumnDragOver(
+  function handleCellDragOver(
     event: React.DragEvent<HTMLElement>,
-    columnId: string,
+    laneId: string,
+    statusId: string,
     droppable: boolean,
   ) {
     if (!dragging) return;
     autoScrollBoard(event);
-    setHoverCol(columnId);
-    const allowed = droppable && dragTargets.has(columnId);
+    setHoverCell(`${laneId}:${statusId}`);
+    const sameLane = dragging.laneId === laneId;
+    const allowed = sameLane && droppable && dragTargets.has(statusId);
     if (allowed) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
     } else {
       // No preventDefault: the browser shows the no-drop cursor for forbidden
-      // columns. The drop handler still runs if a drop is forced.
+      // cells. The drop handler still runs if a drop is forced.
       event.dataTransfer.dropEffect = 'none';
     }
   }
 
-  function handleColumnDrop(
+  function handleCellDrop(
     event: React.DragEvent<HTMLElement>,
-    columnId: string,
+    laneId: string,
+    laneLabel: string,
+    statusId: string,
     droppable: boolean,
   ) {
     event.preventDefault();
     dragCounter.current = 0;
-    setHoverCol(null);
+    setHoverCell(null);
     const current = dragging;
     setDragging(null);
-    if (!current || current.from === columnId) return;
+    if (!current) return;
+
+    if (current.laneId !== laneId) {
+      setMoveNotice({
+        message: 'Change the type in the card form',
+        hint: `A card stays in its ${laneLabel} lane while dragging — open the card to switch its type.`,
+        allowed: [],
+      });
+      return;
+    }
+    if (current.from === statusId) return;
     const task = tasks.find((item) => item.id === current.taskId);
     if (!task) return;
-    void moveTask(task, columnId, droppable);
+    void moveTask(task, statusId, droppable);
   }
 
   function scrollBoard(direction: -1 | 1) {
@@ -473,6 +617,72 @@ export default function TasksPage() {
   const filtersActive = Boolean(searchQuery) || filterPriority !== 'all' || Boolean(filterTag);
   const countFor = (statusId: string) => filtered.filter((task) => task.status === statusId).length;
   const skeletonStatuses = statuses.filter((status) => !status.archived).slice(0, 6);
+
+  const lanes = useMemo(
+    () =>
+      buildLanes(types, filtered, {
+        selected: lanePrefs.selectedTypes,
+        showEmpty: lanePrefs.showEmptyLanes,
+      }),
+    [types, filtered, lanePrefs.selectedTypes, lanePrefs.showEmptyLanes],
+  );
+
+  // A single known lane reads like the V-04 board: no lane band, just the
+  // shared header row and one row of cards.
+  const singleBoard = lanes.length === 1 && lanes[0].known;
+
+  const laneRows = useMemo<LaneRow[]>(() => {
+    let row = 1;
+    return lanes.map((lane) => {
+      const headerRow = singleBoard ? null : ++row;
+      const cellRow = ++row;
+      return { lane, headerRow, cellRow };
+    });
+  }, [lanes, singleBoard]);
+
+  const totalRows = laneRows.length > 0 ? laneRows[laneRows.length - 1].cellRow : 1;
+
+  // The header cells span every row (so `sticky` has room to travel vertically)
+  // and the collapsed strips span them too, which is why the grid declares an
+  // explicit row count instead of relying on implicit auto rows. The first row
+  // needs its own minimum: a fully spanning item alone leaves it at 0px.
+  const gridStyle: CSSProperties = {
+    gridTemplateColumns: columnWidths.map((width) => `${width}px`).join(' '),
+    gridTemplateRows: `minmax(${HEADER_HEIGHT}px, auto) repeat(${Math.max(totalRows - 1, 1)}, auto)`,
+    columnGap: 12,
+    rowGap: 0,
+  };
+
+  const typesById = useMemo(() => new Map(types.map((type) => [type.id, type])), [types]);
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const type of types) counts[type.id] = 0;
+    for (const task of filtered) {
+      const id = taskTypeId(task);
+      if (id in counts) counts[id] += 1;
+    }
+    return counts;
+  }, [types, filtered]);
+
+  const collapsedLaneIds = new Set(lanePrefs.collapsedLanes);
+
+  // Phones start with every lane folded so the page itself never scrolls
+  // sideways; the default is persisted once, an existing choice always wins.
+  useEffect(() => {
+    if (!project || lanes.length === 0) return;
+    if (mobileDefaultFor.current === project) return;
+    mobileDefaultFor.current = project;
+    if (lanePrefsStored.current) return;
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(max-width: 640px)').matches) return;
+    const collapsedLanes = defaultCollapsedLanes(lanes);
+    setLanePrefs((prev) => {
+      const next = { ...prev, collapsedLanes };
+      writeLanePrefs(project, next);
+      return next;
+    });
+  }, [project, lanes]);
 
   return (
     <div className="space-y-5">
@@ -526,6 +736,18 @@ export default function TasksPage() {
           />
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <select
+              value={newType}
+              onChange={(e) => setNewType(e.target.value)}
+              className={SELECT_CLASS}
+              aria-label="Type"
+            >
+              {types.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            <select
               value={newPriority}
               onChange={(e) => setNewPriority(e.target.value as Priority)}
               className={SELECT_CLASS}
@@ -573,6 +795,18 @@ export default function TasksPage() {
             aria-label="Task title"
           />
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <select
+              value={editingTask.type ?? DEFAULT_TASK_TYPE}
+              onChange={(e) => setEditingTask({ ...editingTask, type: e.target.value })}
+              className={SELECT_CLASS}
+              aria-label="Type"
+            >
+              {types.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
             <select
               value={editingTask.priority}
               onChange={(e) =>
@@ -669,6 +903,16 @@ export default function TasksPage() {
       )}
 
       <div className="flex flex-col gap-2 rounded-[var(--radius-card)] border border-line bg-surface p-2 sm:flex-row sm:items-center">
+        <TypeMultiSelect
+          types={types}
+          selected={lanePrefs.selectedTypes}
+          resolved={resolvedTypes}
+          showEmptyLanes={lanePrefs.showEmptyLanes}
+          counts={typeCounts}
+          onToggleType={toggleType}
+          onSelectAll={selectAllTypes}
+          onToggleShowEmpty={toggleShowEmptyLanes}
+        />
         <div className="relative flex-1">
           <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
@@ -778,6 +1022,29 @@ export default function TasksPage() {
             </div>
           ))}
         </div>
+      ) : visibleColumns.length === 0 ? (
+        <EmptyState
+          title="No columns to show"
+          hint={
+            columns.hidden.length > 0
+              ? 'Every column is hidden — restore one from “Show hidden”.'
+              : 'This project has no statuses yet.'
+          }
+        />
+      ) : lanes.length === 0 ? (
+        <EmptyState
+          title="No tasks for the selected types"
+          hint={
+            filtersActive
+              ? 'No card matches the current search and filters.'
+              : 'Pick another type above, or keep empty lanes visible.'
+          }
+          action={
+            <Button type="button" variant="secondary" onClick={selectAllTypes}>
+              Show all types
+            </Button>
+          }
+        />
       ) : (
         <div className="relative">
           <div
@@ -785,64 +1052,94 @@ export default function TasksPage() {
             onScroll={recomputeCues}
             tabIndex={0}
             role="region"
-            aria-label="Task board columns"
-            className="flex max-h-[calc(100dvh-21rem)] min-h-[360px] snap-x gap-3 overflow-auto overscroll-contain pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring sm:max-h-[calc(100dvh-18rem)]"
+            aria-label="Task board lanes"
+            className="max-h-[calc(100dvh-21rem)] min-h-[360px] overflow-auto overscroll-contain pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring sm:max-h-[calc(100dvh-18rem)]"
           >
-            {visibleColumns.map((column) => {
-              const columnTasks = filtered.filter((task) => task.status === column.id);
-              const unknown = unknownStatuses.some((status) => status.id === column.id);
-              const droppable = !unknown;
-              const isSource = dragging?.from === column.id;
-              const dropAllowed =
-                Boolean(dragging) && !isSource && droppable && dragTargets.has(column.id);
-              const dropDenied = Boolean(dragging) && !isSource && !dropAllowed;
-              return (
-                <BoardColumn
+            <div className="grid w-max" style={gridStyle}>
+            {visibleColumns.map((column, index) =>
+              columns.collapsed.has(column.id) ? (
+                <CollapsedStatusStrip
                   key={column.id}
                   status={column}
-                  tasks={columnTasks}
-                  collapsed={columns.collapsed.has(column.id)}
-                  dragActive={Boolean(dragging)}
-                  dropAllowed={dropAllowed}
-                  dropDenied={dropDenied}
-                  hovered={hoverCol === column.id}
-                  draggingTaskId={dragging?.taskId ?? null}
-                  droppable={droppable}
-                  allowedLabels={draggingAllowedLabels}
-                  moveTargets={moveTargets}
-                  onCollapse={() => toggleCollapse(column.id)}
+                  count={countFor(column.id)}
+                  style={{ gridColumn: index + 1, gridRow: '1 / -1' }}
                   onExpand={() => toggleCollapse(column.id)}
+                />
+              ) : (
+                <StatusHeaderCell
+                  key={column.id}
+                  status={column}
+                  count={countFor(column.id)}
+                  style={{ gridColumn: index + 1, gridRow: '1 / -1', alignSelf: 'start' }}
+                  onCollapse={() => toggleCollapse(column.id)}
                   onHide={() => hideColumn(column.id)}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDragOver={(event) =>
-                    handleColumnDragOver(event, column.id, droppable)
-                  }
-                  onDrop={(event) => handleColumnDrop(event, column.id, droppable)}
-                  onMove={(task, to) => void moveTask(task, to, droppable)}
-                  onEdit={(task) => setEditingTask({ ...task })}
-                  onClose={(task) => void closeTask(task.id)}
-                  closeStatusId={closeStatus}
-                  filtersActive={filtersActive}
-                  totalTasks={tasks.length}
                 />
-              );
-            })}
-
-            {visibleColumns.length === 0 && (
-              <div className="w-full">
-                <EmptyState
-                  title="No columns to show"
-                  hint={
-                    columns.hidden.length > 0
-                      ? 'Every column is hidden — restore one from “Show hidden”.'
-                      : 'This project has no statuses yet.'
-                  }
-                />
-              </div>
+              ),
             )}
+
+            {laneRows.map(({ lane, headerRow, cellRow }) => (
+              <LaneSection
+                key={lane.id}
+                laneId={lane.id}
+                label={lane.label}
+                count={lane.tasks.length}
+                collapsed={!singleBoard && collapsedLaneIds.has(lane.id)}
+                type={typesById.get(lane.id)}
+                headerStyle={{ gridColumn: '1 / -1', gridRow: headerRow ?? 1, marginTop: 8 }}
+                showHeader={headerRow !== null}
+                columns={visibleColumns.filter((column) => !columns.collapsed.has(column.id))}
+                onToggle={() => toggleLane(lane)}
+                renderCell={(column) => {
+                  const index = visibleColumns.findIndex((item) => item.id === column.id);
+                  const cellTasks = lane.tasks.filter((task) => task.status === column.id);
+                  const unknown = unknownStatuses.some((status) => status.id === column.id);
+                  const droppable = !unknown;
+                  const sameLane = dragging?.laneId === lane.id;
+                  const isSource = Boolean(dragging) && sameLane && dragging?.from === column.id;
+                  const dropAllowed =
+                    Boolean(dragging) &&
+                    sameLane &&
+                    !isSource &&
+                    droppable &&
+                    dragTargets.has(column.id);
+                  const dropDenied = Boolean(dragging) && !dropAllowed;
+                  return (
+                    <StatusCell
+                      laneId={lane.id}
+                      laneLabel={lane.label}
+                      status={column}
+                      tasks={cellTasks}
+                      style={{ gridColumn: index + 1, gridRow: cellRow }}
+                      dragActive={Boolean(dragging)}
+                      dropAllowed={dropAllowed}
+                      dropDenied={dropDenied}
+                      denyReason={dropDenied ? (sameLane ? 'status' : 'type') : null}
+                      hovered={hoverCell === `${lane.id}:${column.id}`}
+                      draggingTaskId={dragging?.taskId ?? null}
+                      droppable={droppable}
+                      allowedLabels={draggingAllowedLabels}
+                      types={types}
+                      moveTargets={moveTargets}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragOver={(event) => handleCellDragOver(event, lane.id, column.id, droppable)}
+                      onDrop={(event) =>
+                        handleCellDrop(event, lane.id, lane.label, column.id, droppable)
+                      }
+                      onMove={(task, to) => void moveTask(task, to, droppable)}
+                      onEdit={(task) => setEditingTask({ ...task })}
+                      onClose={(task) => void closeTask(task.id)}
+                      closeStatusId={closeStatus}
+                      filtersActive={filtersActive}
+                      totalTasks={tasks.length}
+                    />
+                  );
+                }}
+              />
+            ))}
+            </div>
           </div>
 
           {cues.left && (
