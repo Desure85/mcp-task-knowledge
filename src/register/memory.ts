@@ -40,7 +40,9 @@ import {
   type AsyncJobManager,
   type JobType,
 } from '../memory/async-ops.js';
-import { ok, err } from '../utils/respond.js';
+import { ok, okWith, err, errWith } from '../utils/respond.js';
+import { PaginationError, paginateKeyed } from '../utils/pagination.js';
+import { pageArgsSchema, toPageRequest } from './page-args.js';
 import { join } from 'node:path';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -475,19 +477,26 @@ export function registerMemoryTools(ctx: ServerContext): void {
         project: z.string().optional(),
         tag: z.string().optional().describe("Filter by tag"),
         category: z.string().optional().describe("Filter by fact category"),
-        limit: z.number().int().min(1).max(200).default(50).optional(),
+        ...pageArgsSchema,
       },
     },
-    async ({ project, tag, category, limit }) => {
+    async ({ project, tag, category, ...pageArgs }) => {
       const prj = resolveProject(project);
-      let metas = await listDocs({ project: prj, tag });
-      metas = metas.filter((m) => m.type === 'memory_fact');
-      if (category) {
-        const catTag = `category:${category}`;
-        metas = metas.filter((m) => (m.tags || []).includes(catTag));
+      try {
+        const request = toPageRequest(pageArgs);
+        let metas = await listDocs({ project: prj, tag });
+        metas = metas.filter((m) => m.type === 'memory_fact');
+        if (category) {
+          const catTag = `category:${category}`;
+          metas = metas.filter((m) => (m.tags || []).includes(catTag));
+        }
+        const paged = paginateKeyed(metas, request, (m) => m.updatedAt || '', (m) => m.id);
+        // `data` keeps its previous shape ({count, facts}); metadata is added as siblings.
+        return okWith({ count: paged.items.length, facts: paged.items }, paged.meta);
+      } catch (e) {
+        if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
+        throw e;
       }
-      metas = metas.slice(0, limit);
-      return ok({ count: metas.length, facts: metas });
     }
   );
 
