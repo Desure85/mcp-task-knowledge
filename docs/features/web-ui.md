@@ -15,15 +15,7 @@ Next.js 16 App Router + TypeScript. Connects to MCP HTTP transport.
 | `/analytics` | Analytics dashboard — counters, task distribution, feedback |
 | `/projects` | Project isolation, current scope, delete/purge confirmation |
 | `/system` | Live sessions, embeddings status and tools catalog |
-
-## Design system
-
-Before changing the UI, read [`DESIGN.md`](../../DESIGN.md) — the single style guide for people and agents
-(two theme axes, tokens, primitives, page contract, forbidden patterns, known debt). Values live in
-`web-ui/app/globals.css`, the theme model in `web-ui/lib/theme.ts`, primitives in `web-ui/components/ui`;
-`npm run design:doc` refreshes the generated tables in `DESIGN.md`. Guards:
-`web-ui/lib/design-guards.test.ts`, `web-ui/lib/no-hardcoded-colors.test.ts`,
-`web-ui/lib/design-doc.test.ts`.
+| `/themes` | Built-in palettes and custom colour themes: editor with live preview, contrast table, import/export JSON |
 
 ## Setup
 
@@ -152,7 +144,28 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Project-scoped broadcasting
 - Heartbeat with timeout
 
+### Custom themes (UI-33)
+
+- `/themes` builds a theme from 3–5 base colours per mode (accent, background, text, optional
+  warning and danger). Every other token is **derived**: its lightness is searched until all pairs it takes
+  part in pass WCAG AA, and a mid-luminance background is nudged just enough to make 4.5:1 reachable.
+- The editor shows a live preview (buttons, badges, card, field) and the same 36-pair contrast table the CI
+  gate uses. Critical pairs (text/background, accent/background, button label/accent…) block saving; the rest
+  are warnings. An accent equal to the background is refused with a readable message.
+- Applying a theme never waits for React: the inline pre-paint script reads `mcp.customActive` +
+  `mcp.customThemes` from `localStorage`, validates the schema version and that every value is `#rrggbb`, then
+  sets the tokens with `setProperty` and `data-theme="custom"`. Any problem falls back to the default palette
+  without a flash.
+- Themes are managed in the Topbar theme menu (list, use) and on `/themes` (create, duplicate, rename, delete,
+  reset, import from a file or pasted text, export JSON). Limits: 20 themes, 40-character names, 64 KB store;
+  colours accept hex, `rgb()` and `hsl()` only, never arbitrary CSS.
+
 ## Design system (UI-10)
+
+Before changing the UI, read [`DESIGN.md`](../../DESIGN.md) — the single style guide for people and agents
+(two theme axes, tokens, primitives, page contract, forbidden patterns, known debt). `npm run design:doc`
+refreshes its generated tables; guards are `web-ui/lib/design-guards.test.ts`,
+`web-ui/lib/no-hardcoded-colors.test.ts` and `web-ui/lib/design-doc.test.ts`.
 
 The admin shell uses a token-based design system in `web-ui/app/globals.css`:
 
@@ -172,6 +185,8 @@ The admin shell uses a token-based design system in `web-ui/app/globals.css`:
   blocks and enforces WCAG AA (text pairs ≥ 4.5:1, non-text line/focus ≥ 3:1).
   A palette that fails does not pass CI. `/design` is a dev-only showcase of all
   primitives in all six variants (404 in production).
+- Custom themes (UI-33) are a third source: `data-theme="custom"` plus colour tokens applied inline from a
+  validated store; the derivation and its limits are described in `DESIGN.md` §3.6.
 
 ## API Client
 
