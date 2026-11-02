@@ -1,6 +1,11 @@
 import type { ComponentType, ReactNode } from 'react';
 import { IconInbox } from '@/components/icons';
 
+/**
+ * Empty result state with a title, an optional hint and one action.
+ *
+ * Never render it next to an error — the error wins.
+ */
 export function EmptyState({
   title,
   hint,

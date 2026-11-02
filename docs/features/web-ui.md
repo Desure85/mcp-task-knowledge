@@ -16,6 +16,15 @@ Next.js 16 App Router + TypeScript. Connects to MCP HTTP transport.
 | `/projects` | Project isolation, current scope, delete/purge confirmation |
 | `/system` | Live sessions, embeddings status and tools catalog |
 
+## Design system
+
+Before changing the UI, read [`DESIGN.md`](../../DESIGN.md) — the single style guide for people and agents
+(two theme axes, tokens, primitives, page contract, forbidden patterns, known debt). Values live in
+`web-ui/app/globals.css`, the theme model in `web-ui/lib/theme.ts`, primitives in `web-ui/components/ui`;
+`npm run design:doc` refreshes the generated tables in `DESIGN.md`. Guards:
+`web-ui/lib/design-guards.test.ts`, `web-ui/lib/no-hardcoded-colors.test.ts`,
+`web-ui/lib/design-doc.test.ts`.
+
 ## Setup
 
 ```bash

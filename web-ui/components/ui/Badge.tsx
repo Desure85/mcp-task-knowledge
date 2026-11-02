@@ -30,6 +30,12 @@ const TONES: Record<BadgeTone, string> = {
   low: 'text-pr-low',
 };
 
+/**
+ * Compact status/type/priority label driven by semantic tokens.
+ *
+ * `tone` maps to `st-*`, `ty-*`, `pr-*`; `neutral` is for anything without a
+ * status.
+ */
 export function Badge({
   tone = 'neutral',
   children,
