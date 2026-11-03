@@ -15,6 +15,7 @@ import {
   IconProjects,
   IconPrompts,
   IconSearch,
+  IconSettings,
   IconSystem,
   IconTasks,
 } from './icons';
@@ -57,6 +58,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'System',
     items: [
       { href: '/projects', label: 'Projects', description: 'Multi-project isolation, current-project scope', icon: IconProjects },
+      { href: '/projects/settings', label: 'Settings', description: 'Project statuses, transitions and task types', icon: IconSettings },
       { href: '/system', label: 'System', description: 'Live sessions, embeddings status, tools catalog', icon: IconSystem },
       { href: '/access', label: 'Access', description: 'Your session, agent setup links and tokens', icon: IconLock },
     ],
@@ -75,6 +77,7 @@ const PAGE_META: Record<string, PageMeta> = {
   '/graph': { title: 'Graph', subtitle: 'Entities and fact relationships' },
   '/memory': { title: 'Memory', subtitle: 'Facts, profiles and layers' },
   '/projects': { title: 'Projects', subtitle: 'Isolation and current scope' },
+  '/projects/settings': { title: 'Project settings', subtitle: 'Statuses, transitions and task types' },
   '/system': { title: 'System', subtitle: 'Sessions, embeddings and tools' },
   '/access': { title: 'Access', subtitle: 'Session, setup links and tokens' },
   '/themes': { title: 'Themes', subtitle: 'Palettes and custom colour themes' },

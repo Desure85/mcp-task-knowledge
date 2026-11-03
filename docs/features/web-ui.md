@@ -145,6 +145,16 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_MCP_API_URL=http://host.docker.internal:3
 - Create form with labelled fields and aligned hints/actions; set-current scope for this browser session
 - Delete and purge are `Dialog`-confirmed; purge additionally requires typing the project id
 
+### Project settings (UI-35)
+
+- `/projects/settings` edits the current project workflow that previously existed only as MCP tools: the status set, the transition graph and the task types
+- Three tabs in an accessible `tablist` (arrow keys, Home/End): **Statuses**, **Transitions**, **Types**
+- Statuses: drag a row or use the up/down buttons, edit name, category and colour (only the `st-*` design tokens), toggle "Initial" and "Archived", pick the close status, add statuses; deleting a status that tasks use opens a `Dialog` that moves them (`moves`) instead of failing
+- Transitions: a real table with `from` rows and `to` columns of `aria-pressed` cells, a legend (`✓` allowed, `·` not allowed, `—` same status), an "any status to any status" mode (`null` graph), and an in-matrix marker plus explanation when a done status cannot be reached from the initial statuses
+- Types: name, `ty-*` colour, icon from the `TypeIcon` set (task/bug/feature), order, delete with a move dialog
+- Nothing is applied until **Save**; each tab keeps its own draft, shows "Unsaved changes", confirms discard with a `Dialog`, sends exactly one request, then re-reads the data. Server codes (`STATUS_IN_USE`, `TYPE_IN_USE`, `INVALID_TRANSITIONS`, `TRANSITIONS_UNREACHABLE_DONE`) are shown in plain language
+- Removing a status that is still named in the saved graph is blocked up front: the server rejects it with `INVALID_TRANSITIONS` even after the tasks are moved, so the screen points at the Transitions tab first
+
 ### System (PH-015, UI-24)
 
 - Authentication section keeps the sessionStorage/no-cookie/CSRF trade-off and XSS caveat in two short paragraphs
