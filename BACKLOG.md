@@ -916,6 +916,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-33 | Убрать лишний бинарник GitHub CLI и служебное состояние агента из git | high | done | — | В `bin/` случайно закоммичен 42.7 MB ELF GitHub CLI 2.67.0 (коммит 9f949a1), не используется скриптами/workflows/Dockerfile; удалён и добавлен в `.gitignore`. Отслеживаемые `.opencode/goals/state.json.lock` и `state.json.sessions/**` сняты с индекса (`git rm --cached`), `.opencode` уже в `.gitignore`; дополнительно скрыт `.playwright-mcp/`. История не переписывалась — решение по `git filter-repo` за владельцем. Проверки: build, lint:md, backlog:check; дерево уменьшилось с 54.78 MiB до ~12.2 MiB. |
 | DX-34 | Web-UI: убрать зависимость сборки от сети (Google Fonts) | medium | pending | — | CI-проверка web-ui упала на PR #241 ошибкой Turbopack «next/font/google queries have exactly one entry» из-за недоступности `fonts.gstatic.com`. Нужно self-host IBM Plex через `next/font/local` или `@fontsource` с файлами в репозитории, без сетевых запросов при сборке. DoD: `next build` проходит без доступа к `fonts.googleapis.com`/`fonts.gstatic.com`; шрифты и их переменные (`--font-plex-sans`/`--font-plex-mono`) визуально не меняются. В рамках UI-26 только запись, реализация отдельно. |
 
+### Фаза 7 — Процесс разработки
+
+| ID | Задача | Приоритет | Статус | Зависимости | Что делать |
+|----|--------|-----------|--------|-------------|------------|
+| DX-35 | Команда `/devcycle`: управление циклом разработки | high | done | — | `scripts/devcycle.mjs` (Node, без зависимостей): `status` как read-only проба (LoopX через `turn plan`, PR и CI по headRefOid, пульс сессий только по session_id, worktree, журнал решений), `next` (детерминированный выбор из `BACKLOG.md`), `state get/enable/disable`, `log`, `tick` (single-writer lock, отказ при выключенном цикле, `git fetch`), `report`; коды возврата 0/1/2/3; недоступный источник даёт `n/a` и код 0. Слэш-команда `.claude/commands/devcycle.md` со сверкой расписания: `start` идемпотентен, `stop` удаляет cron даже без сохранённого cronId. Процесс перенесён из личных файлов контролёра в `docs/dev-cycle/` (README, tick, rules, decisions-log). DoD: `npx vitest run tests/devcycle-next.test.ts tests/devcycle-state.test.ts`; счётчики pending/blocked/deferred совпадают с `npm run backlog:check`; `node scripts/devcycle.mjs status` не меняет `git status --short`. |
+
 ---
 
 ## Этап O — Trust/Hardening: вторая волна аудитов и выдержка (2026-09-11)
@@ -1348,7 +1354,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 17 | 0 | 0 | 1 | 0 |
-| DX/Onboarding (N) | 24 | 17 | 0 | 3 | 4 | 0 |
+| DX/Onboarding (N) | 25 | 17 | 0 | 4 | 4 | 0 |
 | Trust/Hardening (O) | 20 | 12 | 0 | 1 | 7 | 0 |
 | MCP spec compliance (P) | 10 | 6 | 0 | 2 | 2 | 0 |
 | KB hardening (Q) | 7 | 0 | 0 | 6 | 1 | 0 |
@@ -1362,7 +1368,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Pluggable storage (Y) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Skills and packages (Z) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
-| **Итого** | **396** | **96** | **0** | **276** | **23** | **1** |
+| **Итого** | **397** | **96** | **0** | **277** | **23** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
