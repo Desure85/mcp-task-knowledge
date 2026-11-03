@@ -74,6 +74,7 @@ validation, import/export and rollback.
 - `/graph` — Knowledge graph with two modes (Entities / Facts & entities), collision-free labels, `Show related facts`, focus and search dimming, zoom/pan, legend and an accessible node table
 - `/prompts` — Prompt catalog, create form and A/B experiments
 - `/projects` — Project isolation, current scope, delete and purge
+- `/projects/settings` — Project workflow for people: statuses (order, colour tokens, close and initial statuses), the transition matrix with an unreachable-done explanation, and task types with token colours and glyphs; drafts are local until Save and used statuses/types are deleted through a "move tasks to…" dialog
 - `/system` — Live sessions, embeddings and the tools catalog
 - `/search` — Unified BM25 + vector search across tasks and knowledge
 - `/themes` — Built-in palettes and custom colour themes (AA by construction, live preview, import/export JSON)
