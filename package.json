@@ -58,6 +58,7 @@
     "api:reference": "node scripts/api-reference.mjs",
     "design:doc": "node scripts/gen-design-doc.mjs",
     "backlog:check": "node scripts/check-backlog.mjs",
+    "devcycle": "node scripts/devcycle.mjs",
     "agent:stats": "node scripts/agent-stats.mjs --days 1",
     "dev:cli": "node scripts/dev-cli.mjs",
     "benchmark": "node scripts/dev-cli.mjs benchmark",
