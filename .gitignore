@@ -130,6 +130,9 @@ __pycache__/
 .loopx/
 .codex/
 
+# Dev-cycle local state (state.json, lock, log) — never committed
+.devcycle/
+
 # Runtime temp caches
 .tmp-emb-cache-*/
 .tmp-e2e-*/
