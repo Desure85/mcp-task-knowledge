@@ -42,14 +42,15 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.should_rebuild == 'true'
     runs-on: ubuntu-latest
-    # Skip proxy toolchain images on push trigger — they don't depend on package.json
-    # and are already published in GHCR. Only rebuild on manual dispatch.
+    # Proxy toolchain images don't depend on package.json: on push they are reused
+    # from GHCR when the tag is already published. The guard below verifies the tag
+    # exists instead of skipping blindly, and rebuilds it when it is missing.
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
         include:
-          # Proxy toolchain images (only on workflow_dispatch)
+          # Proxy toolchain images (reused on push when already published)
           - name: proxy-node24-bullseye
             target: proxy-node24-bullseye
             image: mcp-node
@@ -110,36 +111,23 @@ jobs:
       PUBLISH_TAG: ${{ github.event.inputs.tag || 'latest' }}
 
     steps:
-      - name: Skip proxy on push trigger
-        id: skip-check
-        if: github.event_name == 'push' && matrix.proxy == true
-        run: |
-          echo "Skipping proxy image on push trigger (not dep-dependent)"
-          exit 0
-
       - name: Checkout
-        if: steps.skip-check.conclusion != 'success'
         uses: actions/checkout@v7
 
       - name: Set up QEMU
-        if: steps.skip-check.conclusion != 'success'
         uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
       - name: Set up Docker Buildx
-        if: steps.skip-check.conclusion != 'success'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Log in to GHCR
-        if: steps.skip-check.conclusion != 'success'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-
       - name: Compute base repo owner (lowercase)
-        if: steps.skip-check.conclusion != 'success'
         id: names
         shell: bash
         run: |
@@ -148,8 +136,37 @@ jobs:
           echo "owner=${owner_lc}" >> "$GITHUB_OUTPUT"
           echo "base_repo=ghcr.io/${owner_lc}" >> "$GITHUB_OUTPUT"
 
+      # On push, proxy toolchain images are reused from GHCR instead of being rebuilt.
+      # A blind skip is not safe: if the tag was never published, every base job fails
+      # with "not found" (incident 2026-10-30..11-05, run 42070606130). So the tag is
+      # verified first: present -> skip, missing -> build it, any other failure -> fail
+      # loudly instead of going green.
+      - name: Check proxy image availability
+        id: proxy-check
+        if: github.event_name == 'push' && matrix.proxy == true
+        shell: bash
+        env:
+          IMAGE: ${{ steps.names.outputs.base_repo }}/${{ matrix.image }}:${{ matrix.image_tag }}
+        run: |
+          set -uo pipefail
+          if output=$(docker buildx imagetools inspect "$IMAGE" 2>&1); then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Proxy image $IMAGE is published; skipping rebuild on push trigger."
+          else
+            status=$?
+            echo "$output"
+            if grep -qiE 'not found|manifest unknown|no such manifest|name unknown|404' <<<"$output"; then
+              echo "present=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::Proxy image $IMAGE is not published yet - building it on this push."
+            else
+              echo "::error::Cannot verify proxy image $IMAGE (docker buildx imagetools inspect exit ${status})."
+              echo "::error::This is not a missing-image result: check GHCR credentials/network, then run the workflow manually via workflow_dispatch."
+              exit 1
+            fi
+          fi
+
       - name: Build and push base image
-        if: steps.skip-check.conclusion != 'success'
+        if: steps.proxy-check.outputs.present != 'true'
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
