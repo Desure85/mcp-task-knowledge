@@ -163,8 +163,10 @@ export function requestWantsProgress(body: unknown): boolean {
  * SC-01: the transport answers with `application/json` (linear framing) except when the
  * caller asked for progress — then that one request is served over SSE. The SDK reads
  * the flag per `handleRequest`, but exposes it only as a private field, hence the cast.
- * Clients talk to a session sequentially, so flipping the flag around a single call is safe
- * in practice; if two requests in one session ever overlap, the SSE one just takes longer.
+ * SDK >=1.24 wraps the Node transport around a Web Standard one that owns the actual
+ * flag, so both layouts are probed. Clients talk to a session sequentially, so flipping
+ * the flag around a single call is safe in practice; if two requests in one session ever
+ * overlap, the SSE one just takes longer.
  */
 async function callWithResponseMode<T>(
   transport: SdkHttpTransport,
@@ -172,7 +174,13 @@ async function callWithResponseMode<T>(
   res: ServerResponse,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const flags = transport as unknown as { _enableJsonResponse?: boolean };
+  const outer = transport as unknown as {
+    _enableJsonResponse?: boolean;
+    _webStandardTransport?: { _enableJsonResponse?: boolean };
+  };
+  const flags = outer._webStandardTransport?._enableJsonResponse !== undefined
+    ? outer._webStandardTransport
+    : outer;
   if (flags._enableJsonResponse !== true || !requestWantsProgress(body)) return fn();
   flags._enableJsonResponse = false;
   // `handleRequest` resolves as soon as the message is dispatched — the response is

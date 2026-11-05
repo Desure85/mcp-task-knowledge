@@ -415,7 +415,10 @@ export class AppContainer {
           const readOp = isReadOp(name);
           const registerCallable = exposeMode !== 'resources' || !readOp;
           if (registerCallable) {
-            this.ctx!.server.tool(name, schema as Record<string, unknown>, handler as never);
+            // SDK 1.32 rejects a config object in the deprecated tool() schema
+            // slot. Connector schemas are raw JSON Schema, so they reach callers
+            // via ToolRegistry only, not as the SDK's Zod validation schema.
+            this.ctx!.server.tool(name, schema?.description ?? schema?.title ?? name, handler as never);
             this.ctx!.toolNames.add(name);
           }
           // Registry visibility: server.tool() bypasses registerTool, so
