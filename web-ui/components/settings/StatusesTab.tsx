@@ -36,7 +36,7 @@ export interface StatusesTabProps {
   onChange: (next: StatusesDraft) => void;
 }
 
-const CELL = 'border-b border-line px-2 py-2 align-top';
+const CELL = 'border-b border-line px-2 py-2 align-middle';
 const HEAD_CELL = 'border-b border-line px-2 py-1.5 text-left text-[11px] font-medium text-muted';
 
 export function StatusesTab({ draft, issues, disabled = false, onChange }: StatusesTabProps): JSX.Element {
@@ -185,6 +185,7 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       <td className={CELL}>
                         <Input
                           label="Name"
+                          hideLabel
                           aria-label={`Name for ${status.id}`}
                           value={status.label}
                           disabled={disabled}
@@ -197,6 +198,7 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       <td className={CELL}>
                         <Select
                           label="Category"
+                          hideLabel
                           aria-label={`Category for ${status.id}`}
                           value={status.category}
                           disabled={disabled}
@@ -216,13 +218,14 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                         </Select>
                       </td>
                       <td className={CELL}>
-                        <div className="flex items-end gap-1.5">
+                        <div className="flex items-center gap-1.5">
                           <span
                             aria-hidden="true"
-                            className={`mb-[7px] h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass(status)}`}
+                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass(status)}`}
                           />
                           <Select
                             label="Colour"
+                            hideLabel
                           aria-label={`Colour for ${status.id}`}
                             value={colour}
                             disabled={disabled}

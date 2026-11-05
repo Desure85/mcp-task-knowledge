@@ -163,20 +163,6 @@ export function findContrast(fg: string, bg: string, min: number): string | null
   return null;
 }
 
-/** Moves a background away from `fg` (used for soft fills such as accent-soft). */
-function findBackground(ink: string, bg: string, min: number): string | null {
-  if (ratio(ink, bg) >= min - 1e-9) return toHex(bg);
-  const { h, s, l } = rgbToHsl(parseColor(bg));
-  const direction = relativeLuminance(ink) > 0.5 ? -1 : 1;
-  for (let step = 1; step <= 100; step += 1) {
-    const next = l + (direction * step) / 100;
-    if (next < 0 || next > 1) break;
-    const candidate = toHex(hslToRgb({ h, s, l: next }));
-    if (ratio(ink, candidate) >= min - 1e-9) return candidate;
-  }
-  return null;
-}
-
 function shiftLightness(color: string, delta: number): string {
   const { h, s, l } = rgbToHsl(parseColor(color));
   return toHex(hslToRgb({ h, s, l: Math.min(1, Math.max(0, l + delta)) }));
@@ -342,10 +328,12 @@ export function deriveMode(base: ThemeBase, mode: ThemeMode): Derivation {
   }
 
   const accentHover = findContrast(shiftLightness(accent, mode === 'light' ? -0.07 : 0.07), canvas, 4.5) ?? accent;
-  let accentSoft = mix(accent, canvas, 0.12);
-  for (const weight of [0.12, 0.08, 0.05, 0.03]) {
-    const candidate = findBackground(ink, mix(accent, canvas, weight), 4.5);
-    if (candidate) {
+  // accent-soft is the selected-row fill: both the body text (ink) and the accent-coloured label sit on it,
+  // so the tint must pass AA for both. Weight 0 is the canvas itself, which always passes (critical pairs).
+  let accentSoft = canvas;
+  for (const weight of [0.12, 0.09, 0.06, 0.04, 0.02]) {
+    const candidate = mix(accent, canvas, weight);
+    if (ratio(ink, candidate) >= 4.5 - 1e-9 && ratio(accent, candidate) >= 4.5 - 1e-9) {
       accentSoft = candidate;
       break;
     }

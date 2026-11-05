@@ -22,6 +22,7 @@ export const TEXT_PAIRS: readonly ContrastPair[] = [
   ['ink', 'surface-2', 4.5],
   ['accent', 'canvas', 4.5],
   ['accent', 'surface', 4.5],
+  ['accent', 'accent-soft', 4.5],
   ['on-accent', 'accent', 4.5],
   ...STATUS.map((key) => [key, 'surface', 4.5] as const),
   ...STATUS.map((key) => [key, 'surface-2', 3] as const),
