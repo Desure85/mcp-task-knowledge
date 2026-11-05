@@ -40,7 +40,7 @@ export interface TypesTabProps {
   onChange: (next: TypesDraft) => void;
 }
 
-const CELL = 'border-b border-line px-2 py-2 align-top';
+const CELL = 'border-b border-line px-2 py-2 align-middle';
 const HEAD_CELL = 'border-b border-line px-2 py-1.5 text-left text-[11px] font-medium text-muted';
 
 /** The glyph `TypeIcon` actually shows: an explicit icon wins, then the id. */
@@ -186,6 +186,7 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                       <td className={CELL}>
                         <Input
                           label="Name"
+                          hideLabel
                           aria-label={`Name for ${type.id}`}
                           value={type.label}
                           disabled={disabled}
@@ -196,13 +197,14 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                         />
                       </td>
                       <td className={CELL}>
-                        <div className="flex items-end gap-1.5">
+                        <div className="flex items-center gap-1.5">
                           <span
                             aria-hidden="true"
-                            className={`mb-[7px] h-2.5 w-2.5 shrink-0 rounded-full ${typeDotClass(type)}`}
+                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${typeDotClass(type)}`}
                           />
                           <Select
                             label="Colour"
+                            hideLabel
                             aria-label={`Colour for ${type.id}`}
                             value={colour}
                             disabled={disabled}
@@ -220,12 +222,13 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                         </div>
                       </td>
                       <td className={CELL}>
-                        <div className="flex items-end gap-1.5">
-                          <span aria-hidden="true" className="mb-[7px] inline-flex text-ink">
+                        <div className="flex items-center gap-1.5">
+                          <span aria-hidden="true" className="inline-flex text-ink">
                             <TypeIcon icon={type.icon} type={type.id} />
                           </span>
                           <Select
                             label="Icon"
+                            hideLabel
                             aria-label={`Icon for ${type.id}`}
                             value={iconValue(type)}
                             disabled={disabled}

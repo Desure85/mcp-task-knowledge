@@ -163,20 +163,6 @@ export function findContrast(fg: string, bg: string, min: number): string | null
   return null;
 }
 
-/** Moves a background away from `fg` (used for soft fills such as accent-soft). */
-function findBackground(ink: string, bg: string, min: number): string | null {
-  if (ratio(ink, bg) >= min - 1e-9) return toHex(bg);
-  const { h, s, l } = rgbToHsl(parseColor(bg));
-  const direction = relativeLuminance(ink) > 0.5 ? -1 : 1;
-  for (let step = 1; step <= 100; step += 1) {
-    const next = l + (direction * step) / 100;
-    if (next < 0 || next > 1) break;
-    const candidate = toHex(hslToRgb({ h, s, l: next }));
-    if (ratio(ink, candidate) >= min - 1e-9) return candidate;
-  }
-  return null;
-}
-
 function shiftLightness(color: string, delta: number): string {
   const { h, s, l } = rgbToHsl(parseColor(color));
   return toHex(hslToRgb({ h, s, l: Math.min(1, Math.max(0, l + delta)) }));
@@ -327,8 +313,19 @@ export function deriveMode(base: ThemeBase, mode: ThemeMode): Derivation {
   const lineStrong = pick(mix(canvas, ink, 0.45), ['line-strong'], ['line-strong', 'canvas', 3], 'Усиленная граница');
   if (typeof lineStrong !== 'string') return lineStrong;
 
-  const accent = pick(accentSeed, ['accent'], ['accent', 'canvas', 4.5], 'Акцент');
-  if (typeof accent !== 'string') return accent;
+  const picked = pick(accentSeed, ['accent'], ['accent', 'canvas', 4.5], 'Акцент');
+  if (typeof picked !== 'string') return picked;
+  // The selected-row fill is a light tint of the accent, and the accent-coloured label sits on it. An accent that
+  // only just clears AA on the canvas would fail on its own tint, so nudge it until the 8% tint passes too.
+  let accent = picked;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const tint = mix(canvas, accent, 0.08);
+    if (ratio(accent, tint) >= 4.5 - 1e-9) break;
+    const next = findContrast(accent, tint, 4.5);
+    if (!next || next === accent) break;
+    accent = next;
+  }
+  if (ratio(accent, canvas) < 4.5 - 1e-9 || ratio(accent, surface) < 4.5 - 1e-9) accent = picked;
   palette.accent = accent;
 
   const onAccent = bestOnAccent(accent);
@@ -342,10 +339,12 @@ export function deriveMode(base: ThemeBase, mode: ThemeMode): Derivation {
   }
 
   const accentHover = findContrast(shiftLightness(accent, mode === 'light' ? -0.07 : 0.07), canvas, 4.5) ?? accent;
-  let accentSoft = mix(accent, canvas, 0.12);
-  for (const weight of [0.12, 0.08, 0.05, 0.03]) {
-    const candidate = findBackground(ink, mix(accent, canvas, weight), 4.5);
-    if (candidate) {
+  // accent-soft is the selected-row fill: both the body text (ink) and the accent-coloured label sit on it,
+  // so the tint must pass AA for both. Weight 0 is the canvas itself, which always passes (critical pairs).
+  let accentSoft = canvas;
+  for (const weight of [0.12, 0.09, 0.08, 0.06, 0.04, 0.02]) {
+    const candidate = mix(canvas, accent, weight);
+    if (ratio(ink, candidate) >= 4.5 - 1e-9 && ratio(accent, candidate) >= 4.5 - 1e-9) {
       accentSoft = candidate;
       break;
     }
@@ -439,7 +438,7 @@ export function previewTokens(base: ThemeBase, mode: ThemeMode): TokenMap {
       muted,
       accent,
       'accent-hover': shiftLightness(accent, mode === 'light' ? -0.07 : 0.07),
-      'accent-soft': mix(accent, canvas, 0.12),
+      'accent-soft': mix(canvas, accent, 0.12),
       'on-accent': bestOnAccent(accent),
       'st-todo': muted,
       'st-doing': accent,
@@ -476,7 +475,7 @@ export function previewTokens(base: ThemeBase, mode: ThemeMode): TokenMap {
       muted: mix(ink, canvas, 0.45),
       accent,
       'accent-hover': accent,
-      'accent-soft': mix(accent, canvas, 0.12),
+      'accent-soft': mix(canvas, accent, 0.12),
       'on-accent': bestOnAccent(accent),
       'st-todo': mix(ink, canvas, 0.45),
       'st-doing': accent,
@@ -694,11 +693,18 @@ export function parseTheme(value: unknown): CustomTheme | null {
   for (const stamp of ['createdAt', 'updatedAt'] as const) {
     if (typeof record[stamp] !== 'string' || String(record[stamp]).length > 32) return null;
   }
+  // Stored tokens are a cache of the derivation. Re-derive from the base colours so a fix in the derivation
+  // (e.g. accent-soft contrast) reaches themes saved earlier; keep the stored tokens if derivation refuses.
+  const freshLight = deriveMode(light.base, 'light');
+  const freshDark = deriveMode(dark.base, 'dark');
   return {
     id: record.id,
     name: name.name,
     base: { light: light.base, dark: dark.base },
-    tokens: { light: lightTokens.tokens, dark: darkTokens.tokens },
+    tokens: {
+      light: freshLight.ok ? freshLight.tokens : lightTokens.tokens,
+      dark: freshDark.ok ? freshDark.tokens : darkTokens.tokens,
+    },
     createdAt: String(record.createdAt),
     updatedAt: String(record.updatedAt),
   };

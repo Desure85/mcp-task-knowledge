@@ -315,3 +315,21 @@ describe('UI-33 apply and rollback', () => {
     expect(DEFAULT_BASE.dark.text).toMatch(HEX6_RE);
   });
 });
+
+describe('accent-soft is a readable tint (selected row)', () => {
+  const cases: Array<[string, string, string, 'light' | 'dark']> = [
+    ['#e64c4c', '#ffffff', '#14171c', 'light'],
+    ['#e64c4c', '#101216', '#e9ebf0', 'dark'],
+    ['#2563eb', '#e8eefc', '#0a1530', 'light'],
+    ['#22c55e', '#0b1f14', '#e6f4ea', 'dark'],
+  ];
+  it.each(cases)('accent %s on %s: tint differs from canvas and passes AA for accent and ink', (accent, background, text, mode) => {
+    const derivation = deriveMode({ accent, background, text }, mode);
+    expect(derivation.ok).toBe(true);
+    if (!derivation.ok) return;
+    const t = derivation.tokens;
+    expect(t['accent-soft']).not.toBe(t.canvas);
+    expect(contrastRatio(t.accent, t['accent-soft'])).toBeGreaterThanOrEqual(4.5 - 1e-9);
+    expect(contrastRatio(t.ink, t['accent-soft'])).toBeGreaterThanOrEqual(4.5 - 1e-9);
+  });
+});

@@ -12,8 +12,20 @@ import { usePathname } from 'next/navigation';
 import { BrandMark } from './BrandMark';
 import { NAV_SECTIONS } from './nav-config';
 
+const ALL_HREFS = NAV_SECTIONS.flatMap((section) => section.items.map((item) => item.href));
+
+/** The single item to highlight: the longest href that matches, so /projects/settings does not also light up /projects. */
+export function activeHref(pathname: string, hrefs: readonly string[] = ALL_HREFS): string | null {
+  let best: string | null = null;
+  for (const href of hrefs) {
+    const matches = pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
+    if (matches && (best === null || href.length > best.length)) best = href;
+  }
+  return best;
+}
+
 function isActive(pathname: string, href: string) {
-  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
+  return activeHref(pathname) === href;
 }
 
 export function Sidebar() {

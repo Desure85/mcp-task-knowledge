@@ -8,13 +8,15 @@ interface FieldShellProps {
   hint?: string;
   error?: string;
   htmlFor: string;
+  /** Keep the label for assistive tech but do not draw it (table cells whose column header already names the field). */
+  hideLabel?: boolean;
   children: React.ReactNode;
 }
 
-function FieldShell({ label, hint, error, htmlFor, children }: FieldShellProps) {
+function FieldShell({ label, hint, error, htmlFor, hideLabel, children }: FieldShellProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={htmlFor} className="text-[11px] font-medium text-ink">
+      <label htmlFor={htmlFor} className={hideLabel ? 'sr-only' : 'text-[11px] font-medium text-ink'}>
         {label}
       </label>
       {children}
@@ -38,16 +40,17 @@ const CONTROL =
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
+  hideLabel?: boolean;
   hint?: string;
   error?: string;
 }
 
 /** Single-line text field with a visible label, optional hint and error. */
-export function Input({ label, hint, error, id, className, ...rest }: InputProps) {
+export function Input({ label, hideLabel, hint, error, id, className, ...rest }: InputProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   return (
-    <FieldShell label={label} hint={hint} error={error} htmlFor={inputId}>
+    <FieldShell label={label} hideLabel={hideLabel} hint={hint} error={error} htmlFor={inputId}>
       <input
         {...rest}
         id={inputId}
@@ -61,16 +64,17 @@ export function Input({ label, hint, error, id, className, ...rest }: InputProps
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
+  hideLabel?: boolean;
   hint?: string;
   error?: string;
 }
 
 /** Native select with a visible label; use it for short, known option lists. */
-export function Select({ label, hint, error, id, className, children, ...rest }: SelectProps) {
+export function Select({ label, hideLabel, hint, error, id, className, children, ...rest }: SelectProps) {
   const autoId = useId();
   const selectId = id ?? autoId;
   return (
-    <FieldShell label={label} hint={hint} error={error} htmlFor={selectId}>
+    <FieldShell label={label} hideLabel={hideLabel} hint={hint} error={error} htmlFor={selectId}>
       <select
         {...rest}
         id={selectId}
