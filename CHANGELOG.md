@@ -64,6 +64,7 @@
 
 ### Fixed
 
+- Relay: a taken LAN relay port no longer crashes the server. `RelayManager.start()` logs a warning and disables the optional relay (`relay_status` reports `enabled: false`) instead of leaving an unhandled `EADDRINUSE` that killed the process; `RELAY_PORT` selects the port (default `41235`, documented in the configuration reference) and the relay e2e tests take OS-assigned ports instead of the fixed one. A unit test covers the bind failure (red without the fix).
 - web-ui custom themes: `accent-soft` (the selected-row fill in the sidebar and the theme menu) was derived as almost the accent colour because `mix(accent, canvas, w)` takes `w` of the canvas, so accent-coloured labels on it were unreadable; it is now a light tint of the accent that passes AA for both the accent and the text, the accent is nudged to clear AA on its own tint, saved themes are re-derived from their base colours on load, and `accent`/`accent-soft` joined the contrast matrix (it caught Copper light at 4.38:1, `--accent-soft` is now `#f9eee5`)
 - web-ui sidebar: `/projects/settings` no longer highlights Projects as well (the longest matching href wins)
 - web-ui control heights: `Input`/`Select` are 32px like `Button` size md (they were ~26px, so a button next to a field stuck out, e.g. Search in Memory), the Topbar `Auth`/`Sign out`/project label are 28px like the buttons beside them, and the per-row toggles and Delete in the settings tables are size md

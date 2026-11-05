@@ -14,6 +14,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, type Server } from 'node:http';
+import { childLogger } from '../core/logger.js';
 import { getEventBus } from '../core/event-bus.js';
 import { LanDiscovery, type PeerInfo } from './discovery.js';
 import { decrypt, deriveKey, encrypt } from './crypto.js';
@@ -48,6 +49,8 @@ interface WireMessage {
 
 const DEFAULT_PORT = 41235;
 
+const log = childLogger('relay');
+
 export class RelayManager {
   private readonly port: number;
   private readonly key: Buffer;
@@ -59,6 +62,7 @@ export class RelayManager {
   private messagesSent = 0;
   private messagesReceived = 0;
   private _enabled = false;
+  private dialTimer?: NodeJS.Timeout;
 
   constructor(options: RelayOptions = {}) {
     this.port = options.port ?? DEFAULT_PORT;
@@ -76,7 +80,7 @@ export class RelayManager {
     return this._enabled;
   }
 
-  /** Start WS server + discovery. Idempotent. */
+  /** Start WS server + discovery. Idempotent; a taken port disables relay. */
   start(): void {
     if (this._enabled) return;
     this._enabled = true;
@@ -89,11 +93,36 @@ export class RelayManager {
       ws.on('close', () => this.connections.delete(ws));
       ws.on('error', () => this.connections.delete(ws));
     });
-    this.httpServer.listen(this.port);
+    this.wss.on('error', (err) => this.disable(err));
 
-    this.discovery.start();
-    // Dial newly discovered peers
-    setInterval(() => this.dialPeers(), 3000);
+    const httpServer = this.httpServer;
+    httpServer.on('error', (err) => this.disable(err));
+    httpServer.once('listening', () => {
+      if (!this._enabled) return;
+      this.discovery.start();
+      this.dialTimer = setInterval(() => this.dialPeers(), 3000);
+      this.dialTimer.unref();
+    });
+    httpServer.listen(this.port);
+  }
+
+  /**
+   * Port bind failed (EADDRINUSE, EACCES, …): the relay is optional, so log and
+   * disable it instead of letting an unhandled 'error' event kill the server.
+   */
+  private disable(error: Error): void {
+    if (!this._enabled && !this.httpServer && !this.wss) return;
+    this._enabled = false;
+    this.discovery.stop();
+    if (this.dialTimer) {
+      clearInterval(this.dialTimer);
+      this.dialTimer = undefined;
+    }
+    try { this.wss?.close(); } catch {}
+    this.wss = undefined;
+    try { this.httpServer?.close(); } catch {}
+    this.httpServer = undefined;
+    log.warn({ err: error, port: this.port }, 'relay unavailable — listen failed, relay disabled');
   }
 
   /** Stop server + discovery. Idempotent. */
@@ -101,6 +130,10 @@ export class RelayManager {
     if (!this._enabled) return;
     this._enabled = false;
     this.discovery.stop();
+    if (this.dialTimer) {
+      clearInterval(this.dialTimer);
+      this.dialTimer = undefined;
+    }
     for (const ws of this.connections) {
       try { ws.close(); } catch {}
     }

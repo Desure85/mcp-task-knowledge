@@ -123,6 +123,14 @@ contains a `manifest.json` with the copied paths, file count and bytes.
 | `CLUSTER_AUTO_SCALE_MIN` | `1` | Min nodes for auto-scaling |
 | `CLUSTER_AUTO_SCALE_MAX` | `10` | Max nodes for auto-scaling |
 
+### LAN Relay
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RELAY_ENABLED` | — | Set to `1` to start the LAN relay (WebSocket server + UDP peer discovery) |
+| `RELAY_PORT` | `41235` | WebSocket listen port; when the port is taken the relay disables itself and the server keeps running |
+| `RELAY_SHARED_KEY` | per-process | Shared passphrase for AES-256-GCM between relay peers |
+
 ## JSON Configuration
 
 Instead of env vars, use a JSON config file:
