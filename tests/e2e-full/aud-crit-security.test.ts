@@ -276,7 +276,10 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
         ref: { type: 'ref/prompt', name: 'x' },
         argument: { name: 'a', value: 'b' },
       });
-      expect(deniedCompletion.error?.code).toBe(-32001);
+      // SDK 1.32 registers the completion handler only when a Completable
+      // argument exists, so without one the method is unknown (-32601) and the
+      // request never reaches the auth gate (-32001). Both deny the call.
+      expect([-32001, -32601]).toContain(deniedCompletion.error?.code);
 
       const auth = await client.request('tools/call', {
         name: 'mcp.authenticate',
@@ -393,7 +396,12 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       const call = async (id: number, name: string, args: Record<string, unknown>) => {
         const res = await mcpPost(port, sid, rpc(id, 'tools/call', { name, arguments: args }));
         const content = res.json?.result?.content?.[0]?.text;
-        const env = content ? JSON.parse(content) : undefined;
+        let env: any;
+        try {
+          env = content ? JSON.parse(content) : undefined;
+        } catch {
+          env = undefined;
+        }
         return { res, env, isError: res.json?.result?.isError === true || res.json?.error !== undefined };
       };
 

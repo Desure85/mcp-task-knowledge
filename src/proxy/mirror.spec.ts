@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { jsonSchemaToZod, jsonSchemaToShape } from './mirror.js';
 
 // Mock the MCP SDK modules

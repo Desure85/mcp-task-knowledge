@@ -13,7 +13,7 @@
  *   Unknown types fall back to z.any() so the call still works.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { McpServer, RegisteredTool, RegisteredResource, RegisteredPrompt } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { childLogger } from '../core/logger.js';

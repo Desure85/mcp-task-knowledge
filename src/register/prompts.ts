@@ -1,5 +1,5 @@
 import type { ServerContext } from './context.js';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { resolveUnder } from '../fs.js';
 import { ok, okWith, err, errWith } from '../utils/respond.js';

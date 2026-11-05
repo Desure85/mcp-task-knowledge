@@ -91,7 +91,6 @@ export async function createServerContext(): Promise<ServerContext> {
   const server = new McpServer({
     name: "mcp-task-knowledge",
     version,
-    capabilities: SERVER_CAPS as unknown as ConstructorParameters<typeof McpServer>[0]['capabilities'],
   });
 
   let vectorAdapter: VectorSearchAdapter<unknown> | undefined;

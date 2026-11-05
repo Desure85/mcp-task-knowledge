@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject } from '../config.js';
 import { assertTypeAllowed, loadProjectTypes, WorkflowError } from '../workflow.js';

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import type { Task } from '../types.js';
 import { resolveProject } from '../config.js';

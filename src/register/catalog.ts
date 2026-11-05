@@ -1,6 +1,6 @@
 import type { ServerContext } from './context.js';
 import { isCatalogEnabled, isCatalogReadEnabled, isCatalogWriteEnabled } from '../config.js';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { ok, err } from '../utils/respond.js';
 import { childLogger } from '../core/logger.js';
 

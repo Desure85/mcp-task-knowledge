@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { resolveUnder } from '../fs.js';

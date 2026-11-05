@@ -28,12 +28,9 @@ describe('Q-014 slice 1: server lifecycle (hermetic stdio)', () => {
   it('unknown tool rejects with -32602, server stays alive', async () => {
     const srv = await spawnServer('lifecycle-error');
     try {
-      const err = await srv.callTool('no_such_tool_xyz', {}).then(
-        () => null,
-        (e) => e,
-      );
-      expect(err).not.toBeNull();
-      expect(String(err)).toContain('32602');
+      const err = await srv.client.callTool({ name: 'no_such_tool_xyz', arguments: {} });
+      expect(err.isError).toBe(true);
+      expect(JSON.stringify(err.content)).toContain('32602');
       const ok = await srv.callTool('tasks_list', { project: 'mcp' });
       expect(ok.isError).toBe(false);
       expect(ok.env.ok).toBe(true);

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { resolveProject } from '../config.js';
 import { listDocs, listDocsPage, readDoc } from '../storage/knowledge.js';
