@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { resolveProject, DATA_DIR, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, getTask} from '../storage/tasks.js';

@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { spawnServer } from './harness.js';
+import { getFreePort, spawnServer } from './harness.js';
 
 describe('Q-014 slice 7: markdown import lands in knowledge', () => {
   it('import dir with frontmatter md → searchable doc', async () => {
@@ -72,7 +72,8 @@ describe('Q-014 slice 7: obsidian export then dry-run import', () => {
 
 describe('Q-014 slice 7: config reload + relay status shapes', () => {
   it('config_reload and relay_status answer ok', async () => {
-    const srv = await spawnServer('cfg-relay', { RELAY_ENABLED: '1' });
+    const relayPort = await getFreePort();
+    const srv = await spawnServer('cfg-relay', { RELAY_ENABLED: '1', RELAY_PORT: String(relayPort) });
     try {
       const reload = await srv.callTool('config_reload', {});
       expect(reload.isError).toBe(false);

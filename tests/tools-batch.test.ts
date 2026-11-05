@@ -72,6 +72,9 @@ describe('AI-015: tools_batch (parallel)', () => {
   });
 
   it('rejects empty items array (zod validation)', async () => {
-    await expect(client.callTool({ name: 'tools_batch', arguments: { items: [] } })).rejects.toThrow();
+    const res = await client.callTool({ name: 'tools_batch', arguments: { items: [] } });
+    expect(res.isError).toBe(true);
+    const text = String((res.content as Array<{ text?: string }>)[0]?.text ?? '');
+    expect(text).toContain('at least 1 element');
   });
 });

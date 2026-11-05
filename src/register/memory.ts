@@ -18,7 +18,7 @@
  *   - memory_async_cancel: cancel a pending/processing job (WIRE-008)
  */
 
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { DATA_DIR, resolveProject } from '../config.js';
 import { listDocs, readDoc, createDoc } from '../storage/knowledge.js';

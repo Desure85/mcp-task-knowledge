@@ -4,7 +4,7 @@
  * relay manager is enabled.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { ServerContext } from './context.js';
 import { ok, err } from '../utils/respond.js';
 

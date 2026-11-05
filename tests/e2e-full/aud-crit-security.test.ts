@@ -239,7 +239,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
     const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const child: ChildProcess = spawn('node', ['tests/e2e-full/fixtures/server-with-completion.mjs'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -393,7 +393,12 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       const call = async (id: number, name: string, args: Record<string, unknown>) => {
         const res = await mcpPost(port, sid, rpc(id, 'tools/call', { name, arguments: args }));
         const content = res.json?.result?.content?.[0]?.text;
-        const env = content ? JSON.parse(content) : undefined;
+        let env: any;
+        try {
+          env = content ? JSON.parse(content) : undefined;
+        } catch {
+          env = undefined;
+        }
         return { res, env, isError: res.json?.result?.isError === true || res.json?.error !== undefined };
       };
 

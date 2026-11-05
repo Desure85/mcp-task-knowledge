@@ -31,7 +31,7 @@
 
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { readPromptsCatalog } from './helpers.js';

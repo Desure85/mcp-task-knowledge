@@ -8,10 +8,25 @@
 
 import path from 'node:path';
 import fsp from 'node:fs/promises';
+import net from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const ROOT = process.cwd();
+
+/** Reserve an ephemeral port from the OS so parallel servers never collide. */
+export async function getFreePort(): Promise<number> {
+  const server = net.createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, () => resolve());
+  });
+  const address = server.address();
+  const port = typeof address === 'object' && address !== null ? address.port : 0;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (port <= 0) throw new Error('could not reserve a free port');
+  return port;
+}
 
 export interface E2EServer {
   client: Client;

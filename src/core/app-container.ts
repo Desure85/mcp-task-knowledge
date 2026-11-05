@@ -201,6 +201,12 @@ function assertTransition(from: AppState, to: AppState): void {
   }
 }
 
+function parseRelayPort(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const port = Number(raw);
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : undefined;
+}
+
 // ─── AppContainer ─────────────────────────────────────────────────────
 
 export class AppContainer {
@@ -378,7 +384,11 @@ export class AppContainer {
       // 3.1 LAN Relay (BM-012) — enabled via RELAY_ENABLED=1
       if (process.env.RELAY_ENABLED === '1') {
         const { RelayManager } = await import('../relay/relay-manager.js');
-        this.relay = new RelayManager();
+        const relayPort = parseRelayPort(process.env.RELAY_PORT);
+        if (process.env.RELAY_PORT !== undefined && relayPort === undefined) {
+          this.log.warn({ value: process.env.RELAY_PORT }, 'RELAY_PORT is not a valid port — using the default');
+        }
+        this.relay = new RelayManager(relayPort === undefined ? {} : { port: relayPort });
         this.relay.start();
         this.ctx.relayManager = this.relay;
       }
@@ -415,7 +425,10 @@ export class AppContainer {
           const readOp = isReadOp(name);
           const registerCallable = exposeMode !== 'resources' || !readOp;
           if (registerCallable) {
-            this.ctx!.server.tool(name, schema as Record<string, unknown>, handler as never);
+            // SDK 1.32 rejects a config object in the deprecated tool() schema
+            // slot. Connector schemas are raw JSON Schema, so they reach callers
+            // via ToolRegistry only, not as the SDK's Zod validation schema.
+            this.ctx!.server.tool(name, schema?.description ?? schema?.title ?? name, handler as never);
             this.ctx!.toolNames.add(name);
           }
           // Registry visibility: server.tool() bypasses registerTool, so

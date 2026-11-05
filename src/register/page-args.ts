@@ -5,7 +5,7 @@
  * набор параметров и возвращали одинаковые метаданные рядом с `data`.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import {
   DEFAULT_LIMIT,
   MAX_LIMIT,

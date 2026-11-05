@@ -8,7 +8,7 @@
  * Mcp-Session-Id header); stdio/unix callers fall back to 'local'.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { ServerContext } from './context.js';
 import { ok, err } from '../utils/respond.js';
 import { resolveExtraSessionId } from '../core/auth-gate.js';

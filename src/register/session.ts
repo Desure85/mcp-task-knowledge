@@ -10,7 +10,7 @@
  * sessionManager is not available (e.g. stdio single-client mode).
  */
 
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import type { SessionInfo } from '../core/session-manager.js';
 import type { RateLimitInfo } from '../core/rate-limiter.js';

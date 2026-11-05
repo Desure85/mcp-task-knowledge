@@ -250,16 +250,16 @@ describe('mcp.authenticate tool', () => {
     (ctx as { server: McpServer }).server = server;
     registerAuthTools(ctx);
 
-    const tools = (server as unknown as { _registeredTools: Record<string, { callback: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
+    const tools = (server as unknown as { _registeredTools: Record<string, { handler: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
     expect(tools['mcp.authenticate']).toBeDefined();
 
-    const okRes = (await tools['mcp.authenticate'].callback({ token: 'valid-token' }, { sessionId: 's-1' })) as {
+    const okRes = (await tools['mcp.authenticate'].handler({ token: 'valid-token' }, { sessionId: 's-1' })) as {
       content: Array<{ text: string }>;
     };
     expect(JSON.parse(okRes.content[0].text)).toMatchObject({ ok: true, data: { authenticated: true, userId: 'user-1' } });
     expect(auth.isAuthenticated('s-1')).toBe(true);
 
-    const badRes = (await tools['mcp.authenticate'].callback({ token: 'wrong' }, { sessionId: 's-2' })) as {
+    const badRes = (await tools['mcp.authenticate'].handler({ token: 'wrong' }, { sessionId: 's-2' })) as {
       isError?: boolean;
       content: Array<{ text: string }>;
     };
@@ -270,8 +270,8 @@ describe('mcp.authenticate tool', () => {
   it('fails closed when no AuthManager is installed', async () => {
     const server = new McpServer({ name: 'test', version: '0.0.0' });
     registerAuthTools(createMockServerContext({ server } as Partial<ServerContext>));
-    const tools = (server as unknown as { _registeredTools: Record<string, { callback: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
-    const res = (await tools['mcp.authenticate'].callback({ token: 'x' }, {})) as {
+    const tools = (server as unknown as { _registeredTools: Record<string, { handler: (a: unknown, e: unknown) => Promise<unknown> }> })._registeredTools;
+    const res = (await tools['mcp.authenticate'].handler({ token: 'x' }, {})) as {
       isError?: boolean;
     };
     expect(res.isError).toBe(true);

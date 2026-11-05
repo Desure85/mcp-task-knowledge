@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { spawnServer } from './harness.js';
+import { getFreePort, spawnServer } from './harness.js';
 
 describe('Q-014 slice 20: session/cluster degraded shapes on stdio', () => {
   it('session_info, cluster_nodes, cluster_assign answer without managers', async () => {
@@ -94,7 +94,8 @@ describe('Q-014 slice 20: graph exports', () => {
 
 describe('Q-014 slice 20: trends + tools_run + relay share/broadcast', () => {
   it('dashboard_trends answers; tools_run single-call; relay ops with no peers', async () => {
-    const srv = await spawnServer('misc-relay', { RELAY_ENABLED: '1' });
+    const relayPort = await getFreePort();
+    const srv = await spawnServer('misc-relay', { RELAY_ENABLED: '1', RELAY_PORT: String(relayPort) });
     try {
       await srv.callTool('tasks_create', { project: 'mcp', title: 'Q014 trends task' });
 
