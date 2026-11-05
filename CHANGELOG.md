@@ -64,6 +64,9 @@
 
 ### Fixed
 
+- web-ui custom themes: `accent-soft` (the selected-row fill in the sidebar and the theme menu) was derived as almost the accent colour because `mix(accent, canvas, w)` takes `w` of the canvas, so accent-coloured labels on it were unreadable; it is now a light tint of the accent that passes AA for both the accent and the text, the accent is nudged to clear AA on its own tint, saved themes are re-derived from their base colours on load, and `accent`/`accent-soft` joined the contrast matrix (it caught Copper light at 4.38:1, `--accent-soft` is now `#f9eee5`)
+- web-ui sidebar: `/projects/settings` no longer highlights Projects as well (the longest matching href wins)
+- web-ui project settings: status and type tables no longer repeat a visible label above every field (`hideLabel` on `Input`/`Select`) and the cells are vertically centred
 - `/knowledge` P0 (UI-13, F-01/F-02): list items are typed without `content` and normalized, a document opens via `knowledge_get` with loading/error states, search uses server `search_knowledge` with an empty state, `renderMarkdown` tolerates `undefined`; route and global error boundaries offer Retry / Overview
 - Flaky-тесты: fake timers в session-manager/rate-limiter/token-manager (TD-013), jwt nbf детерминизм, SQLite таймауты (P1)
 - 61 strict-ошибка в тестах (Q-012): полный type-check через tsconfig.test.json
