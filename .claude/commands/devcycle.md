@@ -1,7 +1,7 @@
 ---
-description: Управление циклом разработки mcp-task-knowledge (status, start, resume, stop, tick, next, report)
-argument-hint: status|start|resume|stop|tick|next|report
-allowed-tools: Bash, Read
+description: Управление циклом разработки mcp-task-knowledge (status, start, resume, stop, tick, next, report, readiness, proposals)
+argument-hint: status|start|resume|stop|tick|next|report|readiness|proposals
+allowed-tools: Bash, Read, Grep, Glob
 ---
 
 # /devcycle — управление циклом разработки
@@ -41,6 +41,15 @@ CronList, CronDelete). Полные правила цикла: `docs/dev-cycle/R
 
 ## resume
 
+0. Проверки после паузы, до любого включения:
+   - `git worktree list` и для каждого worktree проекта `git -C <путь> status --short | wc -l`;
+     сверить с заметкой о паузе (`project_pause-handoff-*`): незапушенная работа без решения,
+     что с ней делать, это повод спросить владельца, а не продолжать;
+   - `node scripts/devcycle.mjs status` (проба): красный CI master или больше одного своего
+     открытого PR означает остановиться и спросить;
+   - исполнитель жив: лимит токенов OpenCode мог закончиться за время паузы, и тогда поручение
+     останется без результата. Проверить `part` сессии в БД (только чтение); если признаков
+     нет, спросить владельца один раз.
 1. Выполни `node scripts/devcycle.mjs state get --json`.
 2. Выполни CronList.
 3. Если `enabled=true` и расписания нет, создай его заново (как в `start`), запиши новый
@@ -72,6 +81,38 @@ CronList, CronDelete). Полные правила цикла: `docs/dev-cycle/R
 1. Выполни `node scripts/devcycle.mjs report`.
 2. Отдай владельцу одним сообщением: последние решения, открытые PR с состоянием CI,
    смерженное за сутки. Ничего не меняй.
+
+## readiness
+
+Снимок готовности по gates R1..R14 из `docs/dev-cycle/production-grade.md`.
+
+1. Тяжёлые пробы (`npm test`, `test:coverage`, `npm pack`, сборка образов) запускай в отдельном
+   worktree от свежего `origin/master` (`git fetch origin`, затем `git worktree add <каталог>
+   -b probe/readiness-<дата> origin/master`, зависимости симлинками по `rules.md`). Рабочий
+   каталог владельца не использовать.
+2. Каждую пробу запиши как `зелёный`, `красный` или `n/a` с причиной и выводом одной строкой.
+   Падение не из-за кода (занят порт 4001, нет сети) это `n/a`, а не `зелёный`.
+3. Выдай таблицу владельцу целиком. Красный gate и `n/a` без принятого решения оформи как
+   предложение (см. `proposals`). Вердикт «прод-грейд достигнут» не выноси: он за владельцем.
+4. Пока красен gate безопасности или данных (R1, R7, R8, R12), `tick` не диспетчит новые
+   пункты-фичи: надёжность раньше функциональности.
+
+## proposals
+
+Проход по предложениям улучшений. Выполняется по запросу владельца и в конце тика, после
+основного действия.
+
+1. Замечай во время чтения состояния: красный gate, повторяющееся падение теста, расхождение
+   документации и кода, пункт `done` без теста, дубль между этапами бэклога, пробел в пробах.
+2. Оформляй по правилам `docs/dev-cycle/production-grade.md` (раздел «Предложения улучшений»):
+   только с пробой, сначала поиск пересечений в `BACKLOG.md`, `docs/adr`, `decisions-log.md`,
+   не больше трёх новых за тик, запись в `.devcycle/proposals.md`.
+3. Класс `auto`: запиши решение в `docs/dev-cycle/decisions-log.md` (вопрос, решение, почему,
+   чем проверено, как откатить) и поставь поручение исполнителю. `BACKLOG.md` контролёр сам не
+   правит.
+4. Класс `owner` или сомнение: поручение не ставь. Покажи владельцу с рекомендацией («я бы
+   сделала X, потому что Y, цена Z»), а не списком вариантов.
+5. Допиши в лог: `node scripts/devcycle.mjs log "proposals: +<n> new, <m> accepted"`.
 
 ## Ограничения
 

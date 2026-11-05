@@ -44,6 +44,7 @@ A, B, C, D, E, F из `tick.md`. Два пункта за тик не диспе
 | `docs/dev-cycle/README.md` | Этот файл: роли, схема, запуск и остановка |
 | `docs/dev-cycle/tick.md` | Инструкция одного тика и правила очереди |
 | `docs/dev-cycle/rules.md` | Что разрешено и запрещено контролёру и исполнителю |
+| `docs/dev-cycle/production-grade.md` | Критерии готовности (gates R1..R14) и протокол предложений улучшений |
 | `docs/dev-cycle/decisions-log.md` | Журнал решений контролёра с основанием и откатом |
 | `scripts/devcycle.mjs` | CLI цикла, единственная точка входа |
 | `scripts/lib/devcycle-*.mjs` | Логика выбора пункта и вспомогательные модули |

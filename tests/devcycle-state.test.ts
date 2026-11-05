@@ -182,7 +182,7 @@ describe('devcycle command/code drift', () => {
       expect(SUBCOMMANDS, `${COMMAND_FILE} references an unknown subcommand`).toContain(subcommand);
     }
 
-    const ACTIONS = ['status', 'start', 'resume', 'stop', 'tick', 'next', 'report'];
+    const ACTIONS = ['status', 'start', 'resume', 'stop', 'tick', 'next', 'report', 'readiness', 'proposals'];
     const headings = [...doc.matchAll(/^## ([a-z]+)$/gm)].map((match) => match[1]);
     expect(new Set(headings)).toEqual(new Set(ACTIONS));
 

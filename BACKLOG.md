@@ -921,6 +921,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | DX-35 | Команда `/devcycle`: управление циклом разработки | high | done | — | `scripts/devcycle.mjs` (Node, без зависимостей): `status` как read-only проба (LoopX через `turn plan`, PR и CI по headRefOid, пульс сессий только по session_id, worktree, журнал решений), `next` (детерминированный выбор из `BACKLOG.md`), `state get/enable/disable`, `log`, `tick` (single-writer lock, отказ при выключенном цикле, `git fetch`), `report`; коды возврата 0/1/2/3; недоступный источник даёт `n/a` и код 0. Слэш-команда `.claude/commands/devcycle.md` со сверкой расписания: `start` идемпотентен, `stop` удаляет cron даже без сохранённого cronId. Процесс перенесён из личных файлов контролёра в `docs/dev-cycle/` (README, tick, rules, decisions-log). DoD: `npx vitest run tests/devcycle-next.test.ts tests/devcycle-state.test.ts`; счётчики pending/blocked/deferred совпадают с `npm run backlog:check`; `node scripts/devcycle.mjs status` не меняет `git status --short`. |
+| DX-36 | `/devcycle readiness` и `/devcycle proposals`: режим «прод-грейд» | high | in_progress | DX-35 | Подкоманды в `.claude/commands/devcycle.md` вместо отдельной команды: `readiness` (снимок готовности по gates R1..R14 из `docs/dev-cycle/production-grade.md`, у каждого проба и порог, `n/a` вместо ложного «зелёного», тяжёлые пробы в отдельном worktree), `proposals` (предложения улучшений: только с пробой, поиск пересечений, не больше трёх за тик, классы `auto` и `owner`), проверки после паузы в `resume` (незапушенные worktree, красный master, жив ли исполнитель), правило «надёжность раньше фич». Вердикт «прод-грейд достигнут» выносит владелец. DoD: `npm run backlog:check`, `npm run lint:md`; первый прогон `/devcycle readiness` на свежем master приложить к PR |
 
 ---
 
@@ -1354,7 +1355,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Full-server E2E (K) | 1 | 0 | 0 | 1 | 0 | 0 |
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 17 | 0 | 0 | 1 | 0 |
-| DX/Onboarding (N) | 25 | 17 | 0 | 4 | 4 | 0 |
+| DX/Onboarding (N) | 26 | 17 | 1 | 4 | 4 | 0 |
 | Trust/Hardening (O) | 20 | 12 | 0 | 1 | 7 | 0 |
 | MCP spec compliance (P) | 10 | 6 | 0 | 2 | 2 | 0 |
 | KB hardening (Q) | 7 | 0 | 0 | 6 | 1 | 0 |
@@ -1368,7 +1369,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Pluggable storage (Y) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Skills and packages (Z) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
-| **Итого** | **397** | **96** | **0** | **277** | **23** | **1** |
+| **Итого** | **398** | **96** | **1** | **277** | **23** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
