@@ -73,6 +73,10 @@
 
 - Core MCP E2E (Q-004), BM25 load (Q-006), schema validation (Q-007), JSON-RPC fuzzing (Q-008), chaos/shutdown (Q-009), property-based core (Q-010), wire snapshots (Q-011), ENOSPC integrity (Q-013)
 
+### Security
+
+- P-20261105-1 dependencies: `npm audit --omit=dev` on 38a774d reported 14 findings (2 critical, 9 high, 3 moderate); `npm audit fix` without `--force` and with no major upgrades closes 12 of them — markdown-it 14.3.3 with linkify-it 5.0.2 (ReDoS and quadratic-scan DoS), js-yaml 3.15.2 (prototype pollution and quadratic merge-key DoS), picomatch 2.3.2 (ReDoS), protobufjs 7.6.6 with @protobufjs/utf8 1.1.2 (code injection and prototype injection), ajv 8.20.0/6.15.0 with fast-uri 3.1.9 (ReDoS and host confusion), and the express chain (body-parser 2.4.0, qs 6.17.1, proxy-addr 2.0.8, path-to-regexp 8.4.2). Two high findings remain by design: `zod` (fix requires the zod 4 major, owner decision P-20261105-2) and `@modelcontextprotocol/sdk` (fix ships only in 1.32.x, which does not type-check against zod 3 — 199 `registerTool` call sites fail with TS2589 and tsc runs out of memory; see TR-39)
+
 ## [2026-09-03] — PROD hardening (аудит prod-ready)
 
 ### Fixed

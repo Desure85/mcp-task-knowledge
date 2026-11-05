@@ -950,6 +950,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-07 | Privacy-декларация + PII-scrubbing | medium | done | — | Local-first манифест: честный список того, что уходит наружу (embeddings API, JWKS-fetch, коннекторы). Memory extraction — опция маскировать PII в фактах о пользователях. Selling point для agent-memory продукта |
 | TR-08 | Reliability: деградация и partial failure | medium | done | — | Контракт задокументирован в docs/reliability.md (4 секции с file:line цитатами): connector failure modes (per-connector таблица timeout/error-shape/injectable-fetch), circuit-breaker story (embeddings+catalog only), batch partial-failure envelope, drain lifecycle. Тесты: tests/reliability-contract.test.ts + расширен src/health/endpoints.spec.ts. Гэпы → TR-33..38 |
 | TR-09 | Perf-ёмкость: бюджеты и пределы | low | blocked | Проработка (research): замеры бюджета и пределов (benchmarks в CI) до нормирования порогов | benchmarks/ не подключены к CI (0 hits в workflows). Регрессионные бюджеты, макс. датасет до деградации, memory ceiling. Задокументировать пределы |
+| TR-39 | Supply chain: `npm audit` без мажорных обновлений (P-20261105-1) | high | in_progress | TR-06 | На 38a774d `npm audit --omit=dev` даёт 14 находок (2 critical, 9 high, 3 moderate). `npm audit fix` без `--force` и без мажоров закрыл 12: markdown-it 14.3.3 и linkify-it 5.0.2, js-yaml 3.15.2, picomatch 2.3.2, protobufjs 7.6.6 и @protobufjs/utf8 1.1.2, ajv 8.20.0/6.15.0 и fast-uri 3.1.9, express-цепочка (body-parser 2.4.0, qs 6.17.1, proxy-addr 2.0.8, path-to-regexp 8.4.2). Остаются 2 high: zod (фикс только в 4.6.6+, мажор — решение владельца P-20261105-2) и `@modelcontextprotocol/sdk` (фикс только в 1.32.x; с zod 3 он даёт TS2589 на каждом registerTool — 199 вызовов, tsc уходит в OOM, а с zod 4.6.7 проверяется за 1.2 с). Блокирующий `npm audit --audit-level=high` в CI включать нельзя, пока живёт zod (TR-06 остаётся report-only). |
 
 ### Фаза 3 — Governance и spec-frontier
 
@@ -1356,7 +1357,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Prod Hardening (L) | 14 | 3 | 0 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 17 | 0 | 0 | 1 | 0 |
 | DX/Onboarding (N) | 26 | 17 | 1 | 4 | 4 | 0 |
-| Trust/Hardening (O) | 20 | 12 | 0 | 1 | 7 | 0 |
+| Trust/Hardening (O) | 21 | 12 | 1 | 1 | 7 | 0 |
 | MCP spec compliance (P) | 10 | 6 | 0 | 2 | 2 | 0 |
 | KB hardening (Q) | 7 | 0 | 0 | 6 | 1 | 0 |
 | Multi-user integrity (R) | 8 | 5 | 0 | 0 | 3 | 0 |
@@ -1369,7 +1370,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Pluggable storage (Y) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Skills and packages (Z) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
-| **Итого** | **398** | **96** | **1** | **277** | **23** | **1** |
+| **Итого** | **399** | **96** | **2** | **277** | **23** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
