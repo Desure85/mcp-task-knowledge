@@ -29,6 +29,7 @@ import {
   clearCustomTheme,
   readActiveCustomId,
   readCustomThemes,
+  writeCustomThemes,
   writeActiveCustomId,
   type CustomTheme,
 } from '@/lib/custom-theme';
@@ -73,6 +74,8 @@ export function ThemeSwitcher() {
   useEffect(() => {
     const stored = readStoredTheme(window.localStorage);
     const store = readCustomThemes(window.localStorage);
+    // Persist re-derived tokens so the pre-paint script (which reads storage directly) paints them next load.
+    if (store.themes.length > 0) writeCustomThemes(window.localStorage, store);
     const storedActive = readActiveCustomId(window.localStorage);
     const active = storedActive ? store.themes.find((candidate) => candidate.id === storedActive) : undefined;
     const customId = active ? active.id : null;
