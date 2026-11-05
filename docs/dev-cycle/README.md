@@ -49,7 +49,6 @@ A, B, C, D, E, F из `tick.md`. Два пункта за тик не диспе
 | `scripts/devcycle.mjs` | CLI цикла, единственная точка входа |
 | `scripts/lib/devcycle-*.mjs` | Логика выбора пункта и вспомогательные модули |
 | `.claude/commands/devcycle.md` | Слэш-команда контролёра `/devcycle` |
-| `.claude/commands/resume-backlog.md` | Слэш-команда `/resume-backlog`: возобновление цикла в режиме прод-грейд |
 | `DEVCYCLE_STATE_DIR` (по умолчанию `.devcycle/`) | Локальное состояние `state.json` и лог `log.md`, в git не попадает |
 | `DEVCYCLE_BACKLOG` (по умолчанию `BACKLOG.md`) | Очередь пунктов на свежем `origin/master` |
 
