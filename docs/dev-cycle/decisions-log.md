@@ -218,3 +218,11 @@ memory-recall и команда `/recall`), `/opt/mcp` (старые данны�
 Почему: мажор zod ломает контракты схем, а SDK можно обновить в рамках 1.x; один шаг упрощает откат.
 Проверено: audit до — 2 high (zod, SDK), после — 1 high (zod < 4.6.6); SDK 1.17.4 → 1.32.2, диапазон `^1.32.0` (минимальная закрывающая 1.32.0; в lock 1.32.2 с двумя фиксами: Transport `| undefined` и регистрация tool после connect); TS2589 воспроизведён на `src/register/dashboard.ts:13` и снят импортом `zod/v3`; build, test:types, lint (0 errors), lint:md, backlog:check, `npm test` (270 файлов, 3108 тестов), `e2e:full` (30 файлов, 122 теста), wire-format snapshots без изменений, web-ui tsc + тесты (26 файлов, 351 тест) + build --webpack.
 Откат: revert PR.
+
+### 2026-11-05 — P-20261105-2a, доработка: relay не роняет сервер, completion снова проверяется строго
+
+Основание: полный прогон в worktree падал на `misc-surface` с `McpError: Connection closed` (в логе `EADDRINUSE :::41235`): два e2e-сервера с `RELAY_ENABLED=1` на фиксированном порту, unhandled `error` у `WebSocketServer`; плюс ослабленная до `[-32001, -32601]` проверка `completion/complete` в AUD-01.
+Решение: (а) `RelayManager` при ошибке bind логирует `warn` через общий логгер и выключает relay (`enabled: false`), сервер продолжает работать; порт читается из `RELAY_PORT` (default 41235, документирован в `docs/getting-started/configuration.md`); e2e берут свободный порт у ОС; (б) в AUD-01 тестовый сервер — фикстура с Completable-аргументом, чтобы SDK 1.32 установил обработчик completion и запрос дошёл до гейта; строгая проверка `-32001` возвращена.
+Почему: relay — опциональная подсистема, её сбой не должен ронять MCP-сервер; ослабленное ожидание перестаёт доказывать AUD-01.
+Проверено: юнит-тест `tests/relay-bind-failure.test.ts` красный без фикса (unhandled `EADDRINUSE`), зелёный с фиксом; мутация гейта (удаление `completion/complete` из tcp `MAIN_DISPATCH_METHODS`) даёт `-32601` и красный AUD-01 tcp; полный `vitest run` 3/3 зелёный; `e2e:full` зелёный.
+Откат: revert коммита.

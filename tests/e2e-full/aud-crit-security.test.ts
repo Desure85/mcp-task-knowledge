@@ -239,7 +239,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
     const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const child: ChildProcess = spawn('node', ['tests/e2e-full/fixtures/server-with-completion.mjs'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -276,10 +276,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
         ref: { type: 'ref/prompt', name: 'x' },
         argument: { name: 'a', value: 'b' },
       });
-      // SDK 1.32 registers the completion handler only when a Completable
-      // argument exists, so without one the method is unknown (-32601) and the
-      // request never reaches the auth gate (-32001). Both deny the call.
-      expect([-32001, -32601]).toContain(deniedCompletion.error?.code);
+      expect(deniedCompletion.error?.code).toBe(-32001);
 
       const auth = await client.request('tools/call', {
         name: 'mcp.authenticate',
