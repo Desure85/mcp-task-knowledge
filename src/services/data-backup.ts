@@ -39,6 +39,7 @@ import {
   PathValidationError,
 } from '../fs.js';
 import { childLogger } from '../core/logger.js';
+import { SERVER_LOCK_FILENAME } from '../storage-lock.js';
 import { readBackupArchive } from './backup-archive.js';
 
 const log = childLogger('data-backup');
@@ -50,7 +51,7 @@ export const BACKUPS_DIR_NAME = '.backups';
 export const BACKUP_MANIFEST_FILE = 'manifest.json';
 
 /** Runtime lock written by the server (MU-01). Never archived, never restored. */
-export const SERVER_LOCK_NAME = '.server.lock';
+export const SERVER_LOCK_NAME = SERVER_LOCK_FILENAME;
 
 /** Inter-process restore lock (ADR-008 §8). Never archived, never restored. */
 export const RESTORE_LOCK_NAME = '.restore.lock';

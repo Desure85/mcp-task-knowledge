@@ -25,6 +25,7 @@ import {
   readBackupArchive,
   BackupArchiveError,
 } from '../src/services/backup-archive.js';
+import { SERVER_LOCK_FILENAME } from '../src/storage-lock.js';
 
 let ROOT: string;
 let DATA: string;
@@ -275,6 +276,82 @@ describe('restoreArchive round-trip', () => {
     );
     expect(await read('tasks/acme/t1.json')).toBe('{"id":"t1","title":"CHANGED"}\n');
     expect(await exists(path.join(DATA, 'knowledge/acme/d2-added-after-backup.md'))).toBe(true);
+  });
+});
+
+describe('apply token binding', () => {
+  it('rejects a non-empty confirm that is not the applyToken and changes nothing', async () => {
+    const { archive } = await prepare();
+    await mutate();
+    const before = await inventory();
+    const plan = await restoreArchive({ archive, dataDir: DATA });
+    expect(plan.applyToken).not.toBe('0'.repeat(40));
+
+    await expectRestoreCode(
+      () => restoreArchive({ archive, dataDir: DATA, dryRun: false, confirm: '0'.repeat(40) }),
+      'RESTORE_CONFIRM_REQUIRED',
+    );
+    expect(await inventory()).toEqual(before);
+    expect(await exists(path.join(DATA, RESTORE_LOCK_NAME))).toBe(false);
+  });
+
+  it('rejects a token minted before DATA_DIR changed, with a re-run hint', async () => {
+    const { archive } = await prepare();
+    await mutate();
+    const plan = await restoreArchive({ archive, dataDir: DATA });
+    await write('knowledge/acme/d3-after-dry-run.md', 'raced\n');
+    const before = await inventory();
+
+    const err = await expectRestoreCode(
+      () => restoreArchive({ archive, dataDir: DATA, dryRun: false, confirm: plan.applyToken }),
+      'RESTORE_CONFIRM_REQUIRED',
+    );
+    expect(err.hint).toMatch(/dry.?run/i);
+    expect(await inventory()).toEqual(before);
+  });
+
+  it('re-validates the plan under the lock and rejects a concurrent change', async () => {
+    const { archive } = await prepare();
+    const before = await inventory();
+    const plan = await restoreArchive({ archive, dataDir: DATA });
+    const raced = path.join(DATA, 'knowledge/acme/raced-lock.md');
+
+    const original = fsp.link.bind(fsp);
+    vi.spyOn(fsp, 'link').mockImplementation(async (src, dst) => {
+      await original(src, dst);
+      await fsp.writeFile(raced, 'raced\n');
+    });
+
+    const err = await expectRestoreCode(
+      () => restoreArchive({ archive, dataDir: DATA, dryRun: false, confirm: plan.applyToken }),
+      'RESTORE_CONFIRM_REQUIRED',
+    );
+    expect(err.message).toMatch(/changed/);
+    await fsp.rm(raced);
+    expect(await inventory()).toEqual(before);
+    expect(await exists(path.join(DATA, RESTORE_LOCK_NAME))).toBe(false);
+  });
+
+  it('rejects a reviewed token when the plan changes while the lock is taken', async () => {
+    const { archive } = await prepare();
+    const raced = path.join(DATA, 'knowledge/acme/raced.md');
+    await fsp.writeFile(raced, 'raced\n');
+    const reviewed = await restoreArchive({ archive, dataDir: DATA });
+    await fsp.rm(raced);
+
+    const original = fsp.link.bind(fsp);
+    vi.spyOn(fsp, 'link').mockImplementation(async (src, dst) => {
+      await original(src, dst);
+      await fsp.writeFile(raced, 'raced\n');
+    });
+
+    const err = await expectRestoreCode(
+      () => restoreArchive({ archive, dataDir: DATA, dryRun: false, confirm: reviewed.applyToken }),
+      'RESTORE_CONFIRM_REQUIRED',
+    );
+    expect(err.hint).toMatch(/dry.?run/i);
+    expect(await exists(raced)).toBe(false);
+    expect(await exists(path.join(DATA, RESTORE_LOCK_NAME))).toBe(false);
   });
 });
 
@@ -568,8 +645,10 @@ describe('runtime lock files are never archived or restored', () => {
     await write(RESTORE_LOCK_NAME, '{"pid":2}\n');
     const result = await createBackupArchive({ dataDir: DATA, label: 'locks' });
     const read = await readBackupArchive(result.archivePath);
-    expect(read.manifest.excluded).toContain(SERVER_LOCK_NAME);
+    expect(SERVER_LOCK_NAME).toBe(SERVER_LOCK_FILENAME);
+    expect(read.manifest.excluded).toContain(SERVER_LOCK_FILENAME);
     expect(read.manifest.excluded).toContain(RESTORE_LOCK_NAME);
+    expect(read.manifest.excluded).toContain('.restore-tmp');
     expect(read.entries.map((e) => e.path)).not.toContain(SERVER_LOCK_NAME);
     expect(read.entries.map((e) => e.path)).not.toContain(RESTORE_LOCK_NAME);
   });
