@@ -482,6 +482,15 @@ describe('MU-01: lock primitives', () => {
     await fs.rm(lockPath(dataDir), { force: true });
   });
 
+  it('releaseSync keeps a lock that a successor already took over', async () => {
+    const dataDir = await makeDataDir();
+    const lock = await acquireServerLock({ dataDir, transport: 'test', version: '0.0.0' });
+    writeLockSync(dataDir, { token: 'successor-token' });
+    lock.releaseSync();
+    expect((await readLock(dataDir)).token).toBe('successor-token');
+    await fs.rm(lockPath(dataDir), { force: true });
+  });
+
   it('backs off while another process holds the reclaim guard', async () => {
     const dataDir = await makeDataDir();
     writeLockSync(dataDir, { token: 'stale-token', pid: 2147483646, processIdentity: 'boot:1' });
