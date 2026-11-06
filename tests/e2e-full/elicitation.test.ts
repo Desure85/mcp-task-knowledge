@@ -47,7 +47,12 @@ async function spawnElicitServer(tag: string, responder: (params: any) => { acti
   );
   const elicitSpy = vi.fn(responder);
   client.setRequestHandler(ElicitRequestSchema, async (req) => elicitSpy(req.params));
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    await transport.close().catch(() => {});
+    throw error;
+  }
 
   async function callTool(name: string, args: Record<string, unknown>) {
     const res = await client.callTool({ name, arguments: args });

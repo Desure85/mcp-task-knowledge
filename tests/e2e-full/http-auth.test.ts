@@ -12,16 +12,15 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-http-auth');
 const STORE = path.join(TMP, 'store');
-
-let portCounter = 4600;
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -78,8 +77,8 @@ describe('Q-014 slice 5: HTTP fail-closed gate (live server)', () => {
   async function start() {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    port = ++portCounter;
-    child = spawn('node', ['dist/index.js'], {
+    port = await getFreePort();
+    child = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -92,11 +91,14 @@ describe('Q-014 slice 5: HTTP fail-closed gate (live server)', () => {
       },
       stdio: ['pipe', 'pipe', 'inherit'],
     });
-    expect(await waitForReady(child, port)).toBe(true);
+    if (!(await waitForReady(child, port))) {
+      await terminateServer(child);
+      throw new Error('server did not become ready');
+    }
   }
 
   async function stop() {
-    try { child?.kill('SIGTERM'); } catch {}
+    await terminateServer(child);
     await rmrf(TMP);
   }
 

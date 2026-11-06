@@ -81,7 +81,12 @@ async function createClient(env: Record<string, string>) {
     env,
   })
   const client = new Client({ name: 'test-client', version: '1.0.0', capabilities: {} })
-  await client.connect(transport)
+  try {
+    await client.connect(transport)
+  } catch (error) {
+    await transport.close().catch(() => {})
+    throw error
+  }
   return client
 }
 

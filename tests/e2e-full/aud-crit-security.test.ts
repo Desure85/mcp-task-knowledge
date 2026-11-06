@@ -16,8 +16,9 @@ import fsp from 'node:fs/promises';
 import net from 'node:net';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 assertDistFresh();
 
@@ -37,8 +38,6 @@ function mintJwt(sub = 'aud-user'): string {
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
   return `${header}.${payload}.${sig}`;
 }
-
-let portCounter = 4400;
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -183,8 +182,8 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
   it('AUD-01 http: all data methods denied pre-auth; work after mcp.authenticate', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -233,7 +232,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       expect(tlist.status).toBe(200);
       expect(Array.isArray(tlist.json?.result?.tools)).toBe(true);
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
@@ -241,8 +240,8 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
   it('AUD-01 tcp: resources/list denied pre-auth, served post-auth', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['tests/e2e-full/fixtures/server-with-completion.mjs'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['tests/e2e-full/fixtures/server-with-completion.mjs'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -293,7 +292,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       expect(list.result?.resources).toBeDefined();
     } finally {
       client?.close();
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
@@ -301,8 +300,8 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
   it('AUD-02: resources/read cannot mutate — task://action/* returns ok:false, task unchanged', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -361,7 +360,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       const gotEnv = JSON.parse(got.json?.result?.content?.[0]?.text ?? '{}');
       expect(gotEnv.data?.status ?? gotEnv.data?.task?.status).toBe('pending');
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
@@ -369,8 +368,8 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
   it('AUD-03: traversal in project/id/filename rejected at every boundary', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -440,7 +439,7 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       const okTc = await call(71, 'tasks_create', { project: 'aud03-proj', title: 'legit' });
       expect(okTc.env?.ok).toBe(true);
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);

@@ -46,7 +46,12 @@ async function spawnOnStore(store: string, tmp: string, tag: string): Promise<Bo
     },
   });
   const client = new Client({ name: `spec03-${tag}`, version: '0.0.1' });
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    await transport.close().catch(() => {});
+    throw error;
+  }
 
   async function callTool(name: string, args: Record<string, unknown>) {
     const res = await client.callTool({ name, arguments: args });

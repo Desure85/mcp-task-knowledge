@@ -12,9 +12,10 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { requestWantsProgress } from '../../src/transport/http-transport.js';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 assertDistFresh();
 
@@ -22,8 +23,6 @@ const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-http-mode');
 const STORE = path.join(TMP, 'store');
 const JWT_SECRET = 'sc01-response-mode-secret-32bytes!!';
-
-let portCounter = 4970;
 
 function mintJwt(sub = 'sc01-user'): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
@@ -118,8 +117,8 @@ async function waitForReady(child: ChildProcess, port: number, timeoutMs = 15_00
 async function startServer(extraEnv: Record<string, string> = {}) {
   await rmrf(TMP);
   await fsp.mkdir(STORE, { recursive: true });
-  const port = ++portCounter;
-  const child: ChildProcess = spawn('node', ['dist/index.js'], {
+  const port = await getFreePort();
+  const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
     env: {
       ...process.env,
       DATA_DIR: STORE,
@@ -134,7 +133,10 @@ async function startServer(extraEnv: Record<string, string> = {}) {
     },
     stdio: ['pipe', 'pipe', 'inherit'],
   });
-  expect(await waitForReady(child, port)).toBe(true);
+  if (!(await waitForReady(child, port))) {
+    await terminateServer(child);
+    throw new Error('server did not become ready');
+  }
   return { child, port };
 }
 
@@ -204,7 +206,7 @@ describe('SC-01 HTTP response mode (live server)', () => {
       expect(withProgress.text).toContain('data:');
       expect(toolEnvelope(withProgress.text).ok).toBe(true);
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60_000);
@@ -217,7 +219,7 @@ describe('SC-01 HTTP response mode (live server)', () => {
       expect(plain.status).toBe(200);
       expect(String(plain.headers['content-type'] ?? '')).toContain('text/event-stream');
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60_000);

@@ -23,8 +23,9 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { spawnServer } from './harness.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-auth-stress');
@@ -46,8 +47,6 @@ function mintJwt(sub = 'q014-stress-user', roles: string[] = []): string {
 function rpc(id: number, method: string, params?: unknown) {
   return { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) };
 }
-
-let portCounter = 4700;
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -122,11 +121,11 @@ describe('Q-014 slice 16: auth/session/cluster core', () => {
   let tmp = '';
 
   async function startHttp(extraEnv: Record<string, string> = {}) {
-    tmp = path.join(TMP, `-${++portCounter}`);
+    port = await getFreePort();
+    tmp = path.join(TMP, `-${port}`);
     await rmrf(tmp);
     await fsp.mkdir(path.join(tmp, 'store'), { recursive: true });
-    port = portCounter;
-    child = spawn('node', ['dist/index.js'], {
+    child = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: path.join(tmp, 'store'),
@@ -141,13 +140,17 @@ describe('Q-014 slice 16: auth/session/cluster core', () => {
       },
       stdio: ['pipe', 'pipe', 'inherit'],
     });
-    expect(await waitForReady(child, port)).toBe(true);
+    if (!(await waitForReady(child, port))) {
+      await terminateServer(child);
+      child = undefined;
+      throw new Error('server did not become ready');
+    }
   }
 
   async function stop() {
-    try { child?.kill('SIGTERM'); } catch {}
-    try { await rmrf(tmp); } catch {}
+    await terminateServer(child);
     child = undefined;
+    try { await rmrf(tmp); } catch {}
   }
 
   const tasksCall = (id = 1) => rpc(id, 'tools/call', { name: 'tasks_list', arguments: { project: 'mcp' } });
