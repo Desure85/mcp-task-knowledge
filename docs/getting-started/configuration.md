@@ -34,6 +34,28 @@ layers) — is stored under `DATA_DIR`. Mount that one directory as a volume in 
 Older versions kept memory in `~/.local/share/mcp-task-knowledge/`; copy `temporal-graph.json`, `profiles/` and
 `layers.json` into `$DATA_DIR/memory/` to carry it over.
 
+### One server process per DATA_DIR
+
+A running server owns `$DATA_DIR/.server.lock` (pid, hostname, process start time, transport, version)
+for its whole lifetime, because cross-process read-modify-write on the same JSON files silently drops
+updates. A second process started on the same `DATA_DIR` does not start: it exits with code 1 and prints
+`SERVER_LOCK_HELD` plus who holds the lock and what to do.
+
+- On Linux the lock records the holder's process start time (`/proc/<pid>/stat` plus boot time), so a
+  stale lock is reclaimed automatically: if the holder process is gone, or its pid was reused by an
+  unrelated process, the next start removes the file and logs a `reclaimed stale DATA_DIR lock`
+  warning. `kill -9` therefore needs no manual cleanup there.
+- Elsewhere (macOS, Windows, Alpine without `/proc`) there is no start time to compare, so a
+  dead-looking pid may in fact be a reused one; the server does **not** remove the lock automatically
+  and fails with `SERVER_LOCK_UNVERIFIABLE` instead. Delete the file manually once you are sure no
+  server is running.
+- A lock written by another `hostname` (shared or network filesystem) is never removed automatically.
+  The start fails with `SERVER_LOCK_FOREIGN_HOST`; delete the file manually only after confirming that
+  host is really down.
+- A graceful stop (`SIGINT`, `SIGTERM`, normal exit) removes the lock; `doctor` never takes it.
+- To use one `DATA_DIR` from several clients, keep one server and point the clients at it (HTTP
+  transport, or the stdio bridge once MU-08 lands) instead of starting a second server.
+
 ### Backups
 
 `admin_backup` (or `node scripts/dev-cli.mjs backup`) writes one portable `tar.gz` archive of

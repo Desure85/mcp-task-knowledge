@@ -54,6 +54,19 @@ To override the runtime user (e.g. `--user 1234:1234`), ensure the mounted
 `/data` is writable by that uid. GPU images ship `bin/entrypoint.sh`, which
 normalizes `HOME`/cache dirs for arbitrary `--user` values.
 
+### One process per data volume
+
+A `DATA_DIR` is owned by exactly one server process: the owner keeps `/data/.server.lock`, and a second
+container mounting the same volume fails at startup with `SERVER_LOCK_HELD` (exit code 1) instead of
+silently losing writes. Do not scale a single-replica deployment against one volume; put each replica on
+its own volume.
+
+A lock left by a crashed container (`docker kill`, OOM) is reclaimed by the next start when the holder
+process is gone. If the volume is shared between hosts (NFS, CIFS), the lock carries the holder's
+hostname and is never removed automatically — start fails with `SERVER_LOCK_FOREIGN_HOST`; delete
+`/data/.server.lock` manually only after confirming the other host is down. Details:
+[Configuration → One server process per DATA_DIR](../getting-started/configuration.md#one-server-process-per-data_dir).
+
 ## Docker Compose
 
 ```yaml
