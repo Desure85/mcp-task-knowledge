@@ -92,11 +92,12 @@ docs/
 - **Dependabot** (`.github/dependabot.yml`) — еженедельные PR на npm-зависимости
   и GitHub Actions. Minor+patch сгруппированы, majors — отдельными PR.
   Security-обновления приходят вне расписания.
-- **npm audit gate** — в `bulk-smoke.yml` шаг `npm audit --omit=dev` после
-  `npm install`. Сейчас **report-only** (`continue-on-error: true`): в продакшн-
-  зависимостях есть известные high/critical (tar, sharp через
-  @xenova/transformers), фикс требует breaking change. Когда дерево почистится —
-  убрать `continue-on-error` и поставить `--audit-level=high`.
+- **npm audit gate** — в `bulk-smoke.yml` шаг `npm audit --omit=dev --audit-level=high`
+  после `npm install`. Шаг **блокирующий**: одна находка high или critical в
+  продакшн-дереве валит job, поэтому уязвимая рантайм-зависимость не попадает в
+  `master`. Находки moderate и ниже печатаются в лог, но не блокируют. Реестр в
+  шаге прибит к `registry.npmjs.org` намеренно: `.npmrc` указывает на зеркало,
+  чей advisory-endpoint не гарантирован.
 - **SHA-pinning actions** — в `publish.yml`, `docker-build.yml`,
   `docker-build-base.yml` все third-party actions запинены на commit SHA
   (`uses: owner/repo@<40-hex> # vX.Y.Z`). Остальные workflow — follow-up.
@@ -110,6 +111,17 @@ docs/
 - **`.npmrc` registry** — локальный mirror (npmmirror.com) намеренный для
   dev-скорости; CI и publish всегда идут через `registry.npmjs.org`
   (`NPM_CONFIG_REGISTRY` в workflow). Не менять.
+
+### Что делать, если npm audit красный
+
+Красный шаг `npm audit (production deps, blocks on high or critical)` останавливает merge, а не «предупреждает». Порядок:
+
+1. Прочитать advisory в логе шага: имя пакета, severity, ссылка на GHSA. Проверить, что пакет действительно в продакшн-дереве: `npm ls <пакет>`.
+2. Попробовать `npm audit fix` без `--force` — это обновления в пределах заявленных диапазонов, обычно патч или minor.
+3. Если без `--force` не чинится, нужен мажор — это отдельное решение владельца (см. `docs/dev-cycle/production-grade.md`, класс `owner`), а не «побочный эффект зелёного CI». Мажор идёт своей задачей и своим PR.
+4. Если апгрейд невозможен (пакет заброшен, транзитивная зависимость без релиза) — `overrides` в `package.json` с комментарием-причиной и номером задачи-владельца; сама запись фиксируется в `docs/dev-cycle/decisions-log.md` (что и почему остаётся уязвимым, как откатить).
+5. `npm audit fix --force` в этом репозитории запрещён: он меняет мажорные версии молча.
+6. В отчёте/PR указать: было/стало по `npm audit --omit=dev --json` (`.metadata.vulnerabilities`) и что именно закрывает находку.
 
 ## BACKLOG
 
