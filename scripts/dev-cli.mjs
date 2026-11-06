@@ -29,7 +29,9 @@ Usage:
   node scripts/dev-cli.mjs diagnose              — config + health check
   node scripts/dev-cli.mjs tools                 — list registered tools
   node scripts/dev-cli.mjs sessions              — active sessions
-  node scripts/dev-cli.mjs export [--out DIR]    — backup data to DIR (default: ./backup-<ts>)
+  node scripts/dev-cli.mjs backup [--out DIR] [--label S] [--include-secrets] [--exclude-models]
+                                     — portable tar.gz archive of DATA_DIR (ADR-008)
+  node scripts/dev-cli.mjs export [--out DIR]    — DEPRECATED: does not copy files; use backup
   node scripts/dev-cli.mjs benchmark [--suite S] [--out FILE] [--project P]
                                      [--data-dir DIR] [--keep-data] [--url HTTP_URL]
                                        — run memory benchmarks (LOCOMO/LongMemEval/BEAM/DMR)
@@ -121,6 +123,43 @@ async function cmdSessions() {
     console.log(`Server is ${process.env.MCP_TRANSPORT || 'stdio'} — session tracking ${process.env.MCP_TRANSPORT && process.env.MCP_TRANSPORT !== 'stdio' ? 'active' : 'n/a (stdio = single client)'}.`);
     console.log(`tools total: ${res.data?.pagination?.total ?? '?'}`);
   });
+}
+
+async function cmdBackup(rest) {
+  const out = flagValue(rest, '--out', undefined);
+  const label = flagValue(rest, '--label', undefined);
+  const includeSecrets = hasFlag(rest, '--include-secrets');
+  const excludeModels = hasFlag(rest, '--exclude-models');
+  const dataDir = process.env.DATA_DIR;
+  if (!dataDir) {
+    console.error('DATA_DIR is required: the CLI archives the real directory, it must not substitute a temp one');
+    process.exit(2);
+  }
+  const moduleUrl = new URL('../dist/services/backup-archive.js', import.meta.url).href;
+  let createBackupArchive;
+  try {
+    ({ createBackupArchive } = await import(moduleUrl));
+  } catch (e) {
+    console.error(`Cannot load ${moduleUrl}: ${e?.message ?? e}`);
+    console.error('Run `npm run build` first.');
+    process.exit(1);
+  }
+  try {
+    const r = await createBackupArchive({ dataDir, out, label, includeSecrets, excludeModels });
+    console.log(`Archive: ${r.archivePath}`);
+    console.log(`Files: ${r.files}, size: ${r.bytes} bytes`);
+    console.log(`Manifest: formatVersion=${r.manifest.formatVersion} profile=${r.manifest.profile} schemaVersion=${r.manifest.schemaVersion}`);
+    console.log(`Excluded: ${r.manifest.excluded.join(', ')}`);
+    if (r.manifest.containsSecrets) console.log('WARNING: archive contains secrets (.jwt-revoked.json, auth.db)');
+  } catch (e) {
+    if (e?.code && e?.message) {
+      console.error(`${e.code}: ${e.message}`);
+      if (e.hint) console.error(`Hint: ${e.hint}`);
+    } else {
+      console.error(e?.stack || String(e));
+    }
+    process.exit(1);
+  }
 }
 
 async function cmdExport(outDir) {
@@ -257,6 +296,7 @@ switch (cmd) {
   case 'tools': await cmdTools(); break;
   case 'sessions': await cmdSessions(); break;
   case 'benchmark': await cmdBenchmark(rest); break;
+  case 'backup': await cmdBackup(rest); break;
   case 'export': {
     const outIdx = rest.indexOf('--out');
     const out = outIdx >= 0 ? rest[outIdx + 1] : undefined;

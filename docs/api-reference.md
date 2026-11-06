@@ -2,12 +2,13 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **128**
+Всего инструментов: **129**
 
 ## Инструменты
 
 | Инструмент | Описание |
 |------------|-----------|
+| `admin_backup` | Create a portable tar.gz archive of DATA_DIR (ADR-008): manifest.json with formatVersion/profile/sch |
 | `admin_setup_link` | Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transpor |
 | `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
 | `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
@@ -136,6 +137,33 @@
 | `tools_register` | Hot-register a new tool at runtime without restarting the server. The handler is defined as a JSON e |
 | `tools_run` | Execute one or many tools by name with params via RPC. |
 | `tools_unregister` | Hot-remove a tool at runtime (DX-001). Experimental. |
+
+## admin_backup
+
+**Backup DATA_DIR**
+
+Create a portable tar.gz archive of DATA_DIR (ADR-008): manifest.json with formatVersion/profile/schemaVersion/sha256 per entry, deterministic entry order, atomic write via .partial. Secrets (.jwt-revoked.json, auth.db) and caches are excluded unless includeSecrets is set. Requires admin role on authenticated transports. Returns the finished archive size; the manifest inside the archive does not carry archiveBytes.
+
+**Параметры:**
+
+- `out`
+- `label`
+- `includeSecrets`
+- `excludeModels`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_backup",
+  "arguments": {
+    "out": "example",
+    "label": "example",
+    "includeSecrets": "example",
+    "excludeModels": "example"
+  }
+}
+```
 
 ## admin_setup_link
 

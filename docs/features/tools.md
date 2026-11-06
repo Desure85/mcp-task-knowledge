@@ -1,4 +1,4 @@
-# MCP Tools (128 with catalog; 126 by default)
+# MCP Tools (129 with catalog; 127 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -229,6 +229,24 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `session_info` | Get current session info (rate limit, TTL, idle timeout) |
 | `session_list` | List active sessions |
 
+## Admin (1 tool)
+
+| Tool | Description |
+|------|-------------|
+| `admin_backup` | Create a portable `tar.gz` archive of `DATA_DIR` (ADR-008) |
+
+`admin_backup` writes `backup-<timestamp>[-<label>].tar.gz` to `out` (default `DATA_DIR/.backups/`)
+through a `.partial` file and an atomic rename. The archive is a standard `tar.gz` (`tar -tzf`
+lists it, `gzip -t` validates it); `manifest.json` at the archive root records `formatVersion`,
+`profile`, `schemaVersion`, `excluded` and every entry with `sha256`, and only relative paths are
+stored. `.jwt-revoked.json`, `auth.db`, `audit.log`, `.embeddings/`, `.emb_cache/` and `.backups/`
+never enter the archive; `includeSecrets` adds the two secret files and sets
+`containsSecrets: true`, `excludeModels` skips `models/`. Symlinks are skipped and reported in
+`manifest.warnings`. The finished archive size is returned in the tool response; the in-archive
+manifest does not carry `archiveBytes` (ADR-008 «Поправка»). Requires the admin role on
+authenticated transports; stdio/unix callers are trusted local operators. Restore is
+`admin_restore` (DX-16b) and is not part of this tool.
+
 ## Obsidian (2 tools)
 
 | Tool | Description |
@@ -327,4 +345,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 119 tools by default (121 with catalog + dynamic tools enabled) + 6 resources
+## Total: 127 tools by default (129 with catalog + dynamic tools enabled) + 6 resources

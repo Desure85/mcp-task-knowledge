@@ -63,6 +63,7 @@ import { registerDashboardTools } from '../register/dashboard.js';
 import { registerBriefingTools } from '../register/briefing.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
+import { registerBackupTools } from '../register/backup.js';
 import { registerClusterTools } from '../register/cluster.js';
 import { registerRelayTools } from '../register/relay.js';
 import { registerConfigTools } from '../register/config-tools.js';
@@ -173,6 +174,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerBriefingTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);
+  registerBackupTools(ctx);
   registerClusterTools(ctx);
   registerRelayTools(ctx);
   registerConfigTools(ctx);

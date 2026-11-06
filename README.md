@@ -108,7 +108,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 |---------|-------------|
 | [Getting Started](docs/getting-started.md) | Installation, configuration, first steps |
 | [Configuration](docs/getting-started/configuration.md) | Environment variables, JSON config, embeddings |
-| [MCP Tools](docs/features/tools.md) | 126 tools by default, 128 with catalog: tasks, knowledge, search, memory, prompts |
+| [MCP Tools](docs/features/tools.md) | 127 tools by default, 129 with catalog: tasks, knowledge, search, memory, prompts |
 | [Agent Memory](docs/features/agent-memory.md) | Extraction, temporal graph, profiles, context assembly |
 | [Skills & Rules](docs/features/skills-rules.md) | Skills CRUD, rules engine, workflows |
 | [Connectors](docs/features/connectors.md) | GitHub, Jira, Slack, Google Drive, Notion, Linear |
@@ -124,7 +124,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 
 ### Core
 
-- 126 MCP tools by default (128 with catalog + dynamic tools enabled)
+- 127 MCP tools by default (129 with catalog + dynamic tools enabled)
 - BM25 + ONNX vector search + hybrid + two-stage rerank
 - FTS5 full-text search (SQLite built-in)
 - File-based storage (Markdown/JSON, no external DB)
