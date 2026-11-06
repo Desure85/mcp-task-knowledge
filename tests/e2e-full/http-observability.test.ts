@@ -10,6 +10,9 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { assertDistFresh } from '../support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-http-obs');

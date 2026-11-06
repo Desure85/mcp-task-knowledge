@@ -15,6 +15,9 @@ import fsp from 'node:fs/promises';
 import http from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { assertDistFresh } from './support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-chaos');

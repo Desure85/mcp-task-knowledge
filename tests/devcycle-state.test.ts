@@ -30,6 +30,30 @@ async function makeStateDir(): Promise<string> {
 }
 
 type Run = { code: number; stdout: string; stderr: string };
+type LockHolder = { pid: number; startedAt: number };
+
+/**
+ * Barrier for the overlap test: wait until a *readable* lock is on disk.
+ *
+ * Polling instead of sleeping keeps the test independent of process start-up
+ * jitter: on a loaded CI runner two spawned children can be tens or hundreds of
+ * milliseconds apart, so "spawn both at once" never actually guaranteed that the
+ * second tick met a held lock. Waiting for the observable lock state does.
+ */
+async function waitForLock(dir: string, timeoutMs = 30_000): Promise<LockHolder> {
+  const file = path.join(dir, 'lock.json');
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const parsed = JSON.parse(await fs.readFile(file, 'utf8')) as LockHolder;
+      if (Number.isInteger(parsed?.pid) && Number.isFinite(parsed?.startedAt)) return parsed;
+    } catch {
+      // not created yet, or observed mid-write: keep polling
+    }
+    if (Date.now() > deadline) throw new Error(`lock.json was not readable within ${timeoutMs}ms`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 async function run(
   args: string[],
@@ -105,17 +129,19 @@ describe('devcycle single-writer lock', () => {
   it('lets exactly one of two overlapping ticks run', async () => {
     const dir = await makeStateDir();
     await run(['state', 'enable'], { DEVCYCLE_STATE_DIR: dir });
-    const env = { DEVCYCLE_STATE_DIR: dir, DEVCYCLE_TEST_HOLD_MS: '1500' };
+    const env = { DEVCYCLE_STATE_DIR: dir, DEVCYCLE_TEST_HOLD_MS: '8000' };
 
-    const [first, second] = await Promise.all([
-      run(['tick', '--dry-run', '--json'], env),
-      run(['tick', '--dry-run', '--json'], env),
-    ]);
+    const firstTick = run(['tick', '--dry-run', '--json'], env);
+    const holder = await waitForLock(dir);
+    const second = await run(['tick', '--dry-run', '--json'], env);
+    const first = await firstTick;
 
     expect([first.code, second.code].sort()).toEqual([0, 3]);
-    const skipped = [first, second].find((result) => result.code === 3);
-    expect(skipped?.stdout).toContain('locked');
-  }, 30_000);
+    expect(second.code).toBe(3);
+    const skipped = JSON.parse(second.stdout);
+    expect(skipped.skipped).toBe('locked');
+    expect(skipped.holder.pid).toBe(holder.pid);
+  }, 60_000);
 
   it('reclaims a stale lock whose holder is gone', async () => {
     const dir = await makeStateDir();

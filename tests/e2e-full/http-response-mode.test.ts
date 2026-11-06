@@ -14,6 +14,9 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { requestWantsProgress } from '../../src/transport/http-transport.js';
+import { assertDistFresh } from '../support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-http-mode');

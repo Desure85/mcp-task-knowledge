@@ -9,6 +9,14 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+echo "🏗️  Building dist for the E2E suites..."
+npm run build
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed. Push aborted."
+  echo "   Fix build errors above, then retry."
+  exit 1
+fi
+
 echo "🧪 Running tests..."
 npx vitest run --reporter=dot
 if [ $? -ne 0 ]; then
