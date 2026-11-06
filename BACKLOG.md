@@ -943,7 +943,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-01 | Аудит: indirect prompt injection через stored content | high | done | — | Stored knowledge/tasks/prompts/memory-факты → контекст агента. Враждебный документ = инструкция агенту. Аудит: какие поля попадают в tool output, маркировка «untrusted content», рекомендации (delimiters, правило в agent_bootstrap). Выход: threat-model + находки **Закрыто (S-20261030-prodaudit): Аудит выполнен: docs/audits/TR-01-prompt-injection-audit.md; мер — TR-14/17 (закрыты), TR-16 открыт.** |
 | TR-02 | Аудит Web UI | high | done | 724059a | — | Подтверждённый вход: `renderMarkdown` экранирует `<>&` но НЕ `"` → `[x](" onclick="alert(1))` = attribute-injection XSS, `javascript:` URL тоже проходит (web-ui/app/knowledge/page.tsx:261,308-325, `dangerouslySetInnerHTML`). Плюс: CSRF на мутации, sessionStorage-токен, отсутствие sanitize-библиотеки |
 | TR-03 | Аудит коннекторов и lifecycle кредов | medium | done | — | Токены plaintext в env/config (github.ts:33, gdrive.ts:64, linear.ts:47): где лежит конфиг, кто читает; OAuth-флоу, webhook-валидация, scope-минимизация, поведение при revoke/ротации. Отчёт: docs/audit/TR-03-connectors.md → TR-26..32 |
-| TR-04 | Аудит качества тестов («тесты, которые врут») | high | blocked | Проработка (research): методика аудита тестов и список модулей с фейковым покрытием | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Тот же паттерн «done ≠ работает», но для тестов. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает |
+| TR-04 | Аудит качества тестов («тесты, которые врут») | high | done | — | 92.7% coverage при массовой AI-генерации: tautological asserts, mock-drift, зелёные при сломанной impl. Выход: список модулей с фейковым покрытием → дешёвый агент переписывает. **Проработка (2026-11-06):** методика и прибор — `scripts/audit-tests.mjs` (272 файла, калибровка 13 known-answer в `src/__tests__/audit-tests.test.ts`), мутационный эксперимент 15 кандидатов + 5 контролей: 14 гипотез подтверждены, 2 опровергнуты, у 1 предмета нет вовсе. Отчёт: `docs/audits/TR-04-test-quality-audit.md`. DoD: `npx vitest run src/__tests__/audit-tests.test.ts`; `node scripts/audit-tests.mjs` выдаёт таблицу кандидатов. |
 
 ### Фаза 2 — Hardening (конкретные фиксы)
 
@@ -1012,13 +1012,15 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | AUD-18d | EventLog unbounded growth + no compaction | high | blocked | Проработка (design): чинить EventLog при подключении в рантайм или дропнуть; AUD-18 | persist() переписывает весь лог на каждый append; compactThreshold не используется **Латентно (2026-10-30): EventLog не подключён в рантайме (0 call sites вне sync/index.ts), рост недостижим. Чинить (JSONL-append + авто-compact) при подключении.** |
 | AUD-18e | threeWayMerge LWW no tiebreaker + manual writes null | medium | blocked | Проработка (design): по мёртвому sync-стеку — завайрить threeWayMerge или удалить; AUD-18 | src/sync/ — merge bugs; whole sync stack is dead code (not wired) |
 | AUD-18f | writeText не атомарный для .md knowledge docs | medium | done | AUD-18 | writeJson атомарный (Q-013), writeText — нет **Закрыто (S-20261030-prodaudit): writeText атомарный (tmp+rename).** |
-| TR-04a | Delete lying tests: tasks_dag, obsidian.*.smoke (×2), confirm.replace.e2e | high | pending | TR-04 | Тесты ре-имплементируют SUT — реальный код может сломаться, тесты зелёные |
-| TR-04b | Rewrite openapi.test.ts + markdown.test.ts на реальные модули | high | pending | TR-04 | zodToOpenApi определён в тесте; _getToolHandler→null |
-| TR-04c | Rewrite cli.tools_list.contract + jsonrpc-fuzz (real imports) | high | pending | TR-04 | Regex по 22-строчному делегату; normalizeEnvelope клон |
-| TR-04d | Rewrite e2e-full/memory-lifecycle — assert data, not shape | medium | pending | TR-04 | 30 вызовов env.ok===true, temporal_query не проверяет данные |
-| TR-04e | Line-fixes batch: 12 файлов слабых ассертов | medium | pending | TR-04 | jwt-validator:787, memory-extended:304/328, chaos-shutdown:134, fts-search:124 и др. |
-| TR-04f | Coverage gaps: dashboard_*, confirm-gate, bandit epsilon>0, bm25 params | medium | pending | TR-04 | Реальные дыры покрытия при 92.7% total |
-| TR-04g | Test hygiene: DATA_DIR isolation + shared e2e http harness | low | pending | TR-04 | /tmp/mcp-data гонки; ~200 строк дублей в 6 e2e файлах |
+| TR-04a | Delete lying tests: tasks_dag, obsidian.*.smoke (×2), confirm.replace.e2e | high | pending | TR-04 | Тесты ре-имплементируют SUT — реальный код может сломаться, тесты зелёные; DoD: мутация `buildDAG` в `src/storage/tasks.ts` (K1) и отключение confirm-гейта импорта (K6) красят соответствующие тесты — сейчас зелёные. |
+| TR-04b | Rewrite openapi.test.ts + markdown.test.ts на реальные модули | high | pending | TR-04 | zodToOpenApi определён в тесте; _getToolHandler→null; DoD: `zodToOpenApi → {}` (K2) и переименование инструмента markdown (K3) красят тесты. |
+| TR-04c | Rewrite cli.tools_list.contract + jsonrpc-fuzz (real imports) | high | pending | TR-04 | Regex по 22-строчному делегату; normalizeEnvelope клон; DoD: появление `normalizeEnvelope` в `src/` и переименование `tasks_list` (K4) красят тесты. |
+| TR-04d | Rewrite e2e-full/memory-lifecycle — assert data, not shape | medium | pending | TR-04 | 30 вызовов env.ok===true, temporal_query не проверяет данные; DoD: `facts: []` в `memory_temporal_query` (K9) красит тест. |
+| TR-04e | Line-fixes batch: 12 файлов слабых ассертов | medium | pending | TR-04 | jwt-validator:787, memory-extended:304/328, chaos-shutdown:134, fts-search:124 и др.; DoD: мутации K10b, K12, K13, K14, K16 красят соответствующие файлы. |
+| TR-04f | Coverage gaps: dashboard_*, confirm-gate, bandit epsilon>0, bm25 params | medium | pending | TR-04 | Реальные дыры покрытия при 92.7% total; DoD: `filterByDateRange → []` (K11) красит `tests/dashboard.test.ts`. |
+| TR-04g | Test hygiene: DATA_DIR isolation + shared e2e http harness | low | pending | TR-04 | /tmp/mcp-data гонки; ~200 строк дублей в 6 e2e файлах; DoD: параллельный прогон двух файлов с общим `/tmp/mcp-data` не даёт гонок; число `spawnServer` в `tests/e2e-full` сокращено общим харнессом. |
+| TR-04h | `tests/schema-validation.test.ts` зеркалит `scripts/validate-schemas.mjs` | medium | pending | TR-04 | N1: скрипт сломан (rc=1), тест зелёный. DoD: `node scripts/validate-schemas.mjs` с намеренной ошибкой красит тест; либо зеркало удалено. |
+| TR-04i | `tests/transport-wire-snapshots.test.ts` тестирует SDK, не наш слой | low | pending | TR-04 | Нет импорта `src/`: проверяются `serializeMessage` и `deserializeMessage` из `@modelcontextprotocol/sdk`. DoD: тест переведён на наш wire-слой либо помечен как контракт зависимости и исключён из покрытия проекта. |
 | TR-18 | tests/security-stack.test.ts:197,209 — `lockoutMs` → `maxLockoutMs` (pre-existing tsc error) | low | done | AUD-10 | AuthProtectionOptions нет `lockoutMs`. Закрыто 26fbe9d |
 | TR-19 | Битые `_X` импорты в 4+ тест-файлах (event-bus, tool-executor, async-ops, multimodal) | medium | done | AUD-10 | tsconfig.test.json красный — экспорты удалены при рефакторинге, импорты остались. Закрыто 26fbe9d (17 test:types ошибок → 0) |
 | TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | pending | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
@@ -1363,8 +1365,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Prod Hardening (L) | 15 | 3 | 1 | 11 | 0 | 0 |
 | Audit request-path (M) | 18 | 17 | 0 | 0 | 1 | 0 |
 | DX/Onboarding (N) | 26 | 17 | 1 | 4 | 4 | 0 |
-| Trust/Hardening (O) | 23 | 12 | 3 | 1 | 7 | 0 |
-| MCP spec compliance (P) | 10 | 6 | 0 | 2 | 2 | 0 |
+| Trust/Hardening (O) | 23 | 12 | 3 | 2 | 6 | 0 |
+| MCP spec compliance (P) | 12 | 8 | 0 | 2 | 2 | 0 |
 | KB hardening (Q) | 7 | 0 | 0 | 6 | 1 | 0 |
 | Multi-user integrity (R) | 8 | 5 | 0 | 0 | 3 | 0 |
 | YouTrack-level tracker (S) | 5 | 4 | 0 | 0 | 1 | 0 |
@@ -1376,7 +1378,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Pluggable storage (Y) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Skills and packages (Z) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
-| **Итого** | **405** | **96** | **8** | **277** | **23** | **1** |
+| **Итого** | **405** | **96** | **8** | **278** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
