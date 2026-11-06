@@ -737,7 +737,8 @@ export class AppContainer {
     }
   }
 
-  private async releaseStorageLock(): Promise<void> {    const lock = this.storageLock;
+  private async releaseStorageLock(): Promise<void> {
+    const lock = this.storageLock;
     if (!lock) return;
     this.storageLock = undefined;
     await lock.release();
