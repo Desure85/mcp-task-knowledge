@@ -73,7 +73,25 @@ plain archive: `tar -tzf` lists it and `gzip -t` validates it.
   Stop writes for a consistent copy.
 - Only the file storage profile is supported. SQLite/Postgres deployments get
   `BACKUP_PROFILE_UNSUPPORTED` and must use the database-native dump (`pg_dump` / `.backup`).
-- Restore is `admin_restore` (DX-16b) and is not available yet.
+
+`admin_restore` (or `node scripts/dev-cli.mjs restore <archive>`) reads the archive with the
+same validating reader and by default only reports a plan: `creates`, `overwrites`, `deletes`
+and an `applyToken`. It does not write anything — including lock files — in that mode. Apply
+with `dryRun: false` and `confirm: <applyToken>` (CLI: `--confirm <token>`, or `--yes` when
+you already reviewed the plan). On apply:
+
+- `DATA_DIR` is snapshotted to `.backups/<ts>-pre-restore/` first (secrets included, because
+  that snapshot never leaves the machine); a failure halfway restores it, and the error says
+  whether the rollback succeeded.
+- The archived scope is replaced, not overlaid: files under the archived roots that are
+  missing from the archive are deleted (`prune: false` disables this).
+- `.jwt-revoked.json` and `auth.db` are left untouched unless `includeSecrets` is set, so a
+  token revoked after the backup stays revoked.
+- `.server.lock` and `.restore.lock` are never archived, overwritten or pruned.
+- A concurrent restore is refused with `RESTORE_TARGET_BUSY`; a lock whose process is gone
+  (or older than 30 minutes) is reclaimed.
+- Webhooks and notifications already sent are not rolled back; external databases
+  (SQLite/Postgres profiles) are not restored.
 
 ### Per-project workflow metadata
 

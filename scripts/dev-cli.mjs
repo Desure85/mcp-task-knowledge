@@ -5,7 +5,7 @@
 //   node scripts/dev-cli.mjs diagnose          — config validation + health
 //   node scripts/dev-cli.mjs tools             — list registered tools
 //   node scripts/dev-cli.mjs sessions          — active sessions (HTTP transport)
-//   node scripts/dev-cli.mjs export [--out d]  — backup tasks/knowledge to a dir
+//   node scripts/dev-cli.mjs restore <archive>  — restore DATA_DIR from a tar.gz (ADR-008)
 //
 // Each command boots the real server via stdio and calls the corresponding
 // MCP tools (tools_list, health, project_list, etc.).
@@ -31,7 +31,9 @@ Usage:
   node scripts/dev-cli.mjs sessions              — active sessions
   node scripts/dev-cli.mjs backup [--out DIR] [--label S] [--include-secrets] [--exclude-models]
                                      — portable tar.gz archive of DATA_DIR (ADR-008)
-  node scripts/dev-cli.mjs export [--out DIR]    — DEPRECATED: does not copy files; use backup
+  node scripts/dev-cli.mjs restore <archive> [--dry-run] [--confirm TOKEN] [--yes]
+                                     [--no-prune] [--include-secrets]
+                                     — restore DATA_DIR from an archive (dry-run by default)
   node scripts/dev-cli.mjs benchmark [--suite S] [--out FILE] [--project P]
                                      [--data-dir DIR] [--keep-data] [--url HTTP_URL]
                                        — run memory benchmarks (LOCOMO/LongMemEval/BEAM/DMR)
@@ -68,19 +70,6 @@ async function call(client, name, args = {}) {
   const res = await client.callTool({ name, arguments: args }, undefined, { timeout: MCP_TIMEOUT_MS });
   const text = res?.content?.[0]?.text ?? '{}';
   return JSON.parse(text);
-}
-
-/** SC-01: list tools are paginated — walk nextCursor when a caller needs every item. */
-async function callAll(client, name, args = {}) {
-  const items = [];
-  let cursor;
-  for (let guard = 0; guard < 1000; guard++) {
-    const page = await call(client, name, { ...args, ...(cursor ? { cursor } : {}) });
-    if (Array.isArray(page?.data)) items.push(...page.data);
-    if (!page?.hasMore || !page?.nextCursor) break;
-    cursor = page.nextCursor;
-  }
-  return items;
 }
 
 async function cmdDiagnose() {
@@ -162,25 +151,88 @@ async function cmdBackup(rest) {
   }
 }
 
-async function cmdExport(outDir) {
-  await withServer(async (client) => {
-    const target = outDir ?? `backup-${Date.now()}`;
-    const abs = resolve(ROOT, target);
-    mkdirSync(abs, { recursive: true });
+async function cmdRestore(rest) {
+  const archive = rest.find((arg) => !arg.startsWith('--') && arg !== '');
+  const dataDir = process.env.DATA_DIR;
+  if (!archive) {
+    console.error('restore: archive path is required');
+    process.exit(2);
+  }
+  if (!dataDir) {
+    console.error('DATA_DIR is required: the CLI restores the real directory, it must not substitute a temp one');
+    process.exit(2);
+  }
+  const confirmAt = rest.indexOf('--confirm');
+  const confirm = confirmAt >= 0 ? rest[confirmAt + 1] : undefined;
+  if (confirmAt >= 0 && (!confirm || confirm.startsWith('--'))) {
+    console.error('restore: --confirm requires the applyToken printed by a dry run');
+    process.exit(2);
+  }
+  const yes = hasFlag(rest, '--yes');
+  const includeSecrets = hasFlag(rest, '--include-secrets');
+  const prune = !hasFlag(rest, '--no-prune');
+  const dryRun = hasFlag(rest, '--dry-run') || (!confirm && !yes);
 
-    // Pull all projects and copy their data dirs
-    const projects = await call(client, 'project_list');
-    const list = projects.data?.projects ?? [];
-    console.log(`=== Export (${list.length} projects) → ${abs} ===`);
-    for (const p of list) {
-      const tasks = await callAll(client, 'tasks_list', { project: p.id, includeArchived: true });
-      const docs = await callAll(client, 'knowledge_list', { project: p.id });
-      const taskCount = tasks.length;
-      const docCount = docs.length;
-      console.log(`  ${p.id}: ${taskCount} tasks, ${docCount} docs`);
+  let restoreArchive;
+  try {
+    ({ restoreArchive } = await import(new URL('../dist/services/data-backup.js', import.meta.url).href));
+  } catch (e) {
+    console.error(`Cannot load dist/services/data-backup.js: ${e?.message ?? e}`);
+    console.error('Run `npm run build` first.');
+    process.exit(1);
+  }
+
+  try {
+    if (yes && !confirm) {
+      const plan = await restoreArchive({ archive, dataDir, dryRun: true, prune, includeSecrets });
+      const applied = await restoreArchive({
+        archive,
+        dataDir,
+        dryRun: false,
+        confirm: plan.applyToken,
+        prune,
+        includeSecrets,
+      });
+      printRestore(applied);
+      return;
     }
-    console.log('Note: export uses MCP read tools; files are copied via server storage.');
-  });
+    const result = await restoreArchive({ archive, dataDir, dryRun, confirm, prune, includeSecrets });
+    printRestore(result);
+    if (result.dryRun) {
+      console.log(`Apply token: ${result.applyToken}`);
+      console.log('Nothing was changed. Re-run with --confirm <token> to apply.');
+    }
+  } catch (e) {
+    if (e?.code && e?.message) {
+      console.error(`${e.code}: ${e.message}`);
+      if (e.hint) console.error(`Hint: ${e.hint}`);
+    } else if (e?.message) {
+      console.error(e.message);
+      if (e.rolledBack === true) console.error('Rolled back from the pre-restore snapshot.');
+    } else {
+      console.error(e?.stack || String(e));
+    }
+    process.exit(1);
+  }
+}
+
+function printRestore(result) {
+  console.log(`Archive: ${result.archivePath}`);
+  console.log(`DATA_DIR: ${result.dataDir}`);
+  console.log(
+    `Manifest: formatVersion=${result.manifest.formatVersion} profile=${result.manifest.profile} ` +
+      `schemaVersion=${result.manifest.schemaVersion} containsSecrets=${result.manifest.containsSecrets}`,
+  );
+  console.log(
+    `Plan: ${result.creates.length} create, ${result.overwrites.length} overwrite, ` +
+      `${result.deletes.length} delete, ${result.entries} archive entries`,
+  );
+  for (const item of [...result.deletes].slice(0, 20)) console.log(`  delete ${item.path}`);
+  if (result.warnings.length > 0) console.log(`Warnings: ${result.warnings.join('; ')}`);
+  if (!result.dryRun) {
+    console.log(`Restored files: ${result.filesRestored ?? 0}`);
+    console.log(`Pre-restore snapshot: ${result.snapshotDir ?? 'none (DATA_DIR was empty)'}`);
+  }
 }
 
 function flagValue(args, name, def) {
@@ -297,11 +349,6 @@ switch (cmd) {
   case 'sessions': await cmdSessions(); break;
   case 'benchmark': await cmdBenchmark(rest); break;
   case 'backup': await cmdBackup(rest); break;
-  case 'export': {
-    const outIdx = rest.indexOf('--out');
-    const out = outIdx >= 0 ? rest[outIdx + 1] : undefined;
-    await cmdExport(out);
-    break;
-  }
+  case 'restore': await cmdRestore(rest); break;
   default: usage(); process.exit(cmd ? 1 : 0);
 }
