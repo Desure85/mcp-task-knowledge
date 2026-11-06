@@ -11,6 +11,8 @@
 
 import { AppContainer } from './core/app-container.js';
 import { childLogger } from './core/logger.js';
+import { ServerLockError } from './storage-lock.js';
+import { writeSync } from 'node:fs';
 
 const log = childLogger('main');
 
@@ -44,6 +46,12 @@ async function maybeRunCli(): Promise<void> {
 function main() {
   const app = new AppContainer();
   app.run().catch((err) => {
+    if (err instanceof ServerLockError) {
+      // stderr to a pipe is asynchronous; process.exit() right after write()
+      // truncates the only message that explains the refusal.
+      writeSync(2, `${err.code}: ${err.message}\n`);
+      process.exit(err.exitCode);
+    }
     log.fatal({ err }, 'unhandled error in main()');
     process.exit(1);
   });
