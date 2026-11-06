@@ -1,10 +1,24 @@
-# TR-04 — Test Quality Audit: "Tests That Lie"
+# TR-04 — аудит качества тестов («тесты, которые врут»)
+
+**Статус проработки:** завершена 2026-11-06 на `0f717b6` (worktree `mcp-tk-tr04`, ветка `docs/tr04-test-audit`).
+
+**Как читать этот документ.** Оценки GOOD / WEAK / TAUTOLOGICAL / MOCK-DRIFT из части 1 получены чтением кода и
+являются гипотезами, а не доказательствами. Доказательство даёт только мутация: если тест остаётся зелёным при
+сломанном модуле, он не наблюдает код. Часть 2 — машинный проход по всем файлам, часть 3 — 15 мутационных
+экспериментов по кандидатам и 5 контрольных. Итог: 14 гипотез подтверждены, 2 опровергнуты, у одного теста
+предмета в `src/` нет вовсе.
+
+## Часть 1. Read-based проход 2026-09-12 — гипотезы
+
+> Всё ниже — результат чтения файлов пятью параллельными проходами. Счётчики (`858 weak-assert`, `4 тавтологии`)
+> получены глазами и регулярками по выдержкам, а не воспроизводимым прибором; оценки файлов не проверялись
+> поломкой кода. Использовать как список гипотез для части 3, не как вердикт.
 
 **Date:** 2026-09-12
 **Scope:** all `*.test.ts` / `*.spec.ts` in `tests/` (118 files, ~23k LOC) and `src/` (76 files, ~13.6k LOC) — 194 files total.
 **Method:** 5 parallel deep-read audit slices; every file in `tests/` and `tests/e2e-full/` was read in full; `src/` was deep-read for `src/__tests__/`, `src/core/`, `src/obsidian/__tests__/` and all heavy-mock files, remaining ~50 `src/` specs skimmed via test titles + weak-assert cross-check (marked confidence=low).
 
-## Headline numbers
+### Headline numbers
 
 | Signal | Count |
 |---|---|
@@ -19,14 +33,14 @@
 
 **Verdict:** the suite is much healthier than the "AI-generated" hypothesis suggested — ~84% of files exercise real code with behavioural asserts. The rot is concentrated: a handful of files test *copies* of the implementation, hand-build the envelopes they then assert, or assert only `ok:true` shape. The recently-modified security stack (auth-gate, method-gate, safe-paths, session-manager, realtime-auth, security-stack, e2e aud-crit-security) is **genuinely tested** — real 401/-32001 denies, disk-level traversal proof, WS close 4001 on the wire.
 
-## Score legend
+### Score legend
 
 - **GOOD** — real implementation under test, behaviour asserted, negative paths covered.
 - **WEAK** — real code runs but assertions are shape-only / happy-path-only / under-specified.
 - **TAUTOLOGICAL** — assertions cannot fail (self-equality, hand-built objects asserted, inline SUT copies).
 - **MOCK-DRIFT** — the thing under test is re-implemented or bypassed; production code can break freely.
 
-## Top 10 worst offenders
+### Top 10 worst offenders
 
 | # | File | Score | Problem | Evidence |
 |---|------|-------|---------|----------|
@@ -41,7 +55,7 @@
 | 9 | `tests/chaos-shutdown.test.ts` | WEAK | Test named "restarts cleanly after SIGKILL" sends **SIGTERM** and never restarts the server | lines 134–145 |
 | 10 | `tests/app-container.test.ts` | WEAK | "stop handles transport close errors" builds a throwing `badAdapter` then admits "can't directly set adapter" — error path never runs; `_setState` tests test the test helper | lines 109–139, 411–427 |
 
-## Honourable mentions (fix lines, not files)
+### Honourable mentions (fix lines, not files)
 
 - `tests/jwt-validator.test.ts:787` — literal `expect(true).toBe(true)` in JWKS-cache test.
 - `tests/e2e-full/memory-extended.test.ts:304` — `expect(ok===true || ok===false).toBe(true)` tautology; :328 `badSuite` test asserts `ok:true` for `suite:'all'`.
@@ -70,11 +84,11 @@
 - `src/__tests__/config.spec.ts:38`, `project_list.spec.ts:21` — shared fixed `/tmp/mcp-data` path (parallel flakiness risk).
 - `tests/tasks.move_subtree.test.ts:66–67` — duplicated `rejects.toThrow(/Cycle detected/)` (copy-paste).
 
-## Security-critical files — verified GOOD
+### Security-critical files — verified GOOD
 
 `sec003-auth-gate`, `aud01-method-gate`, `aud03-safe-paths`, `session-manager`, `realtime-auth`, `security-stack`, `session-tools`, `auth`, `a003-token-ttl`, `middleware`, `acl.unit`, `e2e-full/aud-crit-security`, `e2e-full/http-auth`, `e2e-full/http-sessions`, `e2e-full/tcp-transport`, `src/core/input-sanitizer`, `src/core/auth-protection`, `src/core/secret-manager`, `src/core/oauth` — all assert real rejection (401, isError, -32001, close-4001, PathValidationError, on-disk audit entries, disk-level traversal proof). No mock-drift in the security slice.
 
-## Per-file score table (non-GOOD only; everything else = GOOD/keep)
+### Per-file score table (non-GOOD only; everything else = GOOD/keep)
 
 | File | Score | Recommendation |
 |---|---|---|
@@ -111,7 +125,7 @@
 | src/audit/logger.spec.ts | WEAK (low conf.) | keep; minor toBeDefined clusters |
 | e2e-full: memory-extended, prompts-bulk, http-auth, http-observability, tasks-knowledge-search, bridge-config-relay, dashboard-session-cluster, tools-meta | WEAK | line-level fixes listed above |
 
-## Recommended BACKLOG tasks
+### Recommended BACKLOG tasks
 
 | Suggested ID | Task | Priority |
 |---|---|---|
@@ -123,8 +137,171 @@
 | TR-04f | Coverage gaps: dashboard_* handlers, confirm-gate at tool layer, ab.bandits epsilon>0, bm25 param sensitivity, vector.adapter positive path | medium |
 | TR-04g | Test hygiene: TMP DATA_DIR isolation for knowledge.versioning + src/**tests** shared `/tmp/mcp-data`; extract shared http/tcp e2e harness (~200 duplicated lines across 6 files) | low |
 
-## Notes
+### Notes
 
 - e2e harness (`tests/e2e-full/harness.ts`) spawns the **real** `dist/index.js` over stdio with isolated tmp DATA_DIR — no mock-drift at e2e level.
 - `src/` mocks are confined to true boundaries (fetch, MCP SDK, ToolInvoker) — exemplary pattern in `connectors/real-apis.spec.ts`, `workflows/executor.spec.ts`, `core/input-sanitizer.spec.ts`.
 - ~50 `src/` spec files were skimmed (confidence=low); none showed red flags in titles/weak-assert cross-check, but a full deep-read pass could be a follow-up if TR-04a–g land.
+
+## Часть 2. Машинный проход 2026-11-06
+
+### Прибор
+
+`scripts/audit-tests.mjs` (Node, без зависимостей) обходит дерево по тем же правилам, что `vitest.config.ts`
+(`**/*.{test,spec}.?(c|m)[jt]s?(x)`, исключены `node_modules`, `dist`, `web-ui`, `.opencode`, `service-catalog`),
+и для каждого файла считает:
+
+- **Чем тест достигает продакшн-кода**: прямой импорт `src/`, импорт `dist/`, `scripts/`, подпроцесс
+  (`spawn`/`execFile`, в том числе `promisify(execFile)` и путь через `path.join(..., 'scripts', ...)`),
+  HTTP, только файловые операции, ничего. Импорты прослеживаются через локальные хелперы (глубина 2), потому что
+  `tests/e2e-full/*` ходят в сервер через `tests/e2e-full/harness.ts`.
+- **Импорты только типа** (`import type`) не считаются достижением кода: они стираются при сборке.
+- **Метрики ассертов**: число `expect(`, доля `toBeTruthy`/`toBeFalsy`/`toBeDefined`/`toBeInstanceOf`,
+  тавтологии (`expect(true).toBe(true)`, `expect(x).toBe(x)`, точное дополнение `x === true || x === false`),
+  тесты без единого ассерта, моки на собственный предмет (`vi.mock` по пути в `src/`, файл существует).
+
+Рейтинг — это **кандидаты**, не вердикт. Прибор не видит: импорт через переменную (`const P = '../config.ts'`),
+обёртки вокруг `spawn`, ассерты на собранный вручную объект, хелперы-ассерты, зеркала логики. Поэтому вердикт
+даёт только часть 3.
+
+### Калибровка прибора
+
+Прибор сам проверяется known-answer тестом `src/__tests__/audit-tests.test.ts` (13 проверок). Синтетическое дерево
+строится в `os.tmpdir()` (не в репозитории, иначе vitest подхватил бы фикстуры как настоящие тесты) и содержит
+файлы с заранее известным ответом: честный импорт, импорт через barrel-хелпер, подпроцесс через `path.join`,
+подпроцесс через `promisify(execFile)`, спавн `dist/index.js` из хелпера, встроенная копия предмета, литеральная
+тавтология, точное дополнение, настоящая дизъюнкция (не должна считаться тавтологией), мок собственного предмета,
+тест без ассертов, импорт через переменную. Проверка: `npx vitest run src/__tests__/audit-tests.test.ts`.
+
+### Результат по 272 файлам
+
+| Вердикт | Файлов |
+|---|---|
+| OK | 204 |
+| E2E (код достигнут через подпроцесс/HTTP) | 46 |
+| NO-SUT (продакшн-код не достигнут) | 11 |
+| NO-ASSERT (есть тесты без ассертов) | 8 |
+| TAUTOLOGY | 2 |
+| WEAK-SHAPE (только форма, ≥80% слабых ассертов) | 1 |
+
+Сырой вывод: `node scripts/audit-tests.mjs --json` (или `--top N` для таблицы). Кандидаты с ненулевым рейтингом:
+
+| Рейтинг | Файл | Вердикт | Достижение | Тестов | expect | Причина |
+|---|---|---|---|---|---|---|
+| 50 | tests/cli.tools_list.contract.test.ts | NO-SUT | fs-only | 1 | 1 | продакшн-код не достигнут |
+| 50 | tests/jsonrpc-fuzz.test.ts | NO-SUT | none | 8 | 15 | продакшн-код не достигнут |
+| 50 | tests/openapi.test.ts | NO-SUT | none | 9 | 16 | продакшн-код не достигнут |
+| 50 | tests/prompts.tools.registered.test.ts | NO-SUT | fs-only | 1 | 1 | продакшн-код не достигнут |
+| 50 | tests/schema-validation.test.ts | NO-SUT | fs-only | 14 | 20 | продакшн-код не достигнут |
+| 50 | tests/transport-wire-snapshots.test.ts | NO-SUT | none | 7 | 10 | продакшн-код не достигнут |
+| 37 | tests/jwt-validator.test.ts | TAUTOLOGY | direct-src | 75 | 109 | тавтологии (1), тест без ассертов (1/75) |
+| 35 | `src/__tests__/config.spec.ts` | NO-SUT | none | 4 | 7 | импорт через переменную (см. границы) |
+| 35 | `src/__tests__/project_list.spec.ts` | NO-SUT | fs-only | 2 | 6 | импорт через переменную |
+| 35 | tests/embeddings.cache.test.ts | NO-SUT | none | 3 | 7 | импорт через переменную |
+| 35 | tests/tasks_dag.test.ts | NO-SUT | none | 18 | 28 | импорт только типа |
+| 35 | tests/vector.adapter.guard.test.ts | NO-SUT | none | 2 | 2 | продакшн-код не достигнут |
+| 32 | tests/e2e-full/memory-extended.test.ts | TAUTOLOGY | subprocess-dist | 9 | 73 | тавтология (1) |
+| 20 | tests/logging-middleware.test.ts | NO-ASSERT | direct-src | 24 | 26 | тесты без ассертов (4/24) |
+| 15 | tests/type-check.test.ts | WEAK-SHAPE | direct-src | 5 | 5 | только форма (100%) |
+| 5 | src/transport/tls.spec.ts, tests/realtime.spec.ts, tests/session-manager.test.ts, tests/stream-transport.test.ts, tests/transport.test.ts, tests/e2e-full/aud-crit-security.test.ts, tests/devcycle-next.test.ts | NO-ASSERT | mixed | — | — | по одному тесту без ассерта |
+
+Файлы, которые прибор пометил как NO-SUT, но которые **достигают кода через подпроцесс** (проверено вручную):
+`tests/devcycle-state.test.ts`, `tests/devcycle-next.test.ts`, `tests/executable-docs.test.ts` — они запускают
+`scripts/devcycle.mjs` и `scripts/executable-docs.mjs`. Это класс ложных срабатываний, который прибор теперь
+ловит (`path.join(..., 'scripts', ...)` и `promisify(execFile)`), и он закреплён фикстурами.
+
+## Часть 3. Мутационный эксперимент
+
+### Протокол
+
+Для каждого кандидата:
+
+1. Прогон **только этого** тест-файла до мутации (baseline). Красный baseline — файл исключается из эксперимента.
+2. Точечная мутация в модуле, который тест заявляет как предмет: смена оператора, возвращаемого значения или
+   полезной нагрузки. Мутация должна менять то, что тест обязан заметить.
+3. Прогон того же файла после мутации.
+4. Откат: `git checkout -- <файл>`, затем проверка `git status --short` по этому файлу (пусто).
+5. Для тестов, которые спавнят `node dist/index.js`, мутируется `src/`, затем `npm run build` в этом worktree;
+   после отката — пересборка. Чужой `dist` не трогается.
+
+### Семантика «красный/зелёный»
+
+- **Кандидат**: GREEN → GREEN = тест не наблюдает предмет (врёт, гипотеза подтверждена). GREEN → RED = тест
+  наблюдает предмет (гипотеза опровергнута). RED baseline = исключён.
+- **Контроль эффективности** (5 файлов, которые считаются здоровыми): GREEN → RED = мутация эффективна, эксперимент
+  валиден. GREEN → GREEN = мутация эквивалентна или неэффективна; переделать мутацию, тест не обвинять.
+- **Случайная выборка** (5 файлов из пула OK/E2E с прямым импортом, детерминированный seed 20261106, mulberry32):
+  проверяет, не пропускает ли рейтинг лжецов. GREEN → RED = файл честный, рейтинг не соврал. GREEN → GREEN =
+  кандидат на новое расследование (рейтинг пропустил лжеца).
+
+### Таблица
+
+| # | Тест | Мутация | До | После | Вывод |
+|---|---|---|---|---|---|
+| K1 | tests/tasks_dag.test.ts | `buildDAG` в `src/storage/tasks.ts` больше не строит рёбра | GREEN | GREEN | **врёт**: файл тестирует собственные копии `detectCycle`/`topoSort`/`buildDAG`; реальных `detectCycle`/`topoSort` в `src/` нет |
+| K2 | tests/openapi.test.ts | `zodToOpenApi` в `src/register/openapi.ts` возвращает `{}` | GREEN | GREEN | **врёт**: конвертер определён внутри теста, настоящий не импортируется |
+| K3 | tests/markdown.test.ts | имя первого инструмента в `registerMarkdownTools` изменено | GREEN | GREEN | **врёт про tool-слой**: регистрация вызывается, но обработчики не выполняются, ассерты идут по storage |
+| K4 | tests/cli.tools_list.contract.test.ts | `tasks_list` переименован в `src/register/tasks.ts` | GREEN | GREEN | **врёт**: регэксп читает 22-строчный делегат `src/index.ts`, реальная регистрация не проверяется |
+| K5 | tests/jsonrpc-fuzz.test.ts | мутация невозможна: `normalizeEnvelope` в `src/` отсутствует | — | — | **предмета нет**: `git grep normalizeEnvelope src/` пуст, файл фаззит собственную копию |
+| K6 | `src/obsidian/__tests__/confirm.replace.e2e.test.ts` | confirm-гейт импорта в `src/register/obsidian.ts` отключён | GREEN | GREEN | **врёт**: тест вызывает `importProjectFromVault` напрямую, гейт tool-слоя не задействован; название обещает «confirm=false rejected», тело утверждает обратное |
+| K7 | tests/obsidian.export.smoke.cli-envelope.test.ts | `knowledgeCount` в `exportProjectToVault` = −1 | GREEN | GREEN | **врёт про данные**: конверт собран в тесте, у реального результата проверяется только `typeof` |
+| K8 | tests/obsidian.import.smoke.cli-envelope.test.ts | план импорта: `creates.knowledge += 1000` | GREEN | GREEN | **врёт про данные**: счётчики плана проверяются только по типу |
+| K9 | tests/e2e-full/memory-lifecycle.test.ts | `memory_temporal_query` возвращает `facts: []` при `ok:true` | GREEN | GREEN | **врёт про данные**: 30 вызовов проверяют конверт, полезная нагрузка не проверяется |
+| K10 | tests/app-container.test.ts | `stop()` стал no-op | GREEN | RED | гипотеза о `stop()` **опровергнута**: тест его наблюдает |
+| K10b | tests/app-container.test.ts | ошибка закрытия транспорта в `stop()` стала фатальной (`throw`) | GREEN | GREEN | **врёт про заявленную ветку**: путь ошибки транспорта не исполняется ни разу |
+| K11 | tests/dashboard.test.ts | `filterByDateRange` возвращает `[]` | GREEN | GREEN | **врёт про обработчики**: `dashboard_*` не вызываются, проверяется группировка на storage |
+| K12 | tests/jwt-validator.test.ts | `jwksCacheTtl` по умолчанию 300000 → 0 | GREEN | GREEN | **врёт про кеш**: TTL JWKS-кеша не проверяется (строка `expect(true).toBe(true)` — лишь симптом) |
+| K13 | tests/bm25.unit.test.ts | `k1` по умолчанию 1.5 → 0.1 | GREEN | GREEN | **врёт про параметры**: k1/b влияют на счёт, но тест проверяет только число результатов |
+| K14 | tests/ab.bandits.test.ts | ветка исследования отключена (`Math.random() < 0`) | GREEN | GREEN | **врёт про ветку**: `epsilon > 0` не исполняется |
+| K15 | tests/prompts.tools.registered.test.ts | `prompts_catalog_get` переименован в `src/register/helpers.ts` | GREEN | RED | гипотеза «всегда зелёный» **опровергнута**: текстовый контракт реагирует на переименование, но остаётся проверкой текста, а не рантайма |
+| K16 | tests/embeddings.cache.test.ts | вытесняется самый новый элемент вместо самого старого | GREEN | GREEN | **врёт про вытеснение**: тест не проверяет, какой элемент выжил |
+| N1 | tests/schema-validation.test.ts | `scripts/validate-schemas.mjs` завершается с кодом 1 | GREEN | GREEN | **новое**: файл зеркалит логику скрипта, сам скрипт не запускается (проверено: мутированный скрипт возвращает 1) |
+| C1 | tests/session-manager.test.ts | истечение сессии отключено | GREEN | RED | контроль валиден |
+| C2 | tests/transport.test.ts | `registry.get(type)` возвращает `undefined` | GREEN | RED | контроль валиден |
+| C3 | src/transport/tls.spec.ts | `rejectUnauthorized` по умолчанию `false` | GREEN | RED | контроль валиден |
+| C4 | tests/knowledge.versioning.test.ts | версия документа не инкрементируется | GREEN | RED | контроль валиден |
+| C5 | tests/e2e-full/http-auth.test.ts | гейт авторизации пропускает всё | GREEN | RED | контроль валиден (см. границы: мутация типо-невалидна) |
+
+### Итог эксперимента
+
+- Подтверждено 14 гипотез (K1–K4, K6–K9, K10b, K11–K14, K16) — эти тесты зелёные при сломанном предмете.
+- Опровергнуто 2 (K10, K15) — файл наблюдает хотя бы часть своего предмета.
+- Предмета нет у 1 (K5).
+- Новое подтверждено 1 (N1).
+- Контроль эффективности: 5 из 5 красные, значит мутации были эффективны и методика отличает «врёт» от «не врёт».
+- Случайная выборка: 5 из 5 красные, рейтинг не пропустил ни одного лжеца среди проверенных случайных файлов.
+
+## Часть 4. Что это значит для пунктов TR-04
+
+| Пункт | Статус после эксперимента |
+|---|---|
+| TR-04a | Подтверждён: K1 (tasks_dag), K7/K8 (obsidian.*.smoke), K6 (confirm.replace). Удалять или переводить на реальные модули |
+| TR-04b | Подтверждён: K2 (openapi). K3 (markdown) — уточнение: тест доходит до storage, лживая часть — tool-слой |
+| TR-04c | Подтверждён: K4 (cli.tools_list). K5 (jsonrpc-fuzz) — сильнее, чем «клон»: функции нет в `src/` вовсе |
+| TR-04d | Подтверждён: K9, полезная нагрузка не проверяется |
+| TR-04e | Подтверждён и расширен: K12 (не только строка 787, но и весь JWKS-кеш), K13 (bm25), K14 (bandits), K16 (eviction), K10b (ветка ошибки транспорта). K15 — переформулировать: тест реагирует на переименование, но проверяет текст, а не рантайм |
+| TR-04f | Частично: K11 (dashboard_*). `vector.adapter` и `confirm-gate` в tool-слое не мутировали — остаются гипотезами |
+| TR-04g | Не проверялся мутацией: гигиена изоляции данных требует отдельного прогона |
+
+## Часть 5. Новые подпункты
+
+| ID | Задача | Почему |
+|---|---|---|
+| TR-04h | `tests/schema-validation.test.ts` — зеркало `scripts/validate-schemas.mjs` | N1: скрипт сломан (rc=1), тест зелёный. DoD: тест запускает скрипт и падает при `rc != 0`, либо зеркало удаляется |
+| TR-04i | `tests/transport-wire-snapshots.test.ts` — контракт SDK, не нашего слоя | Нет импорта `src/`: проверяется `serializeMessage`/`deserializeMessage` из `@modelcontextprotocol/sdk`. DoD: либо перевести на наш wire-слой, либо пометить как контракт зависимости и не считать покрытием проекта |
+
+## Часть 6. Границы проверки
+
+- Мутированы 15 кандидатов, 5 контролей эффективности и 5 случайных файлов; `chaos-shutdown`, `vector.adapter.guard`,
+  `type-check`, `logging-middleware`, `realtime.spec`, `stream-transport` в выборку не вошли — их оценки остаются
+  гипотезами. Случайная выборка из 5 файлов не даёт статистической гарантии по всем 204 файлам OK.
+- Один baseline-прогон `tests/e2e-full/memory-lifecycle.test.ts` дал RED, но 3 последующих прогона и полный
+  `npm test` — GREEN. Воспроизвести не удалось; вероятно, загрязнение состояния от предыдущих прогонов. Это
+  отдельный риск изоляции, а не вывод о тесте.
+- C5: `tsc` сообщает ошибки типов, но всё равно эмитит JS (`noEmitOnError` не выставлен), поэтому мутация попала в
+  `dist`. Контроль валиден по поведению, но мутация типо-невалидна — для чистого эксперимента её нужно переписать.
+- Мутации в `tests/**` не делались (запрещено поручением). `web-ui/**` и `service-catalog/**` вне области: первый
+  исключён конфигом vitest, второй — отдельный пакет.
+- Полный прогон дважды. Первый: 4 падения по таймауту под нагрузкой (cold-start 2100 мс при пороге 2000, три e2e — 5000 мс),
+  все четыре файла по отдельности зелёные. Второй: 272 файла, 3128 тестов, GREEN (`npm test`, 40.7 с). Считать флаки
+  под нагрузкой, а не регрессом.
