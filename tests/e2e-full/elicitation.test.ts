@@ -16,6 +16,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { assertDistFresh } from '../support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 

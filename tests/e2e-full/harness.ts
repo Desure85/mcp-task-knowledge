@@ -11,6 +11,9 @@ import fsp from 'node:fs/promises';
 import net from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { assertDistFresh } from '../support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 

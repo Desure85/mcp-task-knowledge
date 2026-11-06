@@ -10,6 +10,9 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { assertDistFresh } from './support/dist-guard.js';
+
+assertDistFresh();
 
 const TMP = path.join(process.cwd(), '.tmp-cfg-reload');
 const STORE = path.join(TMP, 'store');

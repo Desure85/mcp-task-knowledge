@@ -14,6 +14,9 @@ import crypto from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { assertDistFresh } from '../support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-http-sess');

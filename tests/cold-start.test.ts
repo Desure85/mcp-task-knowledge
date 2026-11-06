@@ -18,6 +18,9 @@ import { performance } from 'node:perf_hooks';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { assertDistFresh } from './support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const DIST_ENTRY = path.join(ROOT, 'dist', 'index.js');

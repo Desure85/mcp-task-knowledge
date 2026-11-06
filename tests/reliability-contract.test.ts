@@ -25,6 +25,9 @@ import { GmailConnector } from '../src/connectors/gmail.js';
 import type { ConnectorContext } from '../src/connectors/types.js';
 import { ServiceAvailability, withFallback } from '../src/core/graceful-degradation.js';
 import { spawnServer } from './e2e-full/harness.js';
+import { assertDistFresh } from './support/dist-guard.js';
+
+assertDistFresh();
 
 // ─── helpers ────────────────────────────────────────────────────────
 

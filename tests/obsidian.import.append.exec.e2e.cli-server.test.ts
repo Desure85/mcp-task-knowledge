@@ -3,6 +3,9 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { assertDistFresh } from './support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-import-append');

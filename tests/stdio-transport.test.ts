@@ -14,6 +14,9 @@ import {
 import { TransportRegistry } from '../src/transport/registry.js';
 import type { ServerContext } from '../src/register/context.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { assertDistFresh } from './support/dist-guard.js';
+
+assertDistFresh();
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 

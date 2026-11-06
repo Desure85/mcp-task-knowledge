@@ -13,6 +13,9 @@ import fsp from 'node:fs/promises';
 import net from 'node:net';
 import crypto from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { assertDistFresh } from '../support/dist-guard.js';
+
+assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-tcp');
