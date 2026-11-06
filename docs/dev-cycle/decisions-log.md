@@ -709,10 +709,11 @@ proxy-режим (`--proxy-upstream` / `MCP_PROXY_UPSTREAM`, задел MU-08) �
 
 Проверено: проба до кода — два stdio-процесса на одном `DATA_DIR`, 60 раундов параллельного
 `tasks_update` одной задачи: 56/60 потерянных обновлений (49/60 в первом прогоне). После — второй
-процесс не стартует (exit 1, `SERVER_LOCK_HELD`), потерь 0. `tests/server-lock.test.ts`, 7 кейсов:
-a) второй процесс, b) 20 одновременных захватов через барьер — ровно один победитель, c) `kill -9` →
-следующий старт снимает протухший lock, d) переиспользование pid и отказ вне Linux, e) SIGTERM
-снимает lock, f) чужой hostname, g) проба без потерь. Revert-check точечными мутантами: без захвата
+процесс не стартует (exit 1, `SERVER_LOCK_HELD`), потерь 0. `tests/server-lock.test.ts`, 22 теста
+(кейсы a-h плюс unit-блок): a) второй процесс, b) 20 одновременных захватов через барьер — ровно один
+победитель, c) `kill -9` → следующий старт снимает протухший lock, d) переиспользование pid и отказ
+вне Linux, e) SIGTERM снимает lock, f) чужой hostname, g) проба без потерь, h) uncaughtException
+освобождает lock. Revert-check точечными мутантами: без захвата
 в boot красные a, c, e, g; без проверки identity — d; чужой hostname как stale — f; без reclaim —
 c, d; без release на сигнал — e; exists+write вместо link — b (пять победителей вместо одного).
 Гейты (build, test:types, lint, lint:md, backlog:check, полный тест) — в отчёте сессии. Вне Linux и

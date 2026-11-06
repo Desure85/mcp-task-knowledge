@@ -217,6 +217,22 @@ describe('MU-01: single writer per DATA_DIR', () => {
     await expect(fs.access(lockPath(dataDir))).rejects.toThrow();
   });
 
+  it('h) an uncaught exception still releases the lock', { timeout: 60000 }, async () => {
+    const dataDir = await makeDataDir();
+    const script = `
+      import { acquireServerLock } from './dist/storage-lock.js';
+      await acquireServerLock({ dataDir: process.env.DATA_DIR, transport: 'test', version: '0.0.0' });
+      setTimeout(() => { throw new Error('boom'); }, 10);
+    `;
+    const child = capture(spawnTrackedServer(
+      ['--input-type=module', '-e', script],
+      { cwd: ROOT, env: { ...process.env, DATA_DIR: dataDir }, stdio: ['ignore', 'pipe', 'pipe'] },
+    ));
+    const exit = await waitForExit(child);
+    expect(exit.code).not.toBe(0);
+    await expect(fs.access(lockPath(dataDir))).rejects.toThrow();
+  });
+
   it('c) kill -9 of the owner: the next start reclaims the stale lock', { timeout: 60000 }, async () => {
     const dataDir = await makeDataDir();
     const first = spawnServer(dataDir);
