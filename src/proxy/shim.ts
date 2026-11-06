@@ -33,6 +33,8 @@ export class StdioBridge {
   private mirror?: ProxyMirror;
   private transport?: StdioServerTransport;
   private reconnectInFlight?: Promise<boolean>;
+  private failureCount = 0;
+  private nextAttemptAt = 0;
   private _running = false;
 
   constructor(
@@ -115,16 +117,21 @@ export class StdioBridge {
       log.warn({ state: this.breaker.currentState }, 'reconnect skipped — circuit open');
       return false;
     }
+    if (Date.now() < this.nextAttemptAt) return false;
     try {
       await this.bootstrap.stop();
       await this.bootstrap.start();
       this.mirror?.setClient(this.bootstrap.getClient());
       this.breaker.reset();
+      this.failureCount = 0;
+      this.nextAttemptAt = 0;
       log.info('reconnected to upstream');
       return true;
     } catch (err) {
+      this.failureCount++;
+      this.nextAttemptAt = Date.now() + Math.min(500 * 2 ** Math.min(this.failureCount, 4), 8000);
       this.breaker.recordFailure();
-      log.warn({ err }, 'reconnect failed');
+      log.warn({ err, retryInMs: this.nextAttemptAt - Date.now() }, 'reconnect failed');
       return false;
     }
   }
