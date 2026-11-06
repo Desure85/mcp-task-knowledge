@@ -229,11 +229,12 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `session_info` | Get current session info (rate limit, TTL, idle timeout) |
 | `session_list` | List active sessions |
 
-## Admin (1 tool)
+## Admin (2 tools)
 
 | Tool | Description |
 |------|-------------|
 | `admin_backup` | Create a portable `tar.gz` archive of `DATA_DIR` (ADR-008) |
+| `admin_restore` | Restore `DATA_DIR` from an archive: dry-run plan by default, apply with `confirm` (ADR-008) |
 
 `admin_backup` writes `backup-<timestamp>[-<label>].tar.gz` to `out` (default `DATA_DIR/.backups/`)
 through a `.partial` file and an atomic rename. The archive is a standard `tar.gz` (`tar -tzf`
@@ -244,8 +245,20 @@ never enter the archive; `includeSecrets` adds the two secret files and sets
 `containsSecrets: true`, `excludeModels` skips `models/`. Symlinks are skipped and reported in
 `manifest.warnings`. The finished archive size is returned in the tool response; the in-archive
 manifest does not carry `archiveBytes` (ADR-008 «Поправка»). Requires the admin role on
-authenticated transports; stdio/unix callers are trusted local operators. Restore is
-`admin_restore` (DX-16b) and is not part of this tool.
+authenticated transports; stdio/unix callers are trusted local operators.
+
+`admin_restore` reads the archive with the same reader (every header, path, type, size and
+`sha256` is validated before anything is written) and answers with a plan by default:
+`{ dryRun: true, applyToken, creates, overwrites, deletes, warnings }`. Passing that exact
+`applyToken` as `confirm` with `dryRun: false` replaces the archived scope and prunes files
+under the archived roots that are not in the archive (`prune: false` keeps them). Before
+writing it snapshots `DATA_DIR` to `.backups/<ts>-pre-restore/`; if a write fails halfway the
+snapshot is restored and the error says `rolled back from the pre-restore snapshot`. A
+`.restore.lock` (pid, startedAt, host) keeps a second process out — a live lock returns
+`RESTORE_TARGET_BUSY`, a lock whose process is gone is reclaimed. `.server.lock` and
+`.restore.lock` are never archived, overwritten or pruned; `.jwt-revoked.json` and `auth.db`
+are only restored with `includeSecrets`, so a revocation made after the backup survives a
+restore.
 
 ## Obsidian (2 tools)
 

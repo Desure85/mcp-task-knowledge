@@ -2,13 +2,14 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **129**
+Всего инструментов: **130**
 
 ## Инструменты
 
 | Инструмент | Описание |
 |------------|-----------|
 | `admin_backup` | Create a portable tar.gz archive of DATA_DIR (ADR-008): manifest.json with formatVersion/profile/sch |
+| `admin_restore` | Restore DATA_DIR from a tar.gz archive created by admin_backup (ADR-008): validates every entry (pat |
 | `admin_setup_link` | Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transpor |
 | `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
 | `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
@@ -161,6 +162,35 @@ Create a portable tar.gz archive of DATA_DIR (ADR-008): manifest.json with forma
     "label": "example",
     "includeSecrets": "example",
     "excludeModels": "example"
+  }
+}
+```
+
+## admin_restore
+
+**Restore DATA_DIR from an archive**
+
+Restore DATA_DIR from a tar.gz archive created by admin_backup (ADR-008): validates every entry (paths, types, sizes, sha256) before writing, reports a create/overwrite/delete plan by default (dryRun=true), and on dryRun=false with the applyToken from the dry run replaces the archived scope and prunes files that are not in the archive. Takes DATA_DIR/.restore.lock, refuses to write outside DATA_DIR or through symlinks, leaves .jwt-revoked.json/auth.db untouched unless includeSecrets is set, never touches .server.lock/.restore.lock, and snapshots DATA_DIR to .backups/<ts>-pre-restore before applying. Requires admin role on authenticated transports.
+
+**Параметры:**
+
+- `archive`
+- `dryRun`
+- `confirm`
+- `prune`
+- `includeSecrets`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_restore",
+  "arguments": {
+    "archive": "example",
+    "dryRun": false,
+    "confirm": true,
+    "prune": "example",
+    "includeSecrets": "example"
   }
 }
 ```

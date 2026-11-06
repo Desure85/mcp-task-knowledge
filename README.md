@@ -124,7 +124,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 
 ### Core
 
-- 127 MCP tools by default (129 with catalog + dynamic tools enabled)
+- 128 MCP tools by default (130 with catalog + dynamic tools enabled)
 - BM25 + ONNX vector search + hybrid + two-stage rerank
 - FTS5 full-text search (SQLite built-in)
 - File-based storage (Markdown/JSON, no external DB)
@@ -239,7 +239,7 @@ semantic channel can outrank a weak lexical match.
 
 | Metric | Value |
 |--------|-------|
-| MCP tools | 126 |
+| MCP tools | 128 |
 | Tests | 2000+ |
 | Coverage | 92.7% |
 | Tasks done (BACKLOG) | 181/182 |
