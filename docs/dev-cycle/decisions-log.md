@@ -505,6 +505,48 @@ reclaim-ер, который для живого держателя (pid жив,
 Откат: revert коммитов ветки `docs/dx16-backup-adr`; строка DX-16 в BACKLOG возвращается к прежней
 формулировке, подпункты DX-16a/DX-16b удаляются, ADR-008 удаляется. Реализация не затрагивалась.
 
+### 2026-11-06 23:20, TR-04a — удаление врущих тестов (ветка test/tr04a-delete-lying, sha d920298)
+
+Вопрос: можно ли удалить четыре теста, которые аудит TR-04 назвал «врущими», не потеряв реального
+покрытия и не оставив confirm-гейт obsidian без проверки.
+
+Решение:
+
+1. Удалены `tests/tasks_dag.test.ts`, `tests/obsidian.export.smoke.cli-envelope.test.ts`,
+   `tests/obsidian.import.smoke.cli-envelope.test.ts`. `src/obsidian/__tests__/confirm.replace.e2e.test.ts`
+   заменён на `tests/obsidian.confirm.replace.tool.test.ts`: mock `ServerContext` перехватывает
+   handler'ы `registerObsidianTools`, вызов `obsidian_export_project`/`obsidian_import_project` с
+   `strategy: 'replace'` без `confirm` даёт `{ok:false}` и не пишет в vault, с `confirm:true` проходит.
+2. Добавлен `tests/obsidian.import.plan-exec.test.ts`. Удалённый smoke был единственным in-process
+   тестом, создававшим knowledge-доки и задачи из `INDEX.md`; без замены `src/obsidian/import.ts`
+   терял statements 77.31% → 73.28% и ветвь 532. Тест проверяет реальные counts, иерархию
+   parentId и содержимое через `src/storage/*`, без hand-built конвертов.
+3. Мутации до удаления (каждая — GREEN в удаляемом тесте, RED в тесте-замене):
+   `topologicalSort` → `tasks_dag` GREEN, `tests/tasks.unit.test.ts` RED; счётчики
+   `planExportProjectToVault`/`planImportProjectFromVault` → smoke GREEN,
+   `tests/obsidian.export.dryrun.plan.unit.test.ts` и `src/obsidian/__tests__/import.dryrun.plan.test.ts`
+   RED; снятие confirm-гейта в `src/register/obsidian.ts:74-75,157-158` → старый файл GREEN, новый RED.
+   Для нового import-теста revert-check: `currentParentId = created.id` → `parentId` даёт RED.
+4. `BACKLOG.md`: TR-04a → done. Строка «Итого» не менялась: `scripts/check-backlog.mjs` не считает
+   ID с буквенным суффиксом (та же причина, что у AUD-18d/AUD-18e), это зафиксировано примечанием.
+
+Почему: e2e-тесты, спавнящие `dist/index.js`, идут в дочернем процессе и в v8-coverage не попадают,
+поэтому «дублируется e2e» не доказывает сохранение покрытия. Одна мутация даёт два наблюдения:
+GREEN в удаляемом тесте (он врёт) и RED в тесте, который объявлен заменой (покрытие реально есть).
+
+Проверено (2026-11-06, worktree `/home/dm/work/mcp-tk-tr04a`):
+
+- Baseline до удаления: 272 файла, 3128 тестов, coverage 90.36 / 81.64 / 93.51 / 90.36.
+- После: 270 файлов, 3107 тестов, coverage 90.28 / 81.64 / 93.51 / 90.28; пороги 80 / 70 / 80 / 80.
+- Per-file: `src/obsidian/export.ts` 96.91% statements (было 96.91), `src/obsidian/import.ts`
+  77.31% (было 77.31), `src/storage/tasks.ts` 93.8% (было 93.8). Фокусное A/B по `import.ts`
+  (текущие import-тесты против текущих плюс удалённые) дало одинаковые наборы непокрытых ветвей.
+- `npm run build`, `npm run test:types`, `npm run lint`, `npm run lint:md`, `npm run backlog:check`,
+  полный `npm test` — exit 0 (270 файлов, 3107 тестов).
+
+Откат: revert коммита d920298; четыре удалённых файла восстанавливаются, два новых удаляются,
+строка TR-04a возвращается в pending.
+
 ### 2026-11-06 23:43, TR-04b: openapi и markdown тесты переписаны на реальные модули
 
 Вопрос: как переписать два файла со статусом MOCK-DRIFT (`tests/openapi.test.ts`,
