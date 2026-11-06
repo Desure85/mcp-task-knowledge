@@ -36,6 +36,22 @@ function textOf(result: unknown): string {
   return first?.text ?? 'unknown error';
 }
 
+/**
+ * Strip credentials and query string before a URL reaches a log or an error
+ * message: a token may travel in either (`--url https://host/mcp?token=…`).
+ */
+export function redactUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    url.username = '';
+    url.password = '';
+    if (url.search) url.search = '?<redacted>';
+    return url.toString();
+  } catch {
+    return '<invalid url>';
+  }
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────
 
 export class ProxyBootstrap {
@@ -78,7 +94,7 @@ export class ProxyBootstrap {
       throw new Error('[proxy] already running');
     }
 
-    log.info({ upstreamUrl: this.config.upstream.url }, 'starting proxy');
+    log.info({ upstreamUrl: redactUrl(this.config.upstream.url) }, 'starting proxy');
     try {
       await this.connectUpstream();
       this._running = true;
@@ -116,12 +132,12 @@ export class ProxyBootstrap {
       await this.client.connect(this.clientTransport);
       this._upstreamConnected = true;
       this.reconnectAttempts = 0;
-      log.info({ url }, 'connected to upstream MCP server');
+      log.info({ url: redactUrl(url) }, 'connected to upstream MCP server');
       await this.authenticate();
     } catch (err) {
       this._upstreamConnected = false;
       this._authenticated = false;
-      log.error({ err, url }, 'failed to connect to upstream');
+      log.error({ err, url: redactUrl(url) }, 'failed to connect to upstream');
       throw err;
     }
   }
@@ -263,7 +279,7 @@ export class ProxyBootstrap {
       config: {
         enabled: this.config.enabled,
         upstreamTransport: this.config.upstream.transport,
-        upstreamUrl: this.config.upstream.url,
+        upstreamUrl: redactUrl(this.config.upstream.url),
         authMode: this.config.auth.mode,
       },
     };

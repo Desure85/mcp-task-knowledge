@@ -121,9 +121,12 @@ export async function runBridgeCli(argv: string[]): Promise<void> {
   const write = (line: string): void => { writeSync(2, `bridge: ${redact(line, token)}\n`); };
   const bridge = new StdioBridge(buildConfig(parsed));
   let stopping = false;
+  const initialPpid = process.ppid;
 
+  // A dead parent reparents us to whatever subreaper is closest (pid 1 in a
+  // container, systemd --user on a desktop), so pid 1 alone is not a signal.
   const parentWatch = setInterval(() => {
-    if (process.ppid === 1) void shutdown(BRIDGE_EXIT.OK, 'parent exited');
+    if (process.ppid !== initialPpid) void shutdown(BRIDGE_EXIT.OK, 'parent exited');
   }, 1000);
   parentWatch.unref();
 

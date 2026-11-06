@@ -10,7 +10,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
-import type { ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/stdio.js';
@@ -19,9 +19,12 @@ import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { assertDistFresh } from './support/dist-guard.js';
 import {
   spawnTrackedServer,
+  terminateServer,
   terminateTrackedServers,
   getFreePort,
+  trackServer,
 } from './support/server-process.js';
+import { BRIDGE_EXIT } from '../src/cli/bridge.js';
 
 assertDistFresh();
 
@@ -194,6 +197,57 @@ function shimMaps(pid: number | undefined): string {
   }
 }
 
+interface ChildProc {
+  pid: number;
+  cmd: string;
+}
+
+function procChildren(ppid: number): ChildProc[] {
+  const out: ChildProc[] = [];
+  for (const entry of fs.readdirSync('/proc')) {
+    if (!/^\d+$/.test(entry)) continue;
+    try {
+      const status = fs.readFileSync(`/proc/${entry}/status`, 'utf8');
+      const match = /^PPid:\s+(\d+)$/m.exec(status);
+      if (!match || Number(match[1]) !== ppid) continue;
+      const cmd = fs.readFileSync(`/proc/${entry}/cmdline`, 'utf8').split('\0').filter(Boolean).join(' ');
+      out.push({ pid: Number(entry), cmd });
+    } catch {
+      /* the child exited while we were reading */
+    }
+  }
+  return out;
+}
+
+function procRunning(pid: number): boolean {
+  if (pid <= 0) return false;
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const state = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0];
+    return state !== 'Z';
+  } catch {
+    return false;
+  }
+}
+
+async function waitForText(read: () => string, needle: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (read().includes(needle)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return read().includes(needle);
+}
+
+async function waitGone(pid: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!procRunning(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return !procRunning(pid);
+}
+
 describe.sequential('MU-08 stdio→http bridge', () => {
   let core: ChildProcess;
   let corePort = 0;
@@ -324,19 +378,76 @@ describe.sequential('MU-08 stdio→http bridge', () => {
     expect(shimB.child.exitCode).toBe(0);
   }, 15_000);
 
-  it('(g) a wrong token exits non-zero and never leaks the token', async () => {
+  it('(g) a wrong token exits with AUTH before the client sends anything', async () => {
     const wrong = 'mu08-wrong-token-do-not-log';
     const child = spawnTrackedServer(['dist/index.js', 'bridge', '--url', url], {
       cwd: ROOT,
       env: { ...baseEnv(), MCP_PROXY_TOKEN: wrong },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    const stdinStayedOpen = child.stdin !== null && !child.stdin.destroyed && !child.stdin.writableEnded;
+    expect(stdinStayedOpen).toBe(true);
+
     let stderr = '';
     child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
     await waitExit(child, IDLE_MS);
-    expect(child.exitCode).not.toBe(0);
+    expect(BRIDGE_EXIT.AUTH).toBe(4);
+    expect(child.exitCode).toBe(BRIDGE_EXIT.AUTH);
     expect(stderr).toMatch(/authentication failed/i);
     expect(stderr).not.toContain(wrong);
   }, 20_000);
+
+  const linuxIt = process.platform === 'linux' ? it : it.skip;
+
+  linuxIt('(h) a dead parent terminates the shim while stdin is still open', async () => {
+    const wrapper = trackServer(spawn('bash', ['-c', 'sleep 60 | node dist/index.js bridge --url "$0"', url], {
+      cwd: ROOT,
+      env: { ...baseEnv(), MCP_PROXY_TOKEN: token },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+    let wrapperErr = '';
+    wrapper.stdout?.resume();
+    wrapper.stderr?.on('data', (chunk: Buffer) => { wrapperErr += chunk.toString(); });
+
+    let shimPid = 0;
+    let sleepPid = 0;
+    try {
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline && shimPid === 0) {
+        for (const child of procChildren(wrapper.pid ?? 0)) {
+          if (child.cmd.includes('dist/index.js') && child.cmd.includes('bridge')) shimPid = child.pid;
+          else if (child.cmd.includes('sleep 60')) sleepPid = child.pid;
+        }
+        if (!shimPid) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(shimPid).toBeGreaterThan(0);
+      expect(await waitForText(() => wrapperErr, 'stdio bridge ready', 10_000)).toBe(true);
+
+      wrapper.kill('SIGKILL');
+      await waitExit(wrapper, IDLE_MS);
+
+      expect(await waitGone(shimPid, 3000)).toBe(true);
+      expect(wrapperErr).toMatch(/parent exited/);
+    } finally {
+      if (procRunning(shimPid)) process.kill(shimPid, 'SIGKILL');
+      if (procRunning(sleepPid)) process.kill(sleepPid, 'SIGKILL');
+      await terminateServer(wrapper, 1000).catch(() => undefined);
+    }
+  }, 25_000);
+
+  it('(i) a token carried in --url never reaches stdout or stderr', async () => {
+    const leaked = 'mu08-url-token-do-not-log';
+    const child = spawnTrackedServer(
+      ['dist/index.js', 'bridge', '--url', `http://127.0.0.1:1/mcp?probe=${leaked}`],
+      { cwd: ROOT, env: { ...baseEnv(), MCP_PROXY_TOKEN: leaked }, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let output = '';
+    child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+    child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+
+    await waitExit(child, 15_000);
+    expect(child.exitCode).toBe(BRIDGE_EXIT.UPSTREAM);
+    expect(output).not.toContain(leaked);
+  }, 25_000);
 });
