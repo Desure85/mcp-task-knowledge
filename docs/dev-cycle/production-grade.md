@@ -22,7 +22,7 @@
 | R5 Тесты | Поведение | `npm test`, затем `cd web-ui && npm test` | Все зелёные; падение из-за занятого порта 4001 чужим процессом это «не проверено», а не «зелёный» |
 | R6 Покрытие | Порог проекта | `npm run test:coverage` | Не ниже порога в `vitest.config.ts` |
 | R7 Безопасность: очередь | Нет открытых критичных и высоких пунктов аудитов | `node scripts/devcycle.mjs next --limit 50` и просмотр этапов M, O, P | Нет `pending` с приоритетом `critical` и `high` в этапах безопасности, кроме закрытых гейтом владельца |
-| R8 Безопасность: зависимости | Известные уязвимости рантайма | `npm audit --omit=dev --audit-level=high` | Нет находок high и critical, либо каждая есть в `decisions-log.md` с обоснованием |
+| R8 Безопасность: зависимости | Известные уязвимости рантайма | `npm audit --omit=dev --audit-level=high` в worktree; в CI это же выполняет блокирующий шаг `npm audit (production deps, blocks on high or critical)` из `bulk-smoke.yml` | Нет находок high и critical, либо каждая есть в `decisions-log.md` с обоснованием и `overrides` с причиной |
 | R9 Образ | Публикуемые образы не запускаются от root | Для каждой цели `runtime-*` из `.github/workflows/docker-build.yml` собрать образ и выполнить `docker run --rm --entrypoint id <образ>`; без Docker прочитать последнюю инструкцию `USER` в стадиях цели | Для каждой цели итоговый пользователь не root (`USER root` в промежуточных стадиях допустим) |
 | R10 Пакет | Установленный пакет работает | `npm pack`, установка в пустой каталог, запуск `prompts_list` после `bulk_create` | Работает вне репозитория (проверка PH-001) |
 | R11 Документация | Quickstart соответствует коду | Выполнить шаги `docs/quickstart-production.md` на чистом `DATA_DIR` | Шаги проходят без правок |

@@ -1,10 +1,20 @@
+/**
+ * Markdown import/export tools — tests the REAL registered handlers.
+ *
+ * History: this file used to hand-roll slugify + gray-matter + fast-glob and
+ * assert its own re-implementation (`_getToolHandler` returned null), so the
+ * shipped handlers in `src/register/markdown.ts` were never executed
+ * (TR-04 audit, MOCK-DRIFT). Every case below calls the handler registered by
+ * `registerMarkdownTools` through a capturing mock ServerContext.
+ */
+
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 import crypto from 'node:crypto';
 import matter from 'gray-matter';
 
-// TMP envs must be set before dynamic imports
+// TMP envs must be set before dynamic imports (config.ts resolves paths on load).
 const TMP_DIR = path.join(process.cwd(), '.tmp-tests-markdown');
 process.env.DATA_DIR = TMP_DIR;
 process.env.OBSIDIAN_VAULT_ROOT = path.join(TMP_DIR, 'vault');
@@ -13,20 +23,51 @@ process.env.EMBEDDINGS_MODE = 'none';
 let knowledge: typeof import('../src/storage/knowledge.js');
 let markdownMod: typeof import('../src/register/markdown.js');
 
+type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+
+let handlers: Map<string, ToolHandler>;
+
+/** Call a tool registered by registerMarkdownTools and unwrap the ok/err envelope. */
+async function call(name: string, args: Record<string, unknown>): Promise<any> {
+  const handler = handlers.get(name);
+  if (!handler) throw new Error(`tool not registered: ${name} (have: ${[...handlers.keys()].join(', ')})`);
+  const result = (await handler(args)) as { content?: Array<{ text?: string }>; isError?: boolean };
+  const text = result?.content?.[0]?.text;
+  return { ...(typeof text === 'string' ? JSON.parse(text) : {}), isError: result?.isError === true };
+}
+
 async function rmrf(p: string) {
-  try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
+  try {
+    await fsp.rm(p, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
 }
 
 function uniqProj(prefix: string) {
   return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+function tmpPath(...parts: string[]) {
+  return path.join(TMP_DIR, 'work', crypto.randomUUID().slice(0, 8), ...parts);
+}
+
 beforeAll(async () => {
   await rmrf(TMP_DIR);
   await fsp.mkdir(TMP_DIR, { recursive: true });
   await fsp.mkdir(process.env.OBSIDIAN_VAULT_ROOT!, { recursive: true });
+
   knowledge = await import('../src/storage/knowledge.js');
   markdownMod = await import('../src/register/markdown.js');
+
+  handlers = new Map();
+  markdownMod.registerMarkdownTools({
+    server: {
+      registerTool(name: string, _def: unknown, handler: ToolHandler) {
+        handlers.set(name, handler);
+      },
+    },
+  } as never);
 });
 
 afterAll(async () => {
@@ -34,58 +75,43 @@ afterAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helper: create a mock ServerContext for tool execution
-// ---------------------------------------------------------------------------
-function makeToolCtx() {
-  let lastHandler: any = null;
-  const ctx: any = {
-    server: {
-      registerTool(name: string, _schema: any, handler: any) {
-        lastHandler = handler;
-      },
-    },
-    _getHandler() { return lastHandler; },
-  };
-  return ctx;
-}
-
-// Helper: get a tool handler by re-registering tools
-async function _getToolHandler(_toolName: string): Promise<any> {
-  const ctx = makeToolCtx();
-  // The module registers multiple tools; we capture the last one, so we re-register for each
-  markdownMod.registerMarkdownTools(ctx);
-  // We need a different approach: register all, then call by name
-  return null; // We'll test storage functions directly
-}
-
-// ---------------------------------------------------------------------------
-// Internal helper tests (slugify, parseMarkdown, docToMarkdown)
+// slugify — exercised through knowledge_export_markdown dryRun
 // ---------------------------------------------------------------------------
 
-describe('markdown slugify', () => {
-  it('slugifies simple titles', async () => {
-    const ctx = makeToolCtx();
-    markdownMod.registerMarkdownTools(ctx);
-
-    // Test via export: create doc and check file naming
+describe('markdown slugify (knowledge_export_markdown dryRun)', () => {
+  it('slugifies simple titles and keeps the original title in the report', async () => {
     const prj = uniqProj('slug');
     await knowledge.createDoc({ project: prj, title: 'My API Docs', content: 'test' });
-    const docs = await knowledge.listDocs({ project: prj });
-    expect(docs.length).toBe(1);
-    // The title should be preserved as-is in the storage
-    expect(docs[0].title).toBe('My API Docs');
+
+    const res = await call('knowledge_export_markdown', {
+      project: prj,
+      outputDir: tmpPath('slug-out'),
+      dryRun: true,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.data.count).toBe(1);
+    expect(res.data.files[0].file).toBe('my-api-docs.md');
+    expect(res.data.files[0].title).toBe('My API Docs');
   });
 
   it('handles special characters in titles', async () => {
     const prj = uniqProj('special');
     await knowledge.createDoc({ project: prj, title: 'Hello @World! #test', content: 'test' });
-    const docs = await knowledge.listDocs({ project: prj });
-    expect(docs[0].title).toBe('Hello @World! #test');
+
+    const res = await call('knowledge_export_markdown', {
+      project: prj,
+      outputDir: tmpPath('special-out'),
+      dryRun: true,
+    });
+
+    expect(res.data.files[0].file).toBe('hello-world-test.md');
+    expect(res.data.files[0].title).toBe('Hello @World! #test');
   });
 });
 
 // ---------------------------------------------------------------------------
-// knowledge_export_markdown via storage roundtrip
+// knowledge_export_markdown
 // ---------------------------------------------------------------------------
 
 describe('knowledge_export_markdown', () => {
@@ -106,36 +132,24 @@ describe('knowledge_export_markdown', () => {
       type: 'component',
     });
 
-    const outDir = path.join(TMP_DIR, 'export-out', prj);
-    await fsp.mkdir(outDir, { recursive: true });
+    const outDir = tmpPath('export-out');
+    const res = await call('knowledge_export_markdown', { project: prj, outputDir: outDir });
 
-    // Simulate export: read docs, write .md files
-    const docs = await knowledge.listDocs({ project: prj });
-    const written: string[] = [];
-    for (const doc of docs) {
-      const full = await knowledge.readDoc(prj, doc.id);
-      if (!full) continue;
-      const slug = full.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      const filename = `${slug}.md`;
-      const fm: Record<string, unknown> = { title: full.title };
-      if (full.tags?.length) fm.tags = full.tags;
-      if ((full as any).type) fm.type = (full as any).type;
-      const md = matter.stringify(full.content, fm);
-      await fsp.writeFile(path.join(outDir, filename), md);
-      written.push(filename);
-    }
+    expect(res.ok).toBe(true);
+    expect(res.data.exported).toBe(2);
+    expect(res.data.files.map((f: { file: string }) => f.file).sort()).toEqual([
+      'api-reference.md',
+      'component-guide.md',
+    ]);
 
-    expect(written.length).toBe(2);
-    expect(written).toContain('api-reference.md');
-    expect(written).toContain('component-guide.md');
-
-    // Verify file contents have frontmatter
-    const apiRaw = await fsp.readFile(path.join(outDir, 'api-reference.md'), 'utf-8');
-    const apiParsed = matter(apiRaw);
+    const apiParsed = matter(await fsp.readFile(path.join(outDir, 'api-reference.md'), 'utf-8'));
     expect(apiParsed.data.title).toBe('API Reference');
     expect(apiParsed.data.tags).toEqual(['api', 'reference']);
     expect(apiParsed.data.type).toBe('api');
     expect(apiParsed.content).toContain('# API');
+
+    const componentParsed = matter(await fsp.readFile(path.join(outDir, 'component-guide.md'), 'utf-8'));
+    expect(componentParsed.data.type).toBe('component');
   });
 
   it('filters by tag during export', async () => {
@@ -143,9 +157,13 @@ describe('knowledge_export_markdown', () => {
     await knowledge.createDoc({ project: prj, title: 'Doc A', content: 'a', tags: ['public'] });
     await knowledge.createDoc({ project: prj, title: 'Doc B', content: 'b', tags: ['internal'] });
 
-    const docs = await knowledge.listDocs({ project: prj, tag: 'public' });
-    expect(docs.length).toBe(1);
-    expect(docs[0].title).toBe('Doc A');
+    const outDir = tmpPath('export-tag-out');
+    const res = await call('knowledge_export_markdown', { project: prj, outputDir: outDir, tag: 'public' });
+
+    expect(res.data.exported).toBe(1);
+    expect(res.data.files[0].title).toBe('Doc A');
+    const files = await fsp.readdir(outDir);
+    expect(files).toEqual(['doc-a.md']);
   });
 
   it('filters by type during export', async () => {
@@ -153,10 +171,24 @@ describe('knowledge_export_markdown', () => {
     await knowledge.createDoc({ project: prj, title: 'Doc X', content: 'x', type: 'api' });
     await knowledge.createDoc({ project: prj, title: 'Doc Y', content: 'y', type: 'overview' });
 
-    const docs = await knowledge.listDocs({ project: prj });
-    const apiDocs = docs.filter((d: any) => d.type === 'api');
-    expect(apiDocs.length).toBe(1);
-    expect(apiDocs[0].title).toBe('Doc X');
+    const res = await call('knowledge_export_markdown', {
+      project: prj,
+      outputDir: tmpPath('export-type-out'),
+      type: 'api',
+    });
+
+    expect(res.data.exported).toBe(1);
+    expect(res.data.files[0].title).toBe('Doc X');
+  });
+
+  it('rejects a relative outputDir', async () => {
+    const prj = uniqProj('export-relative');
+
+    const res = await call('knowledge_export_markdown', { project: prj, outputDir: 'relative/dir' });
+
+    expect(res.ok).toBe(false);
+    expect(res.isError).toBe(true);
+    expect(res.error.message).toBe('outputDir must be an absolute path');
   });
 });
 
@@ -180,28 +212,43 @@ describe('knowledge_export_bundle', () => {
       tags: ['b'],
     });
 
-    const docs = await knowledge.listDocs({ project: prj });
-    const sections: string[] = [];
-    for (const doc of docs) {
-      const full = await knowledge.readDoc(prj, doc.id);
-      if (!full) continue;
-      const header = `## ${full.title}`;
-      const metaLine = `> **ID:** ${full.id}\n> **Tags:** ${full.tags?.join(', ')}`;
-      sections.push(`${header}\n\n${metaLine}\n\n${full.content}`);
-    }
-    const bundle = sections.join('\n\n---\n\n');
+    const res = await call('knowledge_export_bundle', { project: prj });
 
-    expect(bundle).toContain('## First Doc');
-    expect(bundle).toContain('## Second Doc');
-    expect(bundle).toContain('Content of first.');
-    expect(bundle).toContain('Content of second.');
-    expect(bundle).toContain('---'); // separator
+    expect(res.ok).toBe(true);
+    expect(res.data.count).toBe(2);
+    expect(res.data.bundle).toContain('## First Doc');
+    expect(res.data.bundle).toContain('## Second Doc');
+    expect(res.data.bundle).toContain('Content of first.');
+    expect(res.data.bundle).toContain('Content of second.');
+    expect(res.data.bundle).toContain('> **Tags:** a');
+    expect(res.data.bundle).toContain('\n\n---\n\n');
+    expect(res.data.chars).toBe(res.data.bundle.length);
   });
 
   it('returns empty bundle when no docs', async () => {
     const prj = uniqProj('bundle-empty');
-    const docs = await knowledge.listDocs({ project: prj });
-    expect(docs.length).toBe(0);
+
+    const res = await call('knowledge_export_bundle', { project: prj });
+
+    expect(res.ok).toBe(true);
+    expect(res.data.count).toBe(0);
+    expect(res.data.bundle).toBe('');
+  });
+
+  it('honours headingLevel and includeFrontmatter=false', async () => {
+    const prj = uniqProj('bundle-options');
+    await knowledge.createDoc({ project: prj, title: 'Solo', content: 'Body.', tags: ['t'] });
+
+    const res = await call('knowledge_export_bundle', {
+      project: prj,
+      headingLevel: 3,
+      includeFrontmatter: false,
+    });
+
+    expect(res.data.bundle).toContain('### Solo');
+    expect(res.data.bundle).toContain('> **Tags:** t');
+    expect(res.data.bundle).not.toContain('title: Solo');
+    expect(res.data.bundle.trimEnd().endsWith('Body.')).toBe(true);
   });
 });
 
@@ -212,83 +259,58 @@ describe('knowledge_export_bundle', () => {
 describe('knowledge_import_markdown', () => {
   it('imports .md files from directory with frontmatter', async () => {
     const prj = uniqProj('import-dir');
-    const inDir = path.join(TMP_DIR, 'import-in', prj);
+    const inDir = tmpPath('import-in');
     await fsp.mkdir(inDir, { recursive: true });
 
-    // Create test .md file with frontmatter
-    const md1 = matter.stringify(
-      'This is the content of doc one.',
-      { title: 'Imported Doc One', tags: ['imported', 'test'], type: 'note' }
+    await fsp.writeFile(
+      path.join(inDir, 'doc-one.md'),
+      matter.stringify('This is the content of doc one.', {
+        title: 'Imported Doc One',
+        tags: ['imported', 'test'],
+        type: 'note',
+      }),
     );
-    await fsp.writeFile(path.join(inDir, 'doc-one.md'), md1);
-
-    const md2 = matter.stringify(
-      'Content of doc two.',
-      { title: 'Imported Doc Two', tags: ['imported'] }
+    await fsp.writeFile(
+      path.join(inDir, 'doc-two.md'),
+      matter.stringify('Content of doc two.', { title: 'Imported Doc Two', tags: ['imported'] }),
     );
-    await fsp.writeFile(path.join(inDir, 'doc-two.md'), md2);
 
-    // Simulate import: read files, parse, create docs
-    const fg = (await import('fast-glob')).default;
-    const files = await fg('*.md', { cwd: inDir, absolute: true });
+    const res = await call('knowledge_import_markdown', { project: prj, inputDir: inDir });
 
-    const created: string[] = [];
-    for (const f of files) {
-      const raw = await fsp.readFile(f, 'utf-8');
-      const parsed = matter(raw);
-      const data = parsed.data as any;
-      const doc = await knowledge.createDoc({
-        project: prj,
-        title: data.title || 'Untitled',
-        content: parsed.content.replace(/\n$/, ''),
-        tags: data.tags || [],
-        type: data.type,
-      });
-      created.push(doc.title);
-    }
+    expect(res.ok).toBe(true);
+    expect(res.data.strategy).toBe('overwrite');
+    expect(res.data.created).toBe(2);
+    expect(res.data.updated).toBe(0);
+    expect(res.data.results.map((r: { title: string }) => r.title).sort()).toEqual([
+      'Imported Doc One',
+      'Imported Doc Two',
+    ]);
 
-    expect(created.length).toBe(2);
-    expect(created).toContain('Imported Doc One');
-    expect(created).toContain('Imported Doc Two');
-
-    // Verify stored docs
     const docs = await knowledge.listDocs({ project: prj });
     expect(docs.length).toBe(2);
-
-    const doc1 = await knowledge.readDoc(prj, docs.find(d => d.title === 'Imported Doc One')!.id);
+    const doc1 = await knowledge.readDoc(prj, docs.find((d) => d.title === 'Imported Doc One')!.id);
     expect(doc1?.content).toBe('This is the content of doc one.');
     expect(doc1?.tags).toEqual(['imported', 'test']);
+    expect((doc1 as { type?: string } | null)?.type).toBe('note');
   });
 
-  it('imports files without frontmatter (uses filename-based title)', async () => {
+  it('imports files without frontmatter as Untitled', async () => {
     const prj = uniqProj('import-no-fm');
-    const inDir = path.join(TMP_DIR, 'import-no-fm', prj);
+    const inDir = tmpPath('import-no-fm');
     await fsp.mkdir(inDir, { recursive: true });
-
     await fsp.writeFile(path.join(inDir, 'plain-doc.md'), '# Plain\n\nNo frontmatter here.');
 
-    const fg = (await import('fast-glob')).default;
-    const files = await fg('*.md', { cwd: inDir, absolute: true });
+    const res = await call('knowledge_import_markdown', { project: prj, inputDir: inDir });
 
-    for (const f of files) {
-      const raw = await fsp.readFile(f, 'utf-8');
-      const parsed = matter(raw);
-      const data = parsed.data as any;
-      await knowledge.createDoc({
-        project: prj,
-        title: data.title || 'Untitled',
-        content: parsed.content.replace(/\n$/, ''),
-      });
-    }
-
+    expect(res.data.created).toBe(1);
     const docs = await knowledge.listDocs({ project: prj });
     expect(docs.length).toBe(1);
+    // The handler falls back to "Untitled" — it does not derive a title from the filename.
     expect(docs[0].title).toBe('Untitled');
   });
 
   it('overwrite strategy updates existing doc by title', async () => {
     const prj = uniqProj('import-overwrite');
-    // Create existing doc
     const existing = await knowledge.createDoc({
       project: prj,
       title: 'To Overwrite',
@@ -297,60 +319,112 @@ describe('knowledge_import_markdown', () => {
     });
     expect(existing).toBeTruthy();
 
-    const inDir = path.join(TMP_DIR, 'import-ow', prj);
+    const inDir = tmpPath('import-ow');
     await fsp.mkdir(inDir, { recursive: true });
-
-    const md = matter.stringify(
-      'New updated content.',
-      { title: 'To Overwrite', tags: ['new', 'updated'] }
+    await fsp.writeFile(
+      path.join(inDir, 'overwrite-me.md'),
+      matter.stringify('New updated content.', { title: 'To Overwrite', tags: ['new', 'updated'] }),
     );
-    await fsp.writeFile(path.join(inDir, 'overwrite-me.md'), md);
 
-    // Simulate overwrite: find by title, update
+    const res = await call('knowledge_import_markdown', {
+      project: prj,
+      inputDir: inDir,
+      strategy: 'overwrite',
+    });
+
+    expect(res.data.created).toBe(0);
+    expect(res.data.updated).toBe(1);
+    expect(res.data.results[0]).toMatchObject({ action: 'update', id: existing.id });
+
     const docs = await knowledge.listDocs({ project: prj });
-    const match = docs.find(d => d.title.toLowerCase() === 'to overwrite');
-    expect(match).toBeTruthy();
+    expect(docs.length).toBe(1);
+    const updated = await knowledge.readDoc(prj, existing.id);
+    expect(updated?.content).toBe('New updated content.');
+    expect(updated?.tags).toEqual(['new', 'updated']);
+  });
 
-    if (match) {
-      const fg = (await import('fast-glob')).default;
-      const files = await fg('*.md', { cwd: inDir, absolute: true });
-      for (const f of files) {
-        const raw = await fsp.readFile(f, 'utf-8');
-        const parsed = matter(raw);
-        const data = parsed.data as any;
-        await knowledge.updateDoc(prj, match.id, {
-          title: data.title,
-          content: parsed.content.replace(/\n$/, ''),
-          tags: data.tags,
-        });
-      }
+  it('skip strategy leaves an existing doc untouched', async () => {
+    const prj = uniqProj('import-skip');
+    const existing = await knowledge.createDoc({
+      project: prj,
+      title: 'Keep Me',
+      content: 'original',
+      tags: ['original'],
+    });
 
-      const updated = await knowledge.readDoc(prj, match.id);
-      expect(updated?.content).toBe('New updated content.');
-      expect(updated?.tags).toEqual(['new', 'updated']);
-    }
+    const inDir = tmpPath('import-skip');
+    await fsp.mkdir(inDir, { recursive: true });
+    await fsp.writeFile(
+      path.join(inDir, 'keep-me.md'),
+      matter.stringify('changed', { title: 'Keep Me', tags: ['changed'] }),
+    );
+
+    const res = await call('knowledge_import_markdown', {
+      project: prj,
+      inputDir: inDir,
+      strategy: 'skip',
+    });
+
+    expect(res.data.skipped).toBe(1);
+    expect(res.data.created).toBe(0);
+    expect(res.data.updated).toBe(0);
+
+    const unchanged = await knowledge.readDoc(prj, existing.id);
+    expect(unchanged?.content).toBe('original');
+    expect(unchanged?.tags).toEqual(['original']);
   });
 
   it('supports includePaths and excludePaths filtering', async () => {
-    const prj = uniqProj('import-filters');
-    const inDir = path.join(TMP_DIR, 'import-filt', prj);
+    const inDir = tmpPath('import-filt');
     await fsp.mkdir(path.join(inDir, 'docs'), { recursive: true });
     await fsp.mkdir(path.join(inDir, 'private'), { recursive: true });
+    await fsp.writeFile(
+      path.join(inDir, 'docs', 'public.md'),
+      matter.stringify('public', { title: 'Public' }),
+    );
+    await fsp.writeFile(
+      path.join(inDir, 'private', 'secret.md'),
+      matter.stringify('secret', { title: 'Secret' }),
+    );
 
-    await fsp.writeFile(path.join(inDir, 'docs', 'public.md'), matter.stringify('public', { title: 'Public' }));
-    await fsp.writeFile(path.join(inDir, 'private', 'secret.md'), matter.stringify('secret', { title: 'Secret' }));
+    const prjInclude = uniqProj('import-include');
+    const includeRes = await call('knowledge_import_markdown', {
+      project: prjInclude,
+      inputDir: inDir,
+      includePaths: ['docs'],
+    });
+    expect(includeRes.data.created).toBe(1);
+    expect(includeRes.data.results[0].title).toBe('Public');
 
-    const fg = (await import('fast-glob')).default;
-    const allFiles = await fg('**/*.md', { cwd: inDir, absolute: true });
-    expect(allFiles.length).toBe(2);
+    const prjExclude = uniqProj('import-exclude');
+    const excludeRes = await call('knowledge_import_markdown', {
+      project: prjExclude,
+      inputDir: inDir,
+      excludePaths: ['private'],
+    });
+    expect(excludeRes.data.created).toBe(1);
+    expect(excludeRes.data.results[0].title).toBe('Public');
+  });
 
-    // Include only docs/
-    const includeFiles = allFiles.filter(f => f.includes('/docs/'));
-    expect(includeFiles.length).toBe(1);
+  it('rejects a relative inputDir', async () => {
+    const res = await call('knowledge_import_markdown', {
+      project: uniqProj('import-relative'),
+      inputDir: 'relative/dir',
+    });
 
-    // Exclude private/
-    const excludeFiles = allFiles.filter(f => !f.includes('/private/'));
-    expect(excludeFiles.length).toBe(1);
+    expect(res.ok).toBe(false);
+    expect(res.error.message).toBe('inputDir must be an absolute path');
+  });
+
+  it('rejects a missing inputDir', async () => {
+    const missing = tmpPath('does-not-exist');
+    const res = await call('knowledge_import_markdown', {
+      project: uniqProj('import-missing'),
+      inputDir: missing,
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.error.message).toBe(`inputDir does not exist: ${missing}`);
   });
 });
 
@@ -361,64 +435,67 @@ describe('knowledge_import_markdown', () => {
 describe('knowledge_import_single', () => {
   it('imports a single markdown string as a knowledge doc', async () => {
     const prj = uniqProj('import-single');
-
-    const md = matter.stringify(
-      '# Introduction\n\nThis is the body content.',
-      { title: 'Intro Doc', tags: ['intro'], type: 'overview' }
-    );
-
-    const parsed = matter(md);
-    const data = parsed.data as any;
-    const doc = await knowledge.createDoc({
-      project: prj,
-      title: data.title,
-      content: parsed.content.replace(/\n$/, ''),
-      tags: data.tags,
-      type: data.type,
+    const md = matter.stringify('# Introduction\n\nThis is the body content.', {
+      title: 'Intro Doc',
+      tags: ['intro'],
+      type: 'overview',
     });
 
-    expect(doc.title).toBe('Intro Doc');
-    expect(doc.tags).toEqual(['intro']);
+    const res = await call('knowledge_import_single', { project: prj, markdown: md });
 
-    const read = await knowledge.readDoc(prj, doc.id);
+    expect(res.ok).toBe(true);
+    expect(res.data.title).toBe('Intro Doc');
+    expect(res.data.project).toBe(prj);
+    expect(res.data.trustLevel).toBe('user');
+
+    const read = await knowledge.readDoc(prj, res.data.id);
     expect(read?.content).toBe('# Introduction\n\nThis is the body content.');
+    expect(read?.tags).toEqual(['intro']);
+    expect((read as { type?: string } | null)?.type).toBe('overview');
   });
 
   it('imports plain markdown without frontmatter', async () => {
     const prj = uniqProj('import-plain');
 
-    const doc = await knowledge.createDoc({
+    const res = await call('knowledge_import_single', {
       project: prj,
       title: 'Plain Markdown',
-      content: 'Just some text without frontmatter.',
+      markdown: 'Just some text without frontmatter.',
     });
 
-    expect(doc.title).toBe('Plain Markdown');
-    const read = await knowledge.readDoc(prj, doc.id);
+    expect(res.data.title).toBe('Plain Markdown');
+    const read = await knowledge.readDoc(prj, res.data.id);
     expect(read?.content).toBe('Just some text without frontmatter.');
   });
 
   it('merges tags from frontmatter and parameters', async () => {
     const prj = uniqProj('import-merge-tags');
+    const md = matter.stringify('Content here.', { title: 'Merge Tags', tags: ['from-fm'] });
 
-    const md = matter.stringify(
-      'Content here.',
-      { title: 'Merge Tags', tags: ['from-fm'] }
-    );
-
-    const parsed = matter(md);
-    const data = parsed.data as any;
-    const paramTags = ['from-param'];
-    const mergedTags = [...new Set([...paramTags, ...(data.tags || [])])];
-
-    const doc = await knowledge.createDoc({
+    const res = await call('knowledge_import_single', {
       project: prj,
-      title: data.title,
-      content: parsed.content.replace(/\n$/, ''),
-      tags: mergedTags,
+      markdown: md,
+      tags: ['from-param'],
     });
 
-    expect(doc.tags).toEqual(['from-param', 'from-fm']);
+    const read = await knowledge.readDoc(prj, res.data.id);
+    expect(read?.tags).toEqual(['from-param', 'from-fm']);
+  });
+
+  it('honours an explicit trustLevel over frontmatter', async () => {
+    const prj = uniqProj('import-trust');
+    const md = matter.stringify('External content.', {
+      title: 'Trusted Doc',
+      trustLevel: 'user',
+    });
+
+    const res = await call('knowledge_import_single', {
+      project: prj,
+      markdown: md,
+      trustLevel: 'external',
+    });
+
+    expect(res.data.trustLevel).toBe('external');
   });
 });
 
@@ -429,7 +506,6 @@ describe('knowledge_import_single', () => {
 describe('knowledge_export_single', () => {
   it('exports a single doc with user-friendly frontmatter', async () => {
     const prj = uniqProj('export-single');
-
     const created = await knowledge.createDoc({
       project: prj,
       title: 'Export Me',
@@ -438,57 +514,49 @@ describe('knowledge_export_single', () => {
       type: 'guide',
     });
 
-    const doc = await knowledge.readDoc(prj, created.id);
-    expect(doc).toBeTruthy();
-    expect(doc!.title).toBe('Export Me');
+    const res = await call('knowledge_export_single', { project: prj, id: created.id });
 
-    // Verify the doc content roundtrips correctly
-    const fm: Record<string, unknown> = { title: doc!.title };
-    if (doc!.tags?.length) fm.tags = doc!.tags;
-    if ((doc as any).type) fm.type = (doc as any).type;
-    const exported = matter.stringify(doc!.content, fm);
+    expect(res.ok).toBe(true);
+    expect(res.data.title).toBe('Export Me');
 
-    const reParsed = matter(exported);
+    const reParsed = matter(res.data.markdown);
     expect(reParsed.data.title).toBe('Export Me');
     expect(reParsed.data.tags).toEqual(['test']);
     expect(reParsed.data.type).toBe('guide');
+    expect(reParsed.data.id).toBeUndefined();
+    expect(reParsed.data.createdAt).toBeUndefined();
     expect(reParsed.content.trim()).toBe('# Hello\n\nWorld.');
   });
 
   it('exports with system fields when requested', async () => {
     const prj = uniqProj('export-system');
-
     const created = await knowledge.createDoc({
       project: prj,
       title: 'System Export',
       content: 'content',
     });
 
-    const doc = await knowledge.readDoc(prj, created.id);
-    expect(doc).toBeTruthy();
+    const res = await call('knowledge_export_single', {
+      project: prj,
+      id: created.id,
+      includeSystemFields: true,
+    });
 
-    // Full frontmatter including system fields
-    const full: Record<string, unknown> = {
-      id: doc!.id,
-      project: doc!.project,
-      title: doc!.title,
-      createdAt: doc!.createdAt,
-      updatedAt: doc!.updatedAt,
-    };
-    if (doc!.tags?.length) full.tags = doc!.tags;
-    const exported = matter.stringify(doc!.content, full);
-
-    const reParsed = matter(exported);
+    const reParsed = matter(res.data.markdown);
     expect(reParsed.data.id).toBe(created.id);
     expect(reParsed.data.project).toBe(prj);
-    expect(reParsed.data.createdAt).toBe(doc!.createdAt);
-    expect(reParsed.data.updatedAt).toBe(doc!.updatedAt);
+    expect(reParsed.data.createdAt).toBe(created.createdAt);
+    expect(reParsed.data.updatedAt).toBe(created.updatedAt);
   });
 
   it('returns error for non-existent doc', async () => {
     const prj = uniqProj('export-missing');
-    const doc = await knowledge.readDoc(prj, 'non-existent-id');
-    expect(doc).toBeNull();
+
+    const res = await call('knowledge_export_single', { project: prj, id: 'non-existent-id' });
+
+    expect(res.ok).toBe(false);
+    expect(res.isError).toBe(true);
+    expect(res.error.message).toBe(`Knowledge doc not found: ${prj}/non-existent-id`);
   });
 });
 
@@ -500,10 +568,8 @@ describe('export-import roundtrip', () => {
   it('data survives export-to-directory then import-from-directory', async () => {
     const prjA = uniqProj('roundtrip-export');
     const prjB = uniqProj('roundtrip-import');
-    const outDir = path.join(TMP_DIR, 'roundtrip', prjA);
-    await fsp.mkdir(outDir, { recursive: true });
+    const outDir = tmpPath('roundtrip');
 
-    // Create source docs
     await knowledge.createDoc({
       project: prjA,
       title: 'Roundtrip Doc',
@@ -513,38 +579,12 @@ describe('export-import roundtrip', () => {
       source: '/path/to/source.md',
     });
 
-    // Export to directory
-    const docsA = await knowledge.listDocs({ project: prjA });
-    for (const doc of docsA) {
-      const full = await knowledge.readDoc(prjA, doc.id);
-      if (!full) continue;
-      const slug = full.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      const fm: Record<string, unknown> = { title: full.title };
-      if (full.tags?.length) fm.tags = full.tags;
-      if ((full as any).type) fm.type = (full as any).type;
-      if (full.source) fm.source = full.source;
-      const md = matter.stringify(full.content, fm);
-      await fsp.writeFile(path.join(outDir, `${slug}.md`), md);
-    }
+    const exportRes = await call('knowledge_export_markdown', { project: prjA, outputDir: outDir });
+    expect(exportRes.data.exported).toBe(1);
 
-    // Import into new project
-    const fg = (await import('fast-glob')).default;
-    const files = await fg('*.md', { cwd: outDir, absolute: true });
-    for (const f of files) {
-      const raw = await fsp.readFile(f, 'utf-8');
-      const parsed = matter(raw);
-      const data = parsed.data as any;
-      await knowledge.createDoc({
-        project: prjB,
-        title: data.title || 'Untitled',
-        content: parsed.content.replace(/\n$/, ''),
-        tags: data.tags || [],
-        type: data.type,
-        source: data.source,
-      });
-    }
+    const importRes = await call('knowledge_import_markdown', { project: prjB, inputDir: outDir });
+    expect(importRes.data.created).toBe(1);
 
-    // Verify roundtrip
     const docsB = await knowledge.listDocs({ project: prjB });
     expect(docsB.length).toBe(1);
     expect(docsB[0].title).toBe('Roundtrip Doc');
@@ -552,7 +592,7 @@ describe('export-import roundtrip', () => {
     const imported = await knowledge.readDoc(prjB, docsB[0].id);
     expect(imported?.content).toBe('## Original Content\n\nPreserved through roundtrip.');
     expect(imported?.tags).toEqual(['roundtrip', 'test']);
-    expect((imported as any).type).toBe('guide');
+    expect((imported as { type?: string } | null)?.type).toBe('guide');
     expect(imported?.source).toBe('/path/to/source.md');
   });
 
@@ -567,35 +607,25 @@ describe('export-import roundtrip', () => {
       tags: ['bundle'],
     });
 
-    // Simulate bundle export
-    const docsA = await knowledge.listDocs({ project: prjA });
-    const sections: string[] = [];
-    for (const doc of docsA) {
-      const full = await knowledge.readDoc(prjA, doc.id);
-      if (!full) continue;
-      const fm: Record<string, unknown> = { title: full.title };
-      if (full.tags?.length) fm.tags = full.tags;
-      sections.push(matter.stringify(full.content, fm));
-    }
-    const bundle = sections.join('\n\n---\n\n');
+    const bundleRes = await call('knowledge_export_bundle', { project: prjA });
+    expect(bundleRes.data.count).toBe(1);
 
-    // Parse back (split by separator)
-    const parts = bundle.split('\n\n---\n\n');
-    for (const part of parts) {
-      const parsed = matter(part.trim());
-      const data = parsed.data as any;
-      await knowledge.createDoc({
-        project: prjB,
-        title: data.title || 'Untitled',
-        content: parsed.content.replace(/\n$/, ''),
-        tags: data.tags || [],
-      });
-    }
+    const parts = String(bundleRes.data.bundle).split('\n\n---\n\n');
+    expect(parts).toHaveLength(1);
+
+    const importRes = await call('knowledge_import_single', {
+      project: prjB,
+      markdown: parts[0],
+    });
+    expect(importRes.ok).toBe(true);
 
     const docsB = await knowledge.listDocs({ project: prjB });
     expect(docsB.length).toBe(1);
+
     const imported = await knowledge.readDoc(prjB, docsB[0].id);
-    expect(imported?.content).toBe('Bundle content preserved.');
-    expect(imported?.tags).toEqual(['bundle']);
+    // The bundle puts its own heading/meta block before the doc frontmatter, so
+    // only the body is a re-importable contract here — the content must survive.
+    expect(imported?.content).toContain('Bundle content preserved.');
+    expect(imported?.content).toContain('## Bundle Doc');
   });
 });
