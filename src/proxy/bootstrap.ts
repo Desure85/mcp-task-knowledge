@@ -23,6 +23,19 @@ import { childLogger } from '../core/logger.js';
 
 const log = childLogger('proxy:bootstrap');
 
+/**
+ * MU-08: the task-knowledge core keeps every non-lifecycle method closed until
+ * the session calls this tool (`src/register/auth.ts`). It is reachable before
+ * authentication, exactly like `initialize`.
+ */
+export const AUTHENTICATE_TOOL = 'mcp.authenticate';
+
+function textOf(result: unknown): string {
+  const content = (result as { content?: Array<{ text?: string }> }).content;
+  const first = Array.isArray(content) ? content.find((item) => typeof item?.text === 'string') : undefined;
+  return first?.text ?? 'unknown error';
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────
 
 export class ProxyBootstrap {
@@ -30,6 +43,7 @@ export class ProxyBootstrap {
   private clientTransport?: Transport;
   private _running = false;
   private _upstreamConnected = false;
+  private _authenticated = false;
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
 
@@ -49,6 +63,11 @@ export class ProxyBootstrap {
     return this._upstreamConnected;
   }
 
+  /** Whether this session authenticated with the upstream (MU-08). */
+  get authenticated(): boolean {
+    return this._authenticated;
+  }
+
   /**
    * Start the proxy: connect to upstream MCP server.
    * Downstream listener is set up by the caller (AppContainer or standalone).
@@ -60,15 +79,19 @@ export class ProxyBootstrap {
     }
 
     log.info({ upstreamUrl: this.config.upstream.url }, 'starting proxy');
-    await this.connectUpstream();
-    this._running = true;
+    try {
+      await this.connectUpstream();
+      this._running = true;
+    } catch (err) {
+      await this.closeUpstream();
+      throw err;
+    }
     log.info('proxy started — upstream connected');
   }
 
   /**
-   * Connect to the upstream MCP server.
-   * Uses StreamableHTTPClientTransport for HTTP upstream.
-   * Throws on connection failure.
+   * Connect to the upstream MCP server, then authenticate the new session when
+   * a token is configured. Throws on connection or authentication failure.
    */
   private async connectUpstream(): Promise<void> {
     const { transport, url } = this.config.upstream;
@@ -77,27 +100,84 @@ export class ProxyBootstrap {
       throw new Error(`[proxy] upstream transport "${transport}" not yet supported (P-001: HTTP only)`);
     }
 
-    // Create client transport to upstream
+    await this.closeUpstream();
+
     this.clientTransport = new StreamableHTTPClientTransport(
       new URL(url),
+      { requestInit: this.buildRequestInit() },
     );
 
-    // Create MCP client
     this.client = new Client(
       { name: 'mcp-task-knowledge-proxy', version: '1.0.0' },
       { capabilities: {} },
     );
 
-    // Connect to upstream
     try {
       await this.client.connect(this.clientTransport);
       this._upstreamConnected = true;
       this.reconnectAttempts = 0;
       log.info({ url }, 'connected to upstream MCP server');
+      await this.authenticate();
     } catch (err) {
       this._upstreamConnected = false;
+      this._authenticated = false;
       log.error({ err, url }, 'failed to connect to upstream');
       throw err;
+    }
+  }
+
+  private buildRequestInit(): RequestInit | undefined {
+    const { mode, token } = this.config.auth;
+    if ((mode === 'static-token' || mode === 'jwt') && token) {
+      return { headers: { Authorization: `Bearer ${token}` } };
+    }
+    return undefined;
+  }
+
+  /**
+   * Authenticate the current upstream session.
+   *
+   * The core gates every method except `initialize`/`ping` behind a session
+   * token (`mcp.authenticate`), so a fresh `Client` — including the one created
+   * by `reconnect()` — is unauthenticated until this runs. A configured token
+   * is also sent as `Authorization`, which the core ignores today but keeps
+   * the config honest for header-based upstreams.
+   */
+  async authenticate(): Promise<void> {
+    const { mode, token } = this.config.auth;
+    if (!token) {
+      this._authenticated = mode === 'none';
+      return;
+    }
+
+    const result = await this.getClient().callTool({
+      name: AUTHENTICATE_TOOL,
+      arguments: { token },
+    });
+    const failed = Boolean((result as { isError?: boolean }).isError);
+    if (failed) {
+      throw new Error(`[proxy] upstream authentication failed: ${this.redact(textOf(result))}`);
+    }
+    this._authenticated = true;
+    log.info('authenticated with upstream');
+  }
+
+  private redact(text: string): string {
+    const token = this.config.auth.token;
+    return token ? text.split(token).join('<redacted>') : text;
+  }
+
+  private async closeUpstream(): Promise<void> {
+    this._authenticated = false;
+    this._upstreamConnected = false;
+    const client = this.client;
+    this.client = undefined;
+    this.clientTransport = undefined;
+    if (!client) return;
+    try {
+      await client.close();
+    } catch (err) {
+      log.warn({ err }, 'error closing upstream client');
     }
   }
 
@@ -157,19 +237,8 @@ export class ProxyBootstrap {
       this.reconnectTimer = undefined;
     }
 
-    try {
-      if (this.client) {
-        await this.client.close();
-      }
-    } catch (err) {
-      log.warn({ err }, 'error closing upstream client');
-    } finally {
-      this._upstreamConnected = false;
-      this._running = false;
-      this.client = undefined;
-      this.clientTransport = undefined;
-    }
-
+    await this.closeUpstream();
+    this._running = false;
     log.info('proxy stopped');
   }
 

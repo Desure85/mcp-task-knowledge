@@ -2,7 +2,9 @@
  * proxy/index.ts — Public API for Thin Proxy module (P-001..P-004).
  */
 
-export { ProxyBootstrap } from './bootstrap.js';
+export { ProxyBootstrap, AUTHENTICATE_TOOL } from './bootstrap.js';
+export { StdioBridge } from './shim.js';
+export type { StdioBridgeOptions } from './shim.js';
 export { ProxyMirror, jsonSchemaToZod, jsonSchemaToShape } from './mirror.js';
 export type { MirrorStats } from './mirror.js';
 export { ProxyForwarder, DEFAULT_FORWARDER_CONFIG } from './forwarder.js';
