@@ -87,6 +87,12 @@ import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
 import { PROMPTS_DIR, getCurrentProject, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { checkSchemaVersion, SchemaVersionError } from '../services/schema-version.js';
 import { startClaimSweeper, stopClaimSweeper } from '../storage/tasks.js';
+import {
+  acquireServerLock,
+  ServerLockError,
+  shouldAcquireServerLock,
+  type ServerLockHandle,
+} from '../storage-lock.js';
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -225,6 +231,8 @@ export class AppContainer {
   private relay?: import('../relay/relay-manager.js').RelayManager;
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
+  private storageLock?: ServerLockHandle;
+  private lockSignalHandlersInstalled = false;
   private startedAt?: number;
   private readonly log = childLogger('app-container');
   private readonly opts: {
@@ -350,6 +358,20 @@ export class AppContainer {
 
       // 2. Metrics
       await initMetrics();
+
+      // 2.4 MU-01: single writer per DATA_DIR, before the schema gate — migrations write files.
+      // Proxy mode (MU-08) opens no storage and must not claim the directory.
+      if (shouldAcquireServerLock()) {
+        this.storageLock = await acquireServerLock({
+          dataDir: DATA_DIR,
+          transport: this.opts.transportType,
+          version: '',
+        });
+        this.addCleanup(() => this.releaseStorageLock());
+        if (!this.opts.handleSignals) {
+          this.installLockSignalHandlers();
+        }
+      }
 
       // 2.5 DX-18: DATA_DIR schema-version gate — BEFORE any storage read.
       // Refuses to boot when the on-disk schema is newer than this build;
@@ -701,8 +723,39 @@ export class AppContainer {
       });
     } catch (err) {
       this._state = 'error';
-      this.log.error({ err }, 'initialization failed');
+      if (err instanceof ServerLockError) {
+        // The entry point prints the full operator-facing message once; a stack
+        // trace here would bury it.
+        this.log.error({ code: err.code, pid: err.holder?.pid }, 'DATA_DIR is owned by another process');
+      } else {
+        this.log.error({ err }, 'initialization failed');
+      }
+      await this.releaseStorageLock();
       throw err;
+    }
+  }
+
+  private async releaseStorageLock(): Promise<void> {    const lock = this.storageLock;
+    if (!lock) return;
+    this.storageLock = undefined;
+    await lock.release();
+  }
+
+  /**
+   * stdio has no AppContainer signal handlers (handleSignals=false), yet a
+   * SIGTERM must still release the lock. Release, then restore the default
+   * disposition and re-raise so the exit status stays 128+signal.
+   */
+  private installLockSignalHandlers(): void {
+    if (this.lockSignalHandlersInstalled) return;
+    this.lockSignalHandlersInstalled = true;
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+      const handler = () => {
+        this.storageLock?.releaseSync();
+        process.removeListener(signal, handler);
+        process.kill(process.pid, signal);
+      };
+      process.on(signal, handler);
     }
   }
 
