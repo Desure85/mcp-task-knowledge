@@ -34,6 +34,25 @@ layers) — is stored under `DATA_DIR`. Mount that one directory as a volume in 
 Older versions kept memory in `~/.local/share/mcp-task-knowledge/`; copy `temporal-graph.json`, `profiles/` and
 `layers.json` into `$DATA_DIR/memory/` to carry it over.
 
+### Backups
+
+`admin_backup` (or `node scripts/dev-cli.mjs backup`) writes one portable `tar.gz` archive of
+`DATA_DIR` per [ADR-008](../adr/0008-admin-backup-restore.md): `backup-<timestamp>[-<label>].tar.gz`
+with a `manifest.json` (`formatVersion`, `profile`, `schemaVersion`, per-entry `sha256`). It is a
+plain archive: `tar -tzf` lists it and `gzip -t` validates it.
+
+- Default output is `$DATA_DIR/.backups/`; `out` (`--out`) selects another directory. The file is
+  written as `.partial` and renamed atomically, so an interrupted run leaves no archive behind.
+- `.jwt-revoked.json`, `auth.db`, `audit.log`, `.embeddings/`, `.emb_cache/` and `.backups/` are
+  excluded. `includeSecrets` (`--include-secrets`) adds the two secret files and marks the archive
+  `containsSecrets: true`; `excludeModels` (`--exclude-models`) skips `models/`.
+- Symlinks are never followed or archived; they are listed in `manifest.warnings`.
+- A backup of a running server is not a cross-file transaction: the manifest says `live: true`.
+  Stop writes for a consistent copy.
+- Only the file storage profile is supported. SQLite/Postgres deployments get
+  `BACKUP_PROFILE_UNSUPPORTED` and must use the database-native dump (`pg_dump` / `.backup`).
+- Restore is `admin_restore` (DX-16b) and is not available yet.
+
 ### Per-project workflow metadata
 
 Workflow settings live in `$DATA_DIR/projects/<project>.json`; `project_statuses_set` and
