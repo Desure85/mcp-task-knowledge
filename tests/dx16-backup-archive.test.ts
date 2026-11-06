@@ -50,8 +50,9 @@ async function listFiles(dir: string, base = dir): Promise<string[]> {
   }
   for (const entry of entries) {
     const abs = path.join(dir, entry.name);
+    const rel = `${path.relative(base, abs).split(path.sep).join('/')}${entry.isDirectory() ? '/' : ''}`;
+    out.push(rel);
     if (entry.isDirectory()) out.push(...(await listFiles(abs, base)));
-    else out.push(path.relative(base, abs).split(path.sep).join('/'));
   }
   return out.sort();
 }
