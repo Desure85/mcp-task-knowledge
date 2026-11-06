@@ -117,6 +117,12 @@ export interface AcquireServerLockOptions {
   pid?: number;
   /** Defaults to "does /proc/self/stat exist". Overridden in tests. */
   identitySupported?: boolean;
+  /**
+   * Remove the lock from a SIGINT/SIGTERM handler. Registered BEFORE the file is
+   * created, so a signal that arrives while the lock is being claimed cannot kill
+   * the process with the default disposition and leave the file behind.
+   */
+  releaseOnSignal?: boolean;
 }
 
 // ─── Platform helpers ────────────────────────────────────────────────
@@ -394,6 +400,32 @@ async function reclaimStaleLock(lockPath: string, hostname: string, identitySupp
 
 // ─── Acquire / release ───────────────────────────────────────────────
 
+/**
+ * Release the lock on SIGINT/SIGTERM. Installed BEFORE the claim, so the window
+ * between "lock visible on disk" and "signal release armed" does not exist: the
+ * handler removes the file only when it still carries OUR token (the claim may not
+ * have reached fs.link yet — then there is nothing to remove), then re-raises the
+ * signal so the exit status stays 128+signal.
+ *
+ * @returns uninstall function; must be called on release or failed acquire
+ */
+function installSignalRelease(lockPath: string, token: string): () => void {
+  const removers: Array<() => void> = [];
+  const uninstall = (): void => {
+    while (removers.length > 0) removers.pop()?.();
+  };
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    const handler = (): void => {
+      removeIfOwnedSync(lockPath, token);
+      uninstall();
+      process.kill(process.pid, signal);
+    };
+    process.on(signal, handler);
+    removers.push(() => process.removeListener(signal, handler));
+  }
+  return uninstall;
+}
+
 /** Handles already held by THIS process, keyed by resolved lock path (re-entrant within one process). */
 const activeLocks = new Map<string, ServerLockHandle>();
 
@@ -416,7 +448,11 @@ async function resolveVersion(): Promise<string> {
   }
 }
 
-function makeHandle(lockPath: string, holder: ServerLockHolder): ServerLockHandle {
+function makeHandle(
+  lockPath: string,
+  holder: ServerLockHolder,
+  uninstallSignalRelease: () => void,
+): ServerLockHandle {
   let released = false;
   const onExit = () => {
     if (!released) removeIfOwnedSync(lockPath, holder.token);
@@ -430,6 +466,7 @@ function makeHandle(lockPath: string, holder: ServerLockHolder): ServerLockHandl
       released = true;
       process.removeListener('exit', onExit);
       activeLocks.delete(lockPath);
+      uninstallSignalRelease();
       await removeIfOwned(lockPath, holder.token);
     },
     releaseSync() {
@@ -437,6 +474,7 @@ function makeHandle(lockPath: string, holder: ServerLockHolder): ServerLockHandl
       released = true;
       process.removeListener('exit', onExit);
       activeLocks.delete(lockPath);
+      uninstallSignalRelease();
       removeIfOwnedSync(lockPath, holder.token);
     },
   };
@@ -469,66 +507,75 @@ export async function acquireServerLock(options: AcquireServerLockOptions): Prom
     processIdentity: identitySupported ? readProcessIdentity(pid) : null,
   };
   const payload = `${JSON.stringify(holder, null, 2)}\n`;
+  const uninstallSignalRelease = options.releaseOnSignal
+    ? installSignalRelease(lockPath, holder.token)
+    : () => {};
+  let acquired = false;
 
-  await fs.mkdir(options.dataDir, { recursive: true });
+  try {
+    await fs.mkdir(options.dataDir, { recursive: true });
 
-  for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt++) {
-    if (await createFileExclusive(lockPath, payload)) {
-      const handle = makeHandle(lockPath, holder);
-      activeLocks.set(lockPath, handle);
-      log.debug({ lockPath, pid }, 'DATA_DIR lock acquired');
-      return handle;
+    for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt++) {
+      if (await createFileExclusive(lockPath, payload)) {
+        acquired = true;
+        const handle = makeHandle(lockPath, holder, uninstallSignalRelease);
+        activeLocks.set(lockPath, handle);
+        log.debug({ lockPath, pid }, 'DATA_DIR lock acquired');
+        return handle;
+      }
+
+      const snapshot = await readLockSnapshot(lockPath);
+      const verdict = classifyLock(snapshot, hostname, Date.now(), identitySupported);
+
+      switch (verdict.state) {
+        case 'gone':
+          continue;
+        case 'stale':
+          await reclaimStaleLock(lockPath, hostname, identitySupported);
+          continue;
+        case 'held':
+          throw new ServerLockError('SERVER_LOCK_HELD', describeHolder(verdict.holder, lockPath), lockPath, verdict.holder);
+        case 'foreign':
+          throw new ServerLockError(
+            'SERVER_LOCK_FOREIGN_HOST',
+            `${describeHolder(verdict.holder, lockPath)}`
+            + `\nThe holder runs on another host, so it cannot be checked for liveness. `
+            + `Remove ${lockPath} manually only after confirming that host is down.`,
+            lockPath,
+            verdict.holder,
+          );
+        case 'unverifiable':
+          throw new ServerLockError(
+            'SERVER_LOCK_UNVERIFIABLE',
+            `${describeHolder(verdict.holder, lockPath)}`
+            + `\nThis platform has no process start time, so a dead-looking pid may have been reused; `
+            + `the lock is not removed automatically. Delete ${lockPath} manually only after confirming `
+            + `that no server is running.`,
+            lockPath,
+            verdict.holder,
+          );
+        case 'unreadable':
+          throw new ServerLockError(
+            'SERVER_LOCK_UNREADABLE',
+            `lock file ${lockPath} exists but has no readable owner yet. `
+            + `Another server may be starting; retry in a few seconds. `
+            + `If it persists, delete the file after confirming no server is running.`,
+            lockPath,
+            null,
+          );
+      }
     }
 
-    const snapshot = await readLockSnapshot(lockPath);
-    const verdict = classifyLock(snapshot, hostname, Date.now(), identitySupported);
-
-    switch (verdict.state) {
-      case 'gone':
-        continue;
-      case 'stale':
-        await reclaimStaleLock(lockPath, hostname, identitySupported);
-        continue;
-      case 'held':
-        throw new ServerLockError('SERVER_LOCK_HELD', describeHolder(verdict.holder, lockPath), lockPath, verdict.holder);
-      case 'foreign':
-        throw new ServerLockError(
-          'SERVER_LOCK_FOREIGN_HOST',
-          `${describeHolder(verdict.holder, lockPath)}`
-          + `\nThe holder runs on another host, so it cannot be checked for liveness. `
-          + `Remove ${lockPath} manually only after confirming that host is down.`,
-          lockPath,
-          verdict.holder,
-        );
-      case 'unverifiable':
-        throw new ServerLockError(
-          'SERVER_LOCK_UNVERIFIABLE',
-          `${describeHolder(verdict.holder, lockPath)}`
-          + `\nThis platform has no process start time, so a dead-looking pid may have been reused; `
-          + `the lock is not removed automatically. Delete ${lockPath} manually only after confirming `
-          + `that no server is running.`,
-          lockPath,
-          verdict.holder,
-        );
-      case 'unreadable':
-        throw new ServerLockError(
-          'SERVER_LOCK_UNREADABLE',
-          `lock file ${lockPath} exists but has no readable owner yet. `
-          + `Another server may be starting; retry in a few seconds. `
-          + `If it persists, delete the file after confirming no server is running.`,
-          lockPath,
-          null,
-        );
-    }
+    throw new ServerLockError(
+      'SERVER_LOCK_HELD',
+      `could not acquire ${lockPath} after ${MAX_ACQUIRE_ATTEMPTS} attempts: `
+      + `another process kept winning the race.`,
+      lockPath,
+      null,
+    );
+  } finally {
+    if (!acquired) uninstallSignalRelease();
   }
-
-  throw new ServerLockError(
-    'SERVER_LOCK_HELD',
-    `could not acquire ${lockPath} after ${MAX_ACQUIRE_ATTEMPTS} attempts: `
-    + `another process kept winning the race.`,
-    lockPath,
-    null,
-  );
 }
 
 /**
