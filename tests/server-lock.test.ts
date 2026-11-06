@@ -23,7 +23,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { assertDistFresh } from './support/dist-guard.js';
 import {
   spawnTrackedServer,
-  terminateServer,
   terminateTrackedServers,
 } from './support/server-process.js';
 import {
@@ -121,6 +120,55 @@ function waitForExit(child: ChildProcess, timeoutMs = 20000): Promise<{ code: nu
   });
 }
 
+const INITIALIZE_REQUEST = `${JSON.stringify({
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'initialize',
+  params: {
+    protocolVersion: '2024-11-05',
+    capabilities: {},
+    clientInfo: { name: 'mu01-lock-test', version: '0.0.0' },
+  },
+})}\n`;
+
+/**
+ * Readiness = the server answered MCP `initialize`. Polling the lock file is not
+ * enough: the lock is created slightly BEFORE the SIGTERM handler is armed, so a
+ * signal sent at "lock exists" can hit the default disposition and leave the file
+ * behind (measured: 27/60 vs 0/40 with a ready server).
+ */
+async function waitForServerReady(child: ChildProcess, timeoutMs = 20000): Promise<void> {
+  if (!child.stdin) throw new Error('server was spawned without a stdin pipe');
+  child.stdin.write(INITIALIZE_REQUEST);
+  await waitFor('the MCP initialize response', async () => {
+    const answered = outputOf(child).stdout
+      .split('\n')
+      .some((line) => line.includes('"id":1') && line.includes('"result"'));
+    return answered ? true : undefined;
+  }, timeoutMs);
+}
+
+/**
+ * Stop through the graceful path and prove it was graceful: a slow shutdown is
+ * fine, a SIGKILL fallback or a missing exit is not. The old version delegated to
+ * `terminateServer` (4 s grace, then SIGKILL) and then waited 15 s for the lock, so
+ * under CPU pressure it silently measured shutdown speed instead of behaviour.
+ */
+async function stopGracefully(
+  child: ChildProcess,
+  timeoutMs = 30000,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+  const exited = waitForExit(child, timeoutMs).catch(() => {
+    throw new Error(`server did not stop gracefully: no exit within ${timeoutMs} ms after SIGTERM`);
+  });
+  child.kill('SIGTERM');
+  const exit = await exited;
+  if (exit.signal === 'SIGKILL') {
+    throw new Error('server did not stop gracefully: the process had to be killed with SIGKILL');
+  }
+  return exit;
+}
+
 function writeLockSync(dataDir: string, holder: Partial<ServerLockHolder> & { token: string }): void {
   const full: ServerLockHolder = {
     pid: process.pid,
@@ -158,8 +206,13 @@ describe('MU-01: single writer per DATA_DIR', () => {
     expect(stderr).toContain(`pid ${first.pid}`);
     expect(stderr).toContain(lockPath(dataDir));
 
-    await terminateServer(first);
-    await expect(fs.access(lockPath(dataDir))).rejects.toThrow();
+    await waitForServerReady(first);
+    const firstExit = await stopGracefully(first);
+    expect(firstExit.signal).toBe('SIGTERM');
+    await expect(
+      fs.access(lockPath(dataDir)),
+      'the lock must be removed when the server stops gracefully',
+    ).rejects.toThrow();
   });
 
   it('b) 20 simultaneous acquirers: exactly one wins', { timeout: 90000 }, async () => {
@@ -251,8 +304,13 @@ describe('MU-01: single writer per DATA_DIR', () => {
     });
     expect(after.token).not.toBe(before.token);
 
-    await terminateServer(second);
-    await expect(fs.access(lockPath(dataDir))).rejects.toThrow();
+    await waitForServerReady(second);
+    const secondExit = await stopGracefully(second);
+    expect(secondExit.signal).toBe('SIGTERM');
+    await expect(
+      fs.access(lockPath(dataDir)),
+      'the lock must be removed when the server stops gracefully',
+    ).rejects.toThrow();
   });
 
   it('d) a reused pid is not mistaken for a live holder', { timeout: 30000 }, async () => {
@@ -285,20 +343,18 @@ describe('MU-01: single writer per DATA_DIR', () => {
     expect((await readLock(noIdentitySupportDir)).token).toBe('unverifiable-token');
   });
 
-  it('e) a graceful stop removes the lock', { timeout: 60000 }, async () => {
+  it('e) a graceful stop removes the lock', { timeout: 120000 }, async () => {
     const dataDir = await makeDataDir();
     const server = spawnServer(dataDir);
     await waitForLock(dataDir);
+    await waitForServerReady(server);
 
-    await terminateServer(server);
-    await waitFor('the lock to be released', async () => {
-      try {
-        await fs.access(lockPath(dataDir));
-        return undefined;
-      } catch {
-        return true;
-      }
-    });
+    const exit = await stopGracefully(server);
+    expect(exit.signal).toBe('SIGTERM');
+    await expect(
+      fs.access(lockPath(dataDir)),
+      'the lock must be removed when the server stops gracefully',
+    ).rejects.toThrow();
   });
 
   it('f) a lock from another hostname is never removed automatically', { timeout: 30000 }, async () => {
