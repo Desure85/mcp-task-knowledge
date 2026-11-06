@@ -370,9 +370,31 @@ export function probeWorktrees(repoDir, options = {}) {
   return { available: true, items: items.filter(Boolean) };
 }
 
-/** Last N entries of docs/dev-cycle/decisions-log.md. */
+/**
+ * Last N entries of docs/dev-cycle/decisions/ (one file per decision).
+ * Falls back to the legacy docs/dev-cycle/decisions-log.md when the catalog
+ * does not exist, so an older checkout keeps working.
+ */
 export async function probeDecisions(repoDir, options = {}) {
   const limit = Number.isFinite(options.limit) ? options.limit : 3;
+  const dir = path.join(repoDir, 'docs', 'dev-cycle', 'decisions');
+  try {
+    const files = (await fs.readdir(dir))
+      .filter((name) => name.endsWith('.md') && name !== 'README.md')
+      .sort();
+    const items = [];
+    for (const name of files.slice(-limit).reverse()) {
+      const text = await fs.readFile(path.join(dir, name), 'utf8');
+      const heading = text.split('\n').find((line) => line.startsWith('# '));
+      if (heading) items.push(heading.slice(2).trim());
+    }
+    return { available: true, items };
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      return unavailable(`нет каталога решений: ${error?.code ?? error?.message}`);
+    }
+  }
+
   const file = path.join(repoDir, 'docs', 'dev-cycle', 'decisions-log.md');
   try {
     const text = await fs.readFile(file, 'utf8');
