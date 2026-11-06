@@ -14,9 +14,10 @@ import fsp from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import WebSocket from 'ws';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { spawnTrackedServer, terminateTrackedServers } from '../support/server-process.js';
 
 assertDistFresh();
 
@@ -73,7 +74,7 @@ async function startServer(name: string, extraEnv: Record<string, string> = {}) 
   await fsp.rm(dir, { recursive: true, force: true });
   await fsp.mkdir(path.join(dir, 'store'), { recursive: true });
   const port = await freePort();
-  const child = spawn('node', ['dist/index.js'], {
+  const child = spawnTrackedServer(['dist/index.js'], {
     env: {
       ...process.env,
       DATA_DIR: path.join(dir, 'store'),
@@ -94,7 +95,7 @@ async function startServer(name: string, extraEnv: Record<string, string> = {}) 
 }
 
 afterAll(async () => {
-  for (const c of children) c.kill('SIGKILL');
+  await terminateTrackedServers();
   await fsp.rm(TMP, { recursive: true, force: true });
 });
 

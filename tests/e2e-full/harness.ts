@@ -8,28 +8,16 @@
 
 import path from 'node:path';
 import fsp from 'node:fs/promises';
-import net from 'node:net';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort } from '../support/server-process.js';
+
+export { getFreePort };
 
 assertDistFresh();
 
 const ROOT = process.cwd();
-
-/** Reserve an ephemeral port from the OS so parallel servers never collide. */
-export async function getFreePort(): Promise<number> {
-  const server = net.createServer();
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, () => resolve());
-  });
-  const address = server.address();
-  const port = typeof address === 'object' && address !== null ? address.port : 0;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  if (port <= 0) throw new Error('could not reserve a free port');
-  return port;
-}
 
 export interface E2EServer {
   client: Client;
@@ -59,7 +47,15 @@ export async function spawnServer(tag: string, extraEnv: Record<string, string> 
     },
   });
   const client = new Client({ name: `q014-${tag}`, version: '0.0.1' });
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    // A connect failure used to leak the spawned server: the caller never
+    // received `close()`. Closing the transport terminates the child (the SDK
+    // escalates SIGTERM to SIGKILL).
+    await Promise.resolve((transport as { close?: () => Promise<void> }).close?.()).catch(() => {});
+    throw error;
+  }
 
   async function callTool(name: string, args: Record<string, unknown>) {
     const res = await client.callTool({ name, arguments: args });

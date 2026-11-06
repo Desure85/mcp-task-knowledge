@@ -30,6 +30,7 @@ export default defineConfig({
       ...(hasSqliteBinding() ? [] : SQLITE_SPECS),
     ],
     setupFiles: ['./tests/setup.ts'],
+    globalSetup: ['./tests/support/orphan-guard.ts'],
     coverage: {
       // Q-005: enforce ≥80% statements on src/ (run: `npm run test:coverage`)
       provider: 'v8',

@@ -14,6 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
+import { trackServer } from './support/server-process.js';
 import { performance } from 'node:perf_hooks';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,7 +45,7 @@ function measureOnce(): Promise<MeasureResult> {
     };
 
     const t0 = performance.now();
-    const child = spawn('node', [DIST_ENTRY], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = trackServer(spawn('node', [DIST_ENTRY], { env, stdio: ['pipe', 'pipe', 'pipe'] }));
 
     let buf = '';
     let settled = false;

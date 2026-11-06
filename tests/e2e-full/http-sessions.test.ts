@@ -11,10 +11,11 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
 import crypto from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 assertDistFresh();
 
@@ -35,8 +36,6 @@ function mintJwt(sub = 'q014-user'): string {
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
   return `${header}.${payload}.${sig}`;
 }
-
-let portCounter = 4950;
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -66,8 +65,8 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
   it('session_list shows our session with rate-limit info', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -119,7 +118,7 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       expect(infoEnv.data.sessionId).toBe(sdkSessionId);
     } finally {
       try { await client?.close(); } catch {}
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
@@ -127,8 +126,8 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
   it('PH-004: current project is session-scoped — two clients stay isolated', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -185,7 +184,7 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
     } finally {
       try { await clientA?.close(); } catch {}
       try { await clientB?.close(); } catch {}
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
@@ -193,8 +192,8 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
   it('PH-007: authenticated sessions auto-scope memory facts per userId', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -248,7 +247,7 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
     } finally {
       try { await alice?.close(); } catch {}
       try { await bob?.close(); } catch {}
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
@@ -256,8 +255,8 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
   it('PH-015: CORS for browser clients — preflight + exposed mcp-session-id', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -321,7 +320,7 @@ describe('Q-014 slice 11: HTTP sessions + rate limiting (live server)', () => {
       expect(init.headers.get('access-control-expose-headers')).toContain('mcp-session-id');
       expect(init.headers.get('mcp-session-id')).toBeTruthy();
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);

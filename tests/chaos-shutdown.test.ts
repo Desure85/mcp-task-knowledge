@@ -13,9 +13,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { assertDistFresh } from './support/dist-guard.js';
+import {
+  getFreePort,
+  spawnTrackedServer,
+  terminateServer,
+  terminateTrackedServers,
+} from './support/server-process.js';
 
 assertDistFresh();
 
@@ -23,15 +29,13 @@ const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-chaos');
 const STORE = path.join(TMP, 'store');
 
-let portCounter = 4000;
-
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
 }
 
-function startServer(): ChildProcess {
-  const port = ++portCounter;
-  return spawn('node', ['dist/index.js'], {
+async function startServer(): Promise<{ child: ChildProcess; port: number }> {
+  const port = await getFreePort();
+  const child = spawnTrackedServer(['dist/index.js'], {
     env: {
       ...process.env,
       DATA_DIR: STORE,
@@ -45,6 +49,7 @@ function startServer(): ChildProcess {
     },
     stdio: ['pipe', 'pipe', 'inherit'],
   });
+  return { child, port };
 }
 
 /** Wait until the server answers HTTP (health endpoint) or timeout. */
@@ -71,6 +76,10 @@ async function waitForReady(child: ChildProcess, port: number, timeoutMs = 8000)
 }
 
 async function waitForExit(child: ChildProcess, timeoutMs = 8000): Promise<number | null> {
+  // The exit listener must be armed before the signal is sent, otherwise a
+  // fast exit is missed and the test waits for the full timeout.
+  if (child.exitCode !== null) return child.exitCode;
+  if (child.signalCode !== null) return null;
   const [code] = await Promise.race([
     once(child, 'exit'),
     new Promise<[number | null]>((resolve) => setTimeout(() => resolve([null]), timeoutMs)),
@@ -89,25 +98,32 @@ describe('Q-009: chaos / graceful shutdown', () => {
   });
 
   afterAll(async () => {
+    await terminateTrackedServers();
     await rmrf(TMP);
   });
 
   it('SIGTERM triggers graceful shutdown with exit code 0', async () => {
-    const child = startServer();
-    const port = portCounter;
-    expect(await waitForReady(child, port)).toBe(true);
-    signalPort(child, 'SIGTERM');
-    const code = await waitForExit(child);
-    expect(code).toBe(0);
+    const { child, port } = await startServer();
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      signalPort(child, 'SIGTERM');
+      const code = await waitForExit(child);
+      expect(code).toBe(0);
+    } finally {
+      await terminateServer(child);
+    }
   }, 20000);
 
   it('SIGINT triggers graceful shutdown with exit code 0', async () => {
-    const child = startServer();
-    const port = portCounter;
-    expect(await waitForReady(child, port)).toBe(true);
-    signalPort(child, 'SIGINT');
-    const code = await waitForExit(child);
-    expect(code).toBe(0);
+    const { child, port } = await startServer();
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      signalPort(child, 'SIGINT');
+      const code = await waitForExit(child);
+      expect(code).toBe(0);
+    } finally {
+      await terminateServer(child);
+    }
   }, 20000);
 
   it('SIGKILL (hard kill) leaves storage directory valid', async () => {
@@ -122,28 +138,34 @@ describe('Q-009: chaos / graceful shutdown', () => {
     };
     await fsp.writeFile(path.join(dataDir, 'chaos-task-1.json'), JSON.stringify(sampleTask));
 
-    const child = startServer();
-    const port = portCounter;
-    expect(await waitForReady(child, port)).toBe(true);
-    signalPort(child, 'SIGKILL');
-    const code = await waitForExit(child);
-    expect(code).not.toBe(0); // killed by signal, not clean exit
+    const { child, port } = await startServer();
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      signalPort(child, 'SIGKILL');
+      const code = await waitForExit(child);
+      expect(code).not.toBe(0); // killed by signal, not clean exit
 
-    // Data must still be valid JSON after hard kill
-    const raw = await fsp.readFile(path.join(dataDir, 'chaos-task-1.json'), 'utf8');
-    expect(JSON.parse(raw)).toEqual(sampleTask);
+      // Data must still be valid JSON after hard kill
+      const raw = await fsp.readFile(path.join(dataDir, 'chaos-task-1.json'), 'utf8');
+      expect(JSON.parse(raw)).toEqual(sampleTask);
+    } finally {
+      await terminateServer(child);
+    }
   }, 20000);
 
   it('server restarts cleanly after SIGKILL (data survives)', async () => {
     // Second boot after hard kill must not corrupt anything
-    const child = startServer();
-    const port = portCounter;
-    expect(await waitForReady(child, port)).toBe(true);
-    signalPort(child, 'SIGTERM');
-    const code = await waitForExit(child);
-    expect(code).toBe(0);
+    const { child, port } = await startServer();
+    try {
+      expect(await waitForReady(child, port)).toBe(true);
+      signalPort(child, 'SIGTERM');
+      const code = await waitForExit(child);
+      expect(code).toBe(0);
 
-    const raw = await fsp.readFile(path.join(STORE, 'tasks', 'mcp', 'chaos-task-1.json'), 'utf8');
-    expect(JSON.parse(raw).title).toBe('Chaos task');
+      const raw = await fsp.readFile(path.join(STORE, 'tasks', 'mcp', 'chaos-task-1.json'), 'utf8');
+      expect(JSON.parse(raw).title).toBe('Chaos task');
+    } finally {
+      await terminateServer(child);
+    }
   }, 20000);
 });

@@ -12,8 +12,9 @@ import path from 'node:path';
 import fsp from 'node:fs/promises';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 assertDistFresh();
 
@@ -34,8 +35,6 @@ function mintJwt(): string {
   const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
   return `${header}.${payload}.${sig}`;
 }
-
-let portCounter = 4800;
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -109,8 +108,8 @@ describe('Q-014 slice 10: TCP transport roundtrip (live server)', () => {
   it('initialize → list → call tasks over raw TCP framing', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -199,7 +198,7 @@ describe('Q-014 slice 10: TCP transport roundtrip (live server)', () => {
         client.close();
       }
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);

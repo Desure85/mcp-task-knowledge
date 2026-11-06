@@ -9,16 +9,15 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import fsp from 'node:fs/promises';
 import http from 'node:http';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { assertDistFresh } from '../support/dist-guard.js';
+import { getFreePort, spawnTrackedServer, terminateServer } from '../support/server-process.js';
 
 assertDistFresh();
 
 const ROOT = process.cwd();
 const TMP = path.join(ROOT, '.tmp-e2e-full-http-obs');
 const STORE = path.join(TMP, 'store');
-
-let portCounter = 5050;
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -57,8 +56,8 @@ describe('Q-014 slice 12: HTTP observability (live server)', () => {
   it('/healthz 200 and /metrics exposes mcp_ series', async () => {
     await rmrf(TMP);
     await fsp.mkdir(STORE, { recursive: true });
-    const port = ++portCounter;
-    const child: ChildProcess = spawn('node', ['dist/index.js'], {
+    const port = await getFreePort();
+    const child: ChildProcess = spawnTrackedServer(['dist/index.js'], {
       env: {
         ...process.env,
         DATA_DIR: STORE,
@@ -82,7 +81,7 @@ describe('Q-014 slice 12: HTTP observability (live server)', () => {
       expect(String(metrics.headers['content-type'])).toContain('text');
       expect(metrics.text).toContain('mcp_');
     } finally {
-      try { child.kill('SIGTERM'); } catch {}
+      await terminateServer(child);
       await rmrf(TMP);
     }
   }, 60000);
