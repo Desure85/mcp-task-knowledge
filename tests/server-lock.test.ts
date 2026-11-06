@@ -534,6 +534,28 @@ describe('MU-01: lock primitives', () => {
     })).rejects.toMatchObject({ code: 'SERVER_LOCK_UNVERIFIABLE' });
   });
 
+  it('removes an abandoned reclaim guard left by a dead reclaimer', async () => {
+    const dataDir = await makeDataDir();
+    writeLockSync(dataDir, { token: 'stale-token', pid: 2147483646, processIdentity: 'boot:1' });
+    fsSync.writeFileSync(
+      `${lockPath(dataDir)}.reclaim`,
+      JSON.stringify({
+        pid: 2147483646,
+        hostname: os.hostname(),
+        startedAt: new Date().toISOString(),
+        transport: 'reclaim',
+        version: '0',
+        token: 'dead-guard',
+        processIdentity: 'boot:1',
+      }),
+    );
+
+    const lock = await acquireServerLock({ dataDir, transport: 'test', version: '0.0.0' });
+    expect(lock.holder.pid).toBe(process.pid);
+    expect(fsSync.existsSync(`${lockPath(dataDir)}.reclaim`)).toBe(false);
+    await lock.release();
+  });
+
   it('is re-entrant per process and drops the file on release', async () => {
     const dataDir = await makeDataDir();
     const first = await acquireServerLock({ dataDir, transport: 'test', version: '0.0.0' });

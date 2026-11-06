@@ -454,9 +454,6 @@ function makeHandle(
   uninstallSignalRelease: () => void,
 ): ServerLockHandle {
   let released = false;
-  const onExit = () => {
-    if (!released) removeIfOwnedSync(lockPath, holder.token);
-  };
 
   const handle: ServerLockHandle = {
     path: lockPath,
@@ -479,6 +476,7 @@ function makeHandle(
     },
   };
 
+  const onExit = handle.releaseSync.bind(handle);
   process.on('exit', onExit);
   return handle;
 }
