@@ -546,3 +546,39 @@ GREEN в удаляемом тесте (он врёт) и RED в тесте, к�
 
 Откат: revert коммита d920298; четыре удалённых файла восстанавливаются, два новых удаляются,
 строка TR-04a возвращается в pending.
+
+### 2026-11-06 23:50, P-20261106-7 — `npm audit` в CI: report-only → блокирующий (gate R8)
+
+Вопрос: можно ли перевести шаг `npm audit` в `bulk-smoke.yml` в блокирующий режим, не получив
+вечно красный CI, и доказуемо ли, что гейт не вакуумный.
+
+Решение: шаг переименован в `npm audit (production deps, blocks on high or critical)`, убраны
+`continue-on-error: true` и `|| echo`, команда остаётся
+`npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org/`. Раздел «Что делать,
+если npm audit красный» добавлен в `CONTRIBUTING.md` (supply-chain уже жил там), устаревшее
+утверждение про report-only и «2 critical (tar) + high (sharp)» удалено. Строка R8 в
+`production-grade.md` дополнена ссылкой на CI-шаг, TR-39 переведён в `done`.
+
+Почему: блокер TR-39 (zod 3 и `@modelcontextprotocol/sdk` ≤1.31) снят переходом на zod 4.6.7 и
+SDK 1.32.0, на 089ada4 продакшн-дерево чисто — report-only больше ничего не защищает, а только
+имитирует защиту. `--audit-level=high` совпадает с порогом R8: high и critical блокируют, moderate
+и ниже печатаются и не блокируют. Реестр прибит к npmjs.org намеренно: `.npmrc` ведёт на
+npmmirror, а advisory-endpoint зеркала не гарантирован. `--package-lock-only` намеренно не
+добавлен: в CI перед шагом стоит `npm install`, и аудит должен смотреть на дерево, против которого
+реально гоняются тесты, а не на lock.
+
+Проверено (2026-11-06, worktree `/home/dm/work/mcp-tk-r8`, origin/master 089ada4, свой `npm ci`):
+
+- Настоящий lock: `npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org/`
+  → exit 0, `found 0 vulnerabilities`, `.metadata.vulnerabilities` = 0 по всем уровням.
+- Невакуумность: команда не переписана руками, а разобрана из самого `bulk-smoke.yml` скриптом
+  (`/tmp/r8-gate-check/step-gate.mjs`) и исполнена через `bash -eo pipefail`, как шаг Actions. На
+  копии `package.json` + `package-lock.json` в `/tmp/r8-audit-proof` с добавленным `lodash@4.17.15`
+  шаг даёт exit 1 (1 high, GHSA-35jh-r3h4-6jhm и др.); на дереве worktree — exit 0.
+- Контроль порога: на том же уязвимом дереве `--audit-level=critical` даёт exit 0, то есть код
+  возврата управляется порогом severity, а не самим фактом «находки есть».
+- Структурные проверки того же скрипта по YAML: `continue-on-error: true` отсутствует, в `run` нет
+  `||`, присутствуют `--omit=dev`, `--audit-level=high` и пиннутый реестр.
+
+Откат: revert коммита, вернуть TR-39 в `in_progress`, вернуть `continue-on-error: true` и `|| echo`
+в шаг; документный раздел удаляется тем же revert.
