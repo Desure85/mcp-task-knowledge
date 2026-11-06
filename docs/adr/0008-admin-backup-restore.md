@@ -1,6 +1,6 @@
 # ADR-008: `admin_backup`/`admin_restore` — переносимый архив DATA_DIR
 
-- **Статус:** Proposed (2026-11-06, DX-16), решение принимает контролёр
+- **Статус:** Accepted (2026-11-06, DX-16; принято владельцем в диалоге «можно всё принять», зафиксировано контролёром)
 - **Область:** `src/services/data-backup.ts`, новый `src/services/backup-archive.ts` (план), новый
   `src/register/backup.ts` (план), `scripts/dev-cli.mjs`, `docs/getting-started/configuration.md`
 
