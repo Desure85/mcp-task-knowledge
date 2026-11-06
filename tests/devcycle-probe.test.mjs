@@ -11,7 +11,7 @@
  *      decisions-log.md pointer never regains records.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -42,6 +42,7 @@ async function writeCatalog(repo, files) {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   const dirs = tempDirs.splice(0);
   await Promise.all(dirs.map((dir) => fs.rm(dir, { recursive: true, force: true })));
 });
@@ -63,6 +64,28 @@ describe('probeDecisions catalog mode', () => {
     const all = await probeDecisions(repo, { limit: 10 });
     expect(all.items).toHaveLength(3);
     expect(all.items[0]).toBe('2026-01-03 03:00, gamma');
+  });
+
+  it('sorts file names regardless of the readdir order', async () => {
+    const repo = await makeRepo();
+    await writeCatalog(repo, {
+      'README.md': '# How to add\n',
+      '2026-01-01-0100-alpha.md': '# 2026-01-01 01:00, alpha\n',
+      '2026-01-02-0200-beta.md': '# 2026-01-02 02:00, beta\n',
+      '2026-01-03-0300-gamma.md': '# 2026-01-03 03:00, gamma\n',
+    });
+    // The contract must not depend on the order the file system returns names in.
+    const readdir = vi.spyOn(fs, 'readdir').mockResolvedValue([
+      '2026-01-03-0300-gamma.md',
+      'README.md',
+      '2026-01-01-0100-alpha.md',
+      '2026-01-02-0200-beta.md',
+    ]);
+
+    const result = await probeDecisions(repo, { limit: 2 });
+
+    expect(readdir).toHaveBeenCalled();
+    expect(result.items).toEqual(['2026-01-03 03:00, gamma', '2026-01-02 02:00, beta']);
   });
 
   it('defaults to three entries and treats an empty catalog as available', async () => {
