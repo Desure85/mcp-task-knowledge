@@ -13,7 +13,7 @@
  *     BEFORE the caller writes a single byte to disk.
  *
  * Deliberate deviations from the ADR text (accepted by the owner, recorded in
- * docs/dev-cycle/decisions-log.md and in the ADR «Поправка» section):
+ * docs/dev-cycle/decisions/ and in the ADR «Поправка» section):
  *   - `manifest.json` is written LAST in the tar stream, not first: tar
  *     headers carry the file size, and the manifest can only list hashes and
  *     sizes of files that have already been streamed. `manifest.json` still
@@ -49,7 +49,15 @@ export const BACKUP_PARTIAL_SUFFIX = '.partial';
 export const BACKUP_OUT_DIR_NAME = '.backups';
 
 /** Rules that always stay out of the archive, in manifest order. */
-const BASE_EXCLUDED = ['.backups', '.embeddings', '.emb_cache', 'audit.log'] as const;
+const BASE_EXCLUDED = [
+  '.backups',
+  '.embeddings',
+  '.emb_cache',
+  '.restore-tmp',
+  '.server.lock',
+  '.restore.lock',
+  'audit.log',
+] as const;
 /** Rules that stay out unless `includeSecrets` is set. */
 const SECRET_EXCLUDED = ['.jwt-revoked.json', 'auth.db'] as const;
 
