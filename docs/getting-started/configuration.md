@@ -17,7 +17,7 @@
 | `MCP_REQUEST_TIMEOUT_MS` | `120000` | Client-side request timeout used by the bundled dev CLI and the VS Code extension (the SDK default of 60 s is too short for large lists) |
 | `STORAGE_INDEX` | `auto` | Derived SQLite metadata index: `auto` keeps it on for the file storage profile, `off` disables it and creates no `DATA_DIR/.index/` (rollback). Files stay the source of truth |
 
-### Metadata index (SC-02a)
+### Metadata index (SC-02a/SC-02b)
 
 The file storage profile keeps a derived SQLite index at `DATA_DIR/.index/metadata.db`
 (WAL, `busy_timeout=5000`). It caches list metadata only, so tasks and knowledge files remain the
@@ -26,6 +26,22 @@ does not match the current build and `DATA_DIR`. An unreadable or corrupt databa
 warning and disables the index for that process: the server still starts and every listing falls
 back to the file scan. Set `STORAGE_INDEX=off` to skip the index entirely; deleting
 `DATA_DIR/.index/` is the same rollback, because nothing there is authoritative.
+
+Write path (SC-02b): every mutation that touches a task or document file upserts its row in the
+same critical section that writes the file, in the order file -> `stat` -> upsert. The stored
+`mtime_ms` is exactly `fs.stat().mtimeMs`, so a page key produced by the file scan is accepted by
+the index path and the other way round. Claim, renew and release rewrite the file and therefore
+move the row's `mtime_ms` without touching `updated_at`. Deletes (`deleteTaskPermanent`,
+`deleteDocPermanent`) remove the row idempotently; `project_delete` drops every row of the project.
+
+An index failure never fails the mutation: the file is already written, so the error is logged as
+a warning and `meta.dirty` is set to `1` (with `dirty_reason` and `dirty_at`). The index rebuilds
+from files in batches of 2000 rows (`meta.dirty` returns to `0`), which keeps the live heap flat:
+100k tasks + 100k documents build in ~34 s with a 25-40 MB heap. Peak RSS is dominated by V8's
+lazy GC (about 300 MB for that corpus on Node 24 default settings, 176 MB with
+`--max-old-space-size=160`), not by retained rows. A rebuild also runs automatically after
+file-level schema migrations and is requested after a backup restore (`restoreBackup` marks the
+index dirty).
 
 ### Search & Embeddings
 
