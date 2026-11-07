@@ -23,6 +23,11 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data ghcr.io/desure85/mcp
 
 See [Docker & Deployment](deployment/docker.md) for full options.
 
+### systemd (Linux host)
+
+Run the core as a service with one process per data directory, and attach stdio-only clients
+through the bridge: [systemd deployment](deployment/systemd.md).
+
 ### From source
 
 ```bash
