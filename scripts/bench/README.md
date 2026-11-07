@@ -17,11 +17,15 @@ node scripts/bench/seed-scale.mjs --n 100000 --facts 100000 --out /tmp/mcp-scale
 node scripts/bench/run-scale.mjs --data /tmp/mcp-scale/data-100k --n 100000 \
   --port 3420 --reps 3 --out /tmp/mcp-scale/res-100k.json
 
-# 3. UI (нужны запущенные next dev и MCP-сервер)
+# 3. SC-02: «до» (файловый путь in-process) и «после» (SQLite-индекс) одним прогоном
+node scripts/bench/sqlite-index-bench.mjs --data /tmp/mcp-scale/data-100k --reps 7 --limit 50 \
+  --before --out /tmp/mcp-scale/sc02-100k.json
+
+# 4. UI (нужны запущенные next dev и MCP-сервер)
 node scripts/bench/ui-bench.mjs --base http://localhost:3440 \
   --playwright /path/to/playwright-core --pages tasks,knowledge --label n=100000
 
-# 4. Граф: рендер SVG в браузере
+# 5. Граф: рендер SVG в браузере
 node scripts/bench/graph-bench.mjs --sizes 76,200,1000,5000 \
   --playwright /path/to/playwright-core --out-dir /tmp/mcp-graph-bench
 ```
@@ -49,5 +53,6 @@ node scripts/bench/graph-bench.mjs --sizes 76,200,1000,5000 \
 |---|---|
 | `seed-scale.mjs` | генератор данных в формате приложения (детерминированный, `--seed`) |
 | `run-scale.mjs` | HTTP MCP: латентность (медиана/p95), размер ответа, RSS, холодный старт |
+| `sqlite-index-bench.mjs` | SC-02 прототип: строит SQLite-индекс метаданных и меряет страницу списка, фильтры, count, upsert, сверку при старте; `--before` сравнивает с файловым путём in-process |
 | `ui-bench.mjs` | браузер: JSON-байты, время до отрисовки, DOM-узлы, Long Tasks, heap |
 | `graph-bench.mjs` | SVG-граф: HTML-размер, рендер, Long Tasks, скриншоты |
