@@ -61,6 +61,9 @@ updates. A second process started on the same `DATA_DIR` does not start: it exit
 One http core owns the data; stdio-only clients (IDE extensions, agents) connect through the bridge.
 The bridge speaks MCP on stdin/stdout and forwards every call to the core over HTTP. It opens no
 storage, loads no embeddings and never takes `.server.lock`, so it does not need `DATA_DIR` at all.
+Tool, prompt and resource definitions are forwarded verbatim: the bridge does not rebuild their JSON
+Schema, so nested optionality, enums, bounds, defaults and descriptions reach the client exactly as
+the core publishes them, and argument validation (with its error text) stays on the core.
 
 Client configuration — the token comes from the environment, never from the file:
 

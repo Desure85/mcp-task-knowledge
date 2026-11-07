@@ -143,6 +143,9 @@ touches the data directory or the lock:
 The token can also be passed as `--token`, but the environment is preferred: command lines are
 visible in `ps`. `MCP_PROXY_UPSTREAM` is the environment equivalent of `--url`. The bridge exits with
 `2` on usage errors, `3` when the core is unreachable and `4` when authentication fails.
+`tools/list`, `prompts/list`, `resources/list` and `resources/templates/list` are forwarded verbatim:
+the bridge does not rewrite JSON Schema, so nested required fields, enums, bounds, defaults and
+descriptions match a direct HTTP connection, and argument validation stays on the core.
 
 More on the bridge contract:
 [Configuration → Agents over stdio to one http core](../getting-started/configuration.md#agents-over-stdio-to-one-http-core).

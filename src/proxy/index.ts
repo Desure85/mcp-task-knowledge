@@ -7,6 +7,8 @@ export { StdioBridge } from './shim.js';
 export type { StdioBridgeOptions } from './shim.js';
 export { ProxyMirror, jsonSchemaToZod, jsonSchemaToShape } from './mirror.js';
 export type { MirrorStats } from './mirror.js';
+export { ProxyPassthrough, passthroughCapabilities } from './passthrough.js';
+export type { PassthroughStats } from './passthrough.js';
 export { ProxyForwarder, DEFAULT_FORWARDER_CONFIG } from './forwarder.js';
 export type { ForwarderConfig, ForwarderStats } from './forwarder.js';
 export {
