@@ -383,6 +383,7 @@ export class AppContainer {
       // Refuses to boot when the on-disk schema is newer than this build;
       // runs file-level migrations when older. Must run before
       // createServerContext() (which touches storage dirs).
+      let schemaApplied = false;
       try {
         const schemaResult = await checkSchemaVersion({
           dataDir: DATA_DIR,
@@ -390,6 +391,7 @@ export class AppContainer {
           knowledgeDir: KNOWLEDGE_DIR,
         });
         if (schemaResult.applied.length > 0) {
+          schemaApplied = true;
           this.log.info(
             { found: schemaResult.found, current: schemaResult.current, applied: schemaResult.applied },
             'DATA_DIR schema migrations applied',
@@ -406,10 +408,30 @@ export class AppContainer {
       // Any failure degrades to file scans; it must never block startup.
       if (resolveStorageIndexMode() !== 'off') {
         try {
-          const { createMetadataIndex } = await import('../storage/metadata-index.js');
+          const { createMetadataIndex, setActiveMetadataIndex } = await import('../storage/metadata-index.js');
           this.metadataIndex = createMetadataIndex({ dataDir: DATA_DIR, logger: this.log }) ?? undefined;
           if (this.metadataIndex) {
-            this.addCleanup(() => this.metadataIndex?.close());
+            setActiveMetadataIndex(this.metadataIndex);
+            this.addCleanup(() => {
+              setActiveMetadataIndex(undefined);
+              this.metadataIndex?.close();
+            });
+            if (schemaApplied) {
+              try {
+                const rebuilt = await this.metadataIndex.rebuild({
+                  tasksDir: TASKS_DIR,
+                  knowledgeDir: KNOWLEDGE_DIR,
+                });
+                this.log.info({ ...rebuilt }, 'metadata index rebuilt after schema migrations');
+              } catch (err) {
+                this.log.warn({ err }, 'metadata index rebuild failed — marking dirty');
+                try {
+                  this.metadataIndex.markDirty('post-migration rebuild failed');
+                } catch (dirtyErr) {
+                  this.log.warn({ err: dirtyErr }, 'metadata index dirty flag failed');
+                }
+              }
+            }
           }
         } catch (err) {
           this.log.warn({ err }, 'metadata index unavailable — falling back to file scans');

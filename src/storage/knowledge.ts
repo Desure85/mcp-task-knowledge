@@ -7,6 +7,7 @@ import { ensureDir, pathExists, readText, resolveUnder, withFileLock, writeText 
 import type { KnowledgeDoc, KnowledgeDocMeta, TrustLevel } from '../types.js';
 import { promises as fsp } from 'node:fs';
 import { emitKnowledgeChanged } from './knowledge-events.js';
+import { indexDocDelete, indexDocWrite } from './metadata-index.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
 
@@ -61,6 +62,7 @@ export async function createDoc(input: {
   const p = fileFor(input.project, id);
   await ensureDir(path.dirname(p));
   await writeText(p, body);
+  await indexDocWrite(input.project, data, p);
   emitKnowledgeChanged(input.project, 'created', id);
   return { ...data, content: input.content };
 }
@@ -292,6 +294,7 @@ async function updateDocUnlocked(project: string, id: string, patch: Partial<Omi
   const body = matter.stringify(content, cleanMeta(updatedMeta) as any);
   const p = fileFor(project, id);
   await writeText(p, body);
+  await indexDocWrite(project, updatedMeta, p);
   emitKnowledgeChanged(project, 'updated', id);
   return { ...updatedMeta, content };
 }
@@ -310,8 +313,12 @@ export async function restoreDoc(project: string, id: string): Promise<Knowledge
 
 export async function deleteDocPermanent(project: string, id: string): Promise<boolean> {
   const p = fileFor(project, id);
-  if (!(await pathExists(p))) return false;
+  if (!(await pathExists(p))) {
+    indexDocDelete(id);
+    return false;
+  }
   await fsp.unlink(p);
+  indexDocDelete(id);
   emitKnowledgeChanged(project, 'deleted', id);
   return true;
 }

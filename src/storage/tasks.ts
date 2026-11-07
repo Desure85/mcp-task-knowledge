@@ -20,6 +20,7 @@ import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
+import { indexTaskDelete, indexTaskWrite } from './metadata-index.js';
 
 const log = childLogger('storage:tasks');
 
@@ -44,8 +45,12 @@ export async function restoreTask(project: string, id: string): Promise<Task | n
 
 export async function deleteTaskPermanent(project: string, id: string): Promise<boolean> {
   const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
-  if (!(await pathExists(p))) return false;
+  if (!(await pathExists(p))) {
+    indexTaskDelete(id);
+    return false;
+  }
   await fs.unlink(p);
+  indexTaskDelete(id);
   return true;
 }
 
@@ -96,6 +101,7 @@ export async function createTask(input: {
     };
     const filePath = path.join(await tasksProjectDir(input.project), `${id}.json`);
     await writeJson(filePath, task);
+    await indexTaskWrite(input.project, task, filePath);
     return task;
   });
 }
@@ -420,7 +426,9 @@ function buildClaim(task: Task, actor: ClaimActor, nowMs: number): TaskClaim {
 async function persistClaim(project: string, id: string, task: Task, claim: TaskClaim | undefined): Promise<Task> {
   const updated: Task = { ...task, claim };
   if (!claim) delete (updated as { claim?: TaskClaim }).claim;
-  await writeJson(taskFilePath(project, id), updated);
+  const p = taskFilePath(project, id);
+  await writeJson(p, updated);
+  await indexTaskWrite(project, updated, p);
   return updated;
 }
 
@@ -657,6 +665,7 @@ async function updateTaskUnlocked(
   };
   const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
   await writeJson(p, updated);
+  await indexTaskWrite(project, updated, p);
   return updated;
 }
 
@@ -684,7 +693,9 @@ export async function moveTasksToType(project: string, ids: string[], type: stri
       if (!task) return null;
       if ((task.type ?? 'task') === type) return task;
       const moved: Task = { ...task, type, updatedAt: new Date().toISOString() };
-      await writeJson(taskFilePath(project, id), moved);
+      const file = taskFilePath(project, id);
+      await writeJson(file, moved);
+      await indexTaskWrite(project, moved, file);
       return moved;
     });
     if (next) updated.push(next);
@@ -700,7 +711,9 @@ export async function moveTasksToStatus(project: string, ids: string[], status: 
       if (!task) return null;
       if (task.status === status) return { ...task, type: task.type ?? 'task' };
       const moved: Task = { ...task, type: task.type ?? 'task', status, updatedAt: new Date().toISOString() };
-      await writeJson(taskFilePath(project, id), moved);
+      const file = taskFilePath(project, id);
+      await writeJson(file, moved);
+      await indexTaskWrite(project, moved, file);
       return moved;
     });
     if (next) updated.push(next);
