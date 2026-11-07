@@ -114,10 +114,39 @@ export class ProxyMirror {
   private registeredPrompts = new Map<string, RegisteredPrompt>();
   private _stats: MirrorStats = { tools: 0, resources: 0, prompts: 0, errors: 0 };
 
+  private client: Client;
+  private recovery?: (err: unknown) => Promise<boolean>;
+
   constructor(
-    private readonly client: Client,
+    client: Client,
     private readonly server: McpServer,
-  ) {}
+  ) {
+    this.client = client;
+  }
+
+  /** Swap the upstream client after a reconnect (MU-08). */
+  setClient(client: Client): void {
+    this.client = client;
+  }
+
+  /**
+   * Install a recovery hook. When an upstream call throws, the hook may
+   * re-establish the session; a `true` result retries the call once.
+   */
+  setRecovery(recovery: (err: unknown) => Promise<boolean>): void {
+    this.recovery = recovery;
+  }
+
+  private async callWithRecovery<T>(call: (client: Client) => Promise<T>): Promise<T> {
+    try {
+      return await call(this.client);
+    } catch (err) {
+      if (!this.recovery) throw err;
+      const recovered = await this.recovery(err).catch(() => false);
+      if (!recovered) throw err;
+      return call(this.client);
+    }
+  }
 
   get stats(): MirrorStats {
     return { ...this._stats };
@@ -145,11 +174,10 @@ export class ProxyMirror {
           // but TypeScript can't verify the passthrough content shape match.
           const cb = async (args: Record<string, unknown>) => {
             log.debug({ tool: tool.name }, 'forwarding tool call');
-            const result = await this.client.callTool({
+            return this.callWithRecovery((client) => client.callTool({
               name: tool.name,
               arguments: args,
-            });
-            return result;
+            }));
           };
           const registered = this.server.tool(
             tool.name,
@@ -200,8 +228,7 @@ export class ProxyMirror {
             uri,
             async (uri) => {
               log.debug({ uri: uri.href }, 'forwarding resource read');
-              const result = await this.client.readResource({ uri: uri.href });
-              return result;
+              return this.callWithRecovery((client) => client.readResource({ uri: uri.href }));
             },
           );
 
@@ -253,11 +280,10 @@ export class ProxyMirror {
             argsShape,
             async (args) => {
               log.debug({ prompt: name }, 'forwarding prompt get');
-              const result = await this.client.getPrompt({
+              return this.callWithRecovery((client) => client.getPrompt({
                 name,
                 arguments: args as Record<string, string> | undefined,
-              });
-              return result;
+              }));
             },
           );
 

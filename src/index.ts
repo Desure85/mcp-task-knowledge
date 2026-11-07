@@ -9,18 +9,17 @@
  *   - src/transport/*.ts         (transport adapters)
  */
 
-import { AppContainer } from './core/app-container.js';
 import { childLogger } from './core/logger.js';
 import { ServerLockError } from './storage-lock.js';
 import { writeSync } from 'node:fs';
 
 const log = childLogger('main');
 
-// CLI subcommand routing (DX-17): `mcp-task-knowledge doctor ...` runs the
-// data-integrity scanner and exits. Anything else — including zero args, as
-// MCP clients spawn `node dist/index.js` — boots the normal server path.
-// The check is a plain string compare on argv[2] so the default path is
-// byte-for-byte identical to before.
+// CLI subcommand routing (DX-17, MU-08): `doctor` runs the data-integrity
+// scanner, `bridge` runs the stdio→http thin proxy. Anything else — including
+// zero args, as MCP clients spawn `node dist/index.js` — boots the normal
+// server path. Both subcommands load their modules dynamically: `bridge` must
+// work without DATA_DIR, and `./config.js` throws at module load without it.
 async function maybeRunCli(): Promise<void> {
   if (process.argv[2] !== 'doctor') return;
   const { runDoctorCli } = await import('./cli/doctor.js');
@@ -43,7 +42,8 @@ async function maybeRunCli(): Promise<void> {
   }
 }
 
-function main() {
+async function main(): Promise<void> {
+  const { AppContainer } = await import('./core/app-container.js');
   const app = new AppContainer();
   app.run().catch((err) => {
     if (err instanceof ServerLockError) {
@@ -57,8 +57,15 @@ function main() {
   });
 }
 
+async function runBridge(): Promise<void> {
+  const { runBridgeCli } = await import('./cli/bridge.js');
+  await runBridgeCli(process.argv.slice(3));
+}
+
 if (process.argv[2] === 'doctor') {
   void maybeRunCli();
+} else if (process.argv[2] === 'bridge') {
+  void runBridge();
 } else {
-  main();
+  void main();
 }
