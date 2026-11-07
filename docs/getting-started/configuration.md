@@ -43,6 +43,25 @@ lazy GC (about 300 MB for that corpus on Node 24 default settings, 176 MB with
 file-level schema migrations and is requested after a backup restore (`restoreBackup` marks the
 index dirty).
 
+Read path (SC-02c): `tasks_list` and `knowledge_list` (and the paginated reads behind
+`tasks_tree`/`knowledge_tree`) serve a project from the index only when the index is **proven
+complete** for it: a row exists in the index's `projects` table, `meta.dirty` is `0`, and the
+number of indexed rows of that project equals the `file_count` recorded when the project was
+filled. That counter moves in the same transaction as the rows themselves: inserting a new row
+increments it, deleting a row decrements it, and updating an existing row leaves it unchanged, so
+ordinary create/update/delete traffic does not drop the project out of the index. Anything else —
+a never-filled project, `dirty=1`, `STORAGE_INDEX=off`, an index error —
+keeps the previous file path unchanged. An incomplete project is filled in the background the
+first time a listing touches it: the fill is per project, deduplicated per process, bounded in
+batches of 2000 rows, and never awaited by the request, so start-up stays O(1) and the first
+listing after an upgrade is simply a file scan. Rows selected for the page are read from their
+files (content stays fresh); a row whose file `mtime` drifted is re-upserted on the spot, and a
+row whose file disappeared is dropped and the project count re-derived, so an out-of-band edit or
+deletion does not force a permanent fallback. The default page and its `countOnly` total use the
+partial indexes `WHERE archived = 0 AND trashed = 0`. `total`/`totalExact` become exact for the
+index path (the file fast path reports the project's file count with `totalExact: false`); this is
+an intentional contract change, pinned by `tests/scale-index.test.ts`.
+
 ### Search & Embeddings
 
 | Variable | Default | Description |

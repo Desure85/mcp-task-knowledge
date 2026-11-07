@@ -2,14 +2,26 @@ import path from 'node:path';
 import fg from 'fast-glob';
 import matter from 'gray-matter';
 import { randomUUID } from 'node:crypto';
-import { KNOWLEDGE_DIR } from '../config.js';
+import { KNOWLEDGE_DIR, TASKS_DIR } from '../config.js';
 import { ensureDir, pathExists, readText, resolveUnder, withFileLock, writeText } from '../fs.js';
 import type { KnowledgeDoc, KnowledgeDocMeta, TrustLevel } from '../types.js';
 import { promises as fsp } from 'node:fs';
 import { emitKnowledgeChanged } from './knowledge-events.js';
-import { indexDocDelete, indexDocWrite } from './metadata-index.js';
+import {
+  buildDocRow,
+  ensureProjectIndexed,
+  getActiveMetadataIndex,
+  indexDocDelete,
+  indexDocWrite,
+  noteFilePageRead,
+  noteIndexPageRead,
+  resolveProjectIndexDirs,
+} from './metadata-index.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
+import { childLogger } from '../core/logger.js';
+
+const log = childLogger('storage:knowledge');
 
 function fileFor(project: string, id: string) {
   return resolveUnder(KNOWLEDGE_DIR, project, `${id}.md`);
@@ -189,7 +201,93 @@ function startIndexAfterCursor(entries: DocFileEntry[], cursor?: string | null):
  * та же, что у `listTasksPage`: быстрый путь считает файлы, содержательные фильтры
  * требуют полного разбора frontmatter.
  */
+/**
+ * SC-02c: index-backed document page. `null` means "not proven complete / no
+ * index / index error" and the caller keeps the file path; the page itself
+ * reads only its own files and re-upserts rows whose mtime drifted.
+ */
+async function tryIndexedDocsPage(project: string, opts: DocPageOptions): Promise<DocPage | null> {
+  const index = getActiveMetadataIndex();
+  if (!index) return null;
+
+  const cursor = opts.cursor ? decodeKeyCursor(opts.cursor) : null;
+  const after = cursor ? { mtimeMs: Number(cursor.k), id: cursor.id } : undefined;
+  if (after && !Number.isFinite(after.mtimeMs)) return null;
+
+  try {
+    if (!index.isProjectComplete(project)) {
+      const dirs = await resolveProjectIndexDirs(project, { tasksDir: TASKS_DIR, knowledgeDir: KNOWLEDGE_DIR });
+      ensureProjectIndexed(project, dirs);
+      return null;
+    }
+
+    const result = index.listDocs({
+      project,
+      limit: opts.countOnly ? undefined : opts.limit,
+      type: opts.type,
+      parentId: opts.parentId,
+      tag: opts.tag,
+      excludeArchived: !opts.includeArchived,
+      excludeTrashed: !opts.includeTrashed,
+      after,
+      countOnly: opts.countOnly,
+    });
+
+    if (opts.countOnly) {
+      return { items: [], keys: [], total: result.total, totalExact: true, hasMore: false };
+    }
+
+    const items: KnowledgeDocMeta[] = [];
+    const keys: string[] = [];
+    let healedOut = 0;
+
+    for (const row of result.items) {
+      const file = path.resolve(index.dataDir, row.relPath);
+      try {
+        const entry = { id: row.id, file, mtimeMs: row.mtimeMs };
+        const [meta, st] = await Promise.all([readDocMetaAt(project, entry), fsp.stat(file)]);
+        if (st.mtimeMs !== row.mtimeMs) {
+          index.upsertDoc(buildDocRow(project, meta, st.mtimeMs, row.relPath));
+          if (!docPasses(meta, opts)) {
+            healedOut++;
+            continue;
+          }
+          items.push(meta);
+          keys.push(String(st.mtimeMs));
+          continue;
+        }
+        items.push(meta);
+        keys.push(String(row.mtimeMs));
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        index.deleteDoc(row.id);
+        healedOut++;
+      }
+    }
+
+    if (healedOut > 0) index.recountProject(project);
+
+    return {
+      items,
+      keys,
+      total: Math.max(0, result.total - healedOut),
+      totalExact: true,
+      hasMore: result.hasMore,
+    };
+  } catch (err) {
+    log.warn({ err, project }, 'metadata index page read failed — falling back to the file path');
+    return null;
+  }
+}
+
 export async function listDocsPage(project: string, opts: DocPageOptions): Promise<DocPage> {
+  const indexed = await tryIndexedDocsPage(project, opts);
+  if (indexed) {
+    noteIndexPageRead();
+    return indexed;
+  }
+  noteFilePageRead();
+
   const entries = await listDocEntries(project);
   const hasContentFilter = Boolean(opts.tag || opts.type || opts.parentId);
   const start = startIndexAfterCursor(entries, opts.cursor);
