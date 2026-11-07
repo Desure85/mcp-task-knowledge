@@ -1370,7 +1370,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Trust/Hardening (O) | 23 | 12 | 3 | 2 | 6 | 0 |
 | MCP spec compliance (P) | 12 | 8 | 0 | 2 | 2 | 0 |
 | KB hardening (Q) | 7 | 0 | 0 | 6 | 1 | 0 |
-| Multi-user integrity (R) | 8 | 5 | 0 | 0 | 3 | 0 |
+| Multi-user integrity (R) | 8 | 3 | 0 | 2 | 3 | 0 |
 | YouTrack-level tracker (S) | 5 | 4 | 0 | 0 | 1 | 0 |
 | Team work and wiki (T) | 6 | 6 | 0 | 0 | 0 | 0 |
 | Agent convenience (U) | 6 | 5 | 0 | 1 | 0 | 0 |
@@ -1380,7 +1380,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Pluggable storage (Y) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Skills and packages (Z) | 9 | 8 | 0 | 1 | 0 | 0 |
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
-| **Итого** | **405** | **94** | **7** | **281** | **22** | **1** |
+| **Итого** | **405** | **93** | **7** | **282** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
