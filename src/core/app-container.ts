@@ -234,7 +234,6 @@ export class AppContainer {
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private storageLock?: ServerLockHandle;
-  private lockSignalHandlersInstalled = false;
   private startedAt?: number;
   private readonly log = childLogger('app-container');
   private readonly opts: {
@@ -368,11 +367,9 @@ export class AppContainer {
           dataDir: DATA_DIR,
           transport: this.opts.transportType,
           version: '',
+          releaseOnSignal: !this.opts.handleSignals,
         });
         this.addCleanup(() => this.releaseStorageLock());
-        if (!this.opts.handleSignals) {
-          this.installLockSignalHandlers();
-        }
       }
 
       // 2.5 DX-18: DATA_DIR schema-version gate — BEFORE any storage read.
@@ -742,24 +739,6 @@ export class AppContainer {
     if (!lock) return;
     this.storageLock = undefined;
     await lock.release();
-  }
-
-  /**
-   * stdio has no AppContainer signal handlers (handleSignals=false), yet a
-   * SIGTERM must still release the lock. Release, then restore the default
-   * disposition and re-raise so the exit status stays 128+signal.
-   */
-  private installLockSignalHandlers(): void {
-    if (this.lockSignalHandlersInstalled) return;
-    this.lockSignalHandlersInstalled = true;
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-      const handler = () => {
-        this.storageLock?.releaseSync();
-        process.removeListener(signal, handler);
-        process.kill(process.pid, signal);
-      };
-      process.on(signal, handler);
-    }
   }
 
   /**
