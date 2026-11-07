@@ -214,8 +214,16 @@ function taskPasses(t: Task, opts: TaskPageOptions): boolean {
   return true;
 }
 
-/** Индекс первого элемента строго после курсора (mtime desc, id asc). */
-function startIndexAfterCursor(entries: TaskFileEntry[], cursor?: string | null): number {
+/**
+ * Индекс первого элемента строго после курсора (mtime desc, id asc).
+ *
+ * `id` — id из payload (`pageFromStorage` кодирует `idOf(item)`), поэтому функцию
+ * можно применять и к отфильтрованному списку, а не только к файлам каталога.
+ */
+function startIndexAfterCursor(
+  entries: Array<{ id: string; mtimeMs: number }>,
+  cursor?: string | null,
+): number {
   if (!cursor) return 0;
   const decoded = decodeKeyCursor(cursor);
   const key = Number(decoded.k);
@@ -327,22 +335,23 @@ export async function listTasksPage(project: string, opts: TaskPageOptions): Pro
   const hasContentFilter = Boolean(
     opts.status || opts.tag || opts.priority || opts.parentId || opts.updatedSince || opts.type,
   );
-  const start = startIndexAfterCursor(entries, opts.cursor);
+  const entriesStart = startIndexAfterCursor(entries, opts.cursor);
 
   if (opts.countOnly || hasContentFilter) {
     const all = await mapLimit(entries, 32, (e) => readJson<Task>(e.file));
-    const matched: Array<{ task: Task; key: string }> = [];
+    const matched: Array<{ task: Task; id: string; mtimeMs: number }> = [];
     for (let i = 0; i < all.length; i++) {
       const task = withDefaultType(withoutExpiredClaim(all[i]));
-      if (taskPasses(task, opts)) matched.push({ task, key: String(entries[i].mtimeMs) });
+      if (taskPasses(task, opts)) matched.push({ task, id: task.id, mtimeMs: entries[i].mtimeMs });
     }
     if (opts.countOnly) {
       return { items: [], keys: [], total: matched.length, totalExact: true, hasMore: false };
     }
+    const start = hasContentFilter ? startIndexAfterCursor(matched, opts.cursor) : entriesStart;
     const sliced = matched.slice(start, start + opts.limit);
     return {
       items: sliced.map((m) => m.task),
-      keys: sliced.map((m) => m.key),
+      keys: sliced.map((m) => String(m.mtimeMs)),
       total: matched.length,
       totalExact: true,
       hasMore: start + sliced.length < matched.length,
@@ -352,7 +361,7 @@ export async function listTasksPage(project: string, opts: TaskPageOptions): Pro
   // Read one extra matching item so `hasMore` is exact instead of "maybe".
   const collected: Task[] = [];
   const collectedKeys: string[] = [];
-  let index = start;
+  let index = entriesStart;
   const chunkSize = Math.max(32, opts.limit * 2);
   while (collected.length <= opts.limit && index < entries.length) {
     const chunk = entries.slice(index, index + chunkSize);
