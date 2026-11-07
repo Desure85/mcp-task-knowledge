@@ -59,7 +59,7 @@ export function Topbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <label className="hidden items-center gap-1.5 rounded-[var(--radius-control)] border border-line bg-surface-2 px-2 py-1 text-[11px] text-muted sm:inline-flex">
+        <label className="hidden items-center gap-1.5 rounded-[var(--radius-control)] border border-line bg-surface-2 h-7 px-2 text-[11px] text-muted sm:inline-flex">
           <IconProjects className="h-3.5 w-3.5 text-muted" />
           <span className="text-muted">Project</span>
           <select
@@ -89,7 +89,7 @@ export function Topbar() {
         <Link
           href="/access"
           title={hasToken ? 'Signed in — manage access and tokens' : 'No API token set'}
-          className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-1 text-[11px] text-muted hover:bg-surface-2"
+          className="inline-flex items-center gap-1 rounded-full border border-line bg-surface h-7 px-2 text-[11px] text-muted hover:bg-surface-2"
         >
           <IconLock className="h-3 w-3" />
           {hasToken ? 'Auth' : 'No auth'}
@@ -101,7 +101,7 @@ export function Topbar() {
               await api.auth.logout();
               router.replace('/login');
             }}
-            className="rounded-full border border-line bg-surface px-2 py-1 text-[11px] font-medium text-muted hover:bg-surface-2"
+            className="inline-flex h-7 items-center rounded-full border border-line bg-surface px-2 text-[11px] font-medium text-muted hover:bg-surface-2"
           >
             Sign out
           </button>
