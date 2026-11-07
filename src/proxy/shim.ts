@@ -1,16 +1,17 @@
 /**
  * proxy/shim.ts — stdio ⇄ http-core bridge (MU-08).
  *
- * The downstream side is a plain McpServer on stdio; every mirrored item
- * forwards to the single http core through ProxyBootstrap. The shim owns no
- * storage, no embeddings and no `DATA_DIR/.server.lock`.
+ * The downstream side is a low-level Server on stdio; every method forwards to
+ * the single http core through ProxyBootstrap and returns the core's result
+ * unchanged (MU-09 — no JSON Schema → Zod rebuild). The shim owns no storage,
+ * no embeddings and no `DATA_DIR/.server.lock`.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { ProxyConfig } from './types.js';
 import { ProxyBootstrap, sanitizeError } from './bootstrap.js';
-import { ProxyMirror } from './mirror.js';
+import { ProxyPassthrough, passthroughCapabilities } from './passthrough.js';
 import { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG } from '../core/circuit-breaker.js';
 import type { CircuitBreakerConfig } from '../core/circuit-breaker.js';
 import { childLogger } from '../core/logger.js';
@@ -29,8 +30,8 @@ export interface StdioBridgeOptions {
 export class StdioBridge {
   private readonly bootstrap: ProxyBootstrap;
   private readonly breaker: CircuitBreaker;
-  private server?: McpServer;
-  private mirror?: ProxyMirror;
+  private server?: Server;
+  private passthrough?: ProxyPassthrough;
   private transport?: StdioServerTransport;
   private reconnectInFlight?: Promise<boolean>;
   private failureCount = 0;
@@ -50,23 +51,25 @@ export class StdioBridge {
   }
 
   /**
-   * Connect upstream, mirror its surface into a fresh stdio server and start
-   * listening. Throws when the upstream is unreachable, rejects the token, or
-   * exposes no tools.
+   * Connect upstream, expose its surface verbatim on a fresh stdio server and
+   * start listening. Throws when the upstream is unreachable, rejects the
+   * token, or exposes no tools.
    */
   async start(): Promise<void> {
     if (this._running) throw new Error('[bridge] already running');
 
     await this.bootstrap.start();
 
-    this.server = new McpServer(
+    const client = this.bootstrap.getClient();
+    this.server = new Server(
       { name: this.options.name ?? 'mcp-task-knowledge-bridge', version: this.options.version ?? '1.0.0' },
-      { capabilities: { tools: {}, resources: {}, prompts: {} } },
+      { capabilities: passthroughCapabilities(client.getServerCapabilities()) },
     );
-    this.mirror = new ProxyMirror(this.bootstrap.getClient(), this.server);
-    this.mirror.setRecovery((err) => this.recover(err));
+    this.passthrough = new ProxyPassthrough(client, this.server);
+    this.passthrough.setRecovery((err) => this.recover(err));
+    this.passthrough.attach();
 
-    const stats = await this.mirror.mirrorAll();
+    const stats = await this.passthrough.probe();
     if (stats.tools === 0) {
       throw new Error('[bridge] upstream exposed no tools — is a token required?');
     }
@@ -74,7 +77,15 @@ export class StdioBridge {
     this.transport = new StdioServerTransport();
     await this.server.connect(this.transport);
     this._running = true;
-    log.info({ tools: stats.tools, resources: stats.resources, prompts: stats.prompts }, 'bridge started');
+    log.info(
+      {
+        tools: stats.tools,
+        resources: stats.resources,
+        resourceTemplates: stats.resourceTemplates,
+        prompts: stats.prompts,
+      },
+      'bridge started',
+    );
   }
 
   /** Close downstream, upstream and timers. Idempotent. */
@@ -85,10 +96,9 @@ export class StdioBridge {
     } catch (err) {
       log.warn({ err: sanitizeError(err, this.config.auth.token) }, 'error closing downstream server');
     }
-    this.mirror?.unregisterAll();
     await this.bootstrap.stop().catch((err) => log.warn({ err: sanitizeError(err, this.config.auth.token) }, 'error stopping upstream'));
     this.server = undefined;
-    this.mirror = undefined;
+    this.passthrough = undefined;
     this.transport = undefined;
   }
 
@@ -110,7 +120,7 @@ export class StdioBridge {
   /**
    * Re-create the upstream session. The core drops authentication together
    * with the session, so ProxyBootstrap.start() re-runs `mcp.authenticate`;
-   * the mirrored callbacks then point at the new Client.
+   * the forwarded handlers then point at the new Client.
    */
   private async reconnect(): Promise<boolean> {
     if (!this.breaker.canExecute()) {
@@ -121,7 +131,7 @@ export class StdioBridge {
     try {
       await this.bootstrap.stop();
       await this.bootstrap.start();
-      this.mirror?.setClient(this.bootstrap.getClient());
+      this.passthrough?.setClient(this.bootstrap.getClient());
       this.breaker.reset();
       this.failureCount = 0;
       this.nextAttemptAt = 0;
