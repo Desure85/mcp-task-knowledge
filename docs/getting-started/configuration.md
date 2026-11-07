@@ -15,6 +15,17 @@
 | `LOG_FORMAT` | `json` | `json` or `pretty` |
 | `MCP_JSON_RESPONSES` | on | HTTP transport answers tool calls with `application/json` instead of SSE, because SSE framing is quadratic in payload size inside the MCP SDK (20 MB: ~4.2 s vs 246 ms). Per-request opt-out is automatic: a request carrying `params._meta.progressToken` is served over SSE so progress notifications keep working. Set `0` to force SSE for every request. See `docs/adr/0007-json-responses-vs-sse.md` |
 | `MCP_REQUEST_TIMEOUT_MS` | `120000` | Client-side request timeout used by the bundled dev CLI and the VS Code extension (the SDK default of 60 s is too short for large lists) |
+| `STORAGE_INDEX` | `auto` | Derived SQLite metadata index: `auto` keeps it on for the file storage profile, `off` disables it and creates no `DATA_DIR/.index/` (rollback). Files stay the source of truth |
+
+### Metadata index (SC-02a)
+
+The file storage profile keeps a derived SQLite index at `DATA_DIR/.index/metadata.db`
+(WAL, `busy_timeout=5000`). It caches list metadata only, so tasks and knowledge files remain the
+source of truth. On startup the index is rebuilt when `meta.schema_version` or `meta.data_dir`
+does not match the current build and `DATA_DIR`. An unreadable or corrupt database is logged as a
+warning and disables the index for that process: the server still starts and every listing falls
+back to the file scan. Set `STORAGE_INDEX=off` to skip the index entirely; deleting
+`DATA_DIR/.index/` is the same rollback, because nothing there is authoritative.
 
 ### Search & Embeddings
 
@@ -99,7 +110,7 @@ plain archive: `tar -tzf` lists it and `gzip -t` validates it.
 
 - Default output is `$DATA_DIR/.backups/`; `out` (`--out`) selects another directory. The file is
   written as `.partial` and renamed atomically, so an interrupted run leaves no archive behind.
-- `.jwt-revoked.json`, `auth.db`, `audit.log`, `.embeddings/`, `.emb_cache/` and `.backups/` are
+- `.jwt-revoked.json`, `auth.db`, `audit.log`, `.embeddings/`, `.emb_cache/`, `.index/` and `.backups/` are
   excluded. `includeSecrets` (`--include-secrets`) adds the two secret files and marks the archive
   `containsSecrets: true`; `excludeModels` (`--exclude-models`) skips `models/`.
 - Symlinks are never followed or archived; they are listed in `manifest.warnings`.
@@ -263,6 +274,7 @@ data/
   prompts/<project>/sources/        — prompt sources (JSON)
   prompts/<project>/exports/        — prompt exports (markdown, catalog)
   .emb_cache/                       — embedding cache
+  .index/                           — derived SQLite metadata index (rebuilt, not backed up)
   .behavioral/                      — behavioral memory data
   .backups/<ts>-<label>/            — pre-destructive-op snapshots (DX-19)
   .sync-state.json                  — memory sync state

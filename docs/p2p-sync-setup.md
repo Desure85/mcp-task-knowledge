@@ -13,6 +13,7 @@ cd ~/mcpTrackerData
 git init
 echo ".embeddings/" > .gitignore
 echo ".behavioral/" >> .gitignore
+echo ".index/" >> .gitignore
 echo "*.tmp" >> .gitignore
 git add -A
 git commit -m "init: mcp-task-knowledge data"

@@ -35,7 +35,7 @@ import { initMetrics, updateServerInfo, recordSessionCreated, recordSessionClose
 import { SessionManager } from './session-manager.js';
 import type { SessionManagerOptions } from './session-manager.js';
 import { currentSessionId } from './request-context.js';
-import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR, getFileConfig } from '../config.js';
+import { setSessionProjectResolver, isToolResourcesEnabled, DATA_DIR, getFileConfig, resolveStorageIndexMode } from '../config.js';
 import { startWarmup } from '../search/warmup.js';
 import path from 'node:path';
 import type { ToolMeta } from '../registry/tool-registry.js';
@@ -87,6 +87,7 @@ import { createSecretManager } from './secret-manager.js';
 import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
 import { PROMPTS_DIR, getCurrentProject, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { checkSchemaVersion, SchemaVersionError } from '../services/schema-version.js';
+import type { MetadataIndex } from '../storage/metadata-index.js';
 import { startClaimSweeper, stopClaimSweeper } from '../storage/tasks.js';
 import {
   acquireServerLock,
@@ -231,6 +232,7 @@ export class AppContainer {
   private readonly healthChecker = new HealthChecker();
   private readonly services = getServiceAvailabilityRegistry();
   private relay?: import('../relay/relay-manager.js').RelayManager;
+  private metadataIndex?: MetadataIndex;
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private storageLock?: ServerLockHandle;
@@ -336,6 +338,11 @@ export class AppContainer {
     return this.services;
   }
 
+  /** Derived metadata index (SC-02a); undefined when disabled or degraded. */
+  getMetadataIndex(): MetadataIndex | undefined {
+    return this.metadataIndex;
+  }
+
   // ─── Lifecycle ───────────────────────────────────────────────────
 
   /**
@@ -393,6 +400,20 @@ export class AppContainer {
           this.log.error({ err: e }, 'DATA_DIR schema version mismatch — refusing to boot');
         }
         throw e;
+      }
+
+      // 2.6 SC-02a: derived metadata index (files stay the source of truth).
+      // Any failure degrades to file scans; it must never block startup.
+      if (resolveStorageIndexMode() !== 'off') {
+        try {
+          const { createMetadataIndex } = await import('../storage/metadata-index.js');
+          this.metadataIndex = createMetadataIndex({ dataDir: DATA_DIR, logger: this.log }) ?? undefined;
+          if (this.metadataIndex) {
+            this.addCleanup(() => this.metadataIndex?.close());
+          }
+        } catch (err) {
+          this.log.warn({ err }, 'metadata index unavailable — falling back to file scans');
+        }
       }
 
       // 3. Server context (McpServer, config, registries)

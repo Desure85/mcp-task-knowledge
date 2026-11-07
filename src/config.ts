@@ -81,6 +81,18 @@ export function isPromptsBuildEnabled(): boolean {
   return parseBool(cfgFlag ?? envFlag, false);
 }
 
+/**
+ * SC-02a: derived SQLite metadata index switch.
+ * `auto` (default) keeps the index on for the file storage profile;
+ * `off` is the rollback path — no directory and no database are created,
+ * listings stay on the file-scan path.
+ */
+export function resolveStorageIndexMode(): 'auto' | 'off' {
+  const raw = (process.env.STORAGE_INDEX ?? 'auto').trim().toLowerCase();
+  if (raw === 'off' || raw === '0' || raw === 'false' || raw === 'no') return 'off';
+  return 'auto';
+}
+
 // Resolve base config source: CLI --config path, MCP_CONFIG_JSON, then ENV
 function getCliArg(name: string): string | undefined {
   const idx = process.argv.indexOf(name);

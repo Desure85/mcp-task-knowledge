@@ -266,8 +266,8 @@ The default project workflow is `pending → in_progress → completed|closed` (
 through a `.partial` file and an atomic rename. The archive is a standard `tar.gz` (`tar -tzf`
 lists it, `gzip -t` validates it); `manifest.json` at the archive root records `formatVersion`,
 `profile`, `schemaVersion`, `excluded` and every entry with `sha256`, and only relative paths are
-stored. `.jwt-revoked.json`, `auth.db`, `audit.log`, `.embeddings/`, `.emb_cache/` and `.backups/`
-never enter the archive; `includeSecrets` adds the two secret files and sets
+stored. `.jwt-revoked.json`, `auth.db`, `audit.log`, `.embeddings/`, `.emb_cache/`, `.index/` and
+`.backups/` never enter the archive; `includeSecrets` adds the two secret files and sets
 `containsSecrets: true`, `excludeModels` skips `models/`. Symlinks are skipped and reported in
 `manifest.warnings`. The finished archive size is returned in the tool response; the in-archive
 manifest does not carry `archiveBytes` (ADR-008 «Поправка»). Requires the admin role on

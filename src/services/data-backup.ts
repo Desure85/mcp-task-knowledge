@@ -67,6 +67,7 @@ const RUNTIME_SKIP_NAMES = [
   BACKUPS_DIR_NAME,
   '.embeddings',
   '.emb_cache',
+  '.index',
   RESTORE_TMP_DIR_NAME,
   SERVER_LOCK_NAME,
   RESTORE_LOCK_NAME,
