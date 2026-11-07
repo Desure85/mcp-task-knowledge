@@ -37,7 +37,7 @@ jobs:
         run: npm run lint:md:fix
 
       - name: Commit and push fixes back to PR
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: markdownlint auto-fix"
           branch: ${{ github.head_ref }}
