@@ -15,6 +15,11 @@
  *     (`STORAGE_INDEX=off` behaviour) with a warning — the server still boots;
  *   - `STORAGE_INDEX=off` never creates the directory or the file.
  *
+ * SC-02c adds the paginated read path: a project is served from the index only
+ * when it is proven complete (`projects.file_count` equals the indexed row count
+ * and `meta.dirty = 0`). An incomplete project keeps the file path and gets a
+ * background per-project fill, deduplicated per process; start-up stays O(1).
+ *
  * Design and schema: `docs/dev-cycle/decisions/2026-11-07-1437-sc02-sqlite-index.md`.
  */
 
@@ -28,8 +33,14 @@ import { childLogger } from '../core/logger.js';
 
 const log = childLogger('storage:metadata-index');
 
-/** Bumped when the index schema changes; a mismatch rebuilds the index. */
-export const METADATA_INDEX_SCHEMA_VERSION = 1;
+/**
+ * Bumped when the index schema changes; a mismatch rebuilds the index.
+ * v2 (SC-02c): partial indexes for the default (non-archived, non-trashed) page
+ * and count. An existing v1 index is dropped and recreated empty, which is the
+ * intended derived-cache behaviour: the project gate then sends reads to the
+ * file path until the background fill catches up.
+ */
+export const METADATA_INDEX_SCHEMA_VERSION = 2;
 
 /** Directory under DATA_DIR that holds the derived index. */
 export const METADATA_INDEX_DIR = '.index';
@@ -78,17 +89,34 @@ export interface MetadataIndexDocRow {
   tags: string[];
 }
 
-/** Minimal list query for the scaffold; SC-02c adds the page filters. */
+/** SC-02c page query: keyset cursor plus the filters of the paginated tools. */
 export interface MetadataIndexListQuery {
   project?: string;
   limit?: number;
   offset?: number;
+  status?: string;
+  type?: string;
+  priority?: string;
+  parentId?: string;
+  tag?: string;
+  /** ISO lower bound on the file field `updatedAt` (lexicographic, NULL rows excluded). */
+  updatedSince?: string;
+  /** `AND archived = 0` — the default of both list tools. */
+  excludeArchived?: boolean;
+  /** `AND trashed = 0` — the default of both list tools. */
+  excludeTrashed?: boolean;
+  /** Keyset position: rows strictly after (mtime desc, id asc). */
+  after?: { mtimeMs: number; id: string };
+  /** Count only: skip the row query entirely (the page tools return `items: []`). */
+  countOnly?: boolean;
 }
 
 export interface MetadataIndexListResult<T> {
   items: T[];
-  /** Exact row count for the query, ignoring `limit`/`offset`. */
+  /** Exact row count for the query, ignoring `limit`/`offset`/`after`. */
   total: number;
+  /** True when at least one matching row follows the returned page. */
+  hasMore: boolean;
 }
 
 /**
@@ -112,6 +140,15 @@ export interface MetadataIndex {
   deleteProject(project: string): void;
   /** SC-02b: full rebuild from files, bounded batches (memory stays flat). */
   rebuild(options: MetadataIndexRebuildOptions): Promise<MetadataIndexRebuildResult>;
+  /** SC-02c: true only when the project is safe to serve from the index. */
+  isProjectComplete(project: string): boolean;
+  /** SC-02c: replace one project's rows from files (bounded batches). */
+  fillProject(options: MetadataIndexFillOptions): Promise<MetadataIndexFillResult>;
+  /**
+   * SC-02c: re-derive `projects.file_count` after the page read healed rows
+   * (a file deleted out of band), so the completeness invariant survives.
+   */
+  recountProject(project: string): void;
 }
 
 /** SC-02b: directories the rebuild scans (legacy overrides are honoured by the caller). */
@@ -126,6 +163,26 @@ export interface MetadataIndexRebuildResult {
   tasks: number;
   docs: number;
   batches: number;
+  ms: number;
+}
+
+/** SC-02c: where a project's files live (`flat` = legacy shared directory). */
+export interface ProjectIndexDirs {
+  tasksDir: string | null;
+  tasksLayout: 'project' | 'flat';
+  knowledgeDir: string | null;
+  knowledgeLayout: 'project' | 'flat';
+}
+
+export interface MetadataIndexFillOptions {
+  project: string;
+  dirs: ProjectIndexDirs;
+}
+
+export interface MetadataIndexFillResult {
+  project: string;
+  tasks: number;
+  docs: number;
   ms: number;
 }
 
@@ -156,6 +213,7 @@ CREATE INDEX idx_tasks_status_page ON tasks(project, status, mtime_ms DESC, id A
 CREATE INDEX idx_tasks_type_page   ON tasks(project, type, mtime_ms DESC, id ASC);
 CREATE INDEX idx_tasks_parent_page ON tasks(project, parent_id, mtime_ms DESC, id ASC);
 CREATE INDEX idx_tasks_priority    ON tasks(project, priority, mtime_ms DESC, id ASC);
+CREATE INDEX idx_tasks_active_page ON tasks(project, mtime_ms DESC, id ASC) WHERE archived = 0 AND trashed = 0;
 
 CREATE TABLE task_tags (task_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (task_id, tag)) WITHOUT ROWID;
 CREATE INDEX idx_task_tags_tag ON task_tags(tag, task_id);
@@ -176,6 +234,7 @@ CREATE TABLE docs (
 CREATE INDEX idx_docs_page        ON docs(project, mtime_ms DESC, id ASC);
 CREATE INDEX idx_docs_type_page   ON docs(project, type, mtime_ms DESC, id ASC);
 CREATE INDEX idx_docs_parent_page ON docs(project, parent_id, mtime_ms DESC, id ASC);
+CREATE INDEX idx_docs_active_page ON docs(project, mtime_ms DESC, id ASC) WHERE archived = 0 AND trashed = 0;
 
 CREATE TABLE doc_tags (doc_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (doc_id, tag)) WITHOUT ROWID;
 CREATE INDEX idx_doc_tags_tag ON doc_tags(tag, doc_id);
@@ -238,6 +297,9 @@ export class SqliteMetadataIndex implements MetadataIndex {
   readonly dataDir: string;
   private readonly logger?: MetadataIndexLogger;
   private db?: Database.Database;
+  /** Any row mutation invalidates the per-project completeness cache. */
+  private mutations = 0;
+  private readonly completeness = new Map<string, { mutations: number; complete: boolean }>();
 
   constructor(options: { dataDir: string; logger?: MetadataIndexLogger }) {
     this.dataDir = path.resolve(options.dataDir);
@@ -284,6 +346,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   upsertTask(row: MetadataIndexTaskRow): void {
     const db = this.requireDb();
+    this.mutations++;
     db.transaction((task: MetadataIndexTaskRow) => {
       db.prepare(
         `INSERT INTO tasks
@@ -321,6 +384,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   deleteTask(id: string): void {
     const db = this.requireDb();
+    this.mutations++;
     db.transaction((taskId: string) => {
       db.prepare('DELETE FROM tasks WHERE id = ?').run(taskId);
       db.prepare('DELETE FROM task_tags WHERE task_id = ?').run(taskId);
@@ -329,6 +393,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   upsertDoc(row: MetadataIndexDocRow): void {
     const db = this.requireDb();
+    this.mutations++;
     db.transaction((doc: MetadataIndexDocRow) => {
       db.prepare(
         `INSERT INTO docs
@@ -366,6 +431,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   deleteDoc(id: string): void {
     const db = this.requireDb();
+    this.mutations++;
     db.transaction((docId: string) => {
       db.prepare('DELETE FROM docs WHERE id = ?').run(docId);
       db.prepare('DELETE FROM doc_tags WHERE doc_id = ?').run(docId);
@@ -374,6 +440,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   markDirty(reason?: string): void {
     const db = this.requireDb();
+    this.mutations++;
     db.transaction(() => {
       writeMeta(db, 'dirty', '1');
       writeMeta(db, 'dirty_at', new Date().toISOString());
@@ -383,6 +450,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   deleteProject(project: string): void {
     const db = this.requireDb();
+    this.mutations++;
     db.transaction(() => {
       db.prepare('DELETE FROM task_tags WHERE task_id IN (SELECT id FROM tasks WHERE project = ?)').run(project);
       db.prepare('DELETE FROM tasks WHERE project = ?').run(project);
@@ -441,6 +509,97 @@ export class SqliteMetadataIndex implements MetadataIndex {
     })();
 
     return { tasks, docs, batches, ms: Date.now() - started };
+  }
+
+  isProjectComplete(project: string): boolean {
+    const cached = this.completeness.get(project);
+    if (cached && cached.mutations === this.mutations) return cached.complete;
+
+    let complete = false;
+    const db = this.requireDb();
+    if ((readMeta(db, 'dirty') ?? '0') !== '1') {
+      const projectRow = db
+        .prepare<[string], { file_count: number; synced_at: string | null }>(
+          'SELECT file_count, synced_at FROM projects WHERE project = ?',
+        )
+        .get(project);
+      if (projectRow?.synced_at) {
+        const tasks = db.prepare<[string], { n: number }>('SELECT COUNT(*) AS n FROM tasks WHERE project = ?').get(project)?.n ?? 0;
+        const docs = db.prepare<[string], { n: number }>('SELECT COUNT(*) AS n FROM docs WHERE project = ?').get(project)?.n ?? 0;
+        complete = tasks + docs === projectRow.file_count;
+      }
+    }
+    this.completeness.set(project, { mutations: this.mutations, complete });
+    return complete;
+  }
+
+  async fillProject(options: MetadataIndexFillOptions): Promise<MetadataIndexFillResult> {
+    const db = this.requireDb();
+    const started = Date.now();
+    const { project, dirs } = options;
+    const batchSize = 2000;
+
+    db.transaction(() => {
+      db.prepare('DELETE FROM task_tags WHERE task_id IN (SELECT id FROM tasks WHERE project = ?)').run(project);
+      db.prepare('DELETE FROM tasks WHERE project = ?').run(project);
+      db.prepare('DELETE FROM doc_tags WHERE doc_id IN (SELECT id FROM docs WHERE project = ?)').run(project);
+      db.prepare('DELETE FROM docs WHERE project = ?').run(project);
+      db.prepare('DELETE FROM projects WHERE project = ?').run(project);
+    })();
+
+    let tasks = 0;
+    if (dirs.tasksDir) {
+      const hint = dirs.tasksLayout === 'project' ? project : undefined;
+      let batch: MetadataIndexTaskRow[] = [];
+      for await (const row of scanTaskRowsInDir(this.dataDir, dirs.tasksDir, hint)) {
+        batch.push(row);
+        if (batch.length >= batchSize) {
+          this.insertTaskBatch(batch);
+          tasks += countOwned(batch, project);
+          batch = [];
+        }
+      }
+      if (batch.length > 0) {
+        this.insertTaskBatch(batch);
+        tasks += countOwned(batch, project);
+      }
+    }
+
+    let docs = 0;
+    if (dirs.knowledgeDir) {
+      const hint = dirs.knowledgeLayout === 'project' ? project : undefined;
+      let batch: MetadataIndexDocRow[] = [];
+      for await (const row of scanDocRowsInDir(this.dataDir, dirs.knowledgeDir, hint)) {
+        batch.push(row);
+        if (batch.length >= batchSize) {
+          this.insertDocBatch(batch);
+          docs += countOwned(batch, project);
+          batch = [];
+        }
+      }
+      if (batch.length > 0) {
+        this.insertDocBatch(batch);
+        docs += countOwned(batch, project);
+      }
+    }
+
+    const dirMtimeMs = await dirMtimeOf(dirs.tasksDir ?? dirs.knowledgeDir);
+    db.prepare(
+      'INSERT OR REPLACE INTO projects (project, dir_mtime_ms, file_count, synced_at) VALUES (?, ?, ?, ?)',
+    ).run(project, dirMtimeMs, tasks + docs, new Date().toISOString());
+    this.mutations++;
+
+    return { project, tasks, docs, ms: Date.now() - started };
+  }
+
+  recountProject(project: string): void {
+    const db = this.requireDb();
+    db.transaction(() => {
+      const tasks = db.prepare<[string], { n: number }>('SELECT COUNT(*) AS n FROM tasks WHERE project = ?').get(project)?.n ?? 0;
+      const docs = db.prepare<[string], { n: number }>('SELECT COUNT(*) AS n FROM docs WHERE project = ?').get(project)?.n ?? 0;
+      db.prepare('UPDATE projects SET file_count = ? WHERE project = ?').run(tasks + docs, project);
+    })();
+    this.mutations++;
   }
 
   private insertTaskBatch(rows: MetadataIndexTaskRow[]): void {
@@ -505,21 +664,26 @@ export class SqliteMetadataIndex implements MetadataIndex {
 
   listTasks(query?: MetadataIndexListQuery): MetadataIndexListResult<MetadataIndexTaskRow> {
     const db = this.requireDb();
-    const { whereSql, params } = buildWhere(query);
+    const { whereSql, params } = buildWhere(query, 'tasks');
+    const after = buildAfter(query);
+    const limit = limitOf(query);
     const total = db
       .prepare<unknown[], { total: number }>(`SELECT COUNT(*) AS total FROM tasks${whereSql}`)
       .get(...params)?.total ?? 0;
+    if (query?.countOnly) return { items: [], total, hasMore: false };
     const rows = db
       .prepare<unknown[], TaskDbRow>(
         `SELECT id, project, status, priority, type, parent_id, updated_at, mtime_ms, archived, trashed, rel_path
-           FROM tasks${whereSql}
+           FROM tasks${whereSql}${after.sql}
           ORDER BY mtime_ms DESC, id ASC
           LIMIT ? OFFSET ?`,
       )
-      .all(...params, limitOf(query), offsetOf(query));
-    const tags = readTags(db, 'task_tags', 'task_id', rows.map((r) => r.id));
+      .all(...params, ...after.params, limit >= 0 ? limit + 1 : -1, offsetOf(query));
+    const hasMore = limit >= 0 && rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const tags = readTags(db, 'task_tags', 'task_id', page.map((r) => r.id));
     return {
-      items: rows.map((r) => ({
+      items: page.map((r) => ({
         id: r.id,
         project: r.project,
         status: r.status,
@@ -534,26 +698,32 @@ export class SqliteMetadataIndex implements MetadataIndex {
         tags: tags.get(r.id) ?? [],
       })),
       total,
+      hasMore,
     };
   }
 
   listDocs(query?: MetadataIndexListQuery): MetadataIndexListResult<MetadataIndexDocRow> {
     const db = this.requireDb();
-    const { whereSql, params } = buildWhere(query);
+    const { whereSql, params } = buildWhere(query, 'docs');
+    const after = buildAfter(query);
+    const limit = limitOf(query);
     const total = db
       .prepare<unknown[], { total: number }>(`SELECT COUNT(*) AS total FROM docs${whereSql}`)
       .get(...params)?.total ?? 0;
+    if (query?.countOnly) return { items: [], total, hasMore: false };
     const rows = db
       .prepare<unknown[], DocDbRow>(
         `SELECT id, project, title, type, parent_id, trust_level, updated_at, mtime_ms, archived, trashed, rel_path
-           FROM docs${whereSql}
+           FROM docs${whereSql}${after.sql}
           ORDER BY mtime_ms DESC, id ASC
           LIMIT ? OFFSET ?`,
       )
-      .all(...params, limitOf(query), offsetOf(query));
-    const tags = readTags(db, 'doc_tags', 'doc_id', rows.map((r) => r.id));
+      .all(...params, ...after.params, limit >= 0 ? limit + 1 : -1, offsetOf(query));
+    const hasMore = limit >= 0 && rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const tags = readTags(db, 'doc_tags', 'doc_id', page.map((r) => r.id));
     return {
-      items: rows.map((r) => ({
+      items: page.map((r) => ({
         id: r.id,
         project: r.project,
         title: r.title,
@@ -568,6 +738,7 @@ export class SqliteMetadataIndex implements MetadataIndex {
         tags: tags.get(r.id) ?? [],
       })),
       total,
+      hasMore,
     };
   }
 
@@ -638,13 +809,58 @@ function writeMeta(db: Database.Database, key: string, value: string): void {
   db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(key, value);
 }
 
-function buildWhere(query?: MetadataIndexListQuery): { whereSql: string; params: unknown[] } {
+function buildWhere(
+  query: MetadataIndexListQuery | undefined,
+  table: 'tasks' | 'docs',
+): { whereSql: string; params: unknown[] } {
+  const clauses: string[] = [];
   const params: unknown[] = [];
-  if (query?.project !== undefined) params.push(query.project);
-  return {
-    whereSql: query?.project !== undefined ? ' WHERE project = ?' : '',
-    params,
+  const add = (sql: string, ...values: unknown[]) => {
+    clauses.push(sql);
+    params.push(...values);
   };
+
+  if (query?.project !== undefined) add('project = ?', query.project);
+  if (query?.status !== undefined) add('status = ?', query.status);
+  if (query?.type !== undefined) add('type = ?', query.type);
+  if (query?.priority !== undefined) add('priority = ?', query.priority);
+  if (query?.parentId !== undefined) add('parent_id = ?', query.parentId);
+  // NULL `updated_at` must be excluded exactly like the file path (`(updatedAt || '') < bound`).
+  if (query?.updatedSince !== undefined) add('updated_at >= ?', query.updatedSince);
+  if (query?.excludeArchived) clauses.push('archived = 0');
+  if (query?.excludeTrashed) clauses.push('trashed = 0');
+  if (query?.tag !== undefined) {
+    add(
+      table === 'tasks'
+        ? 'EXISTS (SELECT 1 FROM task_tags t WHERE t.task_id = tasks.id AND t.tag = ?)'
+        : 'EXISTS (SELECT 1 FROM doc_tags t WHERE t.doc_id = docs.id AND t.tag = ?)',
+      query.tag,
+    );
+  }
+  return { whereSql: clauses.length > 0 ? ` WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+function buildAfter(query?: MetadataIndexListQuery): { sql: string; params: unknown[] } {
+  if (!query?.after) return { sql: '', params: [] };
+  return {
+    sql: ' AND (mtime_ms < ? OR (mtime_ms = ? AND id > ?))',
+    params: [query.after.mtimeMs, query.after.mtimeMs, query.after.id],
+  };
+}
+
+function countOwned(rows: Array<{ project: string }>, project: string): number {
+  let n = 0;
+  for (const row of rows) if (row.project === project) n++;
+  return n;
+}
+
+async function dirMtimeOf(dir: string | null): Promise<number> {
+  if (!dir) return 0;
+  try {
+    return (await fsp.stat(dir)).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 /** `-1` tells SQLite "no limit"; the scaffold has no default page size. */
@@ -900,5 +1116,175 @@ async function readDocRowAt(
     log.warn({ err, file }, 'metadata index rebuild skipped an unreadable doc file');
     return null;
   }
+}
+
+// ── SC-02c: per-project fill, completeness resolution and read stats ──
+
+async function* scanTaskRowsInDir(
+  dataDir: string,
+  dir: string,
+  projectHint: string | undefined,
+): AsyncGenerator<MetadataIndexTaskRow> {
+  for (const entry of await listEntries(dir)) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const row = await readTaskRowAt(dataDir, projectHint, path.join(dir, entry.name));
+    if (row) yield row;
+  }
+}
+
+async function* scanDocRowsInDir(
+  dataDir: string,
+  dir: string,
+  projectHint: string | undefined,
+): AsyncGenerator<MetadataIndexDocRow> {
+  for (const entry of await listEntries(dir)) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    const row = await readDocRowAt(dataDir, projectHint, path.join(dir, entry.name));
+    if (row) yield row;
+  }
+}
+
+async function isDir(target: string): Promise<boolean> {
+  try {
+    return (await fsp.stat(target)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isSafeProjectId(project: string): boolean {
+  return (
+    project.length > 0 &&
+    project !== '.' &&
+    project !== '..' &&
+    !project.includes('/') &&
+    !project.includes('\\') &&
+    !project.includes('\0')
+  );
+}
+
+/**
+ * Mirrors the storage resolvers: a per-project directory wins, otherwise the
+ * shared root is the legacy flat layout. `null` means the root does not exist
+ * yet (nothing to fill, nothing to read).
+ */
+export async function resolveProjectIndexDirs(
+  project: string,
+  roots: { tasksDir: string; knowledgeDir: string },
+): Promise<ProjectIndexDirs> {
+  if (!isSafeProjectId(project)) {
+    return { tasksDir: null, tasksLayout: 'project', knowledgeDir: null, knowledgeLayout: 'project' };
+  }
+  const tasks = await resolveLayout(roots.tasksDir, project);
+  const knowledge = await resolveLayout(roots.knowledgeDir, project);
+  return {
+    tasksDir: tasks.dir,
+    tasksLayout: tasks.layout,
+    knowledgeDir: knowledge.dir,
+    knowledgeLayout: knowledge.layout,
+  };
+}
+
+async function resolveLayout(
+  root: string,
+  project: string,
+): Promise<{ dir: string | null; layout: 'project' | 'flat' }> {
+  const modern = path.join(root, project);
+  if (await isDir(modern)) return { dir: modern, layout: 'project' };
+  if (await isDir(root)) return { dir: root, layout: 'flat' };
+  return { dir: null, layout: 'project' };
+}
+
+const fills = new Map<string, Promise<MetadataIndexFillResult | null>>();
+const fillErrors = new Map<string, string>();
+
+/**
+ * Starts a background fill for one project at most once per process. Reads that
+ * call it keep the file path for this request: the fill is never awaited here,
+ * so start-up and request latency stay independent of the project size.
+ */
+export function ensureProjectIndexed(project: string, dirs: ProjectIndexDirs): void {
+  const index = activeIndex;
+  if (!index) return;
+  if (fills.has(project)) return;
+
+  let complete: boolean;
+  try {
+    complete = index.isProjectComplete(project);
+  } catch (err) {
+    log.warn({ err, project }, 'metadata index completeness check failed');
+    return;
+  }
+  if (complete) return;
+
+  const fill = index
+    .fillProject({ project, dirs })
+    .then((result) => {
+      fillErrors.delete(project);
+      log.info({ project, tasks: result.tasks, docs: result.docs, ms: result.ms }, 'metadata index project filled');
+      return result;
+    })
+    .catch((err: unknown) => {
+      fillErrors.set(project, err instanceof Error ? err.message : String(err));
+      log.warn({ err, project }, 'metadata index project fill failed — file path stays in use');
+      return null;
+    })
+    .finally(() => {
+      fills.delete(project);
+    });
+
+  fills.set(project, fill);
+}
+
+/** Test helper: wait for the background fill of one project. */
+export async function awaitProjectIndexed(project: string): Promise<void> {
+  const inflight = fills.get(project);
+  if (inflight) await inflight;
+}
+
+export type ProjectIndexFillState = 'disabled' | 'complete' | 'running' | 'error' | 'idle';
+
+export function getProjectIndexFillState(project: string): ProjectIndexFillState {
+  const index = activeIndex;
+  if (!index) return 'disabled';
+  if (fills.has(project)) return 'running';
+  if (fillErrors.has(project)) return 'error';
+  try {
+    return index.isProjectComplete(project) ? 'complete' : 'idle';
+  } catch {
+    return 'error';
+  }
+}
+
+export function getProjectIndexFillError(project: string): string | undefined {
+  return fillErrors.get(project);
+}
+
+let indexPageReads = 0;
+let filePageReads = 0;
+
+/** Internal, test-only counters: which source served each page request. */
+export function noteIndexPageRead(): void {
+  indexPageReads++;
+}
+
+export function noteFilePageRead(): void {
+  filePageReads++;
+}
+
+export function getIndexReadStats(): { indexReads: number; filesReads: number } {
+  return { indexReads: indexPageReads, filesReads: filePageReads };
+}
+
+export function resetIndexReadStats(): void {
+  indexPageReads = 0;
+  filePageReads = 0;
+}
+
+/** Test helper: drop in-flight fills, their errors and the read counters. */
+export function resetIndexFillStateForTests(): void {
+  fills.clear();
+  fillErrors.clear();
+  resetIndexReadStats();
 }
 

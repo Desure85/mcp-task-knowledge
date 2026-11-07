@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { TASKS_DIR } from '../config.js';
+import { TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson } from '../fs.js';
 import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
 import {
@@ -20,7 +20,16 @@ import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
-import { indexTaskDelete, indexTaskWrite } from './metadata-index.js';
+import {
+  buildTaskRow,
+  ensureProjectIndexed,
+  getActiveMetadataIndex,
+  indexTaskDelete,
+  indexTaskWrite,
+  noteFilePageRead,
+  noteIndexPageRead,
+  resolveProjectIndexDirs,
+} from './metadata-index.js';
 
 const log = childLogger('storage:tasks');
 
@@ -223,7 +232,97 @@ function startIndexAfterCursor(entries: TaskFileEntry[], cursor?: string | null)
  * внутри файлов. Любой содержательный фильтр или `countOnly` требует полного чтения —
  * это и есть аргумент за индекс из SC-02.
  */
+/**
+ * SC-02c: index-backed page. Returns `null` when the project is not proven
+ * complete (or the index is off / errors) — the caller then keeps the file path.
+ * Only the rows of the requested page are read from disk; their mtime is
+ * compared with the row and a mismatch re-upserts the row (self-heal).
+ */
+async function tryIndexedTasksPage(project: string, opts: TaskPageOptions): Promise<TaskPage | null> {
+  const index = getActiveMetadataIndex();
+  if (!index) return null;
+
+  const cursor = opts.cursor ? decodeKeyCursor(opts.cursor) : null;
+  const after = cursor ? { mtimeMs: Number(cursor.k), id: cursor.id } : undefined;
+  if (after && !Number.isFinite(after.mtimeMs)) return null;
+
+  try {
+    if (!index.isProjectComplete(project)) {
+      const dirs = await resolveProjectIndexDirs(project, { tasksDir: TASKS_DIR, knowledgeDir: KNOWLEDGE_DIR });
+      ensureProjectIndexed(project, dirs);
+      return null;
+    }
+
+    const result = index.listTasks({
+      project,
+      limit: opts.countOnly ? undefined : opts.limit,
+      status: opts.status,
+      type: opts.type,
+      priority: opts.priority,
+      parentId: opts.parentId,
+      tag: opts.tag,
+      updatedSince: opts.updatedSince,
+      excludeArchived: !opts.includeArchived,
+      excludeTrashed: !opts.includeTrashed,
+      after,
+      countOnly: opts.countOnly,
+    });
+
+    if (opts.countOnly) {
+      return { items: [], keys: [], total: result.total, totalExact: true, hasMore: false };
+    }
+
+    const items: Task[] = [];
+    const keys: string[] = [];
+    let healedOut = 0;
+
+    for (const row of result.items) {
+      const file = path.resolve(index.dataDir, row.relPath);
+      try {
+        const [raw, st] = await Promise.all([readJson<Task>(file), fs.stat(file)]);
+        const task = withDefaultType(withoutExpiredClaim(raw));
+        if (st.mtimeMs !== row.mtimeMs) {
+          index.upsertTask(buildTaskRow(project, task, st.mtimeMs, row.relPath));
+          if (!taskPasses(task, opts)) {
+            healedOut++;
+            continue;
+          }
+          items.push(task);
+          keys.push(String(st.mtimeMs));
+          continue;
+        }
+        items.push(task);
+        keys.push(String(row.mtimeMs));
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        index.deleteTask(row.id);
+        healedOut++;
+      }
+    }
+
+    if (healedOut > 0) index.recountProject(project);
+
+    return {
+      items,
+      keys,
+      total: Math.max(0, result.total - healedOut),
+      totalExact: true,
+      hasMore: result.hasMore,
+    };
+  } catch (err) {
+    log.warn({ err, project }, 'metadata index page read failed — falling back to the file path');
+    return null;
+  }
+}
+
 export async function listTasksPage(project: string, opts: TaskPageOptions): Promise<TaskPage> {
+  const indexed = await tryIndexedTasksPage(project, opts);
+  if (indexed) {
+    noteIndexPageRead();
+    return indexed;
+  }
+  noteFilePageRead();
+
   const entries = await listTaskEntries(project);
   const hasContentFilter = Boolean(
     opts.status || opts.tag || opts.priority || opts.parentId || opts.updatedSince || opts.type,
