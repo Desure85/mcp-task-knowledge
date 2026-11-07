@@ -43,12 +43,23 @@ async function main() {
     if (page.length < PAGE) break;
   }
 
+  // Counting contract (P-20261107-9): the number is data, not a constant.
+  // This script runs with CATALOG_ENABLED=true, so the list is the core surface
+  // plus the dynamically registered catalog tools. "By default" means the same
+  // server without the catalog switch, and that equals the core count because
+  // the catalog module is the only prefix-gated group that this env enables.
+  const dynamicTools = tools.filter((t) => t.name.startsWith('service_catalog_'));
+  const coreCount = tools.length - dynamicTools.length;
+
   const lines = [
     '# API Reference',
     '',
     '> Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.',
     '',
-    `Всего инструментов: **${tools.length}**`,
+    `Всего инструментов: **${tools.length}** — ${coreCount} по умолчанию плюс ` +
+      `${dynamicTools.length} динамических \`service_catalog_*\` (запись каталога, ` +
+      '`service_catalog_upsert` и `service_catalog_delete`, регистрируется только при ' +
+      '`CATALOG_WRITE_ENABLED=true`).',
     '',
     '## Инструменты',
     '',
