@@ -8,6 +8,7 @@
 
 import { writeSync } from 'node:fs';
 import { StdioBridge } from '../proxy/shim.js';
+import { redactUrl, scrubSensitiveText } from '../proxy/bootstrap.js';
 import { DEFAULT_PROXY_CONFIG } from '../proxy/types.js';
 import type { ProxyConfig } from '../proxy/types.js';
 
@@ -72,11 +73,10 @@ function parseArgs(argv: string[]): BridgeArgs | string {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return `unsupported --url protocol: ${parsed.protocol}`;
   }
+  if (parsed.username || parsed.password) {
+    return 'credentials in the URL are not supported; pass the token via MCP_PROXY_TOKEN';
+  }
   return { url, token };
-}
-
-function redact(text: string, token: string | undefined): string {
-  return token ? text.split(token).join('<redacted>') : text;
 }
 
 function isAuthFailure(text: string): boolean {
@@ -118,7 +118,10 @@ export async function runBridgeCli(argv: string[]): Promise<void> {
   }
 
   const token = parsed.token;
-  const write = (line: string): void => { writeSync(2, `bridge: ${redact(line, token)}\n`); };
+  const safeUrl = redactUrl(parsed.url);
+  const write = (line: string): void => {
+    writeSync(2, `bridge: ${scrubSensitiveText(line, token)}\n`);
+  };
   const bridge = new StdioBridge(buildConfig(parsed));
   let stopping = false;
   const initialPpid = process.ppid;
@@ -151,7 +154,7 @@ export async function runBridgeCli(argv: string[]): Promise<void> {
   for (let attempt = 1; attempt <= START_ATTEMPTS; attempt++) {
     try {
       await bridge.start();
-      write(`connected to ${parsed.url} — stdio bridge ready`);
+      write(`connected to ${safeUrl} — stdio bridge ready`);
       return;
     } catch (err) {
       const message = (err as Error)?.message ?? String(err);
@@ -162,7 +165,7 @@ export async function runBridgeCli(argv: string[]): Promise<void> {
       }
       write(`upstream unavailable (attempt ${attempt}/${START_ATTEMPTS}): ${message}`);
       if (attempt === START_ATTEMPTS) {
-        await shutdown(BRIDGE_EXIT.UPSTREAM, `upstream unreachable: ${parsed.url}`);
+        await shutdown(BRIDGE_EXIT.UPSTREAM, `upstream unreachable: ${safeUrl}`);
         return;
       }
       await sleep(START_DELAYS_MS[attempt - 1] ?? START_DELAYS_MS[START_DELAYS_MS.length - 1]);

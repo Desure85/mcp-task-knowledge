@@ -9,7 +9,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { ProxyConfig } from './types.js';
-import { ProxyBootstrap } from './bootstrap.js';
+import { ProxyBootstrap, sanitizeError } from './bootstrap.js';
 import { ProxyMirror } from './mirror.js';
 import { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG } from '../core/circuit-breaker.js';
 import type { CircuitBreakerConfig } from '../core/circuit-breaker.js';
@@ -83,10 +83,10 @@ export class StdioBridge {
     try {
       await this.server?.close();
     } catch (err) {
-      log.warn({ err }, 'error closing downstream server');
+      log.warn({ err: sanitizeError(err, this.config.auth.token) }, 'error closing downstream server');
     }
     this.mirror?.unregisterAll();
-    await this.bootstrap.stop().catch((err) => log.warn({ err }, 'error stopping upstream'));
+    await this.bootstrap.stop().catch((err) => log.warn({ err: sanitizeError(err, this.config.auth.token) }, 'error stopping upstream'));
     this.server = undefined;
     this.mirror = undefined;
     this.transport = undefined;
@@ -131,7 +131,7 @@ export class StdioBridge {
       this.failureCount++;
       this.nextAttemptAt = Date.now() + Math.min(500 * 2 ** Math.min(this.failureCount, 4), 8000);
       this.breaker.recordFailure();
-      log.warn({ err, retryInMs: this.nextAttemptAt - Date.now() }, 'reconnect failed');
+      log.warn({ err: sanitizeError(err, this.config.auth.token), retryInMs: this.nextAttemptAt - Date.now() }, 'reconnect failed');
       return false;
     }
   }

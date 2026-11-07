@@ -53,6 +53,27 @@ export function redactUrl(raw: string): string {
   }
 }
 
+const URL_IN_TEXT = /https?:\/\/[^\s"'<>]+/g;
+
+/** Scrub every URL (credentials, query) and the configured token from text. */
+export function scrubSensitiveText(text: string, token?: string): string {
+  let out = text.replace(URL_IN_TEXT, (candidate) => redactUrl(candidate));
+  if (token) out = out.split(token).join('<redacted>');
+  return out;
+}
+
+/**
+ * Error copy safe for logs: transport errors may quote the upstream URL
+ * verbatim, including credentials or a token in the query string.
+ */
+export function sanitizeError(err: unknown, token?: string): unknown {
+  if (!(err instanceof Error)) return err;
+  const copy = new Error(scrubSensitiveText(err.message, token));
+  copy.name = err.name;
+  if (err.stack) copy.stack = scrubSensitiveText(err.stack, token);
+  return copy;
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────
 
 export class ProxyBootstrap {
@@ -138,7 +159,7 @@ export class ProxyBootstrap {
     } catch (err) {
       this._upstreamConnected = false;
       this._authenticated = false;
-      log.error({ err, url: redactUrl(url) }, 'failed to connect to upstream');
+      log.error({ err: sanitizeError(err, this.config.auth.token), url: redactUrl(url) }, 'failed to connect to upstream');
       throw err;
     }
   }
@@ -194,7 +215,7 @@ export class ProxyBootstrap {
     try {
       await client.close();
     } catch (err) {
-      log.warn({ err }, 'error closing upstream client');
+      log.warn({ err: sanitizeError(err, this.config.auth.token) }, 'error closing upstream client');
     }
   }
 

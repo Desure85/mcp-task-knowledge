@@ -436,18 +436,80 @@ describe.sequential('MU-08 stdio→http bridge', () => {
     }
   }, 25_000);
 
-  it('(i) a token carried in --url never reaches stdout or stderr', async () => {
-    const leaked = 'mu08-url-token-do-not-log';
+  it('(i) a foreign secret in --url query never reaches stdout or stderr', async () => {
+    const secret = 'SECRET-Q-55555';
     const child = spawnTrackedServer(
-      ['dist/index.js', 'bridge', '--url', `http://127.0.0.1:1/mcp?probe=${leaked}`],
-      { cwd: ROOT, env: { ...baseEnv(), MCP_PROXY_TOKEN: leaked }, stdio: ['pipe', 'pipe', 'pipe'] },
+      ['dist/index.js', 'bridge', '--url', `http://127.0.0.1:9/mcp?probe=${secret}`],
+      { cwd: ROOT, env: { ...baseEnv(), MCP_PROXY_TOKEN: token }, stdio: ['pipe', 'pipe', 'pipe'] },
     );
     let output = '';
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString(); });
     child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString(); });
 
-    await waitExit(child, 15_000);
+    await waitExit(child, 20_000);
     expect(child.exitCode).toBe(BRIDGE_EXIT.UPSTREAM);
-    expect(output).not.toContain(leaked);
+    expect(output).not.toContain(secret);
+  }, 30_000);
+
+  it('(j) credentials in --url are rejected as a usage error without echoing them', async () => {
+    const password = 'PASSWD-LEAK-4242';
+    const child = spawnTrackedServer(
+      ['dist/index.js', 'bridge', '--url', `http://user:${password}@127.0.0.1:1/mcp`],
+      { cwd: ROOT, env: { ...baseEnv(), MCP_PROXY_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let output = '';
+    child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+    child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+
+    await waitExit(child, IDLE_MS);
+    expect(child.exitCode).toBe(BRIDGE_EXIT.USAGE);
+    expect(output).toContain('credentials in the URL are not supported');
+    expect(output).not.toContain(password);
+  }, 20_000);
+
+  it('(k) the connected-to line hides a query secret on a successful connect', async () => {
+    const secret = 'SECRET-CONNECT-777';
+    const child = spawnTrackedServer(
+      ['dist/index.js', 'bridge', '--url', `${url}?probe=${secret}`],
+      { cwd: ROOT, env: { ...baseEnv(), MCP_PROXY_TOKEN: token }, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let stderr = '';
+    child.stdout?.resume();
+    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    expect(await waitForText(() => stderr, 'stdio bridge ready', 15_000)).toBe(true);
+    expect(stderr).toMatch(/connected to/);
+    expect(stderr).not.toContain(secret);
+
+    child.stdin?.end();
+    await waitExit(child, IDLE_MS);
+    expect(child.exitCode).toBe(0);
+  }, 25_000);
+
+  it('(l) pino transport errors never carry a raw credentials URL', async () => {
+    const password = 'PASSWD-LOG-9999';
+    const script = path.join(TMP, 'log-probe.mjs');
+    await fsp.writeFile(script, `
+import { ProxyBootstrap, DEFAULT_PROXY_CONFIG } from ${JSON.stringify(path.join(ROOT, 'dist/proxy/index.js'))};
+const config = {
+  ...DEFAULT_PROXY_CONFIG,
+  enabled: true,
+  upstream: { ...DEFAULT_PROXY_CONFIG.upstream, url: 'http://user:${password}@127.0.0.1:1/mcp', maxReconnects: 0 },
+  auth: { mode: 'static-token', token: 'configured-token-xyz' },
+};
+new ProxyBootstrap(config).start().catch(() => setTimeout(() => process.exit(0), 300));
+`);
+    const child = trackServer(spawn('node', [script], {
+      cwd: ROOT,
+      env: { ...baseEnv(), LOG_LEVEL: 'error' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }));
+    let stderr = '';
+    child.stdout?.resume();
+    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    await waitExit(child, 15_000);
+    expect(stderr).toMatch(/proxy:bootstrap/);
+    expect(stderr).not.toContain(password);
   }, 25_000);
 });
