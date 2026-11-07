@@ -1,4 +1,4 @@
-# MCP Tools (129 with catalog; 127 by default)
+# MCP Tools (130 with catalog; 128 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -91,7 +91,7 @@ holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
 - renew/release are coordination writes: `updatedAt` is untouched, so the future optimistic-lock version (MU-02) is not disturbed;
 - the lease is advisory for writes: it prevents double *claiming*, not content updates by a non-holder.
 
-## Knowledge (14 tools)
+## Knowledge (15 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -100,6 +100,7 @@ holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
 | `knowledge_tree` | Get document tree |
 | `knowledge_import_markdown` | Import Markdown file as knowledge doc |
 | `knowledge_import_single` | Import single Markdown file |
+| `knowledge_import_multimodal` | Extract text chunks from a pdf/text/code/image/video/audio file inside `DATA_DIR` (extract-only) |
 | `knowledge_export_markdown` | Export doc as Markdown |
 | `knowledge_export_single` | Export single doc |
 | `knowledge_export_bundle` | Export all docs as bundle |
@@ -118,13 +119,17 @@ holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
 | `search_knowledge` | Search knowledge docs (BM25 + vector) |
 | `mcp1_search_knowledge_two_stage` | Two-stage rerank search (BM25 → vector rerank) |
 
-## Memory (24 tools)
+## Memory (30 tools)
 
 See [Agent Memory](agent-memory.md) for full reference.
 
 | Tool | Description |
 |------|-------------|
 | `memory_extract` | Extract facts from conversation transcript |
+| `memory_extract_async` | Non-blocking `memory_extract` for long transcripts; returns a jobId |
+| `memory_async_submit` | Submit a long memory operation (extract/search/bulk_import/evolve/dream) |
+| `memory_async_status` | Poll an async job: state, progress 0..1, result or error |
+| `memory_async_cancel` | Cancel a pending or processing async job |
 | `memory_facts_list` | List extracted memory facts |
 | `memory_facts_search` | Search memory facts by keyword |
 | `memory_temporal_add` | Add fact to temporal graph |
@@ -148,8 +153,10 @@ See [Agent Memory](agent-memory.md) for full reference.
 | `memory_layer_stats` | Memory layer statistics |
 | `memory_dream` | Run dreaming agent (dedup/merge/summarise) |
 | `memory_observations` | Detect patterns from graph structure |
+| `memory_benchmark_run` | Run LOCOMO/LongMemEval/BEAM/DMR suites on an ephemeral in-memory adapter |
+| `memory_framework_adapter` | Descriptor for using the server as a LangGraph/AutoGen/CrewAI/LangChain memory provider |
 
-## Prompts (15 tools)
+## Prompts (16 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -229,12 +236,31 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `session_info` | Get current session info (rate limit, TTL, idle timeout) |
 | `session_list` | List active sessions |
 
-## Admin (2 tools)
+## Dashboard & Briefing (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `briefing` | Session-start context in one call: current project, open tasks by priority, recent docs, blockers |
+| `dashboard_stats` | Project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
+| `dashboard_activity` | Chronological activity feed of recent task and knowledge changes |
+| `dashboard_trends` | Task creation and completion trends over time (daily or weekly buckets) |
+| `dashboard_project_summary` | Cross-project summary: task and knowledge counts plus top metrics per project |
+
+## Cluster (3 tools)
+
+| Tool | Description |
+|------|-------------|
+| `cluster_status` | Cluster membership overview: self node, node counts, session affinity, shard counts |
+| `cluster_nodes` | Known cluster nodes with status and heartbeat info |
+| `cluster_assign` | Sticky session affinity: assign a session to a node and return routing headers |
+
+## Admin (3 tools)
 
 | Tool | Description |
 |------|-------------|
 | `admin_backup` | Create a portable `tar.gz` archive of `DATA_DIR` (ADR-008) |
 | `admin_restore` | Restore `DATA_DIR` from an archive: dry-run plan by default, apply with `confirm` (ADR-008) |
+| `admin_setup_link` | Create a one-time (~15 min) setup link with server URL, transport, scoped token and agent instructions |
 
 `admin_backup` writes `backup-<timestamp>[-<label>].tar.gz` to `out` (default `DATA_DIR/.backups/`)
 through a `.partial` file and an atomic rename. The archive is a standard `tar.gz` (`tar -tzf`
@@ -260,6 +286,12 @@ snapshot is restored and the error says `rolled back from the pre-restore snapsh
 are only restored with `includeSecrets`, so a revocation made after the backup survives a
 restore.
 
+## Auth (1 tool)
+
+| Tool | Description |
+|------|-------------|
+| `mcp.authenticate` | Authenticate the session with a token on http/tcp transports; returns userId and roles |
+
 ## Obsidian (2 tools)
 
 | Tool | Description |
@@ -276,6 +308,10 @@ restore.
 | `service_catalog_delete` | Delete service |
 | `service_catalog_health` | Catalog health check |
 
+Registration depends on the switches: `service_catalog_query` and `service_catalog_health` appear with
+`CATALOG_ENABLED=true`; `service_catalog_upsert` and `service_catalog_delete` additionally require
+`CATALOG_WRITE_ENABLED=true` (off by default).
+
 ## Embeddings (2 tools)
 
 | Tool | Description |
@@ -283,13 +319,14 @@ restore.
 | `embeddings_status` | Get embeddings model status (loaded, mode, model) |
 | `embeddings_try_init` | Attempt to initialize embeddings model |
 
-## Graph (1 tool)
+## Graph (2 tools)
 
 | Tool | Description |
 |------|-------------|
 | `graph_export_mermaid` | Export entity graph as Mermaid diagram |
+| `graph_visualize` | Render the entity graph as a self-contained interactive HTML page (subgraph or lexical query) |
 
-## Introspection & Tools (7 tools)
+## Introspection & Tools (8 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -300,6 +337,7 @@ restore.
 | `tools_batch` | Run multiple tools in parallel (batch) |
 | `tools_register` | Hot-register a new tool at runtime |
 | `tools_unregister` | Unregister a tool at runtime |
+| `config_reload` | Hot-reload the file config without a restart (paths resolved from `DATA_DIR` need one) |
 
 ### `listChanged` notifications (SPEC-04)
 
@@ -319,6 +357,34 @@ disappears from the native `tools/list` and is no longer callable, not just
 hidden from `tools_list`. Prompts stay a startup snapshot: the advertised
 `prompts.listChanged` flag is set by the SDK but no
 `notifications/prompts/list_changed` is ever emitted.
+
+## Compact mode: `MCP_TOOLS_ENABLED=false`
+
+For clients with a small tool budget the server can expose only the introspection surface:
+
+| Kept on the wire | Purpose |
+|------------------|---------|
+| `tools_list` | Browse the full registry and filter it with `search` |
+| `tool_schema` | Read one tool's JSON schema |
+| `tool_help` | Short help plus an example call |
+| `tools_run` | Execute any registered tool by name |
+
+What this mode does and does not change:
+
+- the protocol-level `tools/list` returns exactly these four names, while every other tool stays in
+  the internal registry — `tools_list` still lists the whole surface and `tools_run` still executes it,
+  so a client that sees four tools can reach all of them through `tools_run`;
+- `tools_batch` is **not** registered in this mode, so batch execution becomes one `tools_run` call
+  per tool;
+- tool resources (`tool://<name>`) follow the same gate, and `admin_*`/connector tools are unavailable
+  on the wire.
+
+Budget (controller estimate, not a benchmark): the full surface serializes to roughly 66 KB
+(≈18k tokens), the compact surface to roughly 2 KB (≈530 tokens). Treat both as an order of
+magnitude, not as measured limits.
+
+The contract is enforced by `tests/docs-tools-coverage.test.ts`, which builds the real registration
+in both modes and fails if these four names, the documentation rows or the generated counter drift.
 
 ## Connectors (20+ tools)
 
@@ -358,4 +424,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 127 tools by default (129 with catalog + dynamic tools enabled) + 6 resources
+## Total: 128 tools by default (130 with catalog; 132 when catalog writes are enabled) + 6 resources
