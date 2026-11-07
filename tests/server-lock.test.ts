@@ -23,7 +23,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { assertDistFresh } from './support/dist-guard.js';
 import {
   spawnTrackedServer,
-  terminateServer,
   terminateTrackedServers,
 } from './support/server-process.js';
 import {
@@ -81,6 +80,15 @@ async function waitFor<T>(what: string, probe: () => Promise<T | undefined>, tim
   }
 }
 
+async function tightWaitForLock(dataDir: string, timeoutMs = 15000): Promise<ServerLockHolder> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (fsSync.existsSync(lockPath(dataDir))) return readLock(dataDir);
+    if (Date.now() > deadline) throw new Error('timed out waiting for the lock file');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
 async function waitForLock(dataDir: string): Promise<ServerLockHolder> {
   return waitFor('the lock file', async () => (fsSync.existsSync(lockPath(dataDir)) ? readLock(dataDir) : undefined));
 }
@@ -121,6 +129,60 @@ function waitForExit(child: ChildProcess, timeoutMs = 20000): Promise<{ code: nu
   });
 }
 
+const INITIALIZE_REQUEST = `${JSON.stringify({
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'initialize',
+  params: {
+    protocolVersion: '2024-11-05',
+    capabilities: {},
+    clientInfo: { name: 'mu01-lock-test', version: '0.0.0' },
+  },
+})}\n`;
+
+/**
+ * Readiness = the server answered MCP `initialize`. Polling the lock file is not
+ * enough: the lock is created slightly BEFORE the SIGTERM handler is armed, so a
+ * signal sent at "lock exists" can hit the default disposition and leave the file
+ * behind (measured: 27/60 vs 0/40 with a ready server).
+ */
+async function waitForServerReady(child: ChildProcess, timeoutMs = 20000): Promise<void> {
+  if (!child.stdin) throw new Error('server was spawned without a stdin pipe');
+  child.stdin.write(INITIALIZE_REQUEST);
+  await waitFor('the MCP initialize response', async () => {
+    const answered = outputOf(child).stdout
+      .split('\n')
+      .some((line) => line.includes('"id":1') && line.includes('"result"'));
+    return answered ? true : undefined;
+  }, timeoutMs);
+}
+
+/**
+ * Stop through the graceful path and prove it was graceful: a slow shutdown is
+ * fine, a SIGKILL fallback or a missing exit is not. The old version delegated to
+ * `terminateServer` (4 s grace, then SIGKILL) and then waited 15 s for the lock, so
+ * under CPU pressure it silently measured shutdown speed instead of behaviour.
+ */
+async function stopGracefully(
+  child: ChildProcess,
+  timeoutMs = 30000,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+  const exited = waitForExit(child, timeoutMs).catch(() => {
+    throw new Error(`server did not stop gracefully: no exit within ${timeoutMs} ms after SIGTERM`);
+  });
+  child.kill('SIGTERM');
+  const exit = await exited;
+  if (exit.signal === 'SIGKILL') {
+    throw new Error('server did not stop gracefully: the process had to be killed with SIGKILL');
+  }
+  return exit;
+}
+
+async function expectLockRemoved(dataDir: string, context: string): Promise<void> {
+  const present = await fs.access(lockPath(dataDir)).then(() => true, () => false);
+  if (present) throw new Error(`${context}: the lock must be removed when the server stops gracefully`);
+}
+
 function writeLockSync(dataDir: string, holder: Partial<ServerLockHolder> & { token: string }): void {
   const full: ServerLockHolder = {
     pid: process.pid,
@@ -158,8 +220,10 @@ describe('MU-01: single writer per DATA_DIR', () => {
     expect(stderr).toContain(`pid ${first.pid}`);
     expect(stderr).toContain(lockPath(dataDir));
 
-    await terminateServer(first);
-    await expect(fs.access(lockPath(dataDir))).rejects.toThrow();
+    await waitForServerReady(first);
+    const firstExit = await stopGracefully(first);
+    expect(firstExit.signal).toBe('SIGTERM');
+    await expectLockRemoved(dataDir, 'graceful stop');
   });
 
   it('b) 20 simultaneous acquirers: exactly one wins', { timeout: 90000 }, async () => {
@@ -251,8 +315,10 @@ describe('MU-01: single writer per DATA_DIR', () => {
     });
     expect(after.token).not.toBe(before.token);
 
-    await terminateServer(second);
-    await expect(fs.access(lockPath(dataDir))).rejects.toThrow();
+    await waitForServerReady(second);
+    const secondExit = await stopGracefully(second);
+    expect(secondExit.signal).toBe('SIGTERM');
+    await expectLockRemoved(dataDir, 'graceful stop');
   });
 
   it('d) a reused pid is not mistaken for a live holder', { timeout: 30000 }, async () => {
@@ -285,20 +351,31 @@ describe('MU-01: single writer per DATA_DIR', () => {
     expect((await readLock(noIdentitySupportDir)).token).toBe('unverifiable-token');
   });
 
-  it('e) a graceful stop removes the lock', { timeout: 60000 }, async () => {
+  it('e) a graceful stop removes the lock', { timeout: 120000 }, async () => {
     const dataDir = await makeDataDir();
     const server = spawnServer(dataDir);
     await waitForLock(dataDir);
+    await waitForServerReady(server);
 
-    await terminateServer(server);
-    await waitFor('the lock to be released', async () => {
-      try {
-        await fs.access(lockPath(dataDir));
-        return undefined;
-      } catch {
-        return true;
-      }
-    });
+    const exit = await stopGracefully(server);
+    expect(exit.signal).toBe('SIGTERM');
+    await expectLockRemoved(dataDir, 'graceful stop');
+  });
+
+  it('j) SIGTERM in the lock-creation window still releases the lock', { timeout: 180000 }, async () => {
+    const iterations = 20;
+    for (let i = 0; i < iterations; i++) {
+      const dataDir = await makeDataDir();
+      const child = spawnServer(dataDir);
+      // Densest possible observation of "the lock file now exists" — no timers.
+      await tightWaitForLock(dataDir);
+      child.kill('SIGTERM');
+      const exit = await waitForExit(child, 20000);
+
+      expect(exit.signal, `iteration ${i + 1}/${iterations}: the server must exit via the signal handler`).toBe('SIGTERM');
+      await expectLockRemoved(dataDir, `iteration ${i + 1}/${iterations}: SIGTERM during startup`);
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
   });
 
   it('f) a lock from another hostname is never removed automatically', { timeout: 30000 }, async () => {
@@ -457,6 +534,28 @@ describe('MU-01: lock primitives', () => {
     })).rejects.toMatchObject({ code: 'SERVER_LOCK_UNVERIFIABLE' });
   });
 
+  it('removes an abandoned reclaim guard left by a dead reclaimer', async () => {
+    const dataDir = await makeDataDir();
+    writeLockSync(dataDir, { token: 'stale-token', pid: 2147483646, processIdentity: 'boot:1' });
+    fsSync.writeFileSync(
+      `${lockPath(dataDir)}.reclaim`,
+      JSON.stringify({
+        pid: 2147483646,
+        hostname: os.hostname(),
+        startedAt: new Date().toISOString(),
+        transport: 'reclaim',
+        version: '0',
+        token: 'dead-guard',
+        processIdentity: 'boot:1',
+      }),
+    );
+
+    const lock = await acquireServerLock({ dataDir, transport: 'test', version: '0.0.0' });
+    expect(lock.holder.pid).toBe(process.pid);
+    expect(fsSync.existsSync(`${lockPath(dataDir)}.reclaim`)).toBe(false);
+    await lock.release();
+  });
+
   it('is re-entrant per process and drops the file on release', async () => {
     const dataDir = await makeDataDir();
     const first = await acquireServerLock({ dataDir, transport: 'test', version: '0.0.0' });
@@ -533,6 +632,55 @@ describe('MU-01: lock primitives', () => {
       if (previous === undefined) delete process.env.npm_package_version;
       else process.env.npm_package_version = previous;
     }
+  });
+
+  it('arms the signal release before the claim and removes it on release', async () => {
+    const dataDir = await makeDataDir();
+    const before = process.listenerCount('SIGTERM');
+    const lock = await acquireServerLock({
+      dataDir,
+      transport: 'test',
+      version: '0.0.0',
+      releaseOnSignal: true,
+    });
+    expect(process.listenerCount('SIGTERM')).toBe(before + 1);
+    expect(process.listenerCount('SIGINT')).toBeGreaterThan(0);
+
+    await lock.release();
+    expect(process.listenerCount('SIGTERM')).toBe(before);
+  });
+
+  it('removes the signal release when the claim fails', async () => {
+    const dataDir = await makeDataDir();
+    writeLockSync(dataDir, { token: 'live-token' });
+    const before = process.listenerCount('SIGTERM');
+    await expect(acquireServerLock({
+      dataDir,
+      transport: 'test',
+      version: '0.0.0',
+      releaseOnSignal: true,
+    })).rejects.toMatchObject({ code: 'SERVER_LOCK_HELD' });
+    expect(process.listenerCount('SIGTERM')).toBe(before);
+  });
+
+  it('does not add a second signal release on a re-entrant acquire', async () => {
+    const dataDir = await makeDataDir();
+    const first = await acquireServerLock({
+      dataDir,
+      transport: 'test',
+      version: '0.0.0',
+      releaseOnSignal: true,
+    });
+    const withHandler = process.listenerCount('SIGTERM');
+    const second = await acquireServerLock({
+      dataDir,
+      transport: 'test',
+      version: '0.0.0',
+      releaseOnSignal: true,
+    });
+    expect(second).toBe(first);
+    expect(process.listenerCount('SIGTERM')).toBe(withHandler);
+    await first.release();
   });
 
   it('skips the lock only in proxy mode', () => {
