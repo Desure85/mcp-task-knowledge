@@ -162,9 +162,8 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                       className="border-b border-line last:border-b-0"
                     >
                       <td className={CELL}>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex gap-1">
                           <Button
-                            size="sm"
                             variant="ghost"
                             aria-label={`Move ${type.label} up`}
                             disabled={disabled || first}
@@ -173,7 +172,6 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                             <span aria-hidden="true">↑</span>
                           </Button>
                           <Button
-                            size="sm"
                             variant="ghost"
                             aria-label={`Move ${type.label} down`}
                             disabled={disabled || last}
@@ -247,7 +245,6 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                       </td>
                       <td className={CELL}>
                         <Button
-                          size="sm"
                           variant="danger"
                           aria-label={`Delete ${type.label}`}
                           disabled={disabled}

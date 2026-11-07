@@ -38,6 +38,9 @@ const CONTROL =
   'w-full rounded-[var(--radius-control)] border bg-surface px-2 py-1 text-[12px] text-ink placeholder:text-muted ' +
   'focus:border-accent focus:outline-none focus:ring-2 focus:ring-focus-ring/30 disabled:opacity-50';
 
+/** Single-line controls share the 32px height of `Button` size md, so a button next to a field is not taller (DESIGN.md §2.1: controls 28–32px). */
+const SINGLE_LINE = 'h-8';
+
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   hideLabel?: boolean;
@@ -56,7 +59,7 @@ export function Input({ label, hideLabel, hint, error, id, className, ...rest }:
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={[hint ? `${inputId}-hint` : null, error ? `${inputId}-error` : null].filter(Boolean).join(' ') || undefined}
-        className={cn(CONTROL, error ? 'border-danger' : 'border-line', className)}
+        className={cn(CONTROL, SINGLE_LINE, error ? 'border-danger' : 'border-line', className)}
       />
     </FieldShell>
   );
@@ -80,7 +83,7 @@ export function Select({ label, hideLabel, hint, error, id, className, children,
         id={selectId}
         aria-invalid={error ? true : undefined}
         aria-describedby={[hint ? `${selectId}-hint` : null, error ? `${selectId}-error` : null].filter(Boolean).join(' ') || undefined}
-        className={cn(CONTROL, error ? 'border-danger' : 'border-line', className)}
+        className={cn(CONTROL, SINGLE_LINE, error ? 'border-danger' : 'border-line', className)}
       >
         {children}
       </select>
@@ -153,7 +156,7 @@ export function ColorField({ label, value, onChange, hint, error, id }: ColorFie
           placeholder="hex, rgb() or hsl()"
           spellCheck={false}
           autoComplete="off"
-          className={cn(CONTROL, error ? 'border-danger' : 'border-line')}
+          className={cn(CONTROL, SINGLE_LINE, error ? 'border-danger' : 'border-line')}
         />
       </div>
     </FieldShell>

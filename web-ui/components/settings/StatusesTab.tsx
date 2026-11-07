@@ -161,9 +161,8 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       className="border-b border-line last:border-b-0"
                     >
                       <td className={CELL}>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex gap-1">
                           <Button
-                            size="sm"
                             variant="ghost"
                             aria-label={`Move ${status.label} up`}
                             disabled={disabled || first}
@@ -172,7 +171,6 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                             <span aria-hidden="true">↑</span>
                           </Button>
                           <Button
-                            size="sm"
                             variant="ghost"
                             aria-label={`Move ${status.label} down`}
                             disabled={disabled || last}
@@ -244,7 +242,6 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       </td>
                       <td className={CELL}>
                         <Button
-                          size="sm"
                           variant="secondary"
                           className={isInitial ? 'border-line-strong bg-accent-soft' : 'bg-surface-2'}
                           aria-pressed={isInitial}
@@ -264,7 +261,6 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       </td>
                       <td className={CELL}>
                         <Button
-                          size="sm"
                           variant="secondary"
                           className={status.archived ? 'border-line-strong bg-accent-soft' : 'bg-surface-2'}
                           aria-pressed={Boolean(status.archived)}
@@ -281,7 +277,6 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       </td>
                       <td className={CELL}>
                         <Button
-                          size="sm"
                           variant="danger"
                           aria-label={`Delete ${status.label}`}
                           disabled={disabled}
