@@ -63,15 +63,15 @@ export function scrubSensitiveText(text: string, token?: string): string {
 }
 
 /**
- * Error copy safe for logs: transport errors may quote the upstream URL
- * verbatim, including credentials or a token in the query string.
+ * Scrub an error in place before logging it: transport errors may quote the
+ * upstream URL verbatim, including credentials or a token in the query string.
+ * Mutating keeps the constructor (pino's `type`) and the rest of the shape.
  */
 export function sanitizeError(err: unknown, token?: string): unknown {
   if (!(err instanceof Error)) return err;
-  const copy = new Error(scrubSensitiveText(err.message, token));
-  copy.name = err.name;
-  if (err.stack) copy.stack = scrubSensitiveText(err.stack, token);
-  return copy;
+  err.message = scrubSensitiveText(err.message, token);
+  if (err.stack) err.stack = scrubSensitiveText(err.stack, token);
+  return err;
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────
