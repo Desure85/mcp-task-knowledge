@@ -43,6 +43,7 @@ function textOf(result: unknown): string {
 export function redactUrl(raw: string): string {
   try {
     const url = new URL(raw);
+    if (!url.username && !url.password && !url.search) return raw;
     url.username = '';
     url.password = '';
     if (url.search) url.search = '?<redacted>';
