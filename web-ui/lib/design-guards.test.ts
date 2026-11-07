@@ -221,3 +221,42 @@ describe('UI-34 guard 3: page contract (PageHeader, no own h1)', () => {
     }
   });
 });
+
+/**
+ * Guard 4: single-line controls share the `Button` size md height
+ * (DESIGN.md §2.1, «контролы 28–32 px»).
+ *
+ * A field that is shorter than the button next to it is the defect this guard
+ * prevents: `Input`/`Select` used to be ~26 px while `Button` md was 32 px, so
+ * every search row was ragged. The height lives in one constant per file, and
+ * the guard compares the two instead of pinning a pixel value: moving both
+ * sides together stays green, drifting one side alone fails.
+ */
+describe('UI-34 guard 4: single-line controls match the Button md height', () => {
+  const FIELD = read(path.join(WEB_UI, 'components', 'ui', 'Field.tsx'));
+  const BUTTON = read(path.join(WEB_UI, 'components', 'ui', 'Button.tsx'));
+
+  function constantValue(source: string, name: string): string {
+    const match = source.match(new RegExp(`const ${name}\\s*=\\s*'([^']+)'`));
+    return match ? match[1].trim() : '';
+  }
+
+  it('uses one height class for Button md and the field constant', () => {
+    const singleLine = constantValue(FIELD, 'SINGLE_LINE');
+    expect(singleLine, 'components/ui/Field.tsx: константа SINGLE_LINE').toMatch(/^h-\d+$/);
+    const mdSize = BUTTON.match(/md:\s*'([^']+)'/)?.[1] ?? '';
+    expect(mdSize.split(/\s+/), `Button md должен нести ${singleLine}`).toContain(singleLine);
+  });
+
+  it('applies the constant to every single-line field and leaves Textarea free', () => {
+    const controlUsages = FIELD.match(/cn\(CONTROL,/g) ?? [];
+    const singleLineUsages = FIELD.match(/cn\(CONTROL, SINGLE_LINE/g) ?? [];
+    // Input, Select, ColorField text input are single-line; Textarea is the fourth.
+    expect(controlUsages.length, 'пересчитай: добавили контрол — проверь его высоту').toBe(4);
+    expect(singleLineUsages.length, 'однострочные поля должны нести SINGLE_LINE').toBe(3);
+
+    const textareaClass = FIELD.match(/<textarea[\s\S]*?className=\{([^}]+)\}/)?.[1] ?? '';
+    expect(textareaClass, 'Textarea не получает фиксированную высоту').not.toContain('SINGLE_LINE');
+    expect(textareaClass, 'Textarea остаётся многострочной').toContain('min-h-20');
+  });
+});
