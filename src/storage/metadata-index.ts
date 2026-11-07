@@ -889,7 +889,10 @@ async function readDocRowAt(
 ): Promise<MetadataIndexDocRow | null> {
   try {
     const [raw, st] = await Promise.all([fsp.readFile(file, 'utf8'), fsp.stat(file)]);
-    const meta = matter(raw).data as unknown as KnowledgeDocMeta;
+    // gray-matter caches every parsed document in `matter.cache` when called
+    // without options, keyed by the full text and never evicted: a 100k corpus
+    // retains ~650 MB and OOMs the rebuild. Any options object disables that cache.
+    const meta = matter(raw, {}).data as unknown as KnowledgeDocMeta;
     const id = meta.id || path.basename(file, '.md');
     const project = projectHint ?? meta.project ?? 'default';
     return buildDocRow(project, { ...meta, id }, st.mtimeMs, path.relative(dataDir, file));
