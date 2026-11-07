@@ -742,6 +742,12 @@ export async function restoreBackup(
 
   const { filesCount } = await applyRestorePlan(plan, backupDir);
   log.info({ backupDir, dataDir, filesCount, deletes: plan.deletes.length }, 'backup restored');
+  try {
+    const { markActiveIndexDirty } = await import('../storage/metadata-index.js');
+    markActiveIndexDirty('backup restore');
+  } catch {
+    log.debug('metadata index module unavailable after restore');
+  }
   return {
     restored,
     filesCount,

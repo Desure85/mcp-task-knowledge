@@ -1,5 +1,6 @@
 import { DEFAULT_PROJECT, TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from './config.js';
 import { resolveUnder, PathValidationError, withFileLock } from './fs.js';
+import { indexProjectDelete } from './storage/metadata-index.js';
 import type { ProjectStatus, ProjectType } from './workflow.js';
 
 /**
@@ -255,6 +256,7 @@ export async function deleteProject(projectId: string, force: boolean): Promise<
     // Clean up metadata
     const metaPath = resolveUnder(DATA_DIR, 'projects', `${projectId}.json`);
     try { await fs.unlink(metaPath); } catch {}
+    indexProjectDelete(projectId);
   } catch (e: any) {
     return { deleted: false, message: `Failed to delete: ${e.message}` };
   }
