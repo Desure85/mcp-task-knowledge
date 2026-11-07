@@ -292,6 +292,9 @@ describe('SC-02b index failure never breaks the mutation', () => {
       markDirty: (reason) => real.markDirty(reason),
       deleteProject: () => undefined,
       rebuild: (options) => real.rebuild(options),
+      isProjectComplete: () => false,
+      fillProject: async (options) => ({ project: options.project, tasks: 0, docs: 0, ms: 0 }),
+      recountProject: () => undefined,
     };
 
     mod.setActiveMetadataIndex(throwing);
