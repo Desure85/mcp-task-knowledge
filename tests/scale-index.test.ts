@@ -61,6 +61,17 @@ function taskIds(page: { items: Array<{ id: string }> }): string[] {
   return page.items.map((item) => item.id);
 }
 
+function projectRow(project: string): { file_count: number; synced_at: string } | undefined {
+  const db = new Database(path.join(DATA_DIR, '.index', 'metadata.db'), { readonly: true });
+  try {
+    return db
+      .prepare('SELECT file_count, synced_at FROM projects WHERE project = ?')
+      .get(project) as { file_count: number; synced_at: string } | undefined;
+  } finally {
+    db.close();
+  }
+}
+
 beforeAll(async () => {
   mod = await import('../src/storage/metadata-index.js');
   tasks = await import('../src/storage/tasks.js');
@@ -131,7 +142,7 @@ describe('SC-02c page equivalence with the file path', () => {
   let parentId = '';
   let other = '';
 
-  beforeAll(async () => {
+beforeAll(async () => {
     project = uniqueProject('eq');
     other = uniqueProject('eq-other');
     const parent = await tasks.createTask({ project, title: 'parent', status: 'pending', priority: 'high', type: 'task', tags: ['a'] });
@@ -211,6 +222,43 @@ describe('SC-02c page equivalence with the file path', () => {
     expect(indexed.keys[0]).toBe(indexed.keys[1]);
     expect(taskIds(indexed)).toEqual(taskIds(fromFiles));
     expect(indexed.items[0].id < indexed.items[1].id).toBe(true);
+  });
+});
+
+describe('SC-02c completeness across ordinary writes', () => {
+  it('keeps the project complete after create, update and delete of tasks and documents', async () => {
+    const project = uniqueProject('writes');
+    const t1 = await tasks.createTask({ project, title: 'one' });
+    const d1 = await knowledge.createDoc({ project, title: 'doc-one', content: 'x' });
+    await ensureFilled(project);
+
+    const filled = projectRow(project);
+    expect(filled?.file_count).toBe(2);
+    expect(index.isProjectComplete(project)).toBe(true);
+
+    const t2 = await tasks.createTask({ project, title: 'two' });
+    const d2 = await knowledge.createDoc({ project, title: 'doc-two', content: 'y' });
+    expect(projectRow(project)?.file_count).toBe(4);
+    expect(index.isProjectComplete(project)).toBe(true);
+
+    await tasks.updateTask(project, t2.id, { status: 'in_progress' });
+    await knowledge.updateDoc(project, d2.id, { title: 'doc-two renamed' });
+    expect(projectRow(project)?.file_count).toBe(4);
+    expect(index.isProjectComplete(project)).toBe(true);
+
+    await tasks.deleteTaskPermanent(project, t1.id);
+    await knowledge.deleteDocPermanent(project, d1.id);
+    expect(projectRow(project)?.file_count).toBe(2);
+    expect(index.isProjectComplete(project)).toBe(true);
+
+    mod.resetIndexReadStats();
+    const page = await tasks.listTasksPage(project, { limit: 50 });
+    const docs = await knowledge.listDocsPage(project, { limit: 50 });
+    expect(taskIds(page)).toEqual([t2.id]);
+    expect(docs.items.map((d) => d.id)).toEqual([d2.id]);
+    expect(mod.getIndexReadStats()).toEqual({ indexReads: 2, filesReads: 0 });
+    expect(projectRow(project)?.synced_at).toBe(filled?.synced_at);
+    expect(mod.getProjectIndexFillState(project)).toBe('complete');
   });
 });
 

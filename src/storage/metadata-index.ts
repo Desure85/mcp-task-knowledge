@@ -348,6 +348,9 @@ export class SqliteMetadataIndex implements MetadataIndex {
     const db = this.requireDb();
     this.mutations++;
     db.transaction((task: MetadataIndexTaskRow) => {
+      const existing = db
+        .prepare<[string], { project: string }>('SELECT project FROM tasks WHERE id = ?')
+        .get(task.id);
       db.prepare(
         `INSERT INTO tasks
            (id, project, status, priority, type, parent_id, updated_at, mtime_ms, archived, trashed, rel_path)
@@ -379,6 +382,11 @@ export class SqliteMetadataIndex implements MetadataIndex {
       db.prepare('DELETE FROM task_tags WHERE task_id = ?').run(task.id);
       const insertTag = db.prepare('INSERT OR IGNORE INTO task_tags (task_id, tag) VALUES (?, ?)');
       for (const tag of task.tags) insertTag.run(task.id, tag);
+      if (!existing) this.bumpProjectCount(db, task.project, 1);
+      else if (existing.project !== task.project) {
+        this.bumpProjectCount(db, existing.project, -1);
+        this.bumpProjectCount(db, task.project, 1);
+      }
     })(row);
   }
 
@@ -386,8 +394,12 @@ export class SqliteMetadataIndex implements MetadataIndex {
     const db = this.requireDb();
     this.mutations++;
     db.transaction((taskId: string) => {
+      const existing = db
+        .prepare<[string], { project: string }>('SELECT project FROM tasks WHERE id = ?')
+        .get(taskId);
       db.prepare('DELETE FROM tasks WHERE id = ?').run(taskId);
       db.prepare('DELETE FROM task_tags WHERE task_id = ?').run(taskId);
+      if (existing) this.bumpProjectCount(db, existing.project, -1);
     })(id);
   }
 
@@ -395,6 +407,9 @@ export class SqliteMetadataIndex implements MetadataIndex {
     const db = this.requireDb();
     this.mutations++;
     db.transaction((doc: MetadataIndexDocRow) => {
+      const existing = db
+        .prepare<[string], { project: string }>('SELECT project FROM docs WHERE id = ?')
+        .get(doc.id);
       db.prepare(
         `INSERT INTO docs
            (id, project, title, type, parent_id, trust_level, updated_at, mtime_ms, archived, trashed, rel_path)
@@ -426,6 +441,11 @@ export class SqliteMetadataIndex implements MetadataIndex {
       db.prepare('DELETE FROM doc_tags WHERE doc_id = ?').run(doc.id);
       const insertTag = db.prepare('INSERT OR IGNORE INTO doc_tags (doc_id, tag) VALUES (?, ?)');
       for (const tag of doc.tags) insertTag.run(doc.id, tag);
+      if (!existing) this.bumpProjectCount(db, doc.project, 1);
+      else if (existing.project !== doc.project) {
+        this.bumpProjectCount(db, existing.project, -1);
+        this.bumpProjectCount(db, doc.project, 1);
+      }
     })(row);
   }
 
@@ -433,8 +453,12 @@ export class SqliteMetadataIndex implements MetadataIndex {
     const db = this.requireDb();
     this.mutations++;
     db.transaction((docId: string) => {
+      const existing = db
+        .prepare<[string], { project: string }>('SELECT project FROM docs WHERE id = ?')
+        .get(docId);
       db.prepare('DELETE FROM docs WHERE id = ?').run(docId);
       db.prepare('DELETE FROM doc_tags WHERE doc_id = ?').run(docId);
+      if (existing) this.bumpProjectCount(db, existing.project, -1);
     })(id);
   }
 
@@ -590,6 +614,17 @@ export class SqliteMetadataIndex implements MetadataIndex {
     this.mutations++;
 
     return { project, tasks, docs, ms: Date.now() - started };
+  }
+
+  /**
+   * `projects.file_count` is the completeness invariant side, so it moves with
+   * the rows themselves: only an actual insert or delete changes it, an update
+   * does not. A project without a `projects` row stays untracked (and therefore
+   * incomplete), which is what keeps a never-filled project on the file path.
+   */
+  private bumpProjectCount(db: Database.Database, project: string | null | undefined, delta: number): void {
+    if (!project || delta === 0) return;
+    db.prepare('UPDATE projects SET file_count = MAX(0, file_count + ?) WHERE project = ?').run(delta, project);
   }
 
   recountProject(project: string): void {
