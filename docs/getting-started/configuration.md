@@ -53,8 +53,39 @@ updates. A second process started on the same `DATA_DIR` does not start: it exit
   The start fails with `SERVER_LOCK_FOREIGN_HOST`; delete the file manually only after confirming that
   host is really down.
 - A graceful stop (`SIGINT`, `SIGTERM`, normal exit) removes the lock; `doctor` never takes it.
-- To use one `DATA_DIR` from several clients, keep one server and point the clients at it (HTTP
-  transport, or the stdio bridge once MU-08 lands) instead of starting a second server.
+- To use one `DATA_DIR` from several clients, keep one server and point the clients at it: either the
+  HTTP transport directly, or the stdio bridge (below) for clients that only speak stdio.
+
+### Agents over stdio to one http core
+
+One http core owns the data; stdio-only clients (IDE extensions, agents) connect through the bridge.
+The bridge speaks MCP on stdin/stdout and forwards every call to the core over HTTP. It opens no
+storage, loads no embeddings and never takes `.server.lock`, so it does not need `DATA_DIR` at all.
+
+Client configuration — the token comes from the environment, never from the file:
+
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "args": ["bridge", "--url", "http://127.0.0.1:3001/mcp"],
+      "env": { "MCP_PROXY_TOKEN": "${MCP_PROXY_TOKEN}" }
+    }
+  }
+}
+```
+
+- Flags: `--url` (alias `--proxy-upstream`) and `--token`; environment: `MCP_PROXY_UPSTREAM`,
+  `MCP_PROXY_TOKEN`. A command-line token is accepted but the environment is preferred: arguments are
+  visible in the process list.
+- Exit codes: `0` stdin closed or signal, `2` usage, `3` upstream unreachable (three bounded attempts),
+  `4` authentication failed. The token is never written to stdout, stderr or logs.
+- The core gates every method except `initialize`/`ping` until the session authenticates. The bridge
+  calls `mcp.authenticate` on start and again after every reconnect, so a core restart is invisible to
+  the client: the next tool call reconnects and succeeds.
+- Closing the client (stdin EOF) or the parent process terminates the bridge; `kill -9` on a bridge
+  leaves the core and other bridges untouched.
 
 ### Backups
 

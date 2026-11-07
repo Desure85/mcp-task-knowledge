@@ -67,6 +67,29 @@ hostname and is never removed automatically — start fails with `SERVER_LOCK_FO
 `/data/.server.lock` manually only after confirming the other host is down. Details:
 [Configuration → One server process per DATA_DIR](../getting-started/configuration.md#one-server-process-per-data_dir).
 
+### Agents over stdio to one core
+
+Keep the container as the only writer and let stdio-only clients (IDE extensions, agents) reach it
+through the bridge. The bridge runs on the client machine, needs no volume, and forwards MCP over HTTP
+to the published port; it never touches `/data` and never takes the lock, so many agents can share one
+core:
+
+```json
+{
+  "mcpServers": {
+    "task-knowledge": {
+      "command": "mcp-task-knowledge",
+      "args": ["bridge", "--url", "http://127.0.0.1:3001/mcp"],
+      "env": { "MCP_PROXY_TOKEN": "${MCP_PROXY_TOKEN}" }
+    }
+  }
+}
+```
+
+The core keeps its http port as the only published surface; there is no second volume and no second
+server. Exit codes and the `mcp.authenticate` handshake are described in
+[Configuration → Agents over stdio to one http core](../getting-started/configuration.md#agents-over-stdio-to-one-http-core).
+
 ## Docker Compose
 
 ```yaml
