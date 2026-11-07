@@ -20,12 +20,18 @@
  *   4. rejects with a protocol code from the declared set,
  *   5. keeps the SAME keep-alive connection usable for the next valid request.
  *
- * Observed contract on master (2026-11-07, see docs/dev-cycle/decisions/…-tr-04c.md):
- *   session + malformed JSON -> 400 / -32700 Parse error
- *   no session + malformed   -> 400 / -32000 "No valid session ID"  (spec would say -32700;
- *                               recorded as a deviation, not fixed here — src/ is out of scope)
- *   unknown method / nameless tools/call, no auth configured -> 401 / -32001 fail-closed
- *   empty batch []            -> 202 with an empty body
+ * Observed contract on master (2026-11-07, docs/dev-cycle/decisions/…-tr-04c.md):
+ *   session + malformed JSON      -> 400 / -32700 Parse error
+ *   no session + any body         -> 400 / -32000 "No valid session ID" (spec would say -32700;
+ *                                    recorded as a deviation, src/ is out of scope here)
+ *   session + unknown method      -> 200 / -32601 Method not found
+ *   session + tools/call w/o name -> 401 / -32001 fail-closed (the gate rejects before the SDK)
+ *   empty batch []                -> 202 with an empty body
+ *   the keep-alive socket survives every one of them (ping reuses the same local port)
+ *
+ * The transport is given a permissive AuthManager (requireAuth:false), the configuration a
+ * server without login credentials runs with; without one the gate fails closed on any
+ * non-lifecycle method and the protocol errors under test would never be reached.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fc from 'fast-check';
@@ -117,9 +123,11 @@ describe('JSON-RPC ingest fuzzing (real transport)', () => {
     const { createServerContext } = await import('../src/register/setup.js');
     const { defaultRegistration } = await import('../src/core/app-container.js');
     const { HttpTransportAdapter } = await import('../src/transport/http-transport.js');
+    const { AuthManager } = await import('../src/core/auth.js');
 
     const ctx = await createServerContext();
     await defaultRegistration(ctx);
+    ctx.authManager = new AuthManager({ requireAuth: false });
 
     const real = new HttpTransportAdapter(0, '127.0.0.1');
     await real.connect(ctx);
@@ -145,9 +153,9 @@ describe('JSON-RPC ingest fuzzing (real transport)', () => {
   function assertEnvelope(res: RawResponse): void {
     expect(ALLOWED_STATUSES).toContain(res.status);
     expect(res.status).toBeLessThan(500);
+    expect(res.body).not.toMatch(/[\w./-]+\.(?:ts|js):\d+:\d+/);
     expect(res.body).not.toContain(process.cwd());
     expect(res.body).not.toContain('node_modules');
-    expect(res.body).not.toMatch(/\n\s+at\s+\S+:\d+:\d+/);
 
     if (res.body.length === 0) {
       // Only a notification/empty-batch acknowledgement may have no body.
@@ -184,22 +192,23 @@ describe('JSON-RPC ingest fuzzing (real transport)', () => {
   ];
 
   it('rejects the observed malformed payloads with a protocol error, not a crash', async () => {
-    const expectations: Array<[string, string | undefined, number[]]> = [
-      ['not json {', sessionId, [400]],
-      ['not json {', undefined, [400]],
-      ['', sessionId, [400]],
-      ['[]', sessionId, [202, 400]],
-      ['{"jsonrpc":"2.0"}', sessionId, [400]],
+    const expectations: Array<[string, string | undefined, number[], number[]]> = [
+      ['not json {', sessionId, [400], [-32700]],
+      ['not json {', undefined, [400], [-32700, -32000]],
+      ['', sessionId, [400], [-32700]],
+      ['[]', sessionId, [202, 400], []],
+      ['{"jsonrpc":"2.0"}', sessionId, [400], [-32700, -32600]],
+      ['{"jsonrpc":"2.0","id":1,"method":"nope"}', sessionId, [200, 400], [-32601]],
     ];
-    for (const [body, sid, statuses] of expectations) {
+    for (const [body, sid, statuses, codes] of expectations) {
       const res = await post(body, sid);
       assertEnvelope(res);
-      expect(statuses, `body=${JSON.stringify(body)} sid=${sid ?? 'none'}`).toContain(res.status);
+      const label = `body=${JSON.stringify(body)} sid=${sid ?? 'none'}`;
+      expect(statuses, label).toContain(res.status);
       if (res.body.length > 0) {
         const parsed = JSON.parse(res.body) as { result?: unknown; error?: { code?: number } };
-        // A parse-class rejection: -32700 (spec) or -32000 (sessionless on this server).
-        expect([-32700, -32000, -32600]).toContain(parsed.error?.code);
-        expect(parsed.result).toBeUndefined();
+        expect(codes, label).toContain(parsed.error?.code);
+        if (codes.length > 0) expect(parsed.result, label).toBeUndefined();
       }
       await assertAlive(res.socketPort);
     }
