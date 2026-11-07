@@ -154,6 +154,8 @@ describe('SC-02c page equivalence with the file path', () => {
     { label: 'priority', opts: { limit: 50, priority: 'high' }, contentFilter: true },
     { label: 'parentId', opts: { limit: 50, parentId: '' }, contentFilter: true },
     { label: 'type', opts: { limit: 50, type: 'bug' }, contentFilter: true },
+    { label: 'updatedSince (all)', opts: { limit: 50, updatedSince: '2000-01-01T00:00:00.000Z' }, contentFilter: true },
+    { label: 'updatedSince (none)', opts: { limit: 50, updatedSince: '2999-01-01T00:00:00.000Z' }, contentFilter: true },
     { label: 'includeArchived', opts: { limit: 50, includeArchived: true }, contentFilter: false },
     { label: 'page of two', opts: { limit: 2 }, contentFilter: false },
   ];
