@@ -138,6 +138,8 @@ __pycache__/
 .tmp-e2e-*/
 .tmp-tests-*/
 .tmp-*.json
+# Derived SQLite metadata index (SC-02a; rebuilt from files, never a source of truth)
+.index/
 # Test-created temp dirs (integration.test.ts and others; see interrupted-run leak .tmp-mcp-integration-*)
 .tmp-*/
 
