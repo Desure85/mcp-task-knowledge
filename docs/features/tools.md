@@ -379,9 +379,10 @@ What this mode does and does not change:
 - tool resources (`tool://<name>`) follow the same gate, and `admin_*`/connector tools are unavailable
   on the wire.
 
-Budget (controller estimate, not a benchmark): the full surface serializes to roughly 66 KB
-(≈18k tokens), the compact surface to roughly 2 KB (≈530 tokens). Treat both as an order of
-magnitude, not as measured limits.
+Budget (estimate, not a benchmark; measured on commit 28e45a1 in direct stdio mode with the MCP SDK
+client, serializing the `client.listTools()` result as UTF-8 JSON): the full surface serializes to
+roughly 88 KB (≈24k tokens), the compact surface to roughly 2 KB (≈530 tokens). Treat both as an
+order of magnitude, not as measured limits.
 
 The contract is enforced by `tests/docs-tools-coverage.test.ts`, which builds the real registration
 in both modes and fails if these four names, the documentation rows or the generated counter drift.
