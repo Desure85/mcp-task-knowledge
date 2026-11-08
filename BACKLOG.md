@@ -1479,6 +1479,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Инкремент | Статус | DoD (исполняемая проверка) |
 |----|-----------|--------|----------------------------|
 | SC-03a | Хранилище FTS5-индекса | done | `npx vitest run tests/search-fts.test.ts`; pass — индекс хранит наши термы (`tokenize()` из BM25: camelCase/snake_case, акронимы, тикеты, русский), запрос находит по внутреннему сегменту идентификатора и по префиксу (`auth` → `authentication`), фильтры `kind`/`project`, upsert перезаписывает термы, `remove`/`rebuild`, счётчики по видам, несовпадение версии схемы пересоздаёт таблицу. Реализовано (2026-11-08): `src/search/fts-index.ts` (`FtsSearchIndex.open`/`.inMemory`, `upsert`, `remove`, `rebuild`, `query`, `stats`, `search_meta` с версией), `tokenize` экспортирован. Тесты: 16. Revert-check 4 мутации RED |
+| SC-03a2 | Измерение «хранилище» в индексе | done | `npx vitest run tests/search-fts.test.ts` (часть 2); pass — одинаковые `project`/`id` в двух хранилищах не смешиваются, `stats(store)`/`stores()` считают по хранилищам, `remove`/`clearStore` не задевают соседнее, `resolveStoreId` нормализует путь. Реализовано (2026-11-08): ключ `(store, kind, id)`, `resolveStoreId(root)` (абсолютный путь, нижний регистр на Windows), `remove(store,kind,id)`, `clearStore(store)`, `stats(store)`, `stores()`; схема FTS → v2. Причина: `MCP_TASK_DIR`/`MCP_KNOWLEDGE_DIR` вне `DATA_DIR`, legacy `DATA_DIR/mcp/*`, legacy-id из имён файлов. Revert-check 3 мутации RED |
 | SC-03b | Индекс пишется при мутациях | pending | `npx vitest run tests/search-fts.test.ts` (часть 2); pass — `tasks_create`/`tasks_update`/`knowledge_bulk_*` обновляют термы (старый терм пропадает), удалённая задача/документ исчезает из выдачи, `reindex --verify` сообщает расхождение, `doctor` предупреждает о неполном/устаревшем индексе, индекс живёт в `.index/metadata.db` |
 | SC-03c | Поиск читает индекс | pending | `npx vitest run tests/search-fts.test.ts` (часть 3) плюс `node scripts/kb-bench.mjs retrieval --mode bm25` → hit@1 ≥ 0.889 и `node scripts/bench/run-scale.mjs --data <100k> --n 100000 --only search_tasks,search_knowledge --reps 3` → `medianMs < 1000`; при отсутствии индекса — откат на in-memory BM25 |
 
@@ -1618,3 +1619,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-08, SC-03a): добавлено хранилище FTS5-индекса; read-путь пока не тронут,
 > поэтому поведение поиска не меняется. SC-03 разбит на a/b/c и остаётся `pending`,
 > «Итого» не меняется.
+> Примечание (2026-11-08, SC-03a2): в индексе появилось измерение `store` — проект умеет
+> держать несколько хранилищ (`MCP_TASK_DIR`/`MCP_KNOWLEDGE_DIR`, legacy `DATA_DIR/mcp/*`),
+> и ключ `(store, kind, id)` не даёт им смешаться. Схема FTS → v2; read-путь по-прежнему не
+> тронут, SC-03 остаётся `pending`.

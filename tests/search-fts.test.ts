@@ -12,13 +12,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { FtsSearchIndex, FTS_SCHEMA_VERSION, type FtsRecord } from '../src/search/fts-index.js';
+import { FtsSearchIndex, FTS_SCHEMA_VERSION, resolveStoreId, type FtsRecord } from '../src/search/fts-index.js';
 
 let tmpDir: string;
 let index: FtsSearchIndex;
 
 function record(overrides: Partial<FtsRecord> & { id: string; text: string }): FtsRecord {
-  return { kind: 'task', project: 'p', updatedAt: '2026-11-08T00:00:00.000Z', ...overrides };
+  return { store: 's1', kind: 'task', project: 'p', updatedAt: '2026-11-08T00:00:00.000Z', ...overrides };
 }
 
 beforeEach(() => {
@@ -115,8 +115,8 @@ describe('SC-03a: write semantics', () => {
 
   it('removes a single record', () => {
     index.upsert([record({ id: 'a', text: 'to be removed' }), record({ id: 'b', text: 'to be removed' })]);
-    expect(index.remove('task', 'a')).toBe(true);
-    expect(index.remove('task', 'a')).toBe(false);
+    expect(index.remove('s1', 'task', 'a')).toBe(true);
+    expect(index.remove('s1', 'task', 'a')).toBe(false);
     expect(index.query({ q: 'removed' }).map((hit) => hit.id)).toEqual(['b']);
   });
 
@@ -162,5 +162,61 @@ describe('SC-03a: schema handling', () => {
     const second = FtsSearchIndex.open(file);
     expect(second.query({ q: 'survives' }).map((hit) => hit.id)).toEqual(['a']);
     second.close();
+  });
+});
+
+describe('SC-03a2: several storages in one index file', () => {
+  it('keeps the same project name and id in two stores apart', () => {
+    // Legacy task ids come from file names, so an id collision across stores is realistic.
+    index.upsert([
+      record({ store: 'store-a', id: 'shared', project: 'p', text: 'alpha storage sentence' }),
+      record({ store: 'store-b', id: 'shared', project: 'p', text: 'beta storage sentence' }),
+    ]);
+
+    expect(index.query({ q: 'alpha', store: 'store-a' }).map((hit) => hit.id)).toEqual(['shared']);
+    expect(index.query({ q: 'alpha', store: 'store-b' })).toEqual([]);
+    expect(index.query({ q: 'beta', store: 'store-b' }).map((hit) => hit.id)).toEqual(['shared']);
+    expect(index.query({ q: 'sentence', store: 'store-a' })).toHaveLength(1);
+    expect(index.query({ q: 'sentence' }).length).toBe(2); // deliberate cross-store tooling sees both
+  });
+
+  it('scopes stats and counts per store', () => {
+    index.upsert([
+      record({ store: 'store-a', id: 't1', text: 'a' }),
+      record({ store: 'store-a', id: 'd1', kind: 'doc', text: 'b' }),
+      record({ store: 'store-b', id: 't2', text: 'c' }),
+    ]);
+    expect(index.stats('store-a')).toMatchObject({ rows: 2, tasks: 1, docs: 1 });
+    expect(index.stats('store-b')).toMatchObject({ rows: 1, tasks: 1, docs: 0 });
+    expect(index.stats()).toMatchObject({ rows: 3, tasks: 2, docs: 1 });
+    expect(index.stores()).toEqual([
+      { store: 'store-a', rows: 2, tasks: 1, docs: 1 },
+      { store: 'store-b', rows: 1, tasks: 1, docs: 0 },
+    ]);
+  });
+
+  it('removes only the named store row and can clear a whole store', () => {
+    index.upsert([
+      record({ store: 'store-a', id: 'shared', text: 'shared text' }),
+      record({ store: 'store-b', id: 'shared', text: 'shared text' }),
+    ]);
+
+    expect(index.remove('store-a', 'task', 'shared')).toBe(true);
+    expect(index.query({ q: 'shared', store: 'store-b' })).toHaveLength(1);
+
+    index.upsert([record({ store: 'store-a', id: 'other', text: 'shared text' })]);
+    expect(index.clearStore('store-a')).toBe(1);
+    expect(index.stats('store-a').rows).toBe(0);
+    expect(index.stats('store-b').rows).toBe(1);
+  });
+
+  it('normalises store ids so one directory is one store', () => {
+    const base = path.join(tmpDir, 'tasks');
+    const withSeparator = base.endsWith(path.sep) ? base : base + path.sep;
+    expect(resolveStoreId(base)).toBe(resolveStoreId(withSeparator));
+    expect(resolveStoreId(base)).toBe(resolveStoreId(path.join(tmpDir, '.', 'tasks')));
+    if (process.platform === 'win32') {
+      expect(resolveStoreId(base.toUpperCase())).toBe(resolveStoreId(base.toLowerCase()));
+    }
   });
 });
