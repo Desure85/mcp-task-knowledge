@@ -425,16 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-ac02 (AC-02 — честные счётчики и семантика blocked)
-**Текущая ветка:** feat/ac02-status-semantics (от origin/master 02357dc, PR #302 влит)
-**Текущий этап:** контракты MCP (этап AC) — счётчики и семантика статусов
-**Статус:** AC-02 → `done`: `countOnly` отдаёт `count === total`; `search_tasks`/`search_knowledge` при усечённом ранжировании помечают `totalExact: false` и называют `candidates`; `tasks_set_deps` возвращает `task`, `statusChanged`, `blockedByDeps`, `blockingDeps`, автоблокировка вынесена в флаг `markBlocked` (по умолчанию прежнее поведение). Тесты `tests/tasks-status-semantics.test.ts` (5). AC-01 влит ранее (PR #302).
+**Session ID:** S-20261108-ac03a (AC-03a — meta.ms, batch lookup, tools_list до 300)
+**Текущая ветка:** feat/ac03a-ids-meta (от origin/master 1a093bb, PR #303 влит)
+**Текущий этап:** контракты MCP (этап AC) — экономия ответа, часть 1 из 3
+**Статус:** AC-03 разбит на AC-03a..c (решение `docs/dev-cycle/decisions/2026-11-08-1745-ac-03a.md`). `AC-03a` → done: `meta.ms` в каждом конверте (через `requestScope.startedAt` и `respond.ts::json()`), `tasks_list` по `ids` (прямые чтения) и `codes` (теги задачи), `tools_list` до 300 (схема и `ToolRegistry.list`). Тесты `tests/response-filters.test.ts` (5). `AC-03b` (tasks_dag-фильтры) и `AC-03c` (fields/compact у write) — pending.
 
 ### Найдено в этой сессии (для следующих инкрементов)
 
-- `search_knowledge` имел тот же дефект честности, что и `search_tasks` (ранжирование ограничено `RANKED_LIMIT = 200`), исправлен в этом же PR — следующий раз проверять оба поиска вместе.
-- `tasks_set_deps` не был покрыт ни одним тестом до AC-02: имя поля `status` со словами `blocked`/`unblocked` жило в коде без контракта.
-- Полная сюита на этой машине шумит (десятки падений и на master: stdio-spawn таймауты, symlink/EPERM); сравнивать «ветка против master» по именам тестов, гейт — Linux CI.
+- `ToolRegistry.list` независимо зажимал 100, хотя схема `tools_list` разрешала тоже 100 — при поднятии предела править оба места, иначе параметр молча не работает.
+- В модели `Task` нет поля `code`: коды бэклога живут в тегах. Любой фильтр «по коду» — это совпадение с тегом, и это надо писать в описании параметра.
+- `respond.ts::json()` — единственная точка, через которую идут 281 конверт; ручной сборщик был ровно один (`bulk.ts`), его легко потерять при подобных изменениях.
+- Полная сюита на этой машине шумит (stdio-spawn таймауты, symlink/EPERM на Windows); гейт — Linux CI, локально сравнивать с master по именам тестов.
 
 ### Контракт счёта инструментов (2026-11-07)
 
