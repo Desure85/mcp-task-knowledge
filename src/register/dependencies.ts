@@ -5,6 +5,7 @@ import { ok, err, errWith } from '../utils/respond.js';
 import { defaultStatusId, isDone, loadProjectWorkflow, statusCategory } from '../workflow.js';
 import { PaginationError, paginateRanked, pickFields, scopeOf } from '../utils/pagination.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
+import { projectTask, writeResponseArgs } from './write-response.js';
 
 export function registerDependencyTools(ctx: ServerContext): void {
   const { server } = ctx;
@@ -26,9 +27,10 @@ export function registerDependencyTools(ctx: ServerContext): void {
           .boolean()
           .optional()
           .describe('Automatically switch a todo-category task to "blocked" when dependencies are unmet (default true)'),
+        ...writeResponseArgs,
       },
     },
-    async ({ project, id, dependsOn, markBlocked }) => {
+    async ({ project, id, dependsOn, markBlocked, fields, compact }) => {
       const prj = resolveProject(project);
       const { listTasks, updateTask, isTaskBlocked } = await import('../storage/tasks.js');
 
@@ -52,7 +54,7 @@ export function registerDependencyTools(ctx: ServerContext): void {
       // branches (saved status, the word "blocked", the word "unblocked"); it now always
       // carries the saved status, and the facts live in `statusChanged`/`blockedByDeps`.
       const depsPayload = (task: typeof updated, statusChanged: boolean) => ({
-        task,
+        task: projectTask(task, { fields, compact }),
         statusChanged,
         blockedByDeps: blocked,
         blockingDeps: blockingDeps.map(d => ({ id: d.id, title: d.title, status: d.status })),

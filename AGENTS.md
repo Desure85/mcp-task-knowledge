@@ -425,16 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-ac03b (AC-03b — tasks_dag: фильтры, страница, бюджет ответа)
-**Текущая ветка:** feat/ac03b-dag-filters (от origin/master 4c28c25, PR #304 влит)
-**Текущий этап:** контракты MCP (этап AC) — экономия ответа, часть 2 из 3
-**Статус:** `AC-03b` → done: `tasks_dag` принимает `tag`, `onlyWithDeps`, параметры страницы (`limit` по умолчанию 200, `cursor`, `fields`, `maxBytes`), отдаёт `truncated`/`nextCursor`/`returnedNodes`, рёбра и `criticalPath` только по узлам страницы. Тесты `tests/response-filters.test.ts` (11 всего, 6 новых). `AC-03a` влит ранее (PR #304). Осталось: `AC-03c` (`fields`/`compact` у write-инструментов).
+**Session ID:** S-20261108-ac03c (AC-03c — fields/compact у write-инструментов; AC-03 закрыт)
+**Текущая ветка:** feat/ac03c-write-projections (от origin/master 5024305, PR #305 влит)
+**Текущий этап:** контракты MCP (этап AC) — экономия ответа закрыта целиком
+**Статус:** `AC-03c` → done: `fields`/`compact` у `tasks_create`, `tasks_update`, `tasks_set_deps`, `tasks_bulk_create`, `tasks_bulk_update`, `knowledge_bulk_create`, `knowledge_bulk_update` (модуль `src/register/write-response.ts`); `tasks_create` с `fields:['id']` — 116 байт. **AC-03 закрыт** (AC-03a PR #304, AC-03b PR #305, AC-03c — этот PR). Следующий по плану — AC-04 (диагностика `tools_run`, настоящая `inputSchema`, хвост лога); он требует конвертера zod-shape → JSON Schema.
 
 ### Найдено в этой сессии (для следующих инкрементов)
 
-- `topologicalSort` считает in-degree по всем `dependsOn`, включая зависимости вне набора: для отфильтрованного подмножества это может «застрять» — сейчас фильтр `tag` применяется до сортировки, но узел с внешней зависимостью выпал бы из порядка. При `onlyWithDeps`/`tag` стоит проверить это тестом на узле, зависящем от задачи вне фильтра.
-- Бюджет 8 КБ по умолчанию резал 60-узловой граф до 11 узлов — поэтому `maxBytes` сделан явным параметром, а не дефолтом; DoD проверяется с `maxBytes: 8192`.
-- UI (`web-ui/lib/api-client.ts::DagData`) пока не знает про `truncated`/`returnedNodes`; «показано N из M» — это SC-05.
+- После AC-01 любой новый аргумент инструмента обязан быть объявлен в схеме — иначе клиент получит `UNKNOWN_PARAM`; это ловушка при добавлении «тихих» флагов.
+- `String.replace` в скриптах правок бьёт по всем вхождениям: при правке `results.push(t)` зацепился `tasks_bulk_close`, у которого нет `fields/compact` — поймано сборкой. Для точечных правок использовать уникальные якоря.
+- Импорты знаний (`knowledge_import_*`) — единственные write-инструменты без `fields`/`compact`; если понадобится, у них своя форма ответа (план + счётчики), проекция потребует отдельного решения.
+- Для AC-04: SDK не публикует `toJsonSchemaCompat`; внутренний путь `@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js` импортируется по file URL. Альтернатива — свой конвертер над `_def` (v3) и `_zod` (v4), как уже сделано для определения вкуса схем в AC-01.
 
 ### Контракт счёта инструментов (2026-11-07)
 

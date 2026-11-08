@@ -518,6 +518,8 @@ Create many knowledge docs at once (optionally hierarchical via parentId)
 
 **Параметры:**
 
+- `fields`
+- `compact`
 - `project`
 - `items`
 
@@ -527,6 +529,8 @@ Create many knowledge docs at once (optionally hierarchical via parentId)
 {
   "name": "knowledge_bulk_create",
   "arguments": {
+    "fields": "example",
+    "compact": "example",
     "project": "mcp",
     "items": "example"
   }
@@ -618,6 +622,8 @@ Update fields of many knowledge docs at once
 
 **Параметры:**
 
+- `fields`
+- `compact`
 - `project`
 - `items`
 
@@ -627,6 +633,8 @@ Update fields of many knowledge docs at once
 {
   "name": "knowledge_bulk_update",
   "arguments": {
+    "fields": "example",
+    "compact": "example",
     "project": "mcp",
     "items": "example"
   }
@@ -2909,6 +2917,8 @@ Create many tasks at once (optionally hierarchical via parentId)
 
 **Параметры:**
 
+- `fields`
+- `compact`
 - `project`
 - `items`
 
@@ -2918,6 +2928,8 @@ Create many tasks at once (optionally hierarchical via parentId)
 {
   "name": "tasks_bulk_create",
   "arguments": {
+    "fields": "example",
+    "compact": "example",
     "project": "mcp",
     "items": "example"
   }
@@ -3011,6 +3023,8 @@ Update fields of many tasks at once
 
 **Параметры:**
 
+- `fields`
+- `compact`
 - `project`
 - `items`
 
@@ -3020,6 +3034,8 @@ Update fields of many tasks at once
 {
   "name": "tasks_bulk_update",
   "arguments": {
+    "fields": "example",
+    "compact": "example",
     "project": "mcp",
     "items": "example"
   }
@@ -3096,6 +3112,8 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
 - `links`
 - `parentId`
 - `dependsOn`
+- `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3116,7 +3134,9 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
       "https://example.com"
     ],
     "parentId": null,
-    "dependsOn": "example"
+    "dependsOn": "example",
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3373,6 +3393,8 @@ Set or replace dependency list for a task. Validates no cycles. Returns task, st
 - `id`
 - `dependsOn`
 - `markBlocked`
+- `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3383,7 +3405,9 @@ Set or replace dependency list for a task. Validates no cycles. Returns task, st
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
     "dependsOn": "example",
-    "markBlocked": "example"
+    "markBlocked": "example",
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3446,6 +3470,8 @@ Update a single task by id. Can change any field except id, project, createdAt. 
 - `links`
 - `parentId`
 - `dependsOn`
+- `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3467,7 +3493,9 @@ Update a single task by id. Can change any field except id, project, createdAt. 
       "https://example.com"
     ],
     "parentId": null,
-    "dependsOn": "example"
+    "dependsOn": "example",
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```

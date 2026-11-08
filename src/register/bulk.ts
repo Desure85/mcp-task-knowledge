@@ -7,6 +7,7 @@ import { ok, err, errWith } from '../utils/respond.js';
 import { WorkflowError } from '../workflow.js';
 import { createDataBackup, isBackupRequired, type BackupScope } from '../services/data-backup.js';
 import { elicitConfirm } from '../core/elicitation.js';
+import { projectDoc, projectTask, writeResponseArgs } from './write-response.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('bulk');
@@ -65,6 +66,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Update Tasks",
       description: "Update fields of many tasks at once",
       inputSchema: {
+        ...writeResponseArgs,
         project: z.string().optional(),
         items: z
           .array(
@@ -84,7 +86,7 @@ export function registerBulkTools(ctx: ServerContext): void {
           .max(100),
       },
     },
-    async ({ project, items }) => {
+    async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
       const results: any[] = [];
       const failed: Array<{ id: string; error: Record<string, unknown> }> = [];
@@ -92,7 +94,7 @@ export function registerBulkTools(ctx: ServerContext): void {
         const { id, ...patch } = it as any;
         try {
           const t = await updateTask(prj, id, patch as any);
-          if (t) results.push(t);
+          if (t) results.push(projectTask(t, { fields, compact }));
           else failed.push({ id, error: { code: 'TASK_NOT_FOUND', message: `Task not found: ${prj}/${id}` } });
         } catch (e) {
           if (e instanceof WorkflowError) {
@@ -112,6 +114,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Update Knowledge Docs",
       description: "Update fields of many knowledge docs at once",
       inputSchema: {
+        ...writeResponseArgs,
         project: z.string().optional(),
         items: z
           .array(
@@ -130,13 +133,13 @@ export function registerBulkTools(ctx: ServerContext): void {
           .max(100),
       },
     },
-    async ({ project, items }) => {
+    async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
       const results: any[] = [];
       for (const it of items) {
         const { id, ...patch } = it as any;
         const d = await updateDoc(prj, id, patch as any);
-        if (d) results.push(d);
+        if (d) results.push(projectDoc(d, { fields, compact }));
       }
       return ok({ count: results.length, results });
     }
@@ -148,6 +151,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Create Tasks",
       description: "Create many tasks at once (optionally hierarchical via parentId)",
       inputSchema: {
+        ...writeResponseArgs,
         project: z.string().optional(),
         items: z
           .array(
@@ -165,7 +169,7 @@ export function registerBulkTools(ctx: ServerContext): void {
           .max(100),
       },
     },
-    async ({ project, items }) => {
+    async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
       const created = [] as any[];
       try {
@@ -179,7 +183,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       }
       // AC-03: the only hand-built envelope in the codebase — go through `ok()` so it carries
       // `meta.ms` like every other response.
-      return ok({ count: created.length, created });
+      return ok({ count: created.length, created: created.map((task) => projectTask(task, { fields, compact })) });
     }
   );
 
@@ -327,6 +331,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       title: "Bulk Create Knowledge Docs",
       description: "Create many knowledge docs at once (optionally hierarchical via parentId)",
       inputSchema: {
+        ...writeResponseArgs,
         project: z.string().optional(),
         items: z
           .array(
@@ -344,14 +349,14 @@ export function registerBulkTools(ctx: ServerContext): void {
           .max(100),
       },
     },
-    async ({ project, items }) => {
+    async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
       const created: any[] = [];
       for (const it of items) {
         const d = await createDoc({ project: prj, ...it });
         created.push(d);
       }
-      return ok({ count: created.length, created });
+      return ok({ count: created.length, created: created.map((doc) => projectDoc(doc, { fields, compact })) });
     }
   );
 
