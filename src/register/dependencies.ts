@@ -12,14 +12,21 @@ export function registerDependencyTools(ctx: ServerContext): void {
     'tasks_set_deps',
     {
       title: 'Set Task Dependencies',
-      description: 'Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are automatically marked as "blocked".',
+      description:
+        'Set or replace dependency list for a task. Validates no cycles. ' +
+        'Returns task, statusChanged, blockedByDeps and blockingDeps. Tasks in the todo ' +
+        'category with unmet dependencies are marked "blocked" unless markBlocked is false.',
       inputSchema: {
         project: z.string().optional(),
         id: z.string().describe('Task ID'),
         dependsOn: z.array(z.string()).optional().describe('Array of task IDs this task depends on'),
+        markBlocked: z
+          .boolean()
+          .optional()
+          .describe('Automatically switch a todo-category task to "blocked" when dependencies are unmet (default true)'),
       },
     },
-    async ({ project, id, dependsOn }) => {
+    async ({ project, id, dependsOn, markBlocked }) => {
       const prj = resolveProject(project);
       const { listTasks, updateTask, isTaskBlocked } = await import('../storage/tasks.js');
 
@@ -39,30 +46,30 @@ export function registerDependencyTools(ctx: ServerContext): void {
       byId.set(updated.id, updated);
       const { blocked, blockingDeps } = isTaskBlocked(updated, byId, (status) => isDone(workflow, status));
 
-      if (blocked && statusCategory(workflow, updated.status) === 'todo') {
+      // AC-02: one vocabulary. `status` used to mean three different things across three
+      // branches (saved status, the word "blocked", the word "unblocked"); it now always
+      // carries the saved status, and the facts live in `statusChanged`/`blockedByDeps`.
+      const depsPayload = (task: typeof updated, statusChanged: boolean) => ({
+        task,
+        statusChanged,
+        blockedByDeps: blocked,
+        blockingDeps: blockingDeps.map(d => ({ id: d.id, title: d.title, status: d.status })),
+      });
+
+      if (blocked && markBlocked !== false && statusCategory(workflow, updated.status) === 'todo') {
         const blockedTask = await updateTask(prj, id, { status: 'blocked' as any } as any);
-        return ok({
-          task: blockedTask,
-          status: 'blocked',
-          blockingDeps: blockingDeps.map(d => ({ id: d.id, title: d.title, status: d.status })),
-        });
+        return ok(depsPayload(blockedTask ?? updated, true));
       }
 
       if (!blocked && updated.status === 'blocked') {
         const unblockedTask = await updateTask(prj, id, { status: defaultStatusId(workflow) } as any);
         return ok({
-          task: unblockedTask,
-          status: 'unblocked',
+          ...depsPayload(unblockedTask ?? updated, true),
           message: 'All dependencies met, task unblocked',
         });
       }
 
-      return ok({
-        task: updated,
-        status: updated.status,
-        blocked,
-        blockingDeps: blockingDeps.map(d => ({ id: d.id, title: d.title, status: d.status })),
-      });
+      return ok(depsPayload(updated, false));
     }
   );
 
