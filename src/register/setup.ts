@@ -13,6 +13,7 @@ import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
 import { wrapToolHandler } from '../core/auth-gate.js';
 import type { GateExtra } from '../core/auth-gate.js';
+import { guardUnknownParams, looseInputSchema, readInputShape } from '../core/tool-arguments.js';
 
 const log = childLogger('setup');
 
@@ -299,7 +300,16 @@ export async function createServerContext(): Promise<ServerContext> {
   rawServer.registerTool = ((orig: (...args: unknown[]) => unknown) => {
     rawServer._registerToolOrig = orig;
     return function (name: string, def: Record<string, unknown> | undefined, handler: unknown) {
-      const gated = gateHandler(name, handler);      if (toolRegistry.has(name)) {
+      // AC-01: unknown top-level arguments must fail loudly instead of being stripped by the
+      // SDK's Zod validation. The SDK receives a loose object schema so extra keys survive,
+      // the guard below reports them, and the registry keeps the raw shape it always had.
+      const shape = readInputShape(def?.inputSchema);
+      const guarded = shape
+        ? guardUnknownParams(name, Object.keys(shape), handler as (args: unknown, extra?: unknown) => unknown)
+        : handler;
+      const gated = gateHandler(name, guarded);
+      const sdkDef = shape ? { ...def, inputSchema: looseInputSchema(shape) } : def;
+      if (toolRegistry.has(name)) {
         const msg = `[tools] duplicate tool registration detected: "${name}"`;
         if (STRICT_TOOL_DEDUP) {
           throw new Error(msg + ' (MCP_STRICT_TOOL_DEDUP=1)');
@@ -333,7 +343,7 @@ export async function createServerContext(): Promise<ServerContext> {
       }
 
       try {
-        const res = orig.call(server, name, def, gated);
+        const res = orig.call(server, name, sdkDef, gated);
         toolNames.add(name);
         if (res) registeredToolHandles.set(name, res as RegisteredTool);
         try {

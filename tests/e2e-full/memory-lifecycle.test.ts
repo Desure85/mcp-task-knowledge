@@ -67,7 +67,7 @@ describe('Q-014 slice 15: memory stack lifecycle', () => {
       expect(add.env.ok).toBe(true);
       const factId = add.env.data.id ?? add.env.data.factId;
 
-      const q = await srv.callTool('memory_temporal_query', { at: '2026-09-02T00:00:00.000Z' });
+      const q = await srv.callTool('memory_temporal_query', { atTime: '2026-09-02T00:00:00.000Z' });
       expect(q.env.ok).toBe(true);
 
       const hist = await srv.callTool('memory_temporal_history', { factId });
@@ -79,7 +79,7 @@ describe('Q-014 slice 15: memory stack lifecycle', () => {
       const inv = await srv.callTool('memory_temporal_invalidate', { factId, reason: 'superseded by new policy' });
       expect(inv.env.ok).toBe(true);
 
-      const q2 = await srv.callTool('memory_temporal_query', { at: '2026-09-03T00:00:00.000Z' });
+      const q2 = await srv.callTool('memory_temporal_query', { atTime: '2026-09-03T00:00:00.000Z' });
       expect(q2.env.ok).toBe(true);
     } finally {
       await srv.close();

@@ -18,6 +18,7 @@ import {
   resolveProjectIndexDirs,
 } from './metadata-index.js';
 import { mapLimit } from '../utils/concurrency.js';
+import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
 import { childLogger } from '../core/logger.js';
 
@@ -64,7 +65,7 @@ export async function createDoc(input: {
     createdAt: now,
     updatedAt: now,
     source: input.source,
-    parentId: input.parentId,
+    parentId: blankToUndefined(input.parentId),
     type: input.type,
     trustLevel: input.trustLevel ?? 'user',
     archived: false,
@@ -388,9 +389,15 @@ async function updateDocUnlocked(project: string, id: string, patch: Partial<Omi
     matter.stringify(existing.content, cleanMeta(existing) as any),
   );
 
+  // AC-01: `parentId: ''` means "detach", exactly like `null` — never written as a value.
+  const normalizedPatch: typeof patch =
+    'parentId' in patch
+      ? { ...patch, parentId: blankToUndefined(patch.parentId as string | undefined) }
+      : patch;
+
   const updatedMeta: KnowledgeDocMeta = {
     ...existing,
-    ...patch,
+    ...normalizedPatch,
     id: existing.id,
     project: existing.project,
     createdAt: existing.createdAt,
