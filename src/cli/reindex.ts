@@ -23,7 +23,6 @@
  * DATA_DIR owned by a running server.
  */
 
-import path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import {
   createMetadataIndex,
@@ -295,8 +294,7 @@ async function runRebuild(
 /**
  * Parse `reindex` argv (args AFTER the 'reindex' word) and run the command.
  * Returns a result object — the caller prints and exits, so this stays unit-testable.
- */
-export async function runReindexCli(
+ */export async function runReindexCli(
   args: string[],
   paths: ReindexPaths,
   options: ReindexOptions = {},
@@ -329,9 +327,4 @@ export async function runReindexCli(
     // createMetadataIndex, a failed rebuild) already reads as a sentence with the cause.
     return { exitCode: 2, text: `reindex: ${(err as Error).message}` };
   }
-}
-
-/** Exported for tests: the path of the index database this command rebuilds. */
-export function indexDatabasePath(dataDir: string): string {
-  return path.join(dataDir, '.index', 'metadata.db');
 }
