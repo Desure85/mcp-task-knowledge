@@ -424,11 +424,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-11-07
-**Session ID:** ses_e4c16f7d4ffezA1eZu8KWuF0ZC (P-20261107-9 — синхронизация документации с кодом)
-**Текущая ветка:** docs/mcp-docs-sync (worktree `/home/dm/work/mcp-tk-docs`, от origin/master e104188)
-**Текущий этап:** документация — контракт поверхности MCP-инструментов
-**Статус:** документация сведена с кодом на master; страж `tests/docs-tools-coverage.test.ts` краснеет от правки `src/register/*` и от удаления строки в `docs/features/tools.md`.
+**Дата последнего обновления:** 2026-11-08
+**Session ID:** S-20261108-sc02e (SC-02e — проверка DoD SC-02 на реализации)
+**Текущая ветка:** docs/sc02e-dod-100k (от origin/master e350dcc)
+**Текущий этап:** масштабирование — закрытие цепочки SQLite-индекса (SC-02)
+**Статус:** SC-02e и SC-02 переведены в `done`: обе DoD-команды прогнаны на реализации (SC-02c), а не на прототипе — 100k, настоящий HTTP-сервер, Windows 11/NTFS: `tasks_list` 28 мс / 32 789 B, `knowledge_list` 33 мс / 22 068 B (порог 300 мс / 1 MiB), `index.tasksPageWithFiles` 3.98 мс (порог 10 мс). Замеры — `docs/benchmarks/sc02-2026-11-07.md` §8, решение — `docs/dev-cycle/decisions/2026-11-08-1505-sc-02e.md`.
+
+### Найдено в этой сессии (для следующих инкрементов)
+
+- Первый старт на заполненном `DATA_DIR` без индекса синхронно вызывает `rebuild()` после файловых миграций: 200k строк на NTFS не укладываются в 120 с health-чека бенча. Причина, по которой `reindex` — обязательный SC-02d.
+- Убитый сервер оставляет `DATA_DIR/.server.lock` с `processIdentity: null`; следующий старт падает в `SERVER_LOCK_HELD`, хотя процесса нет. Lock удаляется руками.
+- `scripts/bench/sqlite-index-bench.mjs --before` не работал на Windows (`await import(path.resolve(...))` → протокол `c:`); исправлено на `pathToFileURL` в этом же PR.
+- Локальный тулчейн: `engines >=22`, а на машине был Node 20 — поставлен Node 24.22.2 в `default-workspace/.tools` (вне репозитория); `npm ci --ignore-scripts` + prebuilt `better-sqlite3` node-v137, потому что сборка из исходников требует Visual Studio C++.
 
 ### Контракт счёта инструментов (2026-11-07)
 
