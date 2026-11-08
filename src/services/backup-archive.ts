@@ -54,6 +54,9 @@ const BASE_EXCLUDED = [
   '.backups',
   '.embeddings',
   '.emb_cache',
+  // SC-02d: the derived metadata index is a cache of the files (100k rows ≈ 140 MB),
+  // rebuilt from the files after a restore — it must never travel in a backup.
+  '.index',
   '.restore-tmp',
   SERVER_LOCK_FILENAME,
   '.restore.lock',
@@ -259,7 +262,9 @@ async function collectDataDir(
   opts: { includeSecrets: boolean; excludeModels: boolean; skipAbs: Set<string> },
 ): Promise<WalkResult> {
   const excluded: string[] = [...BASE_EXCLUDED];
-  if (!opts.includeSecrets) excluded.splice(3, 0, ...SECRET_EXCLUDED);
+  // Appended, not spliced at a fixed index: the position carried no meaning and broke every
+  // time `BASE_EXCLUDED` gained an entry (SC-02d added `.index`).
+  if (!opts.includeSecrets) excluded.push(...SECRET_EXCLUDED);
   if (opts.excludeModels) excluded.push('models');
 
   const topSkip = new Set(excluded);
