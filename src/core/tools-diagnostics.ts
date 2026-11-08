@@ -29,13 +29,13 @@ export interface InnerCallResult {
   /** Correlates this inner call with a server log line. */
   requestId: string;
   data?: unknown;
-  /** Original error envelope; absent on success. */
-  error?: InnerError;
   /**
-   * The message alone, kept for callers that read `error` as a string before AC-04a
-   * (`data` and the envelope other than `error` are unchanged).
+   * Failure message as a plain string. Kept exactly as before AC-04a so existing callers
+   * (and every `error.includes(...)` check in the wild) keep working.
    */
-  errorText?: string;
+  error?: string;
+  /** The full original error envelope: code, message, hint, details. */
+  errorEnvelope?: InnerError;
 }
 
 /** Recognise the error object of an envelope, tolerating hand-built string errors. */
@@ -84,14 +84,14 @@ export function innerResult(name: string, res: unknown): InnerCallResult {
   const requestId = randomUUID();
   const parsed = parseInnerEnvelope(res);
   if (parsed.ok) return { name, ok: true, requestId, data: parsed.data };
-  const error = normalizeInnerError(parsed.error);
-  diagnosticsLog.warn({ requestId, tool: name, code: error.code }, 'nested tool call failed');
-  return { name, ok: false, requestId, error, errorText: error.message };
+  const errorEnvelope = normalizeInnerError(parsed.error);
+  diagnosticsLog.warn({ requestId, tool: name, code: errorEnvelope.code }, 'nested tool call failed');
+  return { name, ok: false, requestId, error: errorEnvelope.message, errorEnvelope };
 }
 
 /** Build the result entry for a nested call that could not run at all (denied, missing, threw). */
 export function innerFailure(name: string, cause: unknown, requestId = randomUUID()): InnerCallResult {
-  const error = normalizeInnerError(cause);
-  diagnosticsLog.warn({ requestId, tool: name, code: error.code }, 'nested tool call failed');
-  return { name, ok: false, requestId, error, errorText: error.message };
+  const errorEnvelope = normalizeInnerError(cause);
+  diagnosticsLog.warn({ requestId, tool: name, code: errorEnvelope.code }, 'nested tool call failed');
+  return { name, ok: false, requestId, error: errorEnvelope.message, errorEnvelope };
 }
