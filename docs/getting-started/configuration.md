@@ -62,6 +62,24 @@ partial indexes `WHERE archived = 0 AND trashed = 0`. `total`/`totalExact` becom
 index path (the file fast path reports the project's file count with `totalExact: false`); this is
 an intentional contract change, pinned by `tests/scale-index.test.ts`.
 
+Maintenance (SC-02d): `node dist/index.js doctor --data` prints an `Index:` section next to the data
+checks — rows vs files, per-project `file_count`/complete state, and four drift counts (index rows
+without a file, files without a row, stale `mtime`, wrong `file_count`). These are warnings, never
+errors, and `doctor --fix` never touches the index: the files are the source of truth. Repair is a
+separate command:
+
+```bash
+node dist/index.js reindex --data                 # rebuild everything from files
+node dist/index.js reindex --data --project acme  # rebuild one project
+node dist/index.js reindex --data --verify        # compare only, writes nothing, exit 1 on drift
+node dist/index.js reindex --data --force         # rebuild even when everything is complete
+```
+
+A rebuild takes the same `DATA_DIR` lock the server does (MU-01), so it refuses to run against a
+live server instead of racing it; `--verify` is read-only and takes no lock. `doctor` and `reindex`
+never modify task or document files. The index file (100k rows ≈ 140 MB) is excluded from backup
+archives and restored data is re-indexed, not copied.
+
 ### Search & Embeddings
 
 | Variable | Default | Description |

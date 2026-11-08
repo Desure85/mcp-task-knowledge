@@ -295,6 +295,7 @@ describe('SC-02b index failure never breaks the mutation', () => {
       isProjectComplete: () => false,
       fillProject: async (options) => ({ project: options.project, tasks: 0, docs: 0, ms: 0 }),
       recountProject: () => undefined,
+      markProjectsComplete: () => 0,
     };
 
     mod.setActiveMetadataIndex(throwing);

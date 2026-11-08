@@ -28,6 +28,7 @@ import { pathExists, readText, writeJson, writeText } from '../fs.js';
 import { PROJECT_ID_RE } from '../projects.js';
 import { readSchemaManifest, CURRENT_SCHEMA } from '../services/schema-version.js';
 import type { Task } from '../types.js';
+import { inspectIndex, formatIndexSection, type IndexInspection } from './index-inspect.js';
 
 // ── Report model ────────────────────────────────────────────────────
 
@@ -46,6 +47,8 @@ export interface DoctorReport {
   scanned: { json: number; md: number };
   /** DX-18: on-disk schema vs the version this build supports. */
   schema: { found: number | 'none'; current: number };
+  /** SC-02d: state of the derived metadata index, when it was inspected. */
+  index?: IndexInspection;
   issues: DoctorIssue[];
   errors: number;
   warnings: number;
@@ -315,6 +318,103 @@ async function scanProjects(paths: DoctorPaths, issues: DoctorIssue[]): Promise<
   }
 }
 
+// ── Index section (SC-02d) ─────────────────────────────────────────
+
+/**
+ * SC-02d: the derived metadata index. `doctor` never writes to it — `--fix` repairs data,
+ * the index is repaired by `reindex` — so every finding here is a warning, not an error:
+ * the files remain the source of truth and a stale index only costs speed.
+ */
+async function inspectIndexForReport(paths: DoctorPaths, issues: DoctorIssue[]): Promise<IndexInspection> {
+  const indexPath = path.join(paths.dataDir, '.index');
+  const built = await pathExists(indexPath);
+  const index = await inspectIndex(paths, { walk: built });
+  if (!index.available) {
+    // A never-built index is a normal state (fresh DATA_DIR, or STORAGE_INDEX=off): only an
+    // existing but unreadable file is worth a warning.
+    if (await pathExists(index.path)) {
+      issues.push({
+        level: 'warn',
+        check: 'index-unavailable',
+        file: rel(paths.dataDir, index.path),
+        detail: index.reason ?? 'unknown reason',
+      });
+    }
+    return index;
+  }
+
+  const file = rel(paths.dataDir, index.path);
+  const example = (samples: Array<{ relPath: string }>) =>
+    samples.length > 0 ? `, e.g. ${samples.slice(0, 2).map((sample) => sample.relPath).join(', ')}` : '';
+
+  if (index.dirty) {
+    issues.push({
+      level: 'warn',
+      check: 'index-dirty',
+      file,
+      detail: 'a write to the index failed; `reindex --data` clears the flag',
+    });
+  }
+  if (index.schemaVersion !== String(index.supportedSchemaVersion)) {
+    issues.push({
+      level: 'warn',
+      check: 'index-schema',
+      file,
+      detail: `schema ${index.schemaVersion ?? 'none'} != supported ${index.supportedSchemaVersion}; rebuild on next boot`,
+    });
+  }
+  if (!index.dataDirMatch) {
+    issues.push({
+      level: 'warn',
+      check: 'index-foreign',
+      file,
+      detail: `data_dir is ${index.dataDir ?? 'unset'}, not ${paths.dataDir}; index rebuilds on next boot`,
+    });
+  }
+  if (index.counts.orphans > 0) {
+    issues.push({
+      level: 'warn',
+      check: 'index-orphan',
+      file,
+      detail: `${index.counts.orphans} index rows without a file${example(index.orphans)}`,
+    });
+  }
+  if (index.counts.missing > 0) {
+    issues.push({
+      level: 'warn',
+      check: 'index-missing-file',
+      file,
+      detail: `${index.counts.missing} files without an index row${example(index.missing)}`,
+    });
+  }
+  if (index.counts.drift > 0) {
+    issues.push({
+      level: 'warn',
+      check: 'index-mtime-drift',
+      file,
+      detail: `${index.counts.drift} files edited out of band${example(index.drift)}`,
+    });
+  }
+  if (index.counts.countDrift > 0) {
+    issues.push({
+      level: 'warn',
+      check: 'index-count-drift',
+      file,
+      detail: `${index.counts.countDrift} projects with a wrong file_count`,
+    });
+  }
+  const incomplete = index.projects.filter((project) => !project.complete);
+  if (incomplete.length > 0) {
+    issues.push({
+      level: 'warn',
+      check: 'index-incomplete',
+      file,
+      detail: `projects served from files until filled: ${incomplete.map((project) => project.project).join(', ')}`,
+    });
+  }
+  return index;
+}
+
 // ── Top-level scan ──────────────────────────────────────────────────
 
 /**
@@ -359,6 +459,9 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
 
   await scanProjects(paths, issues);
 
+  // SC-02d: derived index state (read-only; repaired by `reindex`, never by `--fix`).
+  const index = await inspectIndexForReport(paths, issues);
+
   // DX-18: schema-version drift. Missing manifest is reported in the
   // `schema.found` field only — not an issue, since pre-DX-18 installs
   // legitimately have none. Only an actual version mismatch is flagged.
@@ -376,6 +479,7 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
     dataDir: paths.dataDir,
     scanned,
     schema: { found: schemaFound, current: CURRENT_SCHEMA },
+    index,
     issues,
     errors: issues.filter((i) => i.level === 'error').length,
     warnings: issues.filter((i) => i.level === 'warn').length,
@@ -390,6 +494,7 @@ export function formatReport(report: DoctorReport): string {
   lines.push(`DATA_DIR: ${report.dataDir}`);
   lines.push(`Scanned: ${report.scanned.json} json, ${report.scanned.md} md`);
   lines.push(`Schema: ${report.schema.found} (supported: ${report.schema.current})`);
+  if (report.index) lines.push(...formatIndexSection(report.index));
 
   const groups = new Map<string, DoctorIssue[]>();
   for (const issue of report.issues) {

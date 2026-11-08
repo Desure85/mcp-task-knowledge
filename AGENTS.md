@@ -425,17 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-sc02e (SC-02e — проверка DoD SC-02 на реализации)
-**Текущая ветка:** docs/sc02e-dod-100k (от origin/master e350dcc)
-**Текущий этап:** масштабирование — закрытие цепочки SQLite-индекса (SC-02)
-**Статус:** SC-02e и SC-02 переведены в `done`: обе DoD-команды прогнаны на реализации (SC-02c), а не на прототипе — 100k, настоящий HTTP-сервер, Windows 11/NTFS: `tasks_list` 28 мс / 32 789 B, `knowledge_list` 33 мс / 22 068 B (порог 300 мс / 1 MiB), `index.tasksPageWithFiles` 3.98 мс (порог 10 мс). Замеры — `docs/benchmarks/sc02-2026-11-07.md` §8, решение — `docs/dev-cycle/decisions/2026-11-08-1505-sc-02e.md`.
+**Session ID:** S-20261108-sc02d (SC-02d — диагностика индекса и `reindex`)
+**Текущая ветка:** feat/sc02d-doctor-reindex (от origin/master aff1b53, PR #300 влит)
+**Текущий этап:** масштабирование — цепочка SQLite-индекса (SC-02) закрыта, SC-02d реализован
+**Статус:** SC-02d → `done`: секция `Index:` в `doctor` (сироты, пропуски, дрейф `mtime`, `file_count`, `dirty`, схема, `data_dir`, неполные проекты) и команда `reindex [--project] [--verify] [--force] [--json]`; полный `rebuild` помечает проекты полными (`markProjectsComplete`), `.index` исключён из архива бэкапа. Тесты `tests/metadata-index-doctor.test.ts` (14), 4 мутации RED. Замер на 100k: `--verify` 10.4 с / 0 расхождений, `--force` 128.3 с на 200 000 строк. Записи: `docs/dev-cycle/decisions/2026-11-08-1505-sc-02e.md` (SC-02e, PR #300), `2026-11-08-1530-sc-02d.md` (SC-02d).
 
 ### Найдено в этой сессии (для следующих инкрементов)
 
-- Первый старт на заполненном `DATA_DIR` без индекса синхронно вызывает `rebuild()` после файловых миграций: 200k строк на NTFS не укладываются в 120 с health-чека бенча. Причина, по которой `reindex` — обязательный SC-02d.
-- Убитый сервер оставляет `DATA_DIR/.server.lock` с `processIdentity: null`; следующий старт падает в `SERVER_LOCK_HELD`, хотя процесса нет. Lock удаляется руками.
-- `scripts/bench/sqlite-index-bench.mjs --before` не работал на Windows (`await import(path.resolve(...))` → протокол `c:`); исправлено на `pathToFileURL` в этом же PR.
-- Локальный тулчейн: `engines >=22`, а на машине был Node 20 — поставлен Node 24.22.2 в `default-workspace/.tools` (вне репозитория); `npm ci --ignore-scripts` + prebuilt `better-sqlite3` node-v137, потому что сборка из исходников требует Visual Studio C++.
+- `reindex` намеренно берёт lock `DATA_DIR`: на Windows устаревший `.server.lock` после убитого сервера даёт `SERVER_LOCK_UNVERIFIABLE/HELD` и команда отказывается работать, пока lock не удалён руками. Это ожидаемое поведение, но оно делает находку SC-02e про lock ещё заметнее.
+- `.index` не попадал в архив бэкапа (в `data-backup.ts` исключение было с SC-02a, в `backup-archive.ts` — нет): 140 MB производных данных в каждом архиве. Исправлено в SC-02d.
+- `tests/dx16-backup-archive.test.ts` на Windows не запускается: сид создаёт симлинк (`EPERM: operation not permitted, symlink`), нужен Developer Mode или `windows-latest` в CI. На Linux-раннере зелёный.
+- Тестам vitest на этой машине нужен `TEMP` внутри рабочего каталога: с системным `%TEMP%` падает `EPERM mkdir ...\ssr` (SSR-кеш раннера).
 
 ### Контракт счёта инструментов (2026-11-07)
 
