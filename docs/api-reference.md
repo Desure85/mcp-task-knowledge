@@ -120,7 +120,7 @@
 | `tasks_claim` | Take a lease on a task so a second agent does not start the same work. The holder is visible to othe |
 | `tasks_close` | Close a task by moving it to the project's close status. Optionally cascade the close to all descend |
 | `tasks_create` | Create a single task. Optionally set parentId to create a subtask. Maximum nesting depth is 10 level |
-| `tasks_dag` | Get the full dependency DAG for a project: topological sort, critical path, and edge list. |
+| `tasks_dag` | Get the dependency DAG for a project: topological sort, critical path and edge list. Supports tag an |
 | `tasks_get` | Get task by id. Includes the active claim/lease holder when the task is claimed. |
 | `tasks_get_children` | Get direct children of a task (one level deep, not recursive). |
 | `tasks_get_deps` | Get the dependency graph for a specific task: what it depends on and what depends on it. |
@@ -3125,12 +3125,19 @@ Create a single task. Optionally set parentId to create a subtask. Maximum nesti
 
 **Get Project Dependency Graph**
 
-Get the full dependency DAG for a project: topological sort, critical path, and edge list.
+Get the dependency DAG for a project: topological sort, critical path and edge list. Supports tag and onlyWithDeps filters, a page over the topological order (default limit 200), field projection and a cursor; `truncated`/`nextCursor` describe what is missing, and edges/criticalPath only contain the nodes on the returned page.
 
 **Параметры:**
 
 - `project`
 - `includeArchived`
+- `tag`
+- `onlyWithDeps`
+- `limit`
+- `cursor`
+- `countOnly`
+- `maxBytes`
+- `fields`
 
 **Пример вызова:**
 
@@ -3139,7 +3146,14 @@ Get the full dependency DAG for a project: topological sort, critical path, and 
   "name": "tasks_dag",
   "arguments": {
     "project": "mcp",
-    "includeArchived": false
+    "includeArchived": false,
+    "tag": "example",
+    "onlyWithDeps": "example",
+    "limit": 10,
+    "cursor": "example",
+    "countOnly": "example",
+    "maxBytes": "example",
+    "fields": "example"
   }
 }
 ```

@@ -156,7 +156,7 @@ export function clampLimit(limit?: number): number {
   return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(limit)));
 }
 
-function pickFields<T>(item: T, fields?: string[]): unknown {
+export function pickFields<T>(item: T, fields?: string[]): unknown {
   if (!fields || fields.length === 0) return item;
   if (typeof item !== 'object' || item === null) return item;
   const source = item as Record<string, unknown>;
