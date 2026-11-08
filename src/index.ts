@@ -62,8 +62,35 @@ async function runBridge(): Promise<void> {
   await runBridgeCli(process.argv.slice(3));
 }
 
+/**
+ * SC-02d: `reindex` rebuilds the derived metadata index from files. Like `doctor` it exits
+ * before AppContainer exists, so it never boots a server; unlike `doctor` it writes, and it
+ * takes the DATA_DIR lock itself (`src/cli/reindex.ts`) so it cannot race a live server.
+ */
+async function maybeRunReindex(): Promise<void> {
+  if (process.argv[2] !== 'reindex') return;
+  const { runReindexCli } = await import('./cli/reindex.js');
+  const { DATA_DIR, TASKS_DIR, KNOWLEDGE_DIR, resolveStorageIndexMode } = await import('./config.js');
+  try {
+    const result = await runReindexCli(
+      process.argv.slice(3),
+      { dataDir: DATA_DIR, tasksDir: TASKS_DIR, knowledgeDir: KNOWLEDGE_DIR },
+      { storageIndexMode: resolveStorageIndexMode() },
+    );
+    const out = result.text + '\n';
+    if (result.exitCode === 2) process.stderr.write(out);
+    else process.stdout.write(out);
+    process.exit(result.exitCode);
+  } catch (err) {
+    process.stderr.write(`reindex: crashed: ${(err as Error).message}\n`);
+    process.exit(2);
+  }
+}
+
 if (process.argv[2] === 'doctor') {
   void maybeRunCli();
+} else if (process.argv[2] === 'reindex') {
+  void maybeRunReindex();
 } else if (process.argv[2] === 'bridge') {
   void runBridge();
 } else {

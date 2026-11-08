@@ -149,6 +149,12 @@ export interface MetadataIndex {
    * (a file deleted out of band), so the completeness invariant survives.
    */
   recountProject(project: string): void;
+  /**
+   * SC-02d: after a full `rebuild()` write the `projects` records the rebuild does not
+   * create, so the index is immediately usable instead of falling back to files until a
+   * background fill repeats the same scan. Returns the number of projects marked.
+   */
+  markProjectsComplete(): number;
 }
 
 /** SC-02b: directories the rebuild scans (legacy overrides are honoured by the caller). */
@@ -635,6 +641,40 @@ export class SqliteMetadataIndex implements MetadataIndex {
       db.prepare('UPDATE projects SET file_count = ? WHERE project = ?').run(tasks + docs, project);
     })();
     this.mutations++;
+  }
+
+  /**
+   * SC-02d: `rebuild()` fills the row tables but writes no `projects` records, so the very
+   * completeness gate that SC-02c introduced would keep serving the just-rebuilt index from
+   * the file path until a background fill repeated the whole scan. `reindex` calls this once
+   * after a full rebuild: every project present in the rows gets `file_count` equal to its
+   * row count and a fresh `synced_at`, which is exactly what `isProjectComplete` checks.
+   *
+   * `dir_mtime_ms` stays 0: it is diagnostic only (a directory mtime changes on every write
+   * because `writeJson` renames a temp file into place), so it cannot be used as a trigger.
+   */
+  markProjectsComplete(): number {
+    const db = this.requireDb();
+    let marked = 0;
+    db.transaction(() => {
+      const counts = new Map<string, number>();
+      const add = (rows: Array<{ project: string; n: number }>) => {
+        for (const row of rows) counts.set(row.project, (counts.get(row.project) ?? 0) + row.n);
+      };
+      add(db.prepare<[], { project: string; n: number }>('SELECT project, COUNT(*) AS n FROM tasks GROUP BY project').all());
+      add(db.prepare<[], { project: string; n: number }>('SELECT project, COUNT(*) AS n FROM docs GROUP BY project').all());
+      const now = new Date().toISOString();
+      const upsert = db.prepare(
+        'INSERT OR REPLACE INTO projects (project, dir_mtime_ms, file_count, synced_at) VALUES (?, 0, ?, ?)',
+      );
+      for (const [project, n] of counts) {
+        upsert.run(project, n, now);
+        marked++;
+      }
+      writeMeta(db, 'dirty', '0');
+    })();
+    this.mutations++;
+    return marked;
   }
 
   private insertTaskBatch(rows: MetadataIndexTaskRow[]): void {
