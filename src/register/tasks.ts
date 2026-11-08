@@ -63,16 +63,45 @@ export function registerTasksTools(ctx: ServerContext): void {
         priority: z.enum(["low", "medium", "high"]).optional(),
         parentId: z.string().min(1).optional().describe("Only direct children of this task"),
         updatedSince: z.string().min(1).optional().describe("ISO date; only tasks updated at or after it"),
+        ids: z.array(z.string().min(1)).max(500).optional().describe("Return exactly these task ids (batch lookup)"),
+        codes: z
+          .array(z.string().min(1))
+          .max(500)
+          .optional()
+          .describe("Backlog codes recorded as task tags (case-insensitive), e.g. [\"AC-01\"]"),
         includeArchived: z.boolean().default(false).optional(),
         ...pageArgsSchema,
       },
     },
-    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ...pageArgs }) => {
+    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ids, codes, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
         if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
         const request = toPageRequest(pageArgs);
+        if (ids !== undefined || codes !== undefined) {
+          // AC-03: batch lookup by id (O(k) reads) or by backlog code. A code is matched
+          // case-insensitively against the task's tags — that is where the tracker keeps
+          // backlog ids (`AC-01`, `SC-02`), the Task model has no separate `code` field.
+          const wantedIds = new Set(ids ?? []);
+          const wantedCodes = new Set((codes ?? []).map((code) => code.toLowerCase()));
+          const picked = new Map<string, NonNullable<Awaited<ReturnType<typeof getTask>>>>();
+          for (const id of wantedIds) {
+            const task = await getTask(prj, id);
+            if (task) picked.set(task.id, task);
+          }
+          if (wantedCodes.size > 0) {
+            for (const task of await listTasks({ project: prj, includeArchived })) {
+              if (picked.has(task.id)) continue;
+              if ((task.tags ?? []).some((value) => wantedCodes.has(value.toLowerCase()))) picked.set(task.id, task);
+            }
+          }
+          const matched = [...picked.values()]
+            .filter((task) => (includeArchived === true || !task.archived) && !task.trashed)
+            .sort((a, b) => (a.updatedAt === b.updatedAt ? (a.id < b.id ? -1 : 1) : a.updatedAt < b.updatedAt ? 1 : -1));
+          const pickedPage = paginateKeyed(matched, request, (task) => task.updatedAt, (task) => task.id);
+          return okWith(pickedPage.items, pickedPage.meta);
+        }
         const page = await listTasksPage(prj, {
           limit: request.limit ?? 50,
           cursor: request.cursor,

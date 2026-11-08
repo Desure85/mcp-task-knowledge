@@ -3263,6 +3263,8 @@ List tasks with optional filters, cursor pagination and field selection. Returns
 - `priority`
 - `parentId`
 - `updatedSince`
+- `ids`
+- `codes`
 - `includeArchived`
 - `limit`
 - `cursor`
@@ -3283,6 +3285,10 @@ List tasks with optional filters, cursor pagination and field selection. Returns
     "priority": "medium",
     "parentId": null,
     "updatedSince": "example",
+    "ids": [
+      "00000000-0000-0000-0000-000000000000"
+    ],
+    "codes": "example",
     "includeArchived": false,
     "limit": 10,
     "cursor": "example",

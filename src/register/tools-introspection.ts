@@ -65,7 +65,7 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
       description: "Return list of canonical tool names with metadata. Supports pagination, search filtering, ETag-based cache validation.",
       inputSchema: {
         offset: z.number().int().min(0).optional().describe("Page offset (0-based, default 0)"),
-        limit: z.number().int().min(1).max(100).optional().describe("Items per page (default 20, max 100)"),
+        limit: z.number().int().min(1).max(300).optional().describe("Items per page (default 20, max 300)"),
         search: z.string().optional().describe("Filter tool names by substring"),
         ifNoneMatch: z.string().optional().describe("ETag for conditional response (returns 304 if unchanged)"),
       },
