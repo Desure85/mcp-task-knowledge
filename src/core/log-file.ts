@@ -57,15 +57,45 @@ const SECRET_PATTERNS: Array<[RegExp, SecretReplacement]> = [
   [/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[REDACTED_JWT]'],
   // Authorization headers and raw bearer tokens.
   [/Bearer\s+[A-Za-z0-9._~+/-]{8,}=*/gi, 'Bearer [REDACTED_TOKEN]'],
+  // HTTP Basic credentials. Anchored to the authorization field on purpose: prose such as
+  // "Basic authentication failed" is not a credential and must survive.
+  [
+    /((?:proxy-)?authorization["']?\s*[:=]\s*["']?Basic\s+)[A-Za-z0-9+/=]{6,}/gi,
+    (_whole: string, prefix: string) => `${prefix}[REDACTED_TOKEN]`,
+  ],
   // GitHub tokens (classic and fine-grained).
   [/(gh[pousr]_|github_pat_)[A-Za-z0-9_]{10,}/g, '[REDACTED_GITHUB_TOKEN]'],
   // OpenAI-style keys.
   [/sk-[A-Za-z0-9_-]{16,}/g, '[REDACTED_API_KEY]'],
-  // Anything that looks like a password/token/secret field in JSON. A value that was already
-  // masked above keeps its specific marker instead of being replaced by the generic one.
+  // AWS access key ids.
+  [/\bAKIA[0-9A-Z]{16}\b/g, '[REDACTED_AWS_KEY]'],
+  // PEM private keys, one line or a JSON-escaped block; a truncated header masks the rest.
   [
-    /("(?:password|passwd|secret|token|apiKey|api_key|access_token|refresh_token)"\s*:\s*")([^"]{1,256})(")/gi,
-    (whole: string, prefix: string, value: string, suffix: string) =>
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
+    '[REDACTED_PRIVATE_KEY]',
+  ],
+  // Credentials in a connection URL: scheme://user:password@host.
+  [/(\b[a-z][a-z0-9+.-]*:\/\/)([^/\s:@]*):([^/\s@]+)@/gi, (_whole, scheme: string, user: string) => `${scheme}${user}:[REDACTED]@`],
+  // Secret query parameters: ?token=..., &password=..., password=...&user=...
+  [
+    /(^|[?&;\s])((?:token|password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|auth[_-]?token|signature|sig)=)([^&\s"'<>]+)/gi,
+    (_whole: string, lead: string, key: string) => `${lead}${key}[REDACTED]`,
+  ],
+  // env-style assignments: MCP_LOGIN_PASSWORD=..., MCP_PROXY_TOKEN=...
+  [
+    /\b([A-Z][A-Z0-9_]*(?:PASSWORD|PASSWD|TOKEN|SECRET|API_KEY|APIKEY|PRIVATE_KEY))\s*=\s*([^\s"'&,;]+)/g,
+    (_whole: string, key: string) => `${key}=[REDACTED]`,
+  ],
+  // Header-style keys with a dash: x-api-key: ..., x-api-key=...
+  [
+    /(^|[\s,{])((?:x-api-key|x-auth-token|api-key)\s*[:=]\s*)([^\s"'&,;]+)/gi,
+    (_whole: string, lead: string, key: string) => `${lead}${key}[REDACTED]`,
+  ],
+  // JSON fields whose key ends with a secret word — clientSecret, authToken, x-api-key,
+  // access_token. A value masked above keeps its specific marker instead of the generic one.
+  [
+    /("([A-Za-z0-9_-]*(?:password|passwd|secret|token|apikey|api[_-]?key|private[_-]?key))"\s*:\s*")([^"]{1,512})(")/gi,
+    (whole: string, prefix: string, _key: string, value: string, suffix: string) =>
       value.includes('[REDACTED') ? whole : `${prefix}[REDACTED]${suffix}`,
   ],
 ];

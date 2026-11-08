@@ -8,11 +8,14 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServerContext } from '../src/register/setup.js';
 import { defaultRegistration } from '../src/core/app-container.js';
-import { diagnosticsLog } from '../src/core/tools-diagnostics.js';
+import { diagnosticsLog, innerFailure } from '../src/core/tools-diagnostics.js';
+import { ValidationError } from '../src/core/error-handler.js';
 import type { ServerContext } from '../src/register/context.js';
 
 const PROJECT = `ac04a-${Date.now().toString(36)}`;
@@ -119,5 +122,59 @@ describe('AC-04a: tools_batch has the same diagnostics', () => {
     expect(failed.errorEnvelope.details.unknown).toEqual(['tags']);
     expect(typeof failed.requestId).toBe('string');
     expect(okEntry.requestId).not.toBe(failed.requestId);
+  });
+});
+
+describe('AC-04d: nested params are validated against the tool schema', () => {
+  it('refuses tasks_create without title and writes no task file', async () => {
+    const project = `${PROJECT}-novalid`;
+    const run = await call('tools_run', { name: 'tasks_create', params: { project } });
+
+    expect(run.ok).toBe(true);
+    const [entry] = run.data.results;
+    expect(entry.ok).toBe(false);
+    expect(entry.errorEnvelope.code).toBe('VALIDATION_ERROR');
+    expect(entry.errorEnvelope.message).toContain('title');
+    expect(entry.errorEnvelope.hint).toContain('tool_schema');
+    expect(entry.errorEnvelope.details.issues.map((issue: { path: string }) => issue.path)).toContain('title');
+    expect(entry.requestId).toMatch(/^[0-9a-f-]{36}$/);
+
+    const dir = path.join(process.env.DATA_DIR!, 'tasks', project);
+    expect(fs.existsSync(dir) ? fs.readdirSync(dir) : []).toHaveLength(0);
+    const list = await call('tasks_list', { project });
+    expect(list.total).toBe(0);
+  });
+
+  it('reports the nested array path for tasks_bulk_create items:[{}]', async () => {
+    const run = await call('tools_run', {
+      name: 'tasks_bulk_create',
+      params: { project: `${PROJECT}-bulk`, items: [{}] },
+    });
+
+    const [entry] = run.data.results;
+    expect(entry.ok).toBe(false);
+    expect(entry.errorEnvelope.code).toBe('VALIDATION_ERROR');
+    expect(entry.errorEnvelope.details.issues.map((issue: { path: string }) => issue.path)).toContain(
+      'items[0].title',
+    );
+  });
+
+  it('tools_batch validates params the same way and creates nothing', async () => {
+    const project = `${PROJECT}-batchnovalid`;
+    const batch = await call('tools_batch', {
+      items: [{ name: 'tasks_create', params: { project } }],
+    });
+
+    const [entry] = batch.data.results;
+    expect(entry.ok).toBe(false);
+    expect(entry.errorEnvelope.code).toBe('VALIDATION_ERROR');
+    const dir = path.join(process.env.DATA_DIR!, 'tasks', project);
+    expect(fs.existsSync(dir) ? fs.readdirSync(dir) : []).toHaveLength(0);
+  });
+
+  it('keeps the tool code of a thrown classified error', () => {
+    const failure = innerFailure('probe', new ValidationError('bad input', { code: 'TASK_INVALID' }));
+    expect(failure.errorEnvelope?.code).toBe('TASK_INVALID');
+    expect(failure.error).toBe('bad input');
   });
 });

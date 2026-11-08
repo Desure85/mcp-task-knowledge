@@ -141,3 +141,79 @@ export function guardUnknownParams(
     return handler(args, extra);
   };
 }
+
+/** One rejected argument path, as reported by `validateNestedParams`. */
+export interface NestedParamIssue {
+  /** Dotted/bracketed path: `title`, `items[0].title`, `(root)` for the whole object. */
+  path: string;
+  message: string;
+  code?: string;
+}
+
+export interface NestedValidationError {
+  code: 'VALIDATION_ERROR';
+  message: string;
+  hint: string;
+  details: { issues: NestedParamIssue[] };
+}
+
+export type NestedParamsResult = { ok: true; value: unknown } | { ok: false; error: NestedValidationError };
+
+/** Render a Zod issue path (`['items', 0, 'title']`) as `items[0].title`. */
+export function formatIssuePath(path: readonly (string | number)[]): string {
+  let out = '';
+  for (const segment of path) {
+    if (typeof segment === 'number') out += `[${segment}]`;
+    else out += out.length > 0 ? `.${segment}` : segment;
+  }
+  return out;
+}
+
+interface ParseIssue {
+  path?: (string | number)[];
+  message?: string;
+  code?: string;
+}
+
+interface SafeParser {
+  safeParse: (value: unknown) => { success: boolean; data?: unknown; error?: { issues?: ParseIssue[] } };
+}
+
+/**
+ * AC-04d — validate nested `params` against the tool's own raw shape.
+ *
+ * `tools_run`/`tools_batch` call `meta.handler(params)` directly, so the SDK's Zod validation
+ * never runs: `tasks_run{tasks_create, params:{project}}` without `title` reached storage and
+ * persisted `"title": null`. The shape is validated here with the same loose object schema the
+ * SDK uses, so required fields, types, bounds and enums are enforced while unknown keys still
+ * reach `guardUnknownParams` — `UNKNOWN_PARAM` stays reachable exactly as before.
+ *
+ * A tool without a raw shape (prebuilt schema) is passed through unchanged: there is nothing
+ * to validate against, and inventing a schema would reject valid calls.
+ */
+export function validateNestedParams(tool: string, inputSchema: unknown, params: unknown): NestedParamsResult {
+  const shape = readInputShape(inputSchema);
+  if (!shape) return { ok: true, value: params };
+  const parsed = (looseInputSchema(shape) as SafeParser).safeParse(params ?? {});
+  if (parsed.success) return { ok: true, value: parsed.data };
+
+  const issues: NestedParamIssue[] = (parsed.error?.issues ?? []).map((issue) => {
+    const entry: NestedParamIssue = {
+      path: formatIssuePath(issue.path ?? []) || '(root)',
+      message: issue.message ?? 'invalid value',
+    };
+    if (issue.code) entry.code = issue.code;
+    return entry;
+  });
+  const paths = issues.map((issue) => issue.path).join(', ');
+  const plural = issues.length > 1;
+  return {
+    ok: false,
+    error: {
+      code: 'VALIDATION_ERROR',
+      message: `${tool}: invalid argument${plural ? 's' : ''} at ${paths}`,
+      hint: `fix ${plural ? 'these arguments' : 'this argument'} or call tool_schema("${tool}") for the full schema`,
+      details: { issues },
+    },
+  };
+}
