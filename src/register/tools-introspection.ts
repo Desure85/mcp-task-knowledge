@@ -4,11 +4,15 @@ import { getCurrentProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
 import type { GateExtra } from '../core/auth-gate.js';
 import { innerFailure, innerResult } from '../core/tools-diagnostics.js';
+import { jsonSchemaForTool } from '../core/tool-schema.js';
 
 // AUD-10: when MCP_TOOLS_ENABLED=0 only the introspection whitelist stays
 // registered — tools_run/tools_batch must refuse to execute anything else,
 // otherwise the registry becomes a backdoor around the tools-off switch.
 const TOOLS_DISABLED_WHITELIST = new Set(['tools_list', 'tool_schema', 'tool_help', 'tools_run']);
+
+/** AC-04b: converted input schemas, keyed by tool name and registry version. */
+const schemaCache = new Map<string, Record<string, unknown>>();
 
 export function registerToolsIntrospection(ctx: ServerContext): void {
   function buildExampleFor(name: string, meta: { inputSchema?: Record<string, any> } | undefined) {
@@ -106,8 +110,21 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
       if (!entry) return err(`Tool not found: ${name}`);
       const meta = ctx.toolRegistry.get(name)!;
       const example = buildExampleFor(name, meta);
+      // AC-04b: the registry stores the raw Zod shape, which serialises into `_def` internals.
+      // Publish a real JSON Schema instead; `example` stays the human-friendly sample (with the
+      // `"example"` stub for non-scalar arguments, which is exactly what it is for).
+      let inputSchema: Record<string, unknown> | undefined;
+      const cacheKey = `${name}:${ctx.toolRegistry.version}`;
+      const cached = schemaCache.get(cacheKey);
+      if (cached) {
+        inputSchema = cached;
+      } else {
+        inputSchema = await jsonSchemaForTool(meta.inputSchema);
+        if (inputSchema) schemaCache.set(cacheKey, inputSchema);
+      }
       const payload = {
         ...entry,
+        ...(inputSchema ? { inputSchema } : {}),
         example,
       };
       return ok(payload);
