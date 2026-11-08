@@ -19,6 +19,7 @@ import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
 import { mapLimit } from '../utils/concurrency.js';
+import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
 import {
   buildTaskRow,
@@ -104,7 +105,7 @@ export async function createTask(input: {
       links: input.links || [],
       createdAt: now,
       updatedAt: now,
-      parentId: input.parentId,
+      parentId: blankToUndefined(input.parentId),
       archived: false,
       trashed: false,
     };
@@ -701,9 +702,9 @@ async function updateTaskUnlocked(
   if (hasParentPatch) {
     const items = await listTasks({ project, includeArchived: true });
     const byId = new Map(items.map((t) => [t.id, t] as const));
-    // Normalize null -> undefined (detach to root)
+    // Normalize null -> undefined (detach to root); AC-01: '' means the same thing.
     let parentId = (normalizedPatch as any).parentId as string | undefined | null;
-    if (parentId === null) parentId = undefined;
+    if (parentId === null || blankToUndefined(parentId) === undefined) parentId = undefined;
     if (parentId) {
       const parent = byId.get(parentId);
       if (!parent) {
