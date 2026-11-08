@@ -200,3 +200,73 @@ describe('AC-03b: tasks_dag filters, truncation and cursor', () => {
     }
   });
 });
+
+describe('AC-03c: fields and compact on write tools', () => {
+  it('tasks_create with fields: ["id"] fits in 120 bytes', async () => {
+    const res = await client.callTool({
+      name: 'tasks_create',
+      arguments: { project: PROJECT, title: 'projection task', fields: ['id'] },
+    });
+    const text = ((res?.content as any)?.[0]?.text as string) ?? '';
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(120);
+    const env = JSON.parse(text);
+    expect(env.ok).toBe(true);
+    expect(Object.keys(env.data)).toEqual(['id']);
+    expect(typeof env.data.id).toBe('string');
+  });
+
+  it('compact: true returns the minimal task record', async () => {
+    const created = await call('tasks_create', {
+      project: PROJECT,
+      title: 'compact task',
+      description: 'long description that must not be returned',
+      compact: true,
+    });
+    expect(created.ok).toBe(true);
+    expect(Object.keys(created.data)).toEqual(['id', 'title', 'status', 'priority', 'updatedAt']);
+  });
+
+  it('keeps the full record when no projection is requested', async () => {
+    const created = await call('tasks_create', {
+      project: PROJECT,
+      title: 'full task',
+      description: 'kept',
+    });
+    expect(created.ok).toBe(true);
+    expect(created.data.description).toBe('kept');
+    expect(typeof created.data.createdAt).toBe('string');
+    expect(created.data.tags).toEqual([]);
+  });
+
+  it('projects tasks_update and tasks_set_deps responses', async () => {
+    const created = await call('tasks_create', { project: PROJECT, title: 'projected update' });
+    const updated = await call('tasks_update', {
+      project: PROJECT,
+      id: created.data.id,
+      title: 'projected update v2',
+      fields: ['id', 'title'],
+    });
+    expect(Object.keys(updated.data)).toEqual(['id', 'title']);
+
+    const blocker = await call('tasks_create', { project: PROJECT, title: 'projection blocker' });
+    const deps = await call('tasks_set_deps', {
+      project: PROJECT,
+      id: created.data.id,
+      dependsOn: [blocker.data.id],
+      markBlocked: false,
+      compact: true,
+    });
+    expect(deps.ok).toBe(true);
+    expect(Object.keys(deps.data.task)).toEqual(['id', 'title', 'status', 'priority', 'updatedAt']);
+  });
+
+  it('projects knowledge_bulk_create results', async () => {
+    const created = await call('knowledge_bulk_create', {
+      project: PROJECT,
+      items: [{ title: 'projected doc', content: 'body' }],
+      fields: ['id'],
+    });
+    expect(created.ok).toBe(true);
+    expect(Object.keys(created.data.created[0])).toEqual(['id']);
+  });
+});

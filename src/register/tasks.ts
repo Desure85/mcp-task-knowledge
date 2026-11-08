@@ -23,6 +23,7 @@ import {
 import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
+import { projectTask, writeResponseArgs } from './write-response.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
 import { WorkflowError, assertStatusAllowed, assertTypeAllowed, loadProjectTypes, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
@@ -190,9 +191,10 @@ export function registerTasksTools(ctx: ServerContext): void {
         links: z.array(z.string()).optional(),
         parentId: z.string().optional(),
         dependsOn: z.array(z.string()).optional().describe("Dependency task IDs (DAG edges, cycle-protected)"),
+        ...writeResponseArgs,
       },
     },
-    async ({ project, title, description, priority, status, type, tags, links, parentId }) => {
+    async ({ project, title, description, priority, status, type, tags, links, parentId, fields, compact }) => {
       const prj = resolveProject(project);
       try {
         const workflow = await loadProjectWorkflow(prj);
@@ -208,7 +210,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           links,
           parentId,
         });
-        return ok(task);
+        return ok(projectTask(task, { fields, compact }));
       } catch (e: any) {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         return err(`Failed to create task: ${e?.message || String(e)}`);
@@ -233,16 +235,17 @@ export function registerTasksTools(ctx: ServerContext): void {
         links: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional(),
         dependsOn: z.array(z.string()).optional().describe("Dependency task IDs (DAG edges, cycle-protected)"),
+        ...writeResponseArgs,
       },
     },
-    async ({ project, id, ...patch }) => {
+    async ({ project, id, fields, compact, ...patch }) => {
       const prj = resolveProject(project);
       try {
         const task = await updateTask(prj, id, patch as any);
         if (!task) {
           return err(`Task not found: ${project}/${id}`);
         }
-        return ok(task);
+        return ok(projectTask(task, { fields, compact }));
       } catch (e: any) {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         return err(`Failed to update task: ${e?.message || String(e)}`);
