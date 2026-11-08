@@ -1,4 +1,4 @@
-# MCP Tools (130 with catalog; 128 by default)
+# MCP Tools (131 with catalog; 129 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -326,7 +326,7 @@ Registration depends on the switches: `service_catalog_query` and `service_catal
 | `graph_export_mermaid` | Export entity graph as Mermaid diagram |
 | `graph_visualize` | Render the entity graph as a self-contained interactive HTML page (subgraph or lexical query) |
 
-## Introspection & Tools (8 tools)
+## Introspection & Tools (9 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -335,6 +335,7 @@ Registration depends on the switches: `service_catalog_query` and `service_catal
 | `tool_help` | Get tool help text |
 | `tools_run` | Run a single tool by name |
 | `tools_batch` | Run multiple tools in parallel (batch) |
+| `logs_tail` | Read-only tail of the server JSON log (`LOG_FILE`) with secrets masked |
 | `tools_register` | Hot-register a new tool at runtime |
 | `tools_unregister` | Unregister a tool at runtime |
 | `config_reload` | Hot-reload the file config without a restart (paths resolved from `DATA_DIR` need one) |
@@ -425,4 +426,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 128 tools by default (130 with catalog; 132 when catalog writes are enabled) + 6 resources
+## Total: 129 tools by default (131 with catalog; 133 when catalog writes are enabled) + 6 resources

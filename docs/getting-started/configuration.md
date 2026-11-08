@@ -263,6 +263,24 @@ contains a `manifest.json` with the copied paths, file count and bytes.
 | `BACKUP_KEEP` | `20` | How many backups to retain; oldest are rotated out on each new backup |
 | `BACKUP_REQUIRED` | `false` | When `1`/`true`, a failed backup aborts the destructive operation instead of only logging a warning |
 
+### Logs (AC-04c)
+
+The server logs to stderr (JSON by default, `LOG_FORMAT=pretty` for dev). Writing the same log to a
+file is opt-in, because log lines can contain task/document text:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_FILE` | — | Path of the JSON log file. Relative paths resolve against `DATA_DIR`. When set, the log goes **both** to stderr and to this file |
+| `LOG_LEVEL` | `warn` (stdio) / `info` (http) | Records below this level are not written |
+| `LOG_ROTATE_BYTES` | `10485760` (10 MB) | The active file rotates when it reaches this size |
+| `LOG_ROTATE_KEEP` | `3` | Files kept in total (the active one plus previous copies as `.1`, `.2`, …) |
+
+`logs_tail` reads the newest records of that file: `{ lines?: 1..2000, level?: 'all'|'error'|'warn'|'info'|'debug', maxBytes?: 1024..524288 }`.
+It is read-only, caps the payload (default 64 KB), and masks JWTs, bearer tokens, GitHub/OpenAI keys
+and `password`/`token`-style JSON fields before returning. Use the `requestId` from a failed
+`tools_run`/`tools_batch` call to find the matching line. Without `LOG_FILE` the tool answers
+`LOG_FILE_DISABLED` with a hint instead of an empty tail.
+
 ### Service Catalog
 
 | Variable | Default | Description |

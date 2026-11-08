@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **130** — 128 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **131** — 129 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -39,6 +39,7 @@
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge document metadata with cursor pagination and field selection. Returns `data` (array)  |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
+| `logs_tail` | Read the newest records of the server JSON log (read-only). File logging is opt-in: set LOG_FILE to  |
 | `mcp.authenticate` | Authenticate this session with a token. Required before calling any other tool on http/tcp transport |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
 | `memory_async_cancel` | Cancel a pending or processing async memory job. Completed/failed jobs cannot be cancelled. |
@@ -930,6 +931,33 @@ List knowledge documents as a hierarchical tree (by parentId)
     "countOnly": "example",
     "maxBytes": "example",
     "fields": "example"
+  }
+}
+```
+
+## logs_tail
+
+**Tail Server Log**
+
+Read the newest records of the server JSON log (read-only). File logging is opt-in: set LOG_FILE to a path (relative paths resolve against DATA_DIR). Secrets — JWTs, bearer tokens, GitHub/OpenAI keys and password/token JSON fields — are masked before returning. Use the `requestId` from tools_run/tools_batch failures to find the matching line.
+
+**Параметры:**
+
+- `project`
+- `lines`
+- `level`
+- `maxBytes`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "logs_tail",
+  "arguments": {
+    "project": "mcp",
+    "lines": "example",
+    "level": "example",
+    "maxBytes": "example"
   }
 }
 ```

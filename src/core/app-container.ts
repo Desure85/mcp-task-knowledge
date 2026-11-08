@@ -57,6 +57,7 @@ import { registerProjectResources } from '../register/project-resources.js';
 import { registerSearchResources } from '../register/search-resources.js';
 import { registerAliases } from '../register/aliases.js';
 import { registerToolsIntrospection } from '../register/tools-introspection.js';
+import { registerLogTools } from '../register/logs.js';
 import { registerDebugResources } from '../register/debug-resources.js';
 import { registerDependencyTools } from '../register/dependencies.js';
 import { registerDashboardTools } from '../register/dashboard.js';
@@ -189,6 +190,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerAuthTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
+  registerLogTools(ctx);
   registerDebugResources(ctx);
 }
 

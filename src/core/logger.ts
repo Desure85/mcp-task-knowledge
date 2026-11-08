@@ -9,6 +9,8 @@
  */
 
 import pino, { type Logger, type DestinationStream } from 'pino';
+import { resolveLogFile } from './log-file.js';
+import { createRotatingStream } from './log-rotation.js';
 
 // ---------- environment ----------
 
@@ -54,6 +56,13 @@ export function createLogger(): Logger {
       : pinoPretty({ colorize: true, translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', ignore: 'pid,hostname', destination: 2 });
   } else {
     stream = pino.destination({ dest: 2, level, sync: false });
+  }
+
+  // AC-04c: opt-in file sink. It sits next to stderr (not instead of it) and receives the raw
+  // JSON form even in pretty mode, so `logs_tail` can parse records.
+  const logFile = resolveLogFile(process.env.DATA_DIR);
+  if (logFile) {
+    stream = pino.multistream([{ stream }, { stream: createRotatingStream(logFile) }]);
   }
 
   _root = pino(
