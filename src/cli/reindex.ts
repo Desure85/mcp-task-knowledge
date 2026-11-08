@@ -24,14 +24,19 @@
  */
 
 import { promises as fsp } from 'node:fs';
+import path from 'node:path';
 import {
   createMetadataIndex,
+  METADATA_INDEX_DIR,
+  METADATA_INDEX_FILE,
   resolveProjectIndexDirs,
   type MetadataIndex,
   type StorageIndexMode,
 } from '../storage/metadata-index.js';
 import { acquireServerLock, ServerLockError, type ServerLockHandle } from '../storage-lock.js';
 import { inspectIndex, formatIndexSection, type IndexInspection } from './index-inspect.js';
+import { FtsSearchIndex } from '../search/fts-index.js';
+import { rebuildFtsIndex, type FtsRebuildResult } from '../search/fts-indexer.js';
 
 export interface ReindexPaths {
   dataDir: string;
@@ -56,6 +61,8 @@ export interface ReindexReport {
   batches?: number;
   ms?: number;
   markedProjects?: number;
+  /** SC-03b: rows written to the FTS5 index by this run. */
+  fts?: FtsRebuildResult;
   /** State of the index after the command (or the state `--verify` examined). */
   inspection?: IndexInspection;
 }
@@ -166,7 +173,28 @@ function driftProblems(inspection: IndexInspection): string[] {
   if (incomplete.length > 0) {
     problems.push(`incomplete projects: ${incomplete.map((project) => project.project).join(', ')}`);
   }
+  const fts = inspection.fts;
+  if (!fts.available) {
+    problems.push(`search index unavailable: ${fts.reason ?? 'unknown reason'}`);
+  } else {
+    if (fts.dirty) problems.push(`search index is dirty${fts.dirtyReason ? ` (${fts.dirtyReason})` : ''}`);
+    if (fts.counts.missingRows > 0) problems.push(`${fts.counts.missingRows} searchable rows missing from the search index`);
+    if (fts.counts.extraRows > 0) problems.push(`${fts.counts.extraRows} extra rows in the search index`);
+    if (fts.counts.staleTerms > 0) problems.push(`${fts.counts.staleTerms} search index rows with stale terms`);
+  }
   return problems;
+}
+
+/**
+ * Cheap skip decision for `reindex --data`: no file walk, at most a few sample reads. The
+ * search index counts as clean only when it exists, is not dirty and its per-store counts
+ * match the metadata index (a never-built FTS index must be built, not skipped).
+ */
+async function ftsCoverageClean(paths: ReindexPaths): Promise<boolean> {
+  const quick = await inspectIndex(paths, { walk: false, samples: 5 });
+  const fts = quick.fts;
+  return fts.available && !fts.dirty && fts.counts.missingRows === 0 &&
+    fts.counts.extraRows === 0 && fts.counts.staleTerms === 0;
 }
 
 async function runVerify(
@@ -196,17 +224,28 @@ async function runVerify(
 async function withIndexLock<T>(
   paths: ReindexPaths,
   mode: StorageIndexMode,
-  fn: (index: MetadataIndex) => Promise<T>,
+  fn: (index: MetadataIndex, fts: FtsSearchIndex | null) => Promise<T>,
 ): Promise<T> {
   let lock: ServerLockHandle | undefined;
   let index: MetadataIndex | undefined;
+  let fts: FtsSearchIndex | undefined;
   try {
     lock = await acquireServerLock({ dataDir: paths.dataDir, transport: 'reindex', version: '' });
     const created = createMetadataIndex({ dataDir: paths.dataDir, mode });
     if (!created) throw new Error('metadata index is unavailable (STORAGE_INDEX=off or the file cannot be opened)');
     index = created;
-    return await fn(index);
+    try {
+      fts = FtsSearchIndex.open(path.join(paths.dataDir, METADATA_INDEX_DIR, METADATA_INDEX_FILE));
+    } catch {
+      fts = undefined;
+    }
+    return await fn(index, fts ?? null);
   } finally {
+    try {
+      fts?.close();
+    } catch {
+      // Closing is best effort: the lock release below is what matters.
+    }
     try {
       index?.close();
     } catch {
@@ -221,7 +260,7 @@ async function runRebuild(
   parsed: ParsedArgs,
   mode: StorageIndexMode,
 ): Promise<ReindexCliResult> {
-  return withIndexLock(paths, mode, async (index) => {
+  return withIndexLock(paths, mode, async (index, fts) => {
     if (parsed.project) {
       const dirs = await resolveProjectIndexDirs(parsed.project, {
         tasksDir: paths.tasksDir,
@@ -233,6 +272,9 @@ async function runRebuild(
         );
       }
       const filled = await index.fillProject({ project: parsed.project, dirs });
+      const ftsRebuilt = fts
+        ? await rebuildFtsIndex(fts, { tasksDir: paths.tasksDir, knowledgeDir: paths.knowledgeDir }, { project: parsed.project })
+        : undefined;
       const inspection = await inspectIndex(paths);
       const report: ReindexReport = {
         mode: 'project',
@@ -242,16 +284,23 @@ async function runRebuild(
         tasks: filled.tasks,
         docs: filled.docs,
         ms: filled.ms,
+        fts: ftsRebuilt,
         inspection,
       };
       const text = parsed.json
         ? JSON.stringify(report, null, 2)
-        : `reindex: project ${parsed.project} — ${filled.tasks} tasks, ${filled.docs} docs in ${filled.ms} ms\n${render(inspection)}`;
+        : `reindex: project ${parsed.project} — ${filled.tasks} tasks, ${filled.docs} docs in ${filled.ms} ms` +
+          `${ftsRebuilt ? `, search index ${ftsRebuilt.tasks + ftsRebuilt.docs} rows` : ''}\n${render(inspection)}`;
       return { exitCode: 0, text, report };
     }
 
     const projects = await listProjects(paths);
-    if (!parsed.force && projects.length > 0 && projects.every((project) => index.isProjectComplete(project))) {
+    const metadataComplete =
+      projects.length > 0 && projects.every((project) => index.isProjectComplete(project));
+    const ftsClean = fts
+      ? await ftsCoverageClean(paths)
+      : true;
+    if (!parsed.force && metadataComplete && ftsClean) {
       const inspection = await inspectIndex(paths);
       const report: ReindexReport = {
         mode: 'rebuild',
@@ -270,6 +319,9 @@ async function runRebuild(
       tasksDir: paths.tasksDir,
       knowledgeDir: paths.knowledgeDir,
     });
+    const ftsRebuilt = fts
+      ? await rebuildFtsIndex(fts, { tasksDir: paths.tasksDir, knowledgeDir: paths.knowledgeDir })
+      : undefined;
     const markedProjects = index.markProjectsComplete();
     const inspection = await inspectIndex(paths);
     const report: ReindexReport = {
@@ -280,13 +332,15 @@ async function runRebuild(
       docs: rebuilt.docs,
       batches: rebuilt.batches,
       ms: rebuilt.ms,
+      fts: ftsRebuilt,
       markedProjects,
       inspection,
     };
     const text = parsed.json
       ? JSON.stringify(report, null, 2)
       : `reindex: ${rebuilt.tasks} tasks + ${rebuilt.docs} docs in ${rebuilt.ms} ms ` +
-        `(${rebuilt.batches} batches), ${markedProjects} projects marked complete\n${render(inspection)}`;
+        `(${rebuilt.batches} batches), ${markedProjects} projects marked complete` +
+        `${ftsRebuilt ? `, search index ${ftsRebuilt.tasks + ftsRebuilt.docs} rows in ${ftsRebuilt.ms} ms` : ''}\n${render(inspection)}`;
     return { exitCode: 0, text, report };
   });
 }
