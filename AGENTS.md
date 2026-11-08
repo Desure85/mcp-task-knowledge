@@ -425,17 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-ac03c (AC-03c — fields/compact у write-инструментов; AC-03 закрыт)
-**Текущая ветка:** feat/ac03c-write-projections (от origin/master 5024305, PR #305 влит)
-**Текущий этап:** контракты MCP (этап AC) — экономия ответа закрыта целиком
-**Статус:** `AC-03c` → done: `fields`/`compact` у `tasks_create`, `tasks_update`, `tasks_set_deps`, `tasks_bulk_create`, `tasks_bulk_update`, `knowledge_bulk_create`, `knowledge_bulk_update` (модуль `src/register/write-response.ts`); `tasks_create` с `fields:['id']` — 116 байт. **AC-03 закрыт** (AC-03a PR #304, AC-03b PR #305, AC-03c — этот PR). Следующий по плану — AC-04 (диагностика `tools_run`, настоящая `inputSchema`, хвост лога); он требует конвертера zod-shape → JSON Schema.
+**Session ID:** S-20261108-ac04a (AC-04a — диагностика tools_run/tools_batch)
+**Текущая ветка:** feat/ac04a-tools-run-diagnostics (от origin/master 2a61c11, PR #306 влит)
+**Текущий этап:** контракты MCP (этап AC) — диагностика вызовов, часть 1 из 3
+**Статус:** `AC-04a` → done: `tools_run`/`tools_batch` возвращают исходный конверт ошибки (`code`, `message`, `hint`, `details`), `requestId` на каждый вложенный вызов, `errorEnvelope` с конвертом и прежний строковый `error`; тот же `requestId` пишется в лог вместе с `tool` и `code`. Общий модуль `src/core/tools-diagnostics.ts`. Тесты `tests/tools-run-errors.test.ts` (5). **AC-04 разбит** на AC-04a/b/c (AC-04b — настоящая `inputSchema` в `tool_schema`; AC-04c — хвост лога, требует файлового синка).
 
 ### Найдено в этой сессии (для следующих инкрементов)
 
-- После AC-01 любой новый аргумент инструмента обязан быть объявлен в схеме — иначе клиент получит `UNKNOWN_PARAM`; это ловушка при добавлении «тихих» флагов.
-- `String.replace` в скриптах правок бьёт по всем вхождениям: при правке `results.push(t)` зацепился `tasks_bulk_close`, у которого нет `fields/compact` — поймано сборкой. Для точечных правок использовать уникальные якоря.
-- Импорты знаний (`knowledge_import_*`) — единственные write-инструменты без `fields`/`compact`; если понадобится, у них своя форма ответа (план + счётчики), проекция потребует отдельного решения.
-- Для AC-04: SDK не публикует `toJsonSchemaCompat`; внутренний путь `@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js` импортируется по file URL. Альтернатива — свой конвертер над `_def` (v3) и `_zod` (v4), как уже сделано для определения вкуса схем в AC-01.
+- `tool_schema` до сих пор отдаёт пример с заглушкой `"example"`; рабочий путь к настоящей схеме найден: `toJsonSchemaCompat` из SDK по абсолютному пути `dist/esm/server/zod-json-schema-compat.js` (проверено в пробе, даёт `properties.items.items.properties.title`), но это зависимость от внутреннего модуля — нужен fallback и guard-тест.
+- Логи pino идут только в stderr, файлового синка нет — AC-04c (хвост лога) без него не сделать; это отдельное решение (путь, ротация, вычистка секретов).
+- `tools_run`/`tools_batch` теперь пишут `warn` на каждый отказ: при массовых батчах это может шуметь — если станет проблемой, снизить до `debug` для повторяющихся кодов.
 
 ### Контракт счёта инструментов (2026-11-07)
 

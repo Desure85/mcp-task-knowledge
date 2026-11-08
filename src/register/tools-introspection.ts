@@ -3,6 +3,7 @@ import type { ServerContext } from './context.js';
 import { getCurrentProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
 import type { GateExtra } from '../core/auth-gate.js';
+import { innerFailure, innerResult } from '../core/tools-diagnostics.js';
 
 // AUD-10: when MCP_TOOLS_ENABLED=0 only the introspection whitelist stays
 // registered — tools_run/tools_batch must refuse to execute anything else,
@@ -159,15 +160,23 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
         // intended execution surface. Keep the introspection whitelist
         // reachable in both modes.
         if (!ctx.TOOLS_ENABLED && !ctx.TOOL_RES_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
-          const e = { name: r.name, ok: false, error: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}` };
-          results.push(e);
+          // AC-04a: failures keep the envelope (code/message/hint/details) and carry a
+          // requestId that also reaches the server log.
+          results.push(innerFailure(r.name, {
+            code: 'TOOLS_DISABLED',
+            message: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}`,
+            hint: 'enable tools (MCP_TOOLS_ENABLED) or call the tool through its own transport',
+          }));
           if (stopOnError) break;
           continue;
         }
         const meta = ctx.toolRegistry.get(r.name);
         if (!meta || typeof meta.handler !== 'function') {
-          const e = { name: r.name, ok: false, error: `Tool not found or not executable: ${r.name}` };
-          results.push(e);
+          results.push(innerFailure(r.name, {
+            code: 'TOOL_NOT_FOUND',
+            message: `Tool not found or not executable: ${r.name}`,
+            hint: 'call tools_list to see registered tool names',
+          }));
           if (stopOnError) break;
           continue;
         }
@@ -175,26 +184,9 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
           // AUD-10: forward SDK extra (sessionId) into the gated handler so
           // auth-gate, SecurityStack and requestScope see the real caller.
           const res = await meta.handler(r.params ?? {}, extra);
-          let payload: any = res;
-          try {
-            const maybe = (res as any)?.content?.[0]?.text;
-            if (typeof maybe === 'string' && maybe.trim().length > 0) payload = JSON.parse(maybe);
-          } catch {}
-          let okFlag = true;
-          let dataOut: any = payload;
-          let errOut: any = undefined;
-          if (payload && typeof payload === 'object') {
-            if (typeof (payload as any).ok === 'boolean') okFlag = (payload as any).ok === true;
-            if (Object.prototype.hasOwnProperty.call(payload, 'data')) dataOut = (payload as any).data;
-            if ((payload as any).isError === true) okFlag = false;
-            if (!okFlag && Object.prototype.hasOwnProperty.call(payload as any, 'error')) {
-              const e = (payload as any).error;
-              errOut = (e && typeof e === 'object' && 'message' in e) ? (e as any).message : e;
-            }
-          }
-          results.push({ name: r.name, ok: okFlag, data: okFlag ? dataOut : undefined, error: okFlag ? undefined : (errOut ?? 'error') });
+          results.push(innerResult(r.name, res));
         } catch (e: any) {
-          results.push({ name: r.name, ok: false, error: e?.message || String(e) });
+          results.push(innerFailure(r.name, { message: e?.message || String(e) }));
           if (stopOnError) break;
         }
       }
@@ -221,35 +213,26 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
         // AUD-10: same TOOLS_ENABLED=0 whitelist as tools_run (with the
         // TOOL_RES_ENABLED resources-only exception).
         if (!ctx.TOOLS_ENABLED && !ctx.TOOL_RES_ENABLED && !TOOLS_DISABLED_WHITELIST.has(r.name)) {
-          return { name: r.name, ok: false, error: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}` };
+          return innerFailure(r.name, {
+            code: 'TOOLS_DISABLED',
+            message: `Tool execution disabled (MCP_TOOLS_ENABLED=0): ${r.name}`,
+            hint: 'enable tools (MCP_TOOLS_ENABLED) or call the tool through its own transport',
+          });
         }
         const meta = ctx.toolRegistry.get(r.name);
         if (!meta || typeof meta.handler !== 'function') {
-          return { name: r.name, ok: false, error: `Tool not found: ${r.name}` };
+          return innerFailure(r.name, {
+            code: 'TOOL_NOT_FOUND',
+            message: `Tool not found: ${r.name}`,
+            hint: 'call tools_list to see registered tool names',
+          });
         }
         try {
           // AUD-10: forward SDK extra so the gated handler sees sessionId.
           const res = await meta.handler(r.params ?? {}, extra);
-          let payload: any = res;
-          try {
-            const maybe = (res as any)?.content?.[0]?.text;
-            if (typeof maybe === 'string' && maybe.trim().length > 0) payload = JSON.parse(maybe);
-          } catch {}
-          let okFlag = true;
-          let dataOut: any = payload;
-          let errOut: any = undefined;
-          if (payload && typeof payload === 'object') {
-            if (typeof (payload as any).ok === 'boolean') okFlag = (payload as any).ok === true;
-            if (Object.prototype.hasOwnProperty.call(payload, 'data')) dataOut = (payload as any).data;
-            if ((payload as any).isError === true) okFlag = false;
-            if (!okFlag && Object.prototype.hasOwnProperty.call(payload as any, 'error')) {
-              const e = (payload as any).error;
-              errOut = (e && typeof e === 'object' && 'message' in e) ? (e as any).message : e;
-            }
-          }
-          return { name: r.name, ok: okFlag, data: okFlag ? dataOut : undefined, error: okFlag ? undefined : (errOut ?? 'error') };
+          return innerResult(r.name, res);
         } catch (e: any) {
-          return { name: r.name, ok: false, error: e?.message || String(e) };
+          return innerFailure(r.name, { message: e?.message || String(e) });
         }
       });
       const results = await Promise.all(promises);
