@@ -175,3 +175,90 @@ describe('AC-04c: logs_tail tool', () => {
     expect(errorsOnly.data.lines[0]).toContain('token rejected');
   });
 });
+
+describe('AC-04d: secret classes (input -> output)', () => {
+  const masked: Array<{ name: string; input: string; output: string }> = [
+    {
+      name: 'Basic authorization in a JSON field',
+      input: '{"authorization":"Basic dXNlcjpwYXNz"}',
+      output: '{"authorization":"Basic [REDACTED_TOKEN]"}',
+    },
+    {
+      name: 'Basic authorization header',
+      input: 'Authorization: Basic dXNlcjpwYXNz',
+      output: 'Authorization: Basic [REDACTED_TOKEN]',
+    },
+    {
+      name: 'token in a URL query',
+      input: 'GET https://api.example.com/v1?token=abc123&limit=10',
+      output: 'GET https://api.example.com/v1?token=[REDACTED]&limit=10',
+    },
+    {
+      name: 'password in a query keeps the neighbour',
+      input: '?password=hunter2&user=bob',
+      output: '?password=[REDACTED]&user=bob',
+    },
+    {
+      name: 'credentials in a connection string',
+      input: 'postgres://app:s3cr3t@db.internal:5432/app',
+      output: 'postgres://app:[REDACTED]@db.internal:5432/app',
+    },
+    {
+      name: 'env-style assignments',
+      input: 'MCP_LOGIN_PASSWORD=hunter2 MCP_PROXY_TOKEN=abc123',
+      output: 'MCP_LOGIN_PASSWORD=[REDACTED] MCP_PROXY_TOKEN=[REDACTED]',
+    },
+    {
+      name: 'AWS access key id',
+      input: 'aws=AKIAIOSFODNN7EXAMPLE',
+      output: 'aws=[REDACTED_AWS_KEY]',
+    },
+    {
+      name: 'PEM private key block',
+      input: '-----BEGIN RSA PRIVATE KEY-----MIIEow-----END RSA PRIVATE KEY-----',
+      output: '[REDACTED_PRIVATE_KEY]',
+    },
+    {
+      name: 'camelCase JSON keys',
+      input: '{"clientSecret":"abc123","authToken":"xyz789"}',
+      output: '{"clientSecret":"[REDACTED]","authToken":"[REDACTED]"}',
+    },
+    {
+      name: 'dashed JSON key',
+      input: '{"x-api-key":"abc123"}',
+      output: '{"x-api-key":"[REDACTED]"}',
+    },
+    {
+      name: 'dashed header key',
+      input: 'x-api-key: abc123',
+      output: 'x-api-key: [REDACTED]',
+    },
+    {
+      name: 'query-style password with user',
+      input: 'password=hunter2&user=bob',
+      output: 'password=[REDACTED]&user=bob',
+    },
+  ];
+
+  const untouched: Array<{ name: string; input: string }> = [
+    { name: 'long commit hash', input: 'sha=3f786850e387550fdab836ed7e6dc881de23001b' },
+    { name: 'uuid', input: 'id=123e4567-e89b-12d3-a456-426614174000' },
+    { name: 'numeric counter next to a token word', input: '{"tokenCount": 5}' },
+    { name: 'prose about Basic auth', input: 'Basic authentication failed' },
+    { name: 'plain URL with paging', input: 'https://example.com/path?limit=10&page=2' },
+    { name: 'certificate block', input: '-----BEGIN CERTIFICATE-----MIIB-----END CERTIFICATE-----' },
+    { name: 'user without a password', input: 'https://user@example.com/path' },
+  ];
+
+  it.each(masked)('masks $name', ({ input, output }) => {
+    const result = scrubSecrets(input);
+    expect(result.line).toBe(output);
+    expect(result.masked).toBe(true);
+  });
+
+  it.each(untouched)('leaves $name untouched', ({ input }) => {
+    const result = scrubSecrets(input);
+    expect(result.line).toBe(input);
+    expect(result.masked).toBe(false);
+  });
+});

@@ -5,6 +5,7 @@ import { ok, err } from '../utils/respond.js';
 import type { GateExtra } from '../core/auth-gate.js';
 import { innerFailure, innerResult } from '../core/tools-diagnostics.js';
 import { jsonSchemaForTool } from '../core/tool-schema.js';
+import { validateNestedParams } from '../core/tool-arguments.js';
 
 // AUD-10: when MCP_TOOLS_ENABLED=0 only the introspection whitelist stays
 // registered — tools_run/tools_batch must refuse to execute anything else,
@@ -198,12 +199,20 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
           continue;
         }
         try {
+          // AC-04d: the SDK never validates a nested call, so params are checked against the
+          // tool's own shape before the handler can write anything.
+          const validated = validateNestedParams(r.name, meta.inputSchema, r.params);
+          if (!validated.ok) {
+            results.push(innerFailure(r.name, validated.error));
+            if (stopOnError) break;
+            continue;
+          }
           // AUD-10: forward SDK extra (sessionId) into the gated handler so
           // auth-gate, SecurityStack and requestScope see the real caller.
-          const res = await meta.handler(r.params ?? {}, extra);
+          const res = await meta.handler((validated.value ?? {}) as Record<string, unknown>, extra);
           results.push(innerResult(r.name, res));
         } catch (e: any) {
-          results.push(innerFailure(r.name, { message: e?.message || String(e) }));
+          results.push(innerFailure(r.name, e));
           if (stopOnError) break;
         }
       }
@@ -245,11 +254,15 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
           });
         }
         try {
+          // AC-04d: same shape validation as tools_run — a nested call must not reach the
+          // handler with missing required arguments.
+          const validated = validateNestedParams(r.name, meta.inputSchema, r.params);
+          if (!validated.ok) return innerFailure(r.name, validated.error);
           // AUD-10: forward SDK extra so the gated handler sees sessionId.
-          const res = await meta.handler(r.params ?? {}, extra);
+          const res = await meta.handler((validated.value ?? {}) as Record<string, unknown>, extra);
           return innerResult(r.name, res);
         } catch (e: any) {
-          return innerFailure(r.name, { message: e?.message || String(e) });
+          return innerFailure(r.name, e);
         }
       });
       const results = await Promise.all(promises);

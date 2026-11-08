@@ -425,12 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-sc03a2 (SC-03a2 — измерение «хранилище» в FTS-индексе)
-**Текущая ветка:** fix/sc03a2-store-dimension (от origin/master 4a8b0d2, PR #310 влит)
-**Текущий этап:** SC — скорость и масштаб; SC-03 (поисковый индекс), шаг 1a из 3
-**Статус:** `SC-03a2` → done: в FTS-индексе появилось измерение `store` — ключ `(store, kind, id)`, `resolveStoreId(root)` (абсолютный путь, нормализация регистра на Windows), `remove(store,kind,id)`, `clearStore(store)`, `stats(store)`, `stores()`. Схема FTS → v2. Причина: в проекте несколько хранилищ (`MCP_TASK_DIR`/`MCP_KNOWLEDGE_DIR` вне `DATA_DIR`, legacy `DATA_DIR/mcp/*`, legacy-id из имён файлов), и `(kind,id)` давал коллизии. Тесты `tests/search-fts.test.ts` (20). **Дальше: SC-03b** — писать индекс при мутациях (хуки в `metadata-index`/storage, `store` = корень каталога задач/знаний, `doctor`/`reindex`), затем SC-03c — read-путь и замеры hit@1/medianMs.
+**Session ID:** S-20261108-ac04d (AC-04d — валидация вложенных params и маскирование секретов)
+**Текущая ветка:** fix/ac04d-validation-masking (worktree `/home/dm/work/mcp-tk-ac04d`, от origin/master 82805c3)
+**Текущий этап:** AC — контракт инструментов и диагностика; AC-04 закрыт, AC-04d — доработка после приёмки
+**Статус:** `AC-04d` → done: `tools_run`/`tools_batch` валидируют `params` схемой инструмента до handler (`validateNestedParams`, loose-схема — `UNKNOWN_PARAM` сохранён), отказ несёт `VALIDATION_ERROR`, `requestId` и пути (`title`, `items[0].title`); брошенный `ToolError` больше не теряет `code`. `logs_tail` маскирует Basic (в поле `authorization`), секретные query-параметры, `user:pass@host`, env-присваивания, `AKIA…`, PEM `PRIVATE KEY`, camelCase/дефисные ключи и заголовки, не трогая hex/uuid/`tokenCount`/прозу. **Дальше: AC-04e** — четыре кандидата (сквозной `requestId`, фильтр по id, ротация `.1/.2`, `project` в `logs_tail`) помечены `pending`: они не воспроизведены, начинать с живой проверки.
 
-### Найдено в этой сессии (для следующих инкрементов)
+### Сессия S-20261108-ac04d (AC-04d)
+
+- Причина пункта 1: SDK валидирует аргументы на транспорте, а `tools_run`/`tools_batch` зовут `meta.handler(params)` напрямую — валидации нет. Строгая схема в обходе сломала бы AC-01 (`UNKNOWN_PARAM` не дошёл бы), поэтому разбор идёт `looseInputSchema` (v3 `passthrough`/v4 `looseObject`), как у SDK.
+- Причина пункта 2: старые паттерны покрывали JWT/bearer/`ghp_`/`sk-` и JSON-поля по точным именам. Новые классы закрыты якорями: Basic — только после `authorization`; JSON-ключи — по суффиксу секретного слова (поэтому `tokenCount` не маскируется); query — по точному списку имён.
+- `resolveProject(project)` в `logs_tail` по-прежнему только валидирует проект, но не фильтрует лог (серверный лог общий) — это записано в AC-04e, не чинилось.
+- Тесты: `tests/tools-run-errors.test.ts` (+4), `tests/log-tail.test.ts` (+19: 12 положительных и 7 негативных строк таблицы). Полный прогон — 290 файлов / 3388 тестов; `tsc -p tsconfig.test.json --noEmit` — 0 ошибок.
+- Живая проба: копия `/data` в `/tmp/ac04d-live`, `tools_run{tasks_create,{project:'mcp'}}` → `VALIDATION_ERROR`, `paths:["title"]`, файлов задач 426 → 426.
+
+### Найдено в сессии SC-03a2 (для следующих инкрементов)
 
 - **Хранилищ несколько и они не обязаны лежать в `DATA_DIR`:** `MCP_TASK_DIR`/`MCP_KNOWLEDGE_DIR` могут указывать на другой том, legacy-раскладка `DATA_DIR/mcp/*` учитывается `pickDir`. Всё, что хранит путь или идентичность (индекс, кэши, бэкапы), должно это учитывать.
 - Legacy-задачи получают id из имени файла (`tasks.ts`), поэтому id не UUID-уникален глобально — идентичность только `(store, kind, id)`.
