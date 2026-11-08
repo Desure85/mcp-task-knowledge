@@ -22,7 +22,12 @@ function splitIdentifiers(text: string): string {
   );
 }
 
-function tokenize(text: string): string[] {
+/**
+ * Corpus tokenisation (camelCase split, lowercase, stopwords removed).
+ * Exported for the FTS5 index (SC-03a) so indexed terms and query terms are produced by exactly
+ * the same rules as the in-memory BM25 — otherwise recall would drift silently.
+ */
+export function tokenize(text: string): string[] {
   return splitIdentifiers(text)
     .toLowerCase()
     .replace(/[^a-zA-Z0-9а-яА-ЯёЁ\s]/g, ' ')
