@@ -7,7 +7,7 @@
  * and schema handling.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -218,5 +218,141 @@ describe('SC-03a2: several storages in one index file', () => {
     if (process.platform === 'win32') {
       expect(resolveStoreId(base.toUpperCase())).toBe(resolveStoreId(base.toLowerCase()));
     }
+  });
+});
+
+describe('SC-03b: storage writes keep the index in step', () => {
+  let tasks: typeof import('../src/storage/tasks.js');
+  let knowledge: typeof import('../src/storage/knowledge.js');
+  let indexer: typeof import('../src/search/fts-indexer.js');
+  let fts: FtsSearchIndex;
+
+  const project = () => `sc03b-${Math.random().toString(16).slice(2, 10)}`;
+
+  beforeAll(async () => {
+    tasks = await import('../src/storage/tasks.js');
+    knowledge = await import('../src/storage/knowledge.js');
+    indexer = await import('../src/search/fts-indexer.js');
+  });
+
+  beforeEach(() => {
+    fts = FtsSearchIndex.inMemory();
+    indexer.setActiveFtsIndex(fts);
+  });
+
+  afterEach(() => {
+    indexer.setActiveFtsIndex(undefined);
+    fts.close();
+  });
+
+  const taskHits = (query: string) =>
+    fts.query({ q: query, store: indexer.taskStoreId(), kind: 'task' });
+  const docHits = (query: string) =>
+    fts.query({ q: query, store: indexer.knowledgeStoreId(), kind: 'doc' });
+
+  it('indexes a created task under the task store', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Falcon migration checklist' });
+
+    const hits = taskHits('falcon');
+    expect(hits.map((hit) => hit.id)).toContain(task.id);
+    expect(hits[0].store).toBe(indexer.taskStoreId());
+  });
+
+  it('drops the old terms when a task title changes', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Falcon migration checklist' });
+    await tasks.updateTask(prj, task.id, { title: 'Osprey rollout checklist' });
+
+    expect(taskHits('falcon')).toHaveLength(0);
+    expect(taskHits('osprey').map((hit) => hit.id)).toContain(task.id);
+  });
+
+  it('removes a trashed task and brings it back on restore', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Kestrel audit notes' });
+
+    await tasks.trashTask(prj, task.id);
+    expect(taskHits('kestrel')).toHaveLength(0);
+
+    await tasks.restoreTask(prj, task.id);
+    expect(taskHits('kestrel').map((hit) => hit.id)).toContain(task.id);
+  });
+
+  it('removes a permanently deleted task', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Merlin retention policy' });
+
+    expect(await tasks.deleteTaskPermanent(prj, task.id)).toBe(true);
+    expect(taskHits('merlin')).toHaveLength(0);
+  });
+
+  it('indexes knowledge writes under the knowledge store and drops stale content', async () => {
+    const prj = project();
+    const doc = await knowledge.createDoc({
+      project: prj,
+      title: 'Deployment runbook',
+      content: 'Blue green switchover with a canary step',
+    });
+
+    const created = docHits('canary');
+    expect(created.map((hit) => hit.id)).toContain(doc.id);
+    expect(created[0].store).toBe(indexer.knowledgeStoreId());
+
+    await knowledge.updateDoc(prj, doc.id, { content: 'Rollback drill with a shadow reader' });
+    expect(docHits('canary')).toHaveLength(0);
+    expect(docHits('shadow').map((hit) => hit.id)).toContain(doc.id);
+  });
+
+  it('removes an archived doc, restores it, then drops it on permanent delete', async () => {
+    const prj = project();
+    const doc = await knowledge.createDoc({ project: prj, title: 'Harbor notes', content: 'berth allocation' });
+
+    await knowledge.archiveDoc(prj, doc.id);
+    expect(docHits('berth')).toHaveLength(0);
+
+    await knowledge.restoreDoc(prj, doc.id);
+    expect(docHits('berth').map((hit) => hit.id)).toContain(doc.id);
+
+    expect(await knowledge.deleteDocPermanent(prj, doc.id)).toBe(true);
+    expect(docHits('berth')).toHaveLength(0);
+  });
+
+  it('keeps the write and flags the index when the index write fails', async () => {
+    const prj = project();
+    let dirtyReason: string | undefined;
+    const broken = {
+      upsert: () => {
+        throw new Error('index is read-only');
+      },
+      remove: () => {
+        throw new Error('index is read-only');
+      },
+      removeProject: () => {
+        throw new Error('index is read-only');
+      },
+      markDirty: (reason: string) => {
+        dirtyReason = reason;
+      },
+    } as unknown as FtsSearchIndex;
+    indexer.setActiveFtsIndex(broken);
+
+    const task = await tasks.createTask({ project: prj, title: 'Petrel incident review' });
+
+    expect(task.id).toBeTruthy();
+    expect(dirtyReason).toContain('task write');
+    expect(dirtyReason).toContain('index is read-only');
+  });
+
+  it('clears the dirty flag only on a full rebuild', () => {
+    fts.upsert([record({ id: 'kept', text: 'kept term' })]);
+    expect(fts.stats().dirty).toBe(false);
+
+    fts.markDirty('boom');
+    expect(fts.stats().dirty).toBe(true);
+    expect(fts.dirtyReason()).toBe('boom');
+
+    fts.rebuild([]);
+    expect(fts.stats().dirty).toBe(false);
   });
 });
