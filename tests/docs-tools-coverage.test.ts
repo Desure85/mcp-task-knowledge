@@ -14,12 +14,12 @@
  *   the spy is the `orig` that src/register/setup.ts wraps and calls. In compact
  *   mode (`MCP_TOOLS_ENABLED=false`) the wrapper skips non-whitelisted tools,
  *   which means only real protocol registrations reach the spy (4 tools), not the
- *   full 128-entry registry that `tools_list` still reports.
+ *   full 129-entry registry that `tools_list` still reports.
  *
  * Counting contract (measured on the base commit, see the decision record):
- *   128 tools by default
- *   130 with `CATALOG_ENABLED=true` (generator env, two dynamic `service_catalog_*`)
- *   132 with `CATALOG_WRITE_ENABLED=true` as well (upsert/delete appear)
+ *   129 tools by default
+ *   131 with `CATALOG_ENABLED=true` (generator env, two dynamic `service_catalog_*`)
+ *   133 with `CATALOG_WRITE_ENABLED=true` as well (upsert/delete appear)
  *   4   on the wire in compact mode
  *
  * `docs/api-reference.md` is generated with `CATALOG_ENABLED=true`, so its
