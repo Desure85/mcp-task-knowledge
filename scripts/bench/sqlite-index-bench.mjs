@@ -25,6 +25,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 import matter from 'gray-matter';
 
@@ -479,8 +480,14 @@ async function runBeforeBench(dataDir, project, limit, reps) {
   process.env.DATA_DIR = dataDir;
   process.env.CURRENT_PROJECT = project;
   process.env.EMBEDDINGS_MODE = 'none';
-  const storage = await import(path.resolve(import.meta.dirname, '../../dist/storage/tasks.js'));
-  const knowledge = await import(path.resolve(import.meta.dirname, '../../dist/storage/knowledge.js'));
+  // Dynamic `import()` of an absolute path needs a URL: on Windows a bare
+  // `C:\...` string is parsed as the `c:` protocol and the loader refuses it.
+  const storage = await import(
+    pathToFileURL(path.resolve(import.meta.dirname, '../../dist/storage/tasks.js')).href
+  );
+  const knowledge = await import(
+    pathToFileURL(path.resolve(import.meta.dirname, '../../dist/storage/knowledge.js')).href
+  );
   const out = {};
   out.tasksPage = await measure(
     () => storage.listTasksPage(project, { limit, includeArchived: false, includeTrashed: false }),
