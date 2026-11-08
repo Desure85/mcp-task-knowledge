@@ -1,0 +1,103 @@
+{
+  "ok": true,
+  "n": 100000,
+  "dbBytes": 137170944,
+  "rows": {
+    "tasks": 100000,
+    "docs": 100000,
+    "taskTags": 193343
+  },
+  "rssMb": 2434,
+  "build": {
+    "totalMs": 72701,
+    "tasks": {
+      "rows": 100000,
+      "parseMs": 36437,
+      "rowsPerSec": 2744
+    },
+    "docs": {
+      "rows": 100000,
+      "parseMs": 36248,
+      "rowsPerSec": 2759
+    }
+  },
+  "index": {
+    "tasksPageSqlOnly": {
+      "medianMs": 0.2,
+      "p95Ms": 0.23
+    },
+    "tasksPageWithFiles": {
+      "medianMs": 3.98,
+      "p95Ms": 4.29
+    },
+    "tasksPageFilteredStatus": {
+      "medianMs": 3.7,
+      "p95Ms": 3.91
+    },
+    "tasksPageFilteredTag": {
+      "medianMs": 6.39,
+      "p95Ms": 12.72
+    },
+    "tasksCountOnly": {
+      "medianMs": 338.18,
+      "p95Ms": 394.8
+    },
+    "tasksPageCursor": {
+      "medianMs": 3.3,
+      "p95Ms": 4.15
+    },
+    "docsPageSqlOnly": {
+      "medianMs": 0.14,
+      "p95Ms": 0.16
+    },
+    "docsPageWithFiles": {
+      "medianMs": 4.68,
+      "p95Ms": 5.91
+    },
+    "docsPageFilteredTag": {
+      "medianMs": 6.54,
+      "p95Ms": 8.61
+    },
+    "upsertOne": {
+      "medianMs": 0.27,
+      "p95Ms": 0.45
+    }
+  },
+  "sync": {
+    "dirStatOnly": {
+      "medianMs": 0.09,
+      "p95Ms": 0.15
+    },
+    "dirStatAndCount": {
+      "medianMs": 80.28,
+      "p95Ms": 91.41
+    },
+    "dbOpenAndPragma": {
+      "medianMs": 2.85,
+      "p95Ms": 3.09
+    }
+  },
+  "before": {
+    "tasksPage": {
+      "medianMs": 2527.87,
+      "p95Ms": 2609.6
+    },
+    "tasksPageFilteredStatus": {
+      "medianMs": 8431.05,
+      "p95Ms": 8574.4
+    },
+    "tasksPageFilteredTag": {
+      "medianMs": 8366.12,
+      "p95Ms": 8441.53
+    },
+    "tasksCountOnly": {
+      "medianMs": 8398.14,
+      "p95Ms": 8526.84
+    },
+    "docsPage": {
+      "medianMs": 2701.23,
+      "p95Ms": 2775.41
+    }
+  },
+  "startedAt": "2026-11-08T12:12:11.355Z"
+}

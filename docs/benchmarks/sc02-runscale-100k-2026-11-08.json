@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "label": "sc02e-dod-100k",
+  "n": 100000,
+  "project": "bench",
+  "port": 3445,
+  "reps": 3,
+  "startedAt": "2026-11-08T12:02:03.537Z",
+  "env": {
+    "node": "v24.22.2",
+    "embeddings": "none",
+    "searchCacheTtlMs": 60000
+  },
+  "coldStartMs": 967,
+  "idleRssMb": null,
+  "ops": {
+    "tasks_list": {
+      "tool": "tasks_list",
+      "status": "ok",
+      "reps": 3,
+      "medianMs": 28,
+      "p95Ms": 79,
+      "minMs": 25,
+      "maxMs": 79,
+      "responseBytes": 32789,
+      "allMs": [
+        79,
+        25,
+        28
+      ],
+      "errors": []
+    },
+    "knowledge_list": {
+      "tool": "knowledge_list",
+      "status": "ok",
+      "reps": 3,
+      "medianMs": 33,
+      "p95Ms": 52,
+      "minMs": 31,
+      "maxMs": 52,
+      "responseBytes": 22068,
+      "allMs": [
+        52,
+        31,
+        33
+      ],
+      "errors": []
+    }
+  },
+  "errors": [],
+  "rssAfterLoadMb": null,
+  "serverExitCode": null,
+  "serverStderrTail": "{\"level\":\"warn\",\"time\":\"2026-11-08T12:02:04.444Z\",\"pid\":17664,\"name\":\"mcp-task-knowledge\",\"module\":\"catalog\",\"msg\":\"catalog read disabled — query tool will not be registered\"}\n",
+  "elapsedMs": 1335
+}
