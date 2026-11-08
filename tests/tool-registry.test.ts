@@ -265,9 +265,11 @@ describe('ToolRegistry', () => {
       expect(result.pagination.hasMore).toBe(true);
     });
 
-    it('limit is clamped to max 100', () => {
+    it('limit is clamped to max 300', () => {
+      // AC-03a: 128 tools by default, plus dynamic registration — a client asking for the
+      // whole surface in one call must not be silently split into pages of 100.
       const result = reg.list({ limit: 999 });
-      expect(result.pagination.limit).toBe(100);
+      expect(result.pagination.limit).toBe(300);
     });
 
     it('limit is clamped to min 1', () => {

@@ -177,8 +177,9 @@ export function registerBulkTools(ctx: ServerContext): void {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         throw e;
       }
-      const envelope = { ok: true, data: { count: created.length, created } };
-      return { content: [{ type: "text", text: JSON.stringify(envelope, null, 2) }] };
+      // AC-03: the only hand-built envelope in the codebase — go through `ok()` so it carries
+      // `meta.ms` like every other response.
+      return ok({ count: created.length, created });
     }
   );
 

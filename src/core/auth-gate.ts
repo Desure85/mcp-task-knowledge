@@ -278,7 +278,7 @@ export function wrapToolHandler<TArgs = unknown>(
     // resolveProject() can pick session-scoped state (current project).
     const startedAt = Date.now();
     try {
-      let result = await requestScope.run({ sessionId }, () => handler(effectiveArgs, extra));
+      let result = await requestScope.run({ sessionId, startedAt }, () => handler(effectiveArgs, extra));
       if (security?.active) {
         const isErr =
           result !== null &&

@@ -199,12 +199,14 @@ export class ToolRegistry {
    * List tools with pagination.
    *
    * @param options.offset - Start index (0-based, default 0)
-   * @param options.limit - Items per page (default 20, max 100)
+   * @param options.limit - Items per page (default 20, max 300)
    * @param options.search - Optional substring filter on tool name
    */
   list(options?: { offset?: number; limit?: number; search?: string }): PaginatedResult<ToolEntry> {
     const offset = Math.max(0, options?.offset ?? 0);
-    const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
+    // AC-03: 128 tools by default plus dynamic registration — 100 forced a second page for
+    // a client that asked for the whole surface in one call. 300 covers it with headroom.
+    const limit = Math.min(300, Math.max(1, options?.limit ?? 20));
     const search = options?.search?.trim().toLowerCase();
 
     let names = this.names();

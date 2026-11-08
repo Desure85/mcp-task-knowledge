@@ -329,8 +329,15 @@ describe.sequential('MU-09 bridge schema fidelity', () => {
   it('answers tool_schema identically through the bridge', async () => {
     const direct = await httpClient.callTool({ name: 'tool_schema', arguments: { name: 'tasks_bulk_create' } });
     const viaBridge = await bridgeClient.callTool({ name: 'tool_schema', arguments: { name: 'tasks_bulk_create' } });
-    expect(textResult(viaBridge as { content?: Array<{ text?: string }> })).toEqual(
-      textResult(direct as { content?: Array<{ text?: string }> }),
+    // AC-03: every envelope carries `meta.ms`, which is wall-clock and legitimately differs
+    // between the two calls; everything else must be identical.
+    const withoutTiming = (result: { content?: Array<{ text?: string }> }) => {
+      const parsed = textResult(result) as Record<string, any>;
+      if (parsed.meta && typeof parsed.meta === 'object') delete parsed.meta.ms;
+      return parsed;
+    };
+    expect(withoutTiming(viaBridge as { content?: Array<{ text?: string }> })).toEqual(
+      withoutTiming(direct as { content?: Array<{ text?: string }> }),
     );
   });
 });
