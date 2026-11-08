@@ -56,7 +56,14 @@ export function registerSearchTools(ctx: ServerContext): void {
           onVectorError: trackVectorError(),
         });
         const paged = paginateRanked(results, request, scopeOf(prj, query, type));
-        return okWith(paged.items, paged.meta);
+        // AC-02: the ranked list is a pool, not the full match set. When the pool covers
+        // every candidate the total is exact; otherwise report it as a lower bound and name
+        // the candidate count instead of pretending `total: 50` means "50 matches".
+        const exhaustive = items.length <= pool;
+        const meta = exhaustive
+          ? paged.meta
+          : { ...paged.meta, totalExact: false, candidates: results.length };
+        return okWith(paged.items, meta);
       } catch (e) {
         if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
         if (e instanceof WorkflowError) return errWith(e.toPayload());
@@ -97,13 +104,17 @@ export function registerSearchTools(ctx: ServerContext): void {
       }
       const scope = scopeOf(prj, query);
       const request = toPageRequest({ ...pageArgs, offset });
+      // AC-02: the ranking is capped at RANKED_LIMIT, so `ranked.length` is the exact number
+      // of matches only when every document was ranked; otherwise it is the candidate count.
+      const exhaustive = metas.length <= RANKED_LIMIT;
+      const withHonesty = (meta: Record<string, unknown>) => (exhaustive ? meta : { ...meta, candidates: ranked.length });
       try {
         const limit = clampLimit(request.limit);
         const start = rankedStart(request, scope, ranked.length);
         const page = ranked.slice(start, start + limit);
         if (request.countOnly) {
-          const result = finalizePage([], { total: ranked.length, totalExact: true, hasMore: false, limit }, request, () => null);
-          return okWith(result.items, result.meta);
+          const result = finalizePage([], { total: ranked.length, totalExact: exhaustive, hasMore: false, limit }, request, () => null);
+          return okWith(result.items, withHonesty(result.meta as unknown as Record<string, unknown>));
         }
         // Read only the requested slice: the rest of the ranking stays as ids.
         const docs = await Promise.all(page.map((r) => readDoc(prj, r.id)));
@@ -119,11 +130,11 @@ export function registerSearchTools(ctx: ServerContext): void {
         });
         const result = finalizePage(
           hydrated,
-          { total: ranked.length, totalExact: true, hasMore: start + page.length < ranked.length, limit },
+          { total: ranked.length, totalExact: exhaustive, hasMore: start + page.length < ranked.length, limit },
           request,
           (index) => encodeOffsetCursor(start + index + 1, scope),
         );
-        return okWith(result.items, result.meta);
+        return okWith(result.items, withHonesty(result.meta as unknown as Record<string, unknown>));
       } catch (e) {
         if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
         throw e;

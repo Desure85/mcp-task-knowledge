@@ -128,7 +128,7 @@
 | `tasks_list` | List tasks with optional filters, cursor pagination and field selection. Returns `data` (array) plus |
 | `tasks_release` | Release your lease so another agent can pick the task up. Only the holder may release before expiry; |
 | `tasks_renew` | Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not  |
-| `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are au |
+| `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blocked |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 | `tool_help` | Short help for a tool with an example call |
@@ -3345,13 +3345,14 @@ Extend your lease on a claimed task (heartbeat). Only the current holder may ren
 
 **Set Task Dependencies**
 
-Set or replace dependency list for a task. Validates no cycles. Tasks with unmet dependencies are automatically marked as "blocked".
+Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blockedByDeps and blockingDeps. Tasks in the todo category with unmet dependencies are marked "blocked" unless markBlocked is false.
 
 **Параметры:**
 
 - `project`
 - `id`
 - `dependsOn`
+- `markBlocked`
 
 **Пример вызова:**
 
@@ -3361,7 +3362,8 @@ Set or replace dependency list for a task. Validates no cycles. Tasks with unmet
   "arguments": {
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
-    "dependsOn": "example"
+    "dependsOn": "example",
+    "markBlocked": "example"
   }
 }
 ```

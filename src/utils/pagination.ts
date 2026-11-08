@@ -208,7 +208,9 @@ export function finalizePage<T>(
       items: [],
       meta: {
         total: shape.total,
-        count: 0,
+        // AC-02: `count` is "how many records match the request", and in countOnly mode
+        // that is the total — a hard zero next to `total: 10` made the counter useless.
+        count: shape.total,
         hasMore: false,
         nextCursor: null,
         truncated: false,
@@ -245,7 +247,7 @@ function finalize<T>(
   if (request.countOnly) {
     return {
       items: [],
-      meta: { total, totalExact: true, count: 0, hasMore: false, nextCursor: null, truncated: false, limit },
+      meta: { total, totalExact: true, count: total, hasMore: false, nextCursor: null, truncated: false, limit },
     };
   }
   const projected = page.map((item) => pickFields(item, request.fields));
