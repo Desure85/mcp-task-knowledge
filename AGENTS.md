@@ -428,7 +428,7 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 **Session ID:** S-20261108-ac04a (AC-04a — диагностика tools_run/tools_batch)
 **Текущая ветка:** feat/ac04a-tools-run-diagnostics (от origin/master 2a61c11, PR #306 влит)
 **Текущий этап:** контракты MCP (этап AC) — диагностика вызовов, часть 1 из 3
-**Статус:** `AC-04a` → done: `tools_run`/`tools_batch` возвращают исходный конверт ошибки (`code`, `message`, `hint`, `details`), `requestId` на каждый вложенный вызов и `errorText` для совместимости; тот же `requestId` пишется в лог вместе с `tool` и `code`. Общий модуль `src/core/tools-diagnostics.ts`. Тесты `tests/tools-run-errors.test.ts` (5). **AC-04 разбит** на AC-04a/b/c (AC-04b — настоящая `inputSchema` в `tool_schema`; AC-04c — хвост лога, требует файлового синка).
+**Статус:** `AC-04a` → done: `tools_run`/`tools_batch` возвращают исходный конверт ошибки (`code`, `message`, `hint`, `details`), `requestId` на каждый вложенный вызов, `errorEnvelope` с конвертом и прежний строковый `error`; тот же `requestId` пишется в лог вместе с `tool` и `code`. Общий модуль `src/core/tools-diagnostics.ts`. Тесты `tests/tools-run-errors.test.ts` (5). **AC-04 разбит** на AC-04a/b/c (AC-04b — настоящая `inputSchema` в `tool_schema`; AC-04c — хвост лога, требует файлового синка).
 
 ### Найдено в этой сессии (для следующих инкрементов)
 
