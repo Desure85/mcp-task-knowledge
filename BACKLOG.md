@@ -1468,7 +1468,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Инкремент | Статус | DoD (исполняемая проверка) |
 |----|-----------|--------|----------------------------|
 | AC-04a | Конверт ошибки и `requestId` в `tools_run`/`tools_batch` | done | `npx vitest run tests/tools-run-errors.test.ts`; pass — вложенный отказ приходит с исходным `code`, `hint`, `details` и uuid-`requestId`, тот же id есть в логе (`module: tools-run`, поля `requestId`/`tool`/`code`), успешный вызов тоже несёт `requestId`, `errorText` сохраняет прежнее строковое значение, `stopOnError` не сломан. Реализовано (2026-11-08): модуль `src/core/tools-diagnostics.ts` (разбор конверта, нормализация ошибки, лог, `innerResult`/`innerFailure`), `TOOLS_DISABLED`/`TOOL_NOT_FOUND` с подсказками, экспорт `diagnosticsLog` для проверки строки лога. Revert-check 3 мутации RED |
-| AC-04b | `tool_schema` отдаёт настоящую `inputSchema` | pending | `npx vitest run tests/tools-run-errors.test.ts` (часть 2); pass — `tool_schema('tasks_bulk_create')` содержит путь `inputSchema.properties.items.items.properties.title`, заглушка `example` остаётся только в поле `example` для нескалярных аргументов; guard-тест падает, если внутренний `toJsonSchemaCompat` исчез из SDK |
+| AC-04b | `tool_schema` отдаёт настоящую `inputSchema` | done | `npx vitest run tests/tool-schema.test.ts`; pass — `tool_schema('tasks_bulk_create')` содержит путь `inputSchema.properties.items.items.properties.title`, заглушка `example` остаётся только в поле `example` для нескалярных аргументов, `required`/`properties` совпадают с протокольным `tools/list`; fallback-схема сохраняет имена и `required` и помечена `x-schema-source: fallback`. Реализовано (2026-11-08): `src/core/tool-schema.ts` — ленивая загрузка `toJsonSchemaCompat` из SDK по абсолютному пути (подъём до корня пакета, `pathToFileURL`), конвертация вкусом схемы (`_zod` → v4, иначе v3), `minimalInputSchema` как fallback, кэш по `name` + версии реестра. Тесты: 5 (включая обход всех 128 инструментов). Revert-check 2 мутации RED |
 | AC-04c | Read-only хвост лога с вычисткой секретов | pending | `npx vitest run tests/tools-run-errors.test.ts` (часть 3); pass — инструмент отдаёт последние N строк файла лога, JWT/токены/пароли маскируются, файл не меняется; решение о файловом синке и ротации записано |
 
 ## Статистика бэклога
@@ -1597,3 +1597,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > `code`/`hint`/`details` доходят до клиента, у каждого вложенного вызова есть `requestId`,
 > и он же пишется в лог. AC-04 разбит на a/b/c и остаётся `pending` до AC-04b/AC-04c,
 > «Итого» не меняется.
+> Примечание (2026-11-08, AC-04b): `tool_schema` публикует настоящую JSON Schema, а не сырой
+> Zod-shape; заглушка `"example"` осталась только в примере. Осталось AC-04c (хвост лога).
+> «Итого» не меняется: пункт вне счётчика.
