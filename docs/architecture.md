@@ -107,3 +107,7 @@ flowchart TD
 - 0003 — ServiceAvailability singleton registry
 - 0004 — LAN Relay UDP multicast discovery
 - 0005 — Coverage threshold scope
+- 0006 — Claude Code Plugin Compatibility (bidirectional converter)
+- 0007 — JSON responses and SSE for the HTTP transport
+- 0008 — `admin_backup` / `admin_restore` — portable DATA_DIR archive
+- 0009 — Pluggable storage and embeddings (profiles, interfaces, transition)
