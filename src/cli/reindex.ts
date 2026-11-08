@@ -196,13 +196,14 @@ async function runVerify(
 
 async function withIndexLock<T>(
   paths: ReindexPaths,
+  mode: StorageIndexMode,
   fn: (index: MetadataIndex) => Promise<T>,
 ): Promise<T> {
   let lock: ServerLockHandle | undefined;
   let index: MetadataIndex | undefined;
   try {
     lock = await acquireServerLock({ dataDir: paths.dataDir, transport: 'reindex', version: '' });
-    const created = createMetadataIndex({ dataDir: paths.dataDir });
+    const created = createMetadataIndex({ dataDir: paths.dataDir, mode });
     if (!created) throw new Error('metadata index is unavailable (STORAGE_INDEX=off or the file cannot be opened)');
     index = created;
     return await fn(index);
@@ -219,8 +220,9 @@ async function withIndexLock<T>(
 async function runRebuild(
   paths: ReindexPaths,
   parsed: ParsedArgs,
+  mode: StorageIndexMode,
 ): Promise<ReindexCliResult> {
-  return withIndexLock(paths, async (index) => {
+  return withIndexLock(paths, mode, async (index) => {
     if (parsed.project) {
       const dirs = await resolveProjectIndexDirs(parsed.project, {
         tasksDir: paths.tasksDir,
@@ -303,7 +305,8 @@ export async function runReindexCli(
   if (parsed.help) return { exitCode: 0, text: USAGE };
   if (parsed.error) return { exitCode: 2, text: `${parsed.error}\n\n${USAGE}` };
 
-  if ((options.storageIndexMode ?? 'auto') === 'off') {
+  const mode = options.storageIndexMode ?? 'auto';
+  if (mode === 'off') {
     const report: ReindexReport = {
       mode: parsed.verify ? 'verify' : 'rebuild',
       dataDir: paths.dataDir,
@@ -317,12 +320,14 @@ export async function runReindexCli(
   }
 
   try {
-    return parsed.verify ? await runVerify(paths, parsed) : await runRebuild(paths, parsed);
+    return parsed.verify ? await runVerify(paths, parsed) : await runRebuild(paths, parsed, mode);
   } catch (err) {
     if (err instanceof ServerLockError) {
       return { exitCode: 2, text: `reindex: ${err.code}: ${err.message}` };
     }
-    return { exitCode: 2, text: `reindex: crashed: ${(err as Error).message}` };
+    // Everything the command raises deliberately (no project directory, index disabled in
+    // createMetadataIndex, a failed rebuild) already reads as a sentence with the cause.
+    return { exitCode: 2, text: `reindex: ${(err as Error).message}` };
   }
 }
 
