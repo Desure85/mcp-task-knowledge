@@ -141,8 +141,10 @@ describe('Q-014 slice 17: knowledge import/export surface', () => {
       // File must live inside DATA_DIR — drop it into the store root.
       await fsp.writeFile(path.join(srv.store, 'notes.txt'), `Notes about ${rare} ingestion chunks.`, 'utf8');
 
+      // AC-01: `project` is not part of this tool's contract (it is extract-only, the file
+      // comes from DATA_DIR); it used to be silently ignored, and an unknown argument is now
+      // an UNKNOWN_PARAM error.
       const mm = await srv.callTool('knowledge_import_multimodal', {
-        project: 'mcp',
         filePath: 'notes.txt',
         type: 'text',
       });
@@ -153,7 +155,6 @@ describe('Q-014 slice 17: knowledge import/export surface', () => {
 
       // Path traversal guard: escaping DATA_DIR is rejected.
       const escape = await srv.callTool('knowledge_import_multimodal', {
-        project: 'mcp',
         filePath: '../outside.txt',
         type: 'text',
       });
