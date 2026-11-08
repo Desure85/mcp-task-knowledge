@@ -17,6 +17,7 @@ import {
   noteIndexPageRead,
   resolveProjectIndexDirs,
 } from './metadata-index.js';
+import { noteDocRemoved, noteDocWritten } from '../search/fts-indexer.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
@@ -76,6 +77,7 @@ export async function createDoc(input: {
   await ensureDir(path.dirname(p));
   await writeText(p, body);
   await indexDocWrite(input.project, data, p);
+  noteDocWritten(input.project, data, input.content);
   emitKnowledgeChanged(input.project, 'created', id);
   return { ...data, content: input.content };
 }
@@ -410,6 +412,7 @@ async function updateDocUnlocked(project: string, id: string, patch: Partial<Omi
   const p = fileFor(project, id);
   await writeText(p, body);
   await indexDocWrite(project, updatedMeta, p);
+  noteDocWritten(project, updatedMeta, content);
   emitKnowledgeChanged(project, 'updated', id);
   return { ...updatedMeta, content };
 }
@@ -430,10 +433,12 @@ export async function deleteDocPermanent(project: string, id: string): Promise<b
   const p = fileFor(project, id);
   if (!(await pathExists(p))) {
     indexDocDelete(id);
+    noteDocRemoved(project, id);
     return false;
   }
   await fsp.unlink(p);
   indexDocDelete(id);
+  noteDocRemoved(project, id);
   emitKnowledgeChanged(project, 'deleted', id);
   return true;
 }

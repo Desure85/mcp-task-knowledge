@@ -235,6 +235,7 @@ export class AppContainer {
   private readonly services = getServiceAvailabilityRegistry();
   private relay?: import('../relay/relay-manager.js').RelayManager;
   private metadataIndex?: MetadataIndex;
+  private ftsIndex?: import('../search/fts-index.js').FtsSearchIndex;
   private cleanupCallbacks: Array<() => Promise<void> | void> = [];
   private signalHandlersInstalled = false;
   private storageLock?: ServerLockHandle;
@@ -410,7 +411,7 @@ export class AppContainer {
       // Any failure degrades to file scans; it must never block startup.
       if (resolveStorageIndexMode() !== 'off') {
         try {
-          const { createMetadataIndex, setActiveMetadataIndex } = await import('../storage/metadata-index.js');
+          const { createMetadataIndex, setActiveMetadataIndex, METADATA_INDEX_DIR, METADATA_INDEX_FILE } = await import('../storage/metadata-index.js');
           this.metadataIndex = createMetadataIndex({ dataDir: DATA_DIR, logger: this.log }) ?? undefined;
           if (this.metadataIndex) {
             setActiveMetadataIndex(this.metadataIndex);
@@ -418,6 +419,21 @@ export class AppContainer {
               setActiveMetadataIndex(undefined);
               this.metadataIndex?.close();
             });
+            try {
+              const { FtsSearchIndex } = await import('../search/fts-index.js');
+              const { setActiveFtsIndex } = await import('../search/fts-indexer.js');
+              this.ftsIndex = FtsSearchIndex.open(
+                path.join(DATA_DIR, METADATA_INDEX_DIR, METADATA_INDEX_FILE),
+              );
+              setActiveFtsIndex(this.ftsIndex);
+              this.addCleanup(() => {
+                setActiveFtsIndex(undefined);
+                this.ftsIndex?.close();
+              });
+              if (schemaApplied) this.ftsIndex.markDirty('DATA_DIR schema migrations applied');
+            } catch (err) {
+              this.log.warn({ err }, 'FTS index unavailable — search keeps the in-memory path');
+            }
             if (schemaApplied) {
               try {
                 const rebuilt = await this.metadataIndex.rebuild({
