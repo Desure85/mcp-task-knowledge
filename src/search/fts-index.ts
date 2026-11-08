@@ -1,5 +1,5 @@
 /**
- * AC-03/SC-03a — inverted index (SQLite FTS5) for search over tasks and knowledge.
+ * SC-03a — inverted index (SQLite FTS5) for search over tasks and knowledge.
  *
  * Why: `search_tasks`/`search_knowledge` used to tokenise the whole corpus on every call
  * (`bm25Search` builds df/avgdl per query), which is 23.6 s and 4.1 GB RSS on 100k documents.
@@ -11,10 +11,15 @@
  *   - `terms` holds *our* tokens (camelCase split, stopwords removed, lowercased), not the raw
  *     text: FTS5's own tokenizer does not split `getUserProfile` and does not know our stopword
  *     list, so indexing raw text would change recall silently.
- *   - `id`, `kind`, `project`, `updated_at` are `UNINDEXED` columns used for filtering and for
- *     joining back to storage; ranking uses FTS5 `bm25()`.
+ *   - **Every row carries `store`** (SC-03a2): a deployment can have several storages — `DATA_DIR`
+ *     plus `MCP_TASK_DIR`/`MCP_KNOWLEDGE_DIR` overrides, the legacy `DATA_DIR/mcp/*` layout, or
+ *     tasks and knowledge on different volumes. Legacy task ids are derived from file names
+ *     (`123`, `TASK-1`), so the same id can exist in two stores; `(store, kind, id)` is the
+ *     identity and `project` alone cannot discriminate (project names are per store).
+ *   - `id`, `store`, `kind`, `project`, `updated_at` are `UNINDEXED` columns used for filtering and
+ *     for joining back to storage; ranking uses FTS5 `bm25()`.
  *   - Query tokens are prefix-expanded (`auth*` for `auth` → `authentication`), which is what the
- *     in-memory BM25 gets for free from its substring-free token matching on short queries.
+ *     in-memory BM25 gets for free from its tokenizer.
  *   - The schema carries a version row; a mismatch is reported by `stats()` so `doctor`/`reindex`
  *     (SC-03c) can rebuild instead of serving stale data.
  */
@@ -24,11 +29,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tokenize } from './bm25.js';
 
-export const FTS_SCHEMA_VERSION = 1;
+export const FTS_SCHEMA_VERSION = 2;
 
 export type FtsKind = 'task' | 'doc';
 
 export interface FtsRecord {
+  /** Storage root the record lives in (see `resolveStoreId`). */
+  store: string;
   kind: FtsKind;
   id: string;
   project: string;
@@ -40,12 +47,15 @@ export interface FtsRecord {
 export interface FtsQuery {
   /** Natural-language query. */
   q: string;
+  /** Restrict to one storage root. Omit only for deliberate cross-store tooling. */
+  store?: string;
   kind?: FtsKind;
   project?: string;
   limit?: number;
 }
 
 export interface FtsHit {
+  store: string;
   kind: FtsKind;
   id: string;
   project: string;
@@ -61,10 +71,18 @@ export interface FtsStats {
   dbBytes: number;
 }
 
+export interface FtsStoreStats {
+  store: string;
+  rows: number;
+  tasks: number;
+  docs: number;
+}
+
 const DDL = [
   `CREATE TABLE IF NOT EXISTS search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
      id UNINDEXED,
+     store UNINDEXED,
      kind UNINDEXED,
      project UNINDEXED,
      updated_at UNINDEXED,
@@ -73,6 +91,16 @@ const DDL = [
      prefix = '2 3'
    )`,
 ];
+
+/**
+ * Canonical identity of a storage root: absolute, without a trailing separator, lowercased on
+ * Windows (the filesystem is case-insensitive there, so `C:\Tasks` and `c:/tasks` are one store).
+ */
+export function resolveStoreId(root: string): string {
+  let resolved = path.resolve(root);
+  if (resolved.length > 1 && resolved.endsWith(path.sep)) resolved = resolved.slice(0, -1);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
 
 /** Escape a token for an FTS5 query string; tokens are alphanumeric after `tokenize`. */
 function matchExpression(query: string): string | undefined {
@@ -130,14 +158,21 @@ export class FtsSearchIndex {
   /** Insert or replace records; returns how many rows were written. */
   upsert(records: FtsRecord[]): number {
     if (records.length === 0) return 0;
-    const remove = this.db.prepare('DELETE FROM search_fts WHERE id = ? AND kind = ?');
+    const remove = this.db.prepare('DELETE FROM search_fts WHERE store = ? AND id = ? AND kind = ?');
     const insert = this.db.prepare(
-      'INSERT INTO search_fts(id, kind, project, updated_at, terms) VALUES(?, ?, ?, ?, ?)',
+      'INSERT INTO search_fts(id, store, kind, project, updated_at, terms) VALUES(?, ?, ?, ?, ?, ?)',
     );
     const write = this.db.transaction((batch: FtsRecord[]) => {
       for (const record of batch) {
-        remove.run(record.id, record.kind);
-        insert.run(record.id, record.kind, record.project, record.updatedAt, tokenize(record.text).join(' '));
+        remove.run(record.store, record.id, record.kind);
+        insert.run(
+          record.id,
+          record.store,
+          record.kind,
+          record.project,
+          record.updatedAt,
+          tokenize(record.text).join(' '),
+        );
       }
       return batch.length;
     });
@@ -145,12 +180,14 @@ export class FtsSearchIndex {
   }
 
   /** Remove one record; returns true when something was deleted. */
-  remove(kind: FtsKind, id: string): boolean {
-    const result = this.db.prepare('DELETE FROM search_fts WHERE id = ? AND kind = ?').run(id, kind);
+  remove(store: string, kind: FtsKind, id: string): boolean {
+    const result = this.db
+      .prepare('DELETE FROM search_fts WHERE store = ? AND kind = ? AND id = ?')
+      .run(store, kind, id);
     return result.changes > 0;
   }
 
-  /** Replace the whole index in one transaction. */
+  /** Replace the whole index (all stores) in one transaction. */
   rebuild(records: FtsRecord[]): number {
     const run = this.db.transaction((batch: FtsRecord[]) => {
       this.db.exec('DELETE FROM search_fts');
@@ -159,13 +196,25 @@ export class FtsSearchIndex {
     return run(records);
   }
 
-  /** Ranked search. Returns fewer than `limit` hits when the index has fewer matches. */
+  /** Drop everything belonging to one store (project deletion / reindex of one storage). */
+  clearStore(store: string): number {
+    return this.db.prepare('DELETE FROM search_fts WHERE store = ?').run(store).changes;
+  }
+
+  /**
+   * Ranked search. Pass `store` for normal use: without it the query spans every store in this
+   * index file, which is only meaningful for deliberate cross-store tooling.
+   */
   query(options: FtsQuery): FtsHit[] {
     const expression = matchExpression(options.q);
     if (!expression) return [];
     const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 20)));
     const conditions = ['search_fts MATCH ?'];
     const params: unknown[] = [expression];
+    if (options.store) {
+      conditions.push('store = ?');
+      params.push(options.store);
+    }
     if (options.kind) {
       conditions.push('kind = ?');
       params.push(options.kind);
@@ -177,20 +226,37 @@ export class FtsSearchIndex {
     params.push(limit);
     const rows = this.db
       .prepare(
-        `SELECT id, kind, project, bm25(search_fts) AS rank
+        `SELECT id, store, kind, project, bm25(search_fts) AS rank
            FROM search_fts
           WHERE ${conditions.join(' AND ')}
           ORDER BY rank
           LIMIT ?`,
       )
-      .all(...params) as Array<{ id: string; kind: FtsKind; project: string; rank: number }>;
-    return rows.map((row) => ({ kind: row.kind, id: row.id, project: row.project, score: -row.rank }));
+      .all(...params) as Array<{ id: string; store: string; kind: FtsKind; project: string; rank: number }>;
+    return rows.map((row) => ({
+      store: row.store,
+      kind: row.kind,
+      id: row.id,
+      project: row.project,
+      score: -row.rank,
+    }));
   }
 
-  stats(): FtsStats {
-    const total = (this.db.prepare('SELECT COUNT(*) AS n FROM search_fts').get() as { n: number }).n;
-    const tasks = (this.db.prepare("SELECT COUNT(*) AS n FROM search_fts WHERE kind = 'task'").get() as { n: number }).n;
-    const docs = (this.db.prepare("SELECT COUNT(*) AS n FROM search_fts WHERE kind = 'doc'").get() as { n: number }).n;
+  /** Counts for one store, or for the whole index file when `store` is omitted. */
+  stats(store?: string): FtsStats {
+    const where = store ? ' WHERE store = ?' : '';
+    const args = store ? [store] : [];
+    const total = (this.db.prepare(`SELECT COUNT(*) AS n FROM search_fts${where}`).get(...args) as { n: number }).n;
+    const tasks = (
+      this.db
+        .prepare(`SELECT COUNT(*) AS n FROM search_fts${where ? `${where} AND` : ' WHERE'} kind = 'task'`)
+        .get(...args) as { n: number }
+    ).n;
+    const docs = (
+      this.db
+        .prepare(`SELECT COUNT(*) AS n FROM search_fts${where ? `${where} AND` : ' WHERE'} kind = 'doc'`)
+        .get(...args) as { n: number }
+    ).n;
     const pageCount = (this.db.pragma('page_count', { simple: true }) as number) ?? 0;
     const pageSize = (this.db.pragma('page_size', { simple: true }) as number) ?? 0;
     return {
@@ -200,6 +266,21 @@ export class FtsSearchIndex {
       schemaVersion: Number(this.meta('schema_version') ?? 0),
       dbBytes: pageCount * pageSize,
     };
+  }
+
+  /** Per-store row counts, so `doctor` can show which storage an index file covers. */
+  stores(): FtsStoreStats[] {
+    return this.db
+      .prepare(
+        `SELECT store,
+                COUNT(*) AS rows,
+                SUM(CASE WHEN kind = 'task' THEN 1 ELSE 0 END) AS tasks,
+                SUM(CASE WHEN kind = 'doc' THEN 1 ELSE 0 END) AS docs
+           FROM search_fts
+          GROUP BY store
+          ORDER BY store`,
+      )
+      .all() as FtsStoreStats[];
   }
 
   close(): void {
