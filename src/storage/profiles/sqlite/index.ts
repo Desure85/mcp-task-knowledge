@@ -52,7 +52,13 @@ import {
   resolveCloseStatus,
 } from '../../../workflow.js';
 import type { ProjectWorkflow } from '../../../workflow.js';
+import path from 'node:path';
 import { openSqliteDatabase, type SqliteDatabase } from './db.js';
+import { probeSqliteVec } from './vec-gate.js';
+import { createSqliteVectorStore } from './vector-store.js';
+import { createFileIndexingService } from '../../../search/indexing-service.js';
+import { createFileChunkingStrategy } from '../../../search/embeddings-file.js';
+import type { EmbeddingProvider } from '../../../search/contracts.js';
 import { FileMemoryStore, FilePromptStore } from '../file/index.js';
 import { buildTextForDoc, buildTextForTask } from '../../../search/index.js';
 
@@ -61,6 +67,21 @@ export interface SqliteProfileOptions {
   databasePath: string;
   /** How long `withLock` waits for a busy key before failing; defaults to 10s. */
   lockTimeoutMs?: number;
+  /** Embedding provider factory; when present the profile exposes the indexing queue. */
+  embeddingProvider?: () => Promise<EmbeddingProvider | undefined>;
+  /** Manifest of indexed content hashes; defaults to `<db dir>/index-manifest.json`. */
+  indexingManifestPath?: string;
+  /** External-provider policy applied before items enter the queue (Y-04a). */
+  externalPolicy?: (item: {
+    store: string;
+    kind: 'task' | 'doc' | 'chunk';
+    project: string;
+    id: string;
+    text: string;
+    trustLevel?: 'system' | 'user' | 'external';
+  }) => { allowed: boolean; reason?: string };
+  /** Test/ops override for the sqlite-vec gate; defaults to probing the real extension. */
+  vecAvailable?: boolean;
 }
 
 function isoNow(): string {
@@ -910,6 +931,11 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     },
   };
 
+  const vectors = createSqliteVectorStore({
+    db,
+    vecAvailable: options.vecAvailable ?? probeSqliteVec(db).vec.available,
+  });
+
   const profile: StorageProfile = {
     manifest: {
       profile: 'sqlite',
@@ -917,7 +943,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         transactions: true,
         history: true,
         fullText: true,
-        vectors: false,
+        vectors: true,
         efficientListing: false,
       },
       roots: {},
@@ -931,13 +957,48 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     // either would be a separate ADR-sized change, not a silent reinterpretation.
     prompts: new FilePromptStore(),
     search,
-    vectors: unavailableObject<VectorStore>('vector store'),
+    vectors,
     memory: new FileMemoryStore(),
     events: (storagePath: string) => eventLogFor(storagePath),
     history: historyProvider,
     locks,
     close: () => handle.close(),
   };
+  if (options.embeddingProvider) {
+    const manifestPath =
+      options.indexingManifestPath ??
+      (options.databasePath === ':memory:'
+        ? undefined
+        : path.join(path.dirname(options.databasePath), 'index-manifest.json'));
+    profile.indexing = createFileIndexingService({
+      store: vectors,
+      chunker: createFileChunkingStrategy(),
+      provider: options.embeddingProvider,
+      manifestPath,
+      externalPolicy: options.externalPolicy,
+      collect: async (project: string) => [
+        ...readAllTasks(project)
+          .filter((task) => !task.archived && !task.trashed)
+          .map((task) => ({
+            store: 'tasks',
+            kind: 'task' as const,
+            project,
+            id: task.id,
+            text: buildTextForTask(task),
+          })),
+        ...readAllDocs(project)
+          .filter((doc) => !doc.archived && !doc.trashed)
+          .map((doc) => ({
+            store: 'knowledge',
+            kind: 'doc' as const,
+            project,
+            id: doc.id,
+            text: buildTextForDoc(doc),
+            trustLevel: doc.trustLevel,
+          })),
+      ],
+    });
+  }
   return profile;
 }
 

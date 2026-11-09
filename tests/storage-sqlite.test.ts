@@ -12,6 +12,10 @@ import path from 'node:path';
 import { StoreError, type StorageProfile } from '../src/storage/contracts.js';
 import { createSqliteProfile } from '../src/storage/profiles/sqlite/index.js';
 import { createStorageProfile, readStorageProfileKind } from '../src/storage/profile-select.js';
+import { FILE_CHUNKING_VERSION } from '../src/search/embeddings-file.js';
+import { collectionId, fingerprintKey } from '../src/search/contracts.js';
+import type { EmbeddingProvider, VectorRecord } from '../src/search/contracts.js';
+import type { SqliteVectorStore } from '../src/storage/profiles/sqlite/vector-store.js';
 
 const tempDirs: string[] = [];
 const profiles: StorageProfile[] = [];
@@ -68,7 +72,7 @@ describe('Y-05a1: profile selection', () => {
       transactions: true,
       history: true,
       fullText: true,
-      vectors: false,
+      vectors: true,
       efficientListing: false,
     });
     expect(profile.manifest.roots).toEqual({});
@@ -243,11 +247,9 @@ describe('Y-05a1: unimplemented collections are honest', () => {
         return (error as StoreError).code ?? null;
       }
     };
-    // Search is implemented in Y-05b1; vectors still belong to Y-05b2 and keep failing honestly.
+    // Search and vectors are implemented in Y-05b; the remaining proxy stubs still fail honestly.
     expect(profile.search.available()).toBe(true);
-    expect(codeOf(() => profile.vectors.query(Float32Array.from([1, 2]), { limit: 1, fingerprint: 'fp' }))).toBe(
-      'CAPABILITY_UNAVAILABLE',
-    );
+    expect(profile.vectors).toBeDefined();
   });
 });
 
@@ -521,5 +523,151 @@ describe('Y-05b1: FTS5 search provider', () => {
         limit: 10,
       }),
     ).toHaveLength(1);
+  });
+});
+
+function fakeEmbeddingProvider() {
+  const calls: string[][] = [];
+  const fingerprint = { modelId: 'fake-vector-model', dimension: 3, pooling: 'mean' as const, queryPrefix: '', docPrefix: '' };
+  const provider: EmbeddingProvider = {
+    fingerprint: () => fingerprint,
+    isReady: () => true,
+    async embedQuery(text: string) {
+      return Float32Array.from([text.length, 1, 0]);
+    },
+    async embedDocuments(texts: string[]) {
+      calls.push([...texts]);
+      return texts.map((text) => Float32Array.from([text.length, 1, 0]));
+    },
+  };
+  return { provider, fingerprint, calls };
+}
+
+function vectorRecord(id: string, vector: number[], overrides: Partial<VectorRecord> = {}): VectorRecord {
+  const fingerprint = fingerprintKey({ modelId: 'fake', dimension: 3, pooling: 'mean', queryPrefix: '', docPrefix: '' });
+  return {
+    store: 'knowledge',
+    kind: 'doc',
+    project: 'p',
+    id,
+    fingerprint,
+    collection: collectionId(fingerprint, FILE_CHUNKING_VERSION),
+    collectionMeta: { chunkingVersion: FILE_CHUNKING_VERSION, buildTextVersion: 'build-text:v1' },
+    vector: Float32Array.from(vector),
+    ...overrides,
+  };
+}
+
+describe('Y-05b2: SQLite vector store', () => {
+  it('stores vectors per collection and queries them by exact cosine', async () => {
+    const profile = openProfile();
+    await profile.vectors.upsert([
+      vectorRecord('a', [1, 0, 0]),
+      vectorRecord('b', [0.7, 0.7, 0]),
+      vectorRecord('c', [0, 1, 0]),
+    ]);
+    const record = vectorRecord('x', [1, 0, 0]);
+    const stats = await profile.vectors.stats();
+    expect(stats.total).toBe(3);
+    expect(stats.collections[record.collection]).toBe(3);
+
+    const matches = await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+      fingerprint: record.fingerprint,
+      limit: 10,
+    });
+    expect(matches.map((match) => match.id)).toEqual(['a', 'b', 'c']);
+    expect(matches[0].score).toBeCloseTo(1, 5);
+    expect(matches[1].score).toBeGreaterThan(matches[2].score);
+    const onlyBest = await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+      fingerprint: record.fingerprint,
+      minScore: 0.9,
+      limit: 10,
+    });
+    expect(onlyBest.map((match) => match.id)).toEqual(['a']);
+    expect((profile.vectors as SqliteVectorStore).annAvailable()).toBe(true);
+  });
+
+  it('filters by project/kind/minScore and reports collections honestly', async () => {
+    const profile = openProfile();
+    await profile.vectors.upsert([
+      vectorRecord('doc-p', [1, 0, 0]),
+      vectorRecord('task-p', [1, 0, 0], { store: 'tasks', kind: 'task' }),
+      vectorRecord('doc-other', [1, 0, 0], { project: 'other' }),
+    ]);
+    const record = vectorRecord('x', [1, 0, 0]);
+    expect(
+      (
+        await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+          fingerprint: record.fingerprint,
+          project: 'p',
+          kind: 'doc',
+          limit: 5,
+        })
+      ).map((match) => match.id),
+    ).toEqual(['doc-p']);
+    const high = await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+      fingerprint: record.fingerprint,
+      minScore: 0.99,
+      limit: 5,
+    });
+    expect(high.every((match) => match.score >= 0.99)).toBe(true);
+    const collections = await (profile.vectors as SqliteVectorStore).collections();
+    expect(collections[0]).toMatchObject({ fingerprint: record.fingerprint, vectors: 3, active: true, readOnly: false });
+    expect(collections[0].chunkingVersion).toBe(FILE_CHUNKING_VERSION);
+  });
+
+  it('deletes, clears and rejects dimension mismatches', async () => {
+    const profile = openProfile();
+    await profile.vectors.upsert([vectorRecord('a', [1, 0, 0]), vectorRecord('b', [0, 1, 0])]);
+    await profile.vectors.delete('knowledge', 'doc', ['a']);
+    expect((await profile.vectors.stats()).total).toBe(1);
+    await expect(profile.vectors.upsert([vectorRecord('c', [1, 0])])).rejects.toMatchObject({ code: 'CONFLICT' });
+    await profile.vectors.clear();
+    expect((await profile.vectors.stats()).total).toBe(0);
+  });
+
+  it('falls back to brute-force cosine when sqlite-vec is unavailable', async () => {
+    const profile = createSqliteProfile({ databasePath: tempDbPath(), vecAvailable: false });
+    profiles.push(profile);
+    expect((profile.vectors as SqliteVectorStore).annAvailable()).toBe(false);
+    const record = vectorRecord('a', [1, 0, 0]);
+    await profile.vectors.upsert([record, vectorRecord('b', [0, 1, 0])]);
+    const matches = await profile.vectors.query(Float32Array.from([0, 1, 0]), {
+      fingerprint: record.fingerprint,
+      limit: 5,
+    });
+    expect(matches.map((match) => match.id)).toEqual(['b', 'a']);
+    expect(matches[0].score).toBeCloseTo(1, 5);
+  });
+});
+
+describe('Y-05b2: SQLite indexing wiring', () => {
+  it('indexes tasks and docs into the vector store and skips unchanged content', async () => {
+    const databasePath = tempDbPath();
+    const manifestPath = databasePath + '.manifest.json';
+    const { provider, calls } = fakeEmbeddingProvider();
+    const profile = createSqliteProfile({
+      databasePath,
+      embeddingProvider: async () => provider,
+      indexingManifestPath: manifestPath,
+    });
+    profiles.push(profile);
+    expect(profile.indexing).toBeDefined();
+
+    await profile.tasks.create({ project: 'p', title: 'first task', description: 'searchable' });
+    await profile.tasks.create({ project: 'p', title: 'second task' });
+    await profile.docs.create({ project: 'p', title: 'doc', content: 'knowledge body' });
+
+    await profile.indexing!.ensureIndexed('p');
+    await (profile.indexing as unknown as { drain(): Promise<void> }).drain();
+    expect((await profile.vectors.stats()).total).toBe(3);
+    expect(calls.flat()).toHaveLength(3);
+
+    await profile.indexing!.ensureIndexed('p');
+    await (profile.indexing as unknown as { drain(): Promise<void> }).drain();
+    expect(calls.flat()).toHaveLength(3);
+    expect(fs.existsSync(manifestPath)).toBe(true);
+    // done is cumulative across runs; the second pass processed items but skipped embedding work.
+    expect(profile.indexing!.status('p')[0]).toMatchObject({ done: 6, skipped: 3 });
   });
 });
