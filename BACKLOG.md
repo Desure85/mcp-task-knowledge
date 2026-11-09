@@ -1545,7 +1545,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
-| Y-07a | S | Контракт `BlobProvider` (put/get/delete/list/size) и файловая реализация | pending | `tests/blob-provider.test.ts`: файловый провайдер проходит контракт, запись идемпотентна, отсутствующий ключ → `NOT_FOUND` |
+| Y-07a | S | Контракт `BlobProvider` (put/get/delete/list/size) и файловая реализация | done | `tests/blob-provider.test.ts`: файловый провайдер проходит контракт, запись идемпотентна, отсутствующий ключ → `NOT_FOUND` |
 | Y-07b | M | S3/MinIO адаптер (SigV4 без новой зависимости), тот же контракт; прогон против MinIO в CI | pending | `tests/blob-provider.test.ts` (часть 2): оба провайдера проходят один набор; MinIO только для вложений/экспортов/копий |
 
 #### Y-06 — профиль Postgres
@@ -1796,3 +1796,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > записи FTS (удаление по UNINDEXED-колонкам → карта rowid, схема v6). Docker-гейт sqlite-vec
 > не выполнен из-за недоступного демона Docker — ограничение записано. Дальше этап Y: Y-07 (BlobProvider),
 > Y-06 (Postgres), Y-08 (миграция).
+> Примечание (2026-11-10, Y-07a): контракт `BlobProvider` (put/get/size/delete/list,
+> адресация ключом, checksum, NOT_FOUND) и файловый провайдер с атомарной записью и защитой от
+> выхода за root; коллекция `blobs` в манифестах обоих профилей. Остаток Y-07: b — S3/MinIO.

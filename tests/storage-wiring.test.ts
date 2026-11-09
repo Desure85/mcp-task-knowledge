@@ -76,6 +76,7 @@ describe('Y-02e1: storage profile in the server context', () => {
       'events',
       'history',
       'locks',
+      'blobs',
     ]);
     expect(profile.manifest.capabilities).toEqual({
       transactions: false,
