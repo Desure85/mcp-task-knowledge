@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 закрыт, Y-03a закрыт)
-**Текущая ветка:** feat/y02e4-search-provider (от origin/master после PR #328)
-**Текущий этап:** Y — Y-02 закрыт полностью (a–e4), Y-03a закрыт; дальше Y-03b
-**Статус:** `Y-02e4` → done: `SearchProvider` в контрактах, файловый профиль делегирует `fts-indexer` и metadata-индексу, `register/search.ts` переведён на `storageProfile(ctx).search`; **allowlist пуст** (0 файлов / 0 импортов). **Y-02 закрыт** (a, b, c, d, e1–e4; контрактные тесты 31, guard 3/3, 117/117 затронутых). `Y-03a` закрыт (контракты эмбеддингов). **Дальше: Y-03b** — отпечаток модели с каждым вектором, коллекции `отпечаток + chunking + buildText`, двойное чтение без слияния score.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 закрыт, Y-03a/b закрыты)
+**Текущая ветка:** feat/y03b-collections (от origin/master c130576, PR #329 влит)
+**Текущий этап:** Y — Y-02 закрыт, Y-03a и Y-03b закрыты; дальше Y-03c
+**Статус:** `Y-03b` → done: коллекции векторов `отпечаток + chunking + buildText` (`collectionId`, `VectorRecord.collection/collectionMeta`), файловое хранилище `vector-store-file.ts` с `collections()`, двойное чтение `dual-read.ts` без слияния оценок и с меткой `collection`, `StorageProfile.vectors` под caller-root, `embeddings_status` показывает активную коллекцию и счётчики обеих (`readOnly` для старых). 11 новых тестов, 132/132 затронутых, 5 мутаций RED. **Дальше: Y-03c** — `IndexingService` (очередь, идемпотентность по хэшу, пауза/прогресс, warmup) и расширение статуса очередью/скоростью.
+
+### Сессия S-20261109-night (ночная сессия — Y-03b)
+
+- `src/search/contracts.ts`: `BUILD_TEXT_VERSION`, `collectionId()`, `VectorCollectionInfo`; `VectorRecord.collection` + `collectionMeta`; `VectorQueryOptions.collection`.
+- `src/search/vector-store-file.ts`: `createFileVectorStore({root})` — upsert/delete/query/stats/clear/collections; каталог коллекции хешируется (id содержит недопустимые в Windows символы), настоящий id — в `collection.json`; brute-force cosine как простое решение для файлового профиля (ANN — Y-05/Y-06).
+- `src/search/dual-read.ts`: активные хиты первыми, старая коллекция добирает только отсутствующие, без кросс-коллекционного сортирования и дублей; `coverage.activeCoversAll`.
+- `StorageProfile.vectors` + `FileProfileOptions.vectorsDir` (по умолчанию `EMBEDDINGS_DIR`), `embedding_status` собирается `buildEmbeddingsStatus` и показывает `activeCollection`, `collections` с `active`/`readOnly`.
+- Проверено: 11/11 в `tests/embedding-collections.test.ts`, 12/12 в `tests/embedding-contract.test.ts`, 132/132 затронутых, tsc-test чистый; 5 мутаций RED.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1910-y-03b.md`.
 
 ### Сессия S-20261109-night (ночная сессия — Y-02e4, Y-02 закрыт)
 
