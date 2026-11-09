@@ -21,7 +21,7 @@
 import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { DATA_DIR, resolveProject } from '../config.js';
-import { listDocs, readDoc, createDoc } from '../storage/knowledge.js';
+import { storageProfile } from '../core/storage-context.js';
 import { MemoryExtractor } from '../memory/extraction.js';
 import { TemporalGraph } from '../memory/temporal-graph.js';
 import { ProfileManager } from '../memory/user-profile.js';
@@ -85,17 +85,17 @@ function getProfileManager(): ProfileManager {
 }
 
 let contextAssembler: ContextAssembler | null = null;
-function getContextAssembler(): ContextAssembler {
+function getContextAssembler(ctx: ServerContext): ContextAssembler {
   if (!contextAssembler) {
     const searchFn: SearchFn = async (query, project, limit) => {
-      const metas = await listDocs({ project });
+      const metas = await storageProfile(ctx).docs.list({ project });
       const queryLower = query.toLowerCase();
       const matches = metas
         .filter((m) => m.title.toLowerCase().includes(queryLower))
         .slice(0, limit);
       const results = [];
       for (const meta of matches) {
-        const doc = await readDoc(project, meta.id);
+        const doc = await storageProfile(ctx).docs.read(project, meta.id);
         if (doc) {
           results.push({
             id: doc.id,
@@ -209,7 +209,7 @@ function asOptionalNumber(value: unknown, field: string): number | undefined {
 
 let wiredAsyncManager: AsyncJobManager | null = null;
 
-function ensureAsyncProcessors(): AsyncJobManager {
+function ensureAsyncProcessors(ctx: ServerContext): AsyncJobManager {
   const mgr = getAsyncJobManager();
   if (wiredAsyncManager === mgr) return mgr;
 
@@ -266,12 +266,12 @@ function ensureAsyncProcessors(): AsyncJobManager {
           resolveProject(args['project'] as string | undefined);
         const limit = asOptionalNumber(args['limit'], 'limit') ?? 10;
         onProgress?.(0.2);
-        const metas = (await listDocs({ project })).filter((m) => m.type === 'memory_fact');
+        const metas = (await storageProfile(ctx).docs.list({ project })).filter((m) => m.type === 'memory_fact');
         const queryLower = query.toLowerCase();
         const matches = metas.filter((m) => m.title.toLowerCase().includes(queryLower)).slice(0, limit);
         const results = [];
         for (const meta of matches) {
-          const doc = await readDoc(project, meta.id);
+          const doc = await storageProfile(ctx).docs.read(project, meta.id);
           if (doc) {
             results.push({ id: doc.id, title: doc.title, content: doc.content, tags: doc.tags, score: 1.0 });
           }
@@ -297,7 +297,7 @@ function ensureAsyncProcessors(): AsyncJobManager {
         const docIds: string[] = [];
         for (let i = 0; i < documents.length; i++) {
           const doc = asRecord(documents[i], `documents[${i}]`);
-          const docRec = await createDoc({
+          const docRec = await storageProfile(ctx).docs.create({
             project,
             title: asString(doc['title'], `documents[${i}].title`),
             content: asString(doc['content'], `documents[${i}].content`),
@@ -436,7 +436,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
       if (args.persist && !args.project) {
         return err("project is required when persist=true");
       }
-      const mgr = ensureAsyncProcessors();
+      const mgr = ensureAsyncProcessors(ctx);
       // PH-007: inherit session userId at submit time — the job processor
       // runs outside ALS request scope.
       const sessScope = sessionUserScope(ctx);
@@ -484,7 +484,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       try {
         const request = toPageRequest(pageArgs);
-        let metas = await listDocs({ project: prj, tag });
+        let metas = await storageProfile(ctx).docs.list({ project: prj, tag });
         metas = metas.filter((m) => m.type === 'memory_fact');
         if (category) {
           const catTag = `category:${category}`;
@@ -516,7 +516,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
     },
     async ({ project, query, limit }) => {
       const prj = resolveProject(project);
-      const metas = await listDocs({ project: prj });
+      const metas = await storageProfile(ctx).docs.list({ project: prj });
       const factMetas = metas.filter((m) => m.type === 'memory_fact');
       const queryLower = query.toLowerCase();
       const matches = factMetas
@@ -525,7 +525,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
 
       const results = [];
       for (const meta of matches) {
-        const doc = await readDoc(prj, meta.id);
+        const doc = await storageProfile(ctx).docs.read(prj, meta.id);
         if (doc) {
           results.push({ id: doc.id, title: doc.title, content: doc.content, tags: doc.tags, score: 1.0 });
         }
@@ -763,7 +763,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
       },
     },
     async (args) => {
-      const assembler = getContextAssembler();
+      const assembler = getContextAssembler(ctx);
       const result = await assembler.assemble({
         query: args.query,
         project: args.project ? resolveProject(args.project) : undefined,
@@ -1345,7 +1345,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
       if (!ASYNC_JOB_TYPES.includes(args.type as JobType)) {
         return err(`unsupported async operation: ${String(args.type)}`);
       }
-      const mgr = ensureAsyncProcessors();
+      const mgr = ensureAsyncProcessors(ctx);
       const job = mgr.submit({
         type: args.type,
         input: args.input,

@@ -1,11 +1,18 @@
 import type { ServerContext } from './context.js';
 import { getCurrentProject } from '../config.js';
-import { listTasks, listTasksTree, updateTask, closeTask, trashTask, restoreTask, archiveTask } from '../storage/tasks.js';
-import { listDocs } from '../storage/knowledge.js';
+import { storageProfile } from '../core/storage-context.js';
 import { childLogger } from '../core/logger.js';
 import { closeStatusId, isKnownStatus, loadProjectWorkflow } from '../workflow.js';
 
 const log = childLogger('resources');
+
+function taskStore(ctx: ServerContext) {
+  return storageProfile(ctx).tasks;
+}
+
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
 
 export function registerAliases(ctx: ServerContext): void {
   try {
@@ -15,7 +22,7 @@ export function registerAliases(ctx: ServerContext): void {
       { title: 'Tasks (Current Project)', description: 'List tasks for the current project', mimeType: 'application/json' },
       async (u) => {
         const prj = getCurrentProject();
-        const items = await listTasks({ project: prj, includeArchived: false });
+        const items = await taskStore(ctx).list({ project: prj, includeArchived: false });
         return { contents: [{ uri: u.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -28,7 +35,7 @@ export function registerAliases(ctx: ServerContext): void {
       { title: 'Tasks Tree (Current Project)', description: 'Tree of tasks for the current project', mimeType: 'application/json' },
       async (u) => {
         const prj = getCurrentProject();
-        const items = await listTasksTree({ project: prj, includeArchived: false });
+        const items = await taskStore(ctx).tree({ project: prj, includeArchived: false });
         return { contents: [{ uri: u.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -44,7 +51,7 @@ export function registerAliases(ctx: ServerContext): void {
         const treeM = href.match(/^tasks:\/\/project\/([^\/]+)\/tree$/);
         if (treeM) {
           const id = decodeURIComponent(treeM[1]);
-          const items = await listTasksTree({ project: id, includeArchived: false });
+          const items = await taskStore(ctx).tree({ project: id, includeArchived: false });
           return { contents: [{ uri: href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
         }
         const statusM = href.match(/^tasks:\/\/project\/([^\/]+)\/status\/([^\/]+)$/);
@@ -53,14 +60,14 @@ export function registerAliases(ctx: ServerContext): void {
           const status = decodeURIComponent(statusM[2]);
           const workflow = await loadProjectWorkflow(id);
           if (!isKnownStatus(workflow, status)) return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: `invalid status: ${status}` }, null, 2), mimeType: 'application/json' }] };
-          const items = await listTasks({ project: id, status: status as any, includeArchived: false } as any);
+          const items = await taskStore(ctx).list({ project: id, status: status as any, includeArchived: false } as any);
           return { contents: [{ uri: href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
         }
         const tagM = href.match(/^tasks:\/\/project\/([^\/]+)\/tag\/([^\/]+)$/);
         if (tagM) {
           const id = decodeURIComponent(tagM[1]);
           const tag = decodeURIComponent(tagM[2]);
-          const items = await listTasks({ project: id, tag, includeArchived: false } as any);
+          const items = await taskStore(ctx).list({ project: id, tag, includeArchived: false } as any);
           return { contents: [{ uri: href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
         }
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'unsupported tasks://project path' }, null, 2), mimeType: 'application/json' }] };
@@ -75,7 +82,7 @@ export function registerAliases(ctx: ServerContext): void {
       { title: 'Tasks by Project', description: 'List tasks for project by id', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
-        const items = await listTasks({ project: id, includeArchived: false });
+        const items = await taskStore(ctx).list({ project: id, includeArchived: false });
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -88,7 +95,7 @@ export function registerAliases(ctx: ServerContext): void {
       { title: 'Tasks Tree by Project', description: 'Tree of tasks for project by id', mimeType: 'application/json' },
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
-        const items = await listTasksTree({ project: id, includeArchived: false });
+        const items = await taskStore(ctx).tree({ project: id, includeArchived: false });
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -106,7 +113,7 @@ export function registerAliases(ctx: ServerContext): void {
         if (!isKnownStatus(workflow, status)) {
           return { contents: [{ uri: uri.href, text: JSON.stringify({ ok: false, error: `invalid status: ${status}` }, null, 2), mimeType: 'application/json' }] };
         }
-        const items = await listTasks({ project: id, status: status as any, includeArchived: false } as any);
+        const items = await taskStore(ctx).list({ project: id, status: status as any, includeArchived: false } as any);
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -120,7 +127,7 @@ export function registerAliases(ctx: ServerContext): void {
       async (uri: URL, vars: any) => {
         const id = String(vars?.id || '').trim();
         const tag = String(vars?.tag || '').trim();
-        const items = await listTasks({ project: id, tag, includeArchived: false } as any);
+        const items = await taskStore(ctx).list({ project: id, tag, includeArchived: false } as any);
         return { contents: [{ uri: uri.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -145,12 +152,12 @@ export function registerAliases(ctx: ServerContext): void {
             const workflow = await loadProjectWorkflow(project);
             const firstOf = (category: 'todo' | 'in_progress' | 'done') =>
               workflow.statuses.find((status) => !status.archived && status.category === category)?.id;
-            if (action === 'start') payload = await updateTask(project, id, { status: firstOf('in_progress') ?? workflow.initialStatuses[0] } as any);
-            else if (action === 'complete') payload = await updateTask(project, id, { status: firstOf('done') ?? closeStatusId(workflow) } as any);
-            else if (action === 'close') payload = await closeTask(project, id);
-            else if (action === 'trash') payload = await trashTask(project, id);
-            else if (action === 'restore') payload = await restoreTask(project, id);
-            else if (action === 'archive') payload = await archiveTask(project, id);
+            if (action === 'start') payload = await taskStore(ctx).update(project, id, { status: firstOf('in_progress') ?? workflow.initialStatuses[0] } as any);
+            else if (action === 'complete') payload = await taskStore(ctx).update(project, id, { status: firstOf('done') ?? closeStatusId(workflow) } as any);
+            else if (action === 'close') payload = await taskStore(ctx).close(project, id);
+            else if (action === 'trash') payload = await taskStore(ctx).trash(project, id);
+            else if (action === 'restore') payload = await taskStore(ctx).restore(project, id);
+            else if (action === 'archive') payload = await taskStore(ctx).archive(project, id);
             return respond({ ok: true, project, id, action, data: payload ?? null });
           } catch (e: any) {
             return respond({ ok: false, project, id, action, error: e?.message || String(e) });
@@ -171,7 +178,7 @@ export function registerAliases(ctx: ServerContext): void {
           const status = byId?.id ?? byLabel?.id ?? byCategory?.id;
           if (!status) return respond({ ok: false, project, id, error: `invalid status: ${value}` });
           try {
-            const payload = await updateTask(project, id, { status } as any);
+            const payload = await taskStore(ctx).update(project, id, { status } as any);
             return respond({ ok: true, project, id, action: `status:${status}`, data: payload ?? null });
           } catch (e: any) {
             return respond({ ok: false, project, id, action: `status:${value}`, error: e?.message || String(e) });
@@ -197,7 +204,7 @@ export function registerAliases(ctx: ServerContext): void {
       { title: 'Knowledge (Current Project)', description: 'List knowledge for current project', mimeType: 'application/json' },
       async (u) => {
         const prj = getCurrentProject();
-        const items = await listDocs({ project: prj, includeArchived: false } as any);
+        const items = await docStore(ctx).list({ project: prj, includeArchived: false } as any);
         return { contents: [{ uri: u.href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
       }
     );
@@ -210,7 +217,7 @@ export function registerAliases(ctx: ServerContext): void {
       { title: 'Knowledge Tree (Current Project)', description: 'Group knowledge by first tag (simple tree)', mimeType: 'application/json' },
       async (u) => {
         const prj = getCurrentProject();
-        const items: any[] = await listDocs({ project: prj, includeArchived: false } as any);
+        const items: any[] = await docStore(ctx).list({ project: prj, includeArchived: false } as any);
         const groups: Record<string, any[]> = {};
         for (const d of items) {
           const t = (Array.isArray(d?.tags) && d.tags.length > 0) ? String(d.tags[0]) : 'untagged';
@@ -232,13 +239,13 @@ export function registerAliases(ctx: ServerContext): void {
         const listM = href.match(/^knowledge:\/\/project\/([^\/]+)$/);
         if (listM) {
           const id = decodeURIComponent(listM[1]);
-          const items = await listDocs({ project: id, includeArchived: false } as any);
+          const items = await docStore(ctx).list({ project: id, includeArchived: false } as any);
           return { contents: [{ uri: href, text: JSON.stringify(items, null, 2), mimeType: 'application/json' }] };
         }
         const treeM = href.match(/^knowledge:\/\/project\/([^\/]+)\/tree$/);
         if (treeM) {
           const id = decodeURIComponent(treeM[1]);
-          const items: any[] = await listDocs({ project: id, includeArchived: false } as any);
+          const items: any[] = await docStore(ctx).list({ project: id, includeArchived: false } as any);
           const groups: Record<string, any[]> = {};
           for (const d of items) { const t = (Array.isArray(d?.tags) && d.tags.length > 0) ? String(d.tags[0]) : 'untagged'; (groups[t] ||= []).push(d); }
           const tree = Object.keys(groups).sort().map(k => ({ tag: k, items: groups[k] }));
@@ -248,7 +255,7 @@ export function registerAliases(ctx: ServerContext): void {
         if (tagM) {
           const id = decodeURIComponent(tagM[1]);
           const tag = decodeURIComponent(tagM[2]);
-          const items: any[] = await listDocs({ project: id, includeArchived: false } as any);
+          const items: any[] = await docStore(ctx).list({ project: id, includeArchived: false } as any);
           const filtered = items.filter((d: any) => Array.isArray(d?.tags) && d.tags.includes(tag));
           return { contents: [{ uri: href, text: JSON.stringify(filtered, null, 2), mimeType: 'application/json' }] };
         }
@@ -256,7 +263,7 @@ export function registerAliases(ctx: ServerContext): void {
         if (typeM) {
           const id = decodeURIComponent(typeM[1]);
           const type = decodeURIComponent(typeM[2]);
-          const items: any[] = await listDocs({ project: id, includeArchived: false } as any);
+          const items: any[] = await docStore(ctx).list({ project: id, includeArchived: false } as any);
           const filtered = items.filter((d: any) => String(d?.type || '').toLowerCase() === type.toLowerCase());
           return { contents: [{ uri: href, text: JSON.stringify(filtered, null, 2), mimeType: 'application/json' }] };
         }

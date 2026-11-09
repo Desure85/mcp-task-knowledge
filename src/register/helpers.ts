@@ -7,20 +7,12 @@ import { PROMPTS_DIR, resolveProject } from '../config.js';
 import { ok, err } from '../utils/respond.js';
 import { reindexPrompts } from '../services/prompts-pipeline.js';
 import { childLogger } from '../core/logger.js';
-import { readPromptsCatalog } from '../prompts/files.js';
+import { storageProfile } from '../core/storage-context.js';
 
 const helpersLog = childLogger('helpers');
 
-// Y-02c: prompt file access moved to `src/prompts/files.ts` so the storage profile can own it.
-// Re-exported here because the prompt tools import these helpers from this module.
-export {
-  findFileByIdVersion,
-  listPromptVersions,
-  listSourceJsonFiles,
-  readPromptBuildItems,
-  readPromptsCatalog,
-  type PromptVersionInfo,
-} from '../prompts/files.js';
+// Y-02e3: prompt reads go through the profile (`ctx.storage.prompts`); this module no longer
+// re-exports prompt file access, so no registrar imports the file layout directly.
 
 export function registerHelpers(ctx: ServerContext) {
   // In-process reindex — previously spawned `node scripts/prompts.mjs`, which
@@ -45,7 +37,7 @@ export function registerHelpers(ctx: ServerContext) {
     },
     async ({ project }: { project?: string }) => {
       const prj = resolveProject(project);
-      const data = await readPromptsCatalog(prj);
+      const data = await storageProfile(ctx).prompts.catalog(prj);
       return data ? ok(data) : err('catalog not found');
     }
   );

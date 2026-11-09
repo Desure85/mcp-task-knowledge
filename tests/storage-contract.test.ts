@@ -491,14 +491,20 @@ describe('Y-02c: prompt contract (file profile)', () => {
     expect(await profile.prompts.buildItems(PROMPTS_PROJECT)).toEqual(await readPromptBuildItems(PROMPTS_PROJECT));
   });
 
-  it('exposes the moved helpers through the register/helpers re-exports', async () => {
-    const viaHelpers = await import('../src/register/helpers.js');
+  it('does not re-export prompt file access from register/helpers (Y-02e3)', async () => {
+    const viaHelpers = (await import('../src/register/helpers.js')) as unknown as Record<string, unknown>;
+    for (const name of [
+      'readPromptsCatalog',
+      'readPromptBuildItems',
+      'listPromptVersions',
+      'findFileByIdVersion',
+      'listSourceJsonFiles',
+    ]) {
+      expect(viaHelpers[name]).toBeUndefined();
+    }
+    // The functions themselves still exist in the prompt-file module used by the file profile.
     const viaFiles = await import('../src/prompts/files.js');
-    expect(viaHelpers.readPromptsCatalog).toBe(viaFiles.readPromptsCatalog);
-    expect(viaHelpers.readPromptBuildItems).toBe(viaFiles.readPromptBuildItems);
-    expect(viaHelpers.listPromptVersions).toBe(viaFiles.listPromptVersions);
-    expect(viaHelpers.findFileByIdVersion).toBe(viaFiles.findFileByIdVersion);
-    expect(viaHelpers.listSourceJsonFiles).toBe(viaFiles.listSourceJsonFiles);
+    expect(typeof viaFiles.readPromptsCatalog).toBe('function');
   });
 });
 

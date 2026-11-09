@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02e2 закрыт)
-**Текущая ветка:** feat/y02e2-storage-wiring (от origin/master 8eba6d9, PR #325 влит)
-**Текущий этап:** Y — исполняется план; Y-02e2 закрыт, allowlist 11 → 7 файлов
-**Статус:** `Y-02e2` → done: `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` берут хранилище из `ctx.storage` через общий аксессор `storageProfile(ctx)`; контракт `TaskStore` расширен `closeWithCascade`/`subtree`/`children`, TTL и `MAX_TASK_DEPTH` перенесены в контракт (реэкспорт из реализации сохранён). Guard-тест: 7 файлов / 12 импортов. **Дальше: Y-02e3** — остальные 7 регистраторов на профиль, allowlist → 0, Y-02 закрыт.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02e3 закрыт)
+**Текущая ветка:** feat/y02e3-registrar-wiring (от origin/master a4f01c4, PR #326 влит)
+**Текущий этап:** Y — исполняется план; Y-02e3 закрыт, allowlist 7 → 1 файл (search.ts, Y-02e4)
+**Статус:** `Y-02e3` → done: `aliases`, `helpers`, `memory`, `prompts`, `resources`, `search-resources` и найденный `mcp-prompts` читают хранилище из `ctx.storage`; `register/helpers` больше не реэкспортирует файловый доступ к промптам. Guard-тест: 1 файл / 4 импорта (`search.ts`). Для `search.ts` заведён **Y-02e4** — сразу после Y-03a (`SearchProvider`), тогда Y-02 закрывается. **Дальше по плану: Y-03a** — контракты эмбеддингов, отпечаток и паритет с текущим адаптером.
+
+### Сессия S-20261109-night (ночная сессия — Y-02e3)
+
+- Переключены 6 регистраторов + `mcp-prompts.ts` (нашёлся транзитивно через реэкспорт helpers — пример того, что guard видит не всё); `PromptStore` (`catalog`/`buildItems`/`versions`/`get(...).path`) заменил файловый доступ к промптам, `register/helpers` больше не реэкспортирует его.
+- `register/search.ts` осознанно оставлен последним прямым импортом: его зависимости — индексный слой (`search/fts-indexer`, `storage/metadata-index`), для них в ADR-009 предусмотрен `SearchProvider`, который появится в Y-03a. Заводить временную прокладку ради нулевого allowlist — хуже, чем один честный файл.
+- Добавлен wiring-тест: перехват обработчиков `registerAliases(ctx)` и проверка `tasks://current` на задаче, созданной через профиль. Мутация «aliases читает доки» до него была зелёной — тест закрыл реальную дыру.
+- Guard: 1 файл / 4 импорта (было 7/12); мутации «helpers снова импортирует prompts/files», «aliases читает доки» — RED. Известный пробел: fallback-путь `ContextAssembler.searchFn` в memory не покрыт тестом (записано в решении).
+- Затронутые наборы: 43 + 84 + 33 теста зелёные; полный локальный прогон — упавшие 17 файлов идентичны базовой линии master (Windows-среда).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1825-y-02e3.md`.
 
 ### Сессия S-20261109-night (ночная сессия — Y-02e2)
 
