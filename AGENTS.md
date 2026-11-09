@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04 закрыты; Y-05a закрыт)
-**Текущая ветка:** feat/y05a3-events-locks (от origin/master 739e4a2, PR #336 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04; Y-05 в работе (a1–a3 готовы; дальше b/c)
-**Статус:** `Y-05a3` → done, **Y-05a закрыт**: SQLite-профиль обслуживает все коллекции Store. События — нативно (`events`/`snapshots`, семантика как в sync/event-log, id не переиспользуются после компакции); замки — нативно (`locks`, условный UPSERT + lease + `lockTimeoutMs`, освобождение в finally, межпроцессно через БД); промпты и память — через существующие `FilePromptStore`/`FileMemoryStore` с записанным ограничением (их природа — файлы/пути, нативный SQLite потребовал бы отдельного ADR). Манифест: `[tasks,docs,projects,history,prompts,memory,events,locks]`; поиск/векторы — Y-05b. 25 SQLite-тестов, 63/63 затронутых, 5 мутаций RED. **Дальше: Y-05b** — SearchProvider на FTS5 в SQLite-БД, VectorProvider на sqlite-vec (или объявленная недоступность с фолбэком), индексация.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05a закрыты)
+**Текущая ветка:** fix/executable-docs-timeout (от origin/master 51be937, PR #337 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05a; дальше Y-05b (поиск/векторы)
+**Статус:** Правка стабильности DX-24: `executable-docs` больше не падает по 60-секундному бюджету `execFile` под контеншеном CI — бюджет скана 180 с, hook 240 с, сам скан и проверки не менялись. **Дальше: Y-05b1** — `SearchProvider` на FTS5 внутри SQLite-БД (инкрементальный индекс, dirty/fill-состояние, кандидаты), затем Y-05b2 — `VectorProvider` на `sqlite-vec` и индексация, Y-05c — диагностика/бенчмарк/Docker-гейт.
+
+### Сессия S-20261109-night (правка DX-24 executable-docs)
+
+- `tests/executable-docs.test.ts`: бюджет `execFile` для реального скана docs поднят с 60 с до 180 с, `beforeAll` — с 120 с до 240 с (именованные константы + комментарий). Причина падений: под 4 воркерами + coverage скан превышал 60 с, `execFile` убивал процесс и не отдавал exit code → `code=1`.
+- Revert-check: test-only; решающая проверка — `bulk-smoke` на Linux CI (файл входит в известный Windows-baseline).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0030-fix-executable-docs-timeout.md`.
 
 ### Сессия S-20261109-night (Y-05a3 — события, замки, промпты/память; Y-05a закрыт)
 
