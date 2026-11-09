@@ -55,6 +55,15 @@ import { TemporalGraph } from '../../../memory/temporal-graph.js';
 import { ProfileManager } from '../../../memory/user-profile.js';
 import { LayeredMemory } from '../../../memory/layers.js';
 import { SessionMemory } from '../../../memory/session-memory.js';
+import {
+  ensureProjectFtsIndexed,
+  getActiveFtsIndex,
+  getProjectFtsFillState,
+  isProjectFtsComplete,
+  knowledgeStoreId,
+  taskStoreId,
+} from '../../../search/fts-indexer.js';
+import { getActiveMetadataIndex } from '../../metadata-index.js';
 import { withFileLock } from '../../../fs.js';
 import {
   StoreError,
@@ -72,6 +81,7 @@ import {
   type MemoryStore,
   type LockProvider,
   type ProjectStore,
+  type SearchProvider,
   type PromptRecord,
   type PromptSourceFile,
   type PromptStore,
@@ -389,6 +399,60 @@ class FileMemoryStore implements MemoryStore {
   }
 }
 
+class FileSearchProvider implements SearchProvider {
+  available() {
+    return Boolean(getActiveFtsIndex());
+  }
+
+  dirty() {
+    return getActiveFtsIndex()?.isDirty() ?? false;
+  }
+
+  isIndexComplete(project: string) {
+    return Boolean(getActiveFtsIndex()) && isProjectFtsComplete(project);
+  }
+
+  fillState(project: string) {
+    return getProjectFtsFillState(project);
+  }
+
+  ensureIndexed(project: string) {
+    ensureProjectFtsIndexed(project);
+  }
+
+  candidates(input: Parameters<SearchProvider['candidates']>[0]) {
+    const index = getActiveFtsIndex();
+    if (!index) return [];
+    return index
+      .query({
+        q: input.query,
+        store: input.store,
+        kind: input.kind,
+        project: input.project,
+        limit: input.limit,
+      })
+      .map((hit) => ({ id: hit.id, project: hit.project, score: hit.score }));
+  }
+
+  taskStoreId() {
+    return taskStoreId();
+  }
+
+  docStoreId() {
+    return knowledgeStoreId();
+  }
+
+  countTasks(project: string) {
+    const meta = getActiveMetadataIndex();
+    if (!meta) return undefined;
+    try {
+      return meta.listTasks({ project, countOnly: true, excludeArchived: true, excludeTrashed: true }).total;
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 class FileLockProvider implements LockProvider {
   withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     return withFileLock(key, fn);
@@ -424,6 +488,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     docs: new FileDocStore(),
     project: new FileProjectStore(),
     prompts: new FilePromptStore(),
+    search: new FileSearchProvider(),
     memory: new FileMemoryStore(),
     events: (storagePath: string) => new FileEventLogStore(storagePath),
     history: new FileHistoryProvider(),

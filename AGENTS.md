@@ -425,10 +425,21 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-03a закрыт)
-**Текущая ветка:** feat/y03a-embedding-contracts (от origin/master 38a0f57, PR #327 влит)
-**Текущий этап:** Y — исполняется план; Y-03a закрыт (контракты эмбеддингов); порядок дальше: Y-02e4 → Y-03b
-**Статус:** `Y-03a` → done: `src/search/contracts.ts` (`EmbeddingFingerprint`, `fingerprintKey`, `EmbeddingProvider`, `ChunkingStrategy`, `VectorStore`, `IndexingService`, `EmbeddingError`) и файловые реализации `src/search/embeddings-file.ts`; адаптеру добавлены `isReady`/`fingerprint`/`embed` (аддитивно, поиск не менялся). `tests/embedding-contract.test.ts` — 12 тестов, 4 мутации RED. **Дальше: Y-02e4** — `register/search.ts` на `SearchProvider` (тогда Y-02 закрыт), затем **Y-03b** — отпечаток с каждым вектором и двойное чтение коллекций.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 закрыт, Y-03a закрыт)
+**Текущая ветка:** feat/y02e4-search-provider (от origin/master после PR #328)
+**Текущий этап:** Y — Y-02 закрыт полностью (a–e4), Y-03a закрыт; дальше Y-03b
+**Статус:** `Y-02e4` → done: `SearchProvider` в контрактах, файловый профиль делегирует `fts-indexer` и metadata-индексу, `register/search.ts` переведён на `storageProfile(ctx).search`; **allowlist пуст** (0 файлов / 0 импортов). **Y-02 закрыт** (a, b, c, d, e1–e4; контрактные тесты 31, guard 3/3, 117/117 затронутых). `Y-03a` закрыт (контракты эмбеддингов). **Дальше: Y-03b** — отпечаток модели с каждым вектором, коллекции `отпечаток + chunking + buildText`, двойное чтение без слияния score.
+
+### Сессия S-20261109-night (ночная сессия — Y-02e4, Y-02 закрыт)
+
+- `SearchProvider` в `src/storage/contracts.ts`: available/dirty/isIndexComplete/fillState/ensureIndexed/candidates/taskStoreId/docStoreId/countTasks; `StorageProfile.search`.
+- `FileSearchProvider` в файловом профиле делегирует `search/fts-indexer` (кандидаты, полнота, fill-состояние, store id) и `storage/metadata-index` (счётчик задач для AC-05); логика не переписана, ответы поиска не менялись.
+- `register/search.ts` читает коллекции и индекс из `storageProfile(ctx)`; helper'ы получили `ctx`; **allowlist guard-теста пуст** — инварианта «регистраторы не импортируют хранилище» теперь проверяется жёстко.
+- Проверено: guard 3/3, контракт 31/31, затронутые наборы 117/117; 4 мутации RED (прямой импорт, пустые кандидаты, всегда недоступный индекс, нулевой счётчик); build/tsc-test/eslint/markdownlint/backlog зелёные.
+- Итог Y-02: a — контракты Store и файловый профиль; b — проект/журнал/история/замки; c — промпты; d — память; e1 — профиль в контексте + guard; e2 — задачи/знания/bulk/markdown; e3 — промпты/память/ресурсы/алиасы/helpers/mcp-prompts; e4 — поисковый индекс. Y-02 закрыт 2026-11-09.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1855-y-02e4.md`.
+
+### Сессия S-20261109-night (ночная сессия — Y-03a)
 
 ### Сессия S-20261109-night (ночная сессия — Y-03a)
 
