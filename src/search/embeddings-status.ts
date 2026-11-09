@@ -9,6 +9,7 @@ import {
   BUILD_TEXT_VERSION,
   collectionId,
   fingerprintKey,
+  type IndexingStatus,
   type VectorCollectionInfo,
 } from './contracts.js';
 import { FILE_CHUNKING_VERSION, fileEmbeddingFingerprint } from './embeddings-file.js';
@@ -19,6 +20,8 @@ export interface EmbeddingsStatusInput {
   adapterReady: boolean;
   warmup: unknown;
   collections: VectorCollectionInfo[];
+  /** Background indexing status (Y-03c). */
+  indexing?: IndexingStatus[];
 }
 
 /** Collection the current configuration would write to. */
@@ -51,6 +54,7 @@ export function buildEmbeddingsStatus(input: EmbeddingsStatusInput): Record<stri
     activeCollection,
     collections,
     collectionCount: collections.length,
+    indexing: input.indexing ?? [],
     adapterInitAttempted: input.adapterInitAttempted,
     adapterReady: input.adapterReady,
     warmup: input.warmup,

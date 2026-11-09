@@ -13,6 +13,7 @@
  * and refuses to work otherwise (`CONFIG_MISMATCH`), instead of silently serving another directory.
  */
 
+import path from 'node:path';
 import { EMBEDDINGS_DIR, KNOWLEDGE_DIR, TASKS_DIR } from '../../../config.js';
 import {
   archiveTask,
@@ -65,6 +66,10 @@ import {
 } from '../../../search/fts-indexer.js';
 import { getActiveMetadataIndex } from '../../metadata-index.js';
 import { createFileVectorStore } from '../../../search/vector-store-file.js';
+import { createFileIndexingService } from '../../../search/indexing-service.js';
+import { createFileChunkingStrategy } from '../../../search/embeddings-file.js';
+import type { EmbeddingProvider } from '../../../search/contracts.js';
+import { buildTextForDoc, buildTextForTask } from '../../../search/index.js';
 import { withFileLock } from '../../../fs.js';
 import {
   StoreError,
@@ -103,6 +108,13 @@ export interface FileProfileOptions {
   knowledgeDir?: string;
   /** Root of the vector collections; defaults to the configured `EMBEDDINGS_DIR`. */
   vectorsDir?: string;
+  /**
+   * Lazy embedding provider factory (Y-03c). When present, the profile builds its own indexing
+   * service: provider resolution happens on the first batch, so a cold start never loads the model.
+   */
+  embeddingProvider?: () => Promise<EmbeddingProvider | undefined>;
+  /** Manifest of indexed content hashes; defaults to `<vectorsDir>/index-manifest.json`. */
+  indexingManifestPath?: string;
 }
 
 /** Refuse to serve a root the storage modules do not actually use. */
@@ -470,6 +482,34 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
   };
 
   const vectorsRoot = options.vectorsDir ?? EMBEDDINGS_DIR;
+  const vectors = createFileVectorStore({ root: vectorsRoot });
+  const indexing = options.embeddingProvider
+    ? createFileIndexingService({
+        store: vectors,
+        chunker: createFileChunkingStrategy(),
+        provider: options.embeddingProvider,
+        manifestPath: options.indexingManifestPath ?? path.join(vectorsRoot, 'index-manifest.json'),
+        collect: async (project) => {
+          const [tasks, docs] = await Promise.all([listTasks({ project }), listDocs({ project })]);
+          return [
+            ...tasks.map((task) => ({
+              store: 'tasks',
+              kind: 'task' as const,
+              project,
+              id: task.id,
+              text: buildTextForTask(task),
+            })),
+            ...docs.map((doc) => ({
+              store: 'knowledge',
+              kind: 'doc' as const,
+              project,
+              id: doc.id,
+              text: buildTextForDoc(doc as never),
+            })),
+          ];
+        },
+      })
+    : undefined;
 
   const manifest: StoreManifest = {
     profile: 'file',
@@ -494,7 +534,8 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     project: new FileProjectStore(),
     prompts: new FilePromptStore(),
     search: new FileSearchProvider(),
-    vectors: createFileVectorStore({ root: vectorsRoot }),
+    vectors,
+    indexing,
     memory: new FileMemoryStore(),
     events: (storagePath: string) => new FileEventLogStore(storagePath),
     history: new FileHistoryProvider(),
