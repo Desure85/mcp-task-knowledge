@@ -149,6 +149,8 @@ export interface IndexingStatus {
   queued: number;
   /** Items already indexed with the same content hash in this collection. */
   skipped?: number;
+  /** Items kept local by the external-provider policy (Y-04a). */
+  blocked?: number;
   ratePerSec: number;
   lastError?: string;
 }

@@ -18,6 +18,7 @@ import type { KnowledgeDoc, Task } from '../types.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 import { getWarmupStatus } from '../search/warmup.js';
 import { buildEmbeddingsStatus } from '../search/embeddings-status.js';
+import { readExternalEmbeddingConfig, externalEmbeddingStartupWarning } from '../search/external-policy.js';
 import type { VectorCollectionInfo } from '../search/contracts.js';
 import { TtlLruCache } from '../search/cache.js';
 import { PaginationError, clampLimit, encodeOffsetCursor, finalizePage, rankedStart, scopeOf } from '../utils/pagination.js';
@@ -441,6 +442,16 @@ export function registerSearchTools(ctx: ServerContext): void {
         warmup: getWarmupStatus(),
         collections,
         indexing: storageProfile(ctx).indexing?.status(),
+        external: (() => {
+          const externalConfig = readExternalEmbeddingConfig();
+          return {
+            enabled: externalConfig.enabled,
+            provider: externalConfig.provider,
+            model: externalConfig.model,
+            baseUrl: externalConfig.baseUrl,
+            warning: externalEmbeddingStartupWarning(externalConfig),
+          };
+        })(),
       });
       return ok({
         ...payload,
