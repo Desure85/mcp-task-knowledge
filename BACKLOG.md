@@ -1519,7 +1519,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
-| Y-03a | M | Контракты `EmbeddingProvider`, `VectorStore`, `IndexingService`, `ChunkingStrategy`, `EmbeddingFingerprint`; файловый профиль оборачивает текущий адаптер делегированием | pending | `tests/embedding-contract.test.ts`: паритет векторов и кэша с текущим адаптером, отпечаток стабилен, chunking детерминирован |
+| Y-03a | M | Контракты `EmbeddingProvider`, `VectorStore`, `IndexingService`, `ChunkingStrategy`, `EmbeddingFingerprint`; файловый провайдер и чанкинг делегируют текущему адаптеру | done | `npx vitest run tests/embedding-contract.test.ts` — 12/12: отпечаток стабилен и чувствителен к каждому полю, fake-адаптер доказывает делегирование и порядок батчей, незагруженный реальный адаптер отдаёт `CAPABILITY_UNAVAILABLE` вместо пустых векторов, чанкинг совпадает с `buildChunksForDoc`/`chunkText`, версия зависит от опций, `VectorStore`/`IndexingService` реализуемы fake-объектами; 4 мутации RED. Реализовано (2026-11-09): `src/search/contracts.ts` + `src/search/embeddings-file.ts`, адаптеру добавлены `isReady`/`fingerprint`/`embed` аддитивно, поведение поиска не менялось |
 | Y-03b | L | Отпечаток с каждым вектором, коллекция = отпечаток + версия chunking + версия buildText; двойное чтение без слияния score, признак коллекции в хитах, статус по обеим коллекциям | pending | `tests/embedding-contract.test.ts` (часть 2): две коллекции, покрытие и добирание из старой, старые векторы не переиспользуются |
 | Y-03c | M | `IndexingService`: очередь, идемпотентность по хэшу, пауза/прогресс, warmup; `embeddings_status` очередь и скорость | pending | `tests/embedding-contract.test.ts` (часть 3): повторный хэш не добавляет работу, пауза/возобновление не теряют очередь, замер на 10k записан |
 
@@ -1749,3 +1749,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-09, Y-02e3): регистраторы промптов, памяти, ресурсов и алиасов переведены на
 > профиль; `mcp-prompts.ts` нашёлся транзитивно. Последний прямой импорт — `register/search.ts`,
 > он уходит в Y-02e4 после Y-03a (`SearchProvider`); тогда allowlist → 0 и Y-02 закрыт.
+> Примечание (2026-11-09, Y-03a): контракты эмбеддингов и чанкинга зафиксированы, файловый
+> провайдер делегирует текущему адаптеру. Проводка в контекст — Y-03c, отпечаток с векторами и
+> двойное чтение — Y-03b. Перед ними Y-02e4 переключает `search.ts` на `SearchProvider`.
