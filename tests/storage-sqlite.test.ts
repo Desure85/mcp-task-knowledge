@@ -54,10 +54,10 @@ describe('Y-05a1: profile selection', () => {
   it('publishes an honest manifest', () => {
     const profile = openProfile();
     expect(profile.manifest.profile).toBe('sqlite');
-    expect(profile.manifest.collections).toEqual(['tasks', 'docs']);
+    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'history']);
     expect(profile.manifest.capabilities).toEqual({
       transactions: true,
-      history: false,
+      history: true,
       fullText: false,
       vectors: false,
       efficientListing: false,
@@ -225,7 +225,7 @@ describe('Y-05a1: unimplemented collections are honest', () => {
     await expect(profile.tasks.claim('p', 'id', { sessionId: 's' })).rejects.toMatchObject({
       code: 'CAPABILITY_UNAVAILABLE',
     });
-    await expect(profile.docs.versions('p', 'id')).rejects.toMatchObject({ code: 'CAPABILITY_UNAVAILABLE' });
+    await expect(profile.history.list('p', 'task', 'id')).rejects.toMatchObject({ code: 'CAPABILITY_UNAVAILABLE' });
     const codeOf = (call: () => unknown): string | null => {
       try {
         call();
@@ -237,10 +237,102 @@ describe('Y-05a1: unimplemented collections are honest', () => {
     expect(codeOf(() => profile.events('log.json'))).toBe('CAPABILITY_UNAVAILABLE');
     // Proxy-backed collections throw a domain error synchronously: a silent empty answer would lie
     // about what the profile can do.
-    expect(codeOf(() => profile.project.list(() => 'p'))).toBe('CAPABILITY_UNAVAILABLE');
     expect(codeOf(() => profile.prompts.list('p'))).toBe('CAPABILITY_UNAVAILABLE');
     expect(codeOf(() => profile.memory.temporal('/tmp/x.json'))).toBe('CAPABILITY_UNAVAILABLE');
-    expect(codeOf(() => profile.history.list('p', 'doc', 'id'))).toBe('CAPABILITY_UNAVAILABLE');
     expect(codeOf(() => profile.locks.withLock('x', async () => 1))).toBe('CAPABILITY_UNAVAILABLE');
+  });
+});
+
+describe('Y-05a2: projects', () => {
+  it('creates, lists, details, updates metadata and removes projects', async () => {
+    const profile = openProfile();
+    expect(await profile.project.list(() => 'demo')).toEqual([]);
+
+    const created = await profile.project.create('demo', 'demo project');
+    expect(created.id).toBe('demo');
+    expect(created.description).toBe('demo project');
+    expect(created.paths).toEqual({ tasks: '', knowledge: '' });
+
+    const listed = await profile.project.list(() => 'demo');
+    expect(listed).toHaveLength(1);
+    expect(listed[0].isCurrent).toBe(true);
+
+    const metadata = await profile.project.readMetadata('demo');
+    expect(metadata?.description).toBe('demo project');
+    const updated = await profile.project.updateMetadata('demo', { description: 'renamed' });
+    expect(updated?.description).toBe('renamed');
+    expect(updated?.createdAt).toBe(metadata?.createdAt);
+
+    await profile.tasks.create({ project: 'demo', title: 'first' });
+    await profile.docs.create({ project: 'demo', title: 'Doc', content: 'body' });
+    const detail = await profile.project.detail('demo', () => 'demo');
+    expect(detail?.taskCount).toBe(1);
+    expect(detail?.knowledgeCount).toBe(1);
+    expect(detail?.taskStats.total).toBe(1);
+    expect(detail?.knowledgeStats.total).toBe(1);
+    expect(detail?.metadata?.description).toBe('renamed');
+
+    const refused = await profile.project.remove('demo', false);
+    expect(refused.deleted).toBe(false);
+    expect(refused.message).toMatch(/still has/);
+    const removed = await profile.project.remove('demo', true);
+    expect(removed.deleted).toBe(true);
+    expect(await profile.project.readMetadata('demo')).toBeNull();
+    expect(await profile.tasks.list({ project: 'demo' })).toEqual([]);
+  });
+
+  it('validates project ids and duplicates', async () => {
+    const profile = openProfile();
+    await expect(profile.project.create('..bad id')).rejects.toMatchObject({ code: 'CONFLICT' });
+    await profile.project.create('valid-1');
+    await expect(profile.project.create('valid-1')).rejects.toThrow(/already exists/);
+    expect((await profile.project.remove('missing', true)).deleted).toBe(false);
+  });
+
+  it('builds a workflow from metadata, defaulting when absent', async () => {
+    const profile = openProfile();
+    await profile.project.create('demo');
+    const workflow = await profile.project.workflow('demo');
+    expect(workflow.isDefault).toBe(true);
+    expect(workflow.statuses.length).toBeGreaterThan(0);
+    expect(workflow.initialStatuses.length).toBeGreaterThan(0);
+
+    await profile.project.updateMetadata('demo', {
+      statuses: [
+        { id: 'todo', label: 'Todo', category: 'todo', color: 'st-todo', order: 0 },
+        { id: 'done', label: 'Done', category: 'done', color: 'st-done', order: 1 },
+      ],
+      closeStatus: 'done',
+    });
+    const custom = await profile.project.workflow('demo');
+    expect(custom.isDefault).toBe(false);
+    expect(custom.statuses.map((status) => status.id)).toEqual(['todo', 'done']);
+    expect(custom.closeStatus).toBe('done');
+  });
+});
+
+describe('Y-05a2: document history', () => {
+  it('records versions and restores them', async () => {
+    const profile = openProfile();
+    const doc = await profile.docs.create({ project: 'p', title: 'v1', content: 'first' });
+    expect((await profile.docs.versions('p', doc.id)).map((entry) => entry.version)).toEqual([1]);
+
+    await profile.docs.update('p', doc.id, { title: 'v2', content: 'second' });
+    const versions = await profile.docs.versions('p', doc.id);
+    expect(versions.map((entry) => entry.version)).toEqual([1, 2]);
+    expect(versions[1].title).toBe('v2');
+    expect(versions.every((entry) => Boolean(entry.updatedAt))).toBe(true);
+
+    const restored = await profile.docs.restoreVersion('p', doc.id, 1);
+    expect(restored?.content).toBe('first');
+    expect((await profile.docs.read('p', doc.id))?.content).toBe('first');
+    expect((await profile.docs.versions('p', doc.id)).length).toBe(3);
+
+    expect(await profile.docs.restoreVersion('p', doc.id, 42)).toBeNull();
+  });
+
+  it('answers CAPABILITY_UNAVAILABLE for task history instead of an empty list', async () => {
+    const profile = openProfile();
+    await expect(profile.history.list('p', 'task', 'id')).rejects.toMatchObject({ code: 'CAPABILITY_UNAVAILABLE' });
   });
 });
