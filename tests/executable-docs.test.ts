@@ -19,9 +19,19 @@ const execFileP = promisify(execFile);
 const ROOT = process.cwd();
 const SCRIPT = path.join(ROOT, 'scripts', 'executable-docs.mjs');
 
+// CI-load fix: the shared real-repo scan spawns a node process per executable block and took
+// 60-90s under bulk-smoke contention; the old 60s exec budget was killed mid-scan and surfaced as
+// a bare `code=1` (execFile timeout has no exit code). The scan itself is unchanged — only the
+// budget is wide enough to finish on a loaded 4-core runner, like TS-01 did for other spawns.
+const SCAN_TIMEOUT_MS = 180_000;
+const SCAN_HOOK_TIMEOUT_MS = 240_000;
+
 async function runScript(extraArgs: string[] = []): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
-    const { stdout, stderr } = await execFileP('node', [SCRIPT, ...extraArgs], { cwd: ROOT, timeout: 60_000 });
+    const { stdout, stderr } = await execFileP('node', [SCRIPT, ...extraArgs], {
+      cwd: ROOT,
+      timeout: SCAN_TIMEOUT_MS,
+    });
     return { code: 0, stdout, stderr };
   } catch (e: any) {
     return { code: e.code ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
@@ -48,7 +58,7 @@ describe('executable-docs (DX-24)', () => {
   let real: Awaited<ReturnType<typeof runScript>>;
   beforeAll(async () => {
     real = await runScript();
-  }, 120_000);
+  }, SCAN_HOOK_TIMEOUT_MS);
 
   it('exits 0 on the real repo docs', () => {
     expect(real.code, diag(real)).toBe(0);
