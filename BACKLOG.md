@@ -1510,7 +1510,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
-| Y-02e1 | S | `AppContainer` создаёт файловый `StorageProfile`, публикует в `ServerContext.storage`; guard-тест allowlist из 11 регистраторов | pending | `tests/storage-wiring.test.ts`: профиль в контексте, allowlist ровно 11 файлов, новые импорты ломают тест |
+| Y-02e1 | S | `createServerContext()` создаёт файловый `StorageProfile` и публикует в `ServerContext.storage` (поле опциональное для тест-моков); guard-тест фиксирует точный allowlist 11 регистраторов (11 файлов / 20 импортов, только сокращается) | done | `npx vitest run tests/storage-wiring.test.ts`; pass — профиль в контексте, манифест честный (profile/коллекции/возможности), roots = `resolveStoreId(TASKS_DIR\|KNOWLEDGE_DIR)`, smoke-чтение через профиль, allowlist ровно 11 файлов; мутации «профиль не публикуется», «манифест врёт», «новый прямой импорт» — RED. Реализовано (2026-11-09) |
 | Y-02e2 | M | `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` переходят на `ctx.storage`; allowlist 11 → 7 | pending | Существующие тесты инструментов зелёные, wire-формат не изменился, guard-тест показывает 7 |
 | Y-02e3 | M | `prompts.ts`, `memory.ts`, `search.ts`, `aliases.ts`, `resources.ts`, `search-resources.ts`, `helpers.ts` переходят на профиль; allowlist → 0 | pending | Guard-тест: 0 прямых импортов хранилищ в `src/register/**`; полный прогон `--maxWorkers=4` зелёный; Y-02 → done |
 
@@ -1738,3 +1738,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-09, Y-02d): память (временной граф, профили, слои, сессии) доступна через
 > `MemoryStore`; пути задаёт вызывающий. Остаётся Y-02e — переключение `AppContainer` и
 > регистраторов, «Итого» не меняется.
+> Примечание (2026-11-09, Y-02e1): профиль хранилища появился в контексте сервера
+> (`createServerContext`, фабрика `AppContainer`), регистраторы пока не переключены;
+> guard-тест `tests/storage-wiring.test.ts` фиксирует allowlist прямых импортов (11 файлов) и
+> может только сокращаться. «Итого» не меняется.
