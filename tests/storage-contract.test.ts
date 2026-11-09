@@ -16,7 +16,7 @@ import path from 'node:path';
 import { createFileProfile } from '../src/storage/profiles/file/index.js';
 import { StoreError, type StorageProfile } from '../src/storage/contracts.js';
 import { KNOWLEDGE_DIR, PROMPTS_DIR, TASKS_DIR } from '../src/config.js';
-import { listTasks, listTasksPage, listTasksTree } from '../src/storage/tasks.js';
+import { getDirectChildren, getTaskSubtree, listTasks, listTasksPage, listTasksTree } from '../src/storage/tasks.js';
 import { listDocs, listDocsPage, readDoc } from '../src/storage/knowledge.js';
 import { resolveStoreId } from '../src/search/fts-index.js';
 import { TemporalGraph } from '../src/memory/temporal-graph.js';
@@ -192,6 +192,59 @@ describe('Y-02a: task contract (file profile)', () => {
     expect(released.status).toBe('released');
 
     expect((await profile.tasks.claim(PROJECT, 'missing-id', mine)).status).toBe('not_found');
+  });
+});
+
+describe('Y-02e2: task contract extras (cascade, subtree, children)', () => {
+  it('closes a task together with its descendants when cascade is set', async () => {
+    const root = await profile.tasks.create({ project: PROJECT, title: 'cascade root' });
+    const child = await profile.tasks.create({ project: PROJECT, title: 'cascade child', parentId: root.id });
+    const grandchild = await profile.tasks.create({ project: PROJECT, title: 'cascade grandchild', parentId: child.id });
+
+    const result = await profile.tasks.closeWithCascade(PROJECT, root.id, true);
+    expect(result.root?.id).toBe(root.id);
+    expect(result.cascaded.map((task) => task.id).sort()).toEqual([child.id, grandchild.id].sort());
+
+    const statuses = new Set<string>();
+    for (const id of [root.id, child.id, grandchild.id]) {
+      const stored = await profile.tasks.get(PROJECT, id);
+      expect(stored).not.toBeNull();
+      statuses.add(stored!.status);
+    }
+    expect(statuses.size).toBe(1);
+    expect([...statuses][0]).not.toBe(root.status);
+
+    for (const id of [grandchild.id, child.id, root.id]) await profile.tasks.deletePermanent(PROJECT, id);
+  });
+
+  it('does not touch descendants when cascade is off', async () => {
+    const root = await profile.tasks.create({ project: PROJECT, title: 'no-cascade root' });
+    const child = await profile.tasks.create({ project: PROJECT, title: 'no-cascade child', parentId: root.id });
+
+    const result = await profile.tasks.closeWithCascade(PROJECT, root.id, false);
+    expect(result.root?.id).toBe(root.id);
+    expect(result.cascaded).toEqual([]);
+    expect((await profile.tasks.get(PROJECT, child.id))?.status).toBe(child.status);
+
+    expect((await profile.tasks.closeWithCascade(PROJECT, 'missing-id', true)).root).toBeNull();
+
+    await profile.tasks.deletePermanent(PROJECT, child.id);
+    await profile.tasks.deletePermanent(PROJECT, root.id);
+  });
+
+  it('returns children and subtree identical to the storage functions', async () => {
+    const root = await profile.tasks.create({ project: PROJECT, title: 'extra root' });
+    const child = await profile.tasks.create({ project: PROJECT, title: 'extra child', parentId: root.id });
+    const grandchild = await profile.tasks.create({ project: PROJECT, title: 'extra grandchild', parentId: child.id });
+
+    expect(await profile.tasks.children(PROJECT, root.id)).toEqual(await getDirectChildren(PROJECT, root.id));
+    expect(await profile.tasks.subtree(PROJECT, root.id)).toEqual(await getTaskSubtree(PROJECT, root.id));
+    expect(await profile.tasks.subtree(PROJECT, 'missing-id')).toBeNull();
+    expect(await profile.tasks.children(PROJECT, grandchild.id)).toEqual([]);
+
+    await profile.tasks.deletePermanent(PROJECT, grandchild.id);
+    await profile.tasks.deletePermanent(PROJECT, child.id);
+    await profile.tasks.deletePermanent(PROJECT, root.id);
   });
 });
 

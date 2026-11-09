@@ -18,9 +18,12 @@ import {
   archiveTask,
   claimTask,
   closeTask,
+  closeTaskWithCascade,
   createTask,
   deleteTaskPermanent,
+  getDirectChildren,
   getTask,
+  getTaskSubtree,
   listTasks,
   listTasksPage,
   listTasksTree,
@@ -147,6 +150,18 @@ class FileTaskStore implements TaskStore {
 
   tree(filter?: TaskListFilter) {
     return listTasksTree(filter);
+  }
+
+  closeWithCascade(project: string, id: string, cascade?: boolean) {
+    return closeTaskWithCascade(project, id, cascade ?? false);
+  }
+
+  subtree(project: string, rootId: string) {
+    return getTaskSubtree(project, rootId);
+  }
+
+  children(project: string, parentId: string) {
+    return getDirectChildren(project, parentId);
   }
 
   claim(project: string, id: string, actor: Parameters<TaskStore['claim']>[2]) {

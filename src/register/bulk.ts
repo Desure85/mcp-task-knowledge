@@ -1,13 +1,23 @@
 import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
+import { storageProfile } from '../core/storage-context.js';
 import { resolveProject, DATA_DIR, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
-import { createTask, updateTask, archiveTask, trashTask, restoreTask, deleteTaskPermanent, closeTask, listTasks, getTask} from '../storage/tasks.js';
-import { createDoc, listDocs, updateDoc, archiveDoc, trashDoc, restoreDoc, deleteDocPermanent } from '../storage/knowledge.js';
+
+
 import { ok, err, errWith } from '../utils/respond.js';
 import { WorkflowError } from '../workflow.js';
 import { createDataBackup, isBackupRequired, type BackupScope } from '../services/data-backup.js';
 import { elicitConfirm } from '../core/elicitation.js';
 import { projectDoc, projectTask, writeResponseArgs } from './write-response.js';
+
+/** Y-02e2: bulk tools go through the same context profile as the single-record tools. */
+function taskStore(ctx: ServerContext) {
+  return storageProfile(ctx).tasks;
+}
+
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('bulk');
@@ -93,7 +103,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       for (const it of items) {
         const { id, ...patch } = it as any;
         try {
-          const t = await updateTask(prj, id, patch as any);
+          const t = await taskStore(ctx).update(prj, id, patch as any);
           if (t) results.push(projectTask(t, { fields, compact }));
           else failed.push({ id, error: { code: 'TASK_NOT_FOUND', message: `Task not found: ${prj}/${id}` } });
         } catch (e) {
@@ -138,7 +148,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const results: any[] = [];
       for (const it of items) {
         const { id, ...patch } = it as any;
-        const d = await updateDoc(prj, id, patch as any);
+        const d = await docStore(ctx).update(prj, id, patch as any);
         if (d) results.push(projectDoc(d, { fields, compact }));
       }
       return ok({ count: results.length, results });
@@ -174,7 +184,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const created = [] as any[];
       try {
         for (const it of items) {
-          const t = await createTask({ project: prj, ...it });
+          const t = await taskStore(ctx).create({ project: prj, ...it });
           created.push(t);
         }
       } catch (e) {
@@ -198,7 +208,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const results = [] as any[];
       for (const id of ids) {
-        const t = await archiveTask(prj, id);
+        const t = await taskStore(ctx).archive(prj, id);
         if (t) results.push(t);
       }
       return ok({ count: results.length, results });
@@ -216,7 +226,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const results = [] as any[];
       for (const id of ids) {
-        const t = await trashTask(prj, id);
+        const t = await taskStore(ctx).trash(prj, id);
         if (t) results.push(t);
       }
       return ok({ count: results.length, results });
@@ -234,7 +244,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const results = [] as any[];
       for (const id of ids) {
-        const t = await restoreTask(prj, id);
+        const t = await taskStore(ctx).restore(prj, id);
         if (t) results.push(t);
       }
       return ok({ count: results.length, results });
@@ -254,7 +264,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const failed: Array<{ id: string; error: Record<string, unknown> }> = [];
       for (const id of ids) {
         try {
-          const t = await closeTask(prj, id);
+          const t = await taskStore(ctx).close(prj, id);
           if (t) results.push(t);
           else failed.push({ id, error: { code: 'TASK_NOT_FOUND', message: `Task not found: ${prj}/${id}` } });
         } catch (e) {
@@ -287,7 +297,7 @@ export function registerBulkTools(ctx: ServerContext): void {
         const results = [] as any[];
         for (const id of ids) {
           try {
-            const t = await getTask(prj, id);
+            const t = await taskStore(ctx).get(prj, id);
             if (t) {
               results.push({ ok: true, data: t });
             } else {
@@ -318,7 +328,7 @@ export function registerBulkTools(ctx: ServerContext): void {
 
       const results = [] as any[];
       for (const id of ids) {
-        const t = await deleteTaskPermanent(prj, id);
+        const t = await taskStore(ctx).deletePermanent(prj, id);
         if (t) results.push(t);
       }
       return ok({ count: results.length, results });
@@ -353,7 +363,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const created: any[] = [];
       for (const it of items) {
-        const d = await createDoc({ project: prj, ...it });
+        const d = await docStore(ctx).create({ project: prj, ...it });
         created.push(d);
       }
       return ok({ count: created.length, created: created.map((doc) => projectDoc(doc, { fields, compact })) });
@@ -371,7 +381,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const results = [] as any[];
       for (const id of ids) {
-        const d = await archiveDoc(prj, id);
+        const d = await docStore(ctx).archive(prj, id);
         if (d) results.push(d);
       }
       return ok({ count: results.length, results });
@@ -389,7 +399,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const results = [] as any[];
       for (const id of ids) {
-        const d = await trashDoc(prj, id);
+        const d = await docStore(ctx).trash(prj, id);
         if (d) results.push(d);
       }
       return ok({ count: results.length, results });
@@ -407,7 +417,7 @@ export function registerBulkTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       const results = [] as any[];
       for (const id of ids) {
-        const d = await restoreDoc(prj, id);
+        const d = await docStore(ctx).restore(prj, id);
         if (d) results.push(d);
       }
       return ok({ count: results.length, results });
@@ -446,7 +456,7 @@ export function registerBulkTools(ctx: ServerContext): void {
 
       const results = [] as any[];
       for (const id of ids) {
-        const d = await deleteDocPermanent(prj, id);
+        const d = await docStore(ctx).deletePermanent(prj, id);
         if (d) results.push(d);
       }
       return ok({ count: results.length, results });
@@ -483,8 +493,8 @@ export function registerBulkTools(ctx: ServerContext): void {
       const confirm = !!params?.confirm;
       const includeArchived = params?.includeArchived ?? true;
 
-      const tasks = doTasks ? await listTasks({ project: prj, includeArchived, includeTrashed: true }) : [];
-      const docs = doKnowledge ? await listDocs({ project: prj, includeArchived, includeTrashed: true }) : [];
+      const tasks = doTasks ? await taskStore(ctx).list({ project: prj, includeArchived, includeTrashed: true }) : [];
+      const docs = doKnowledge ? await docStore(ctx).list({ project: prj, includeArchived, includeTrashed: true }) : [];
 
       const toArr = (v: any): string[] | undefined => v == null ? undefined : (Array.isArray(v) ? v : [v]).filter(x => typeof x === 'string' && x.trim().length > 0);
 
@@ -599,14 +609,14 @@ export function registerBulkTools(ctx: ServerContext): void {
       if (doTasks && taskIds.length) {
         for (const batch of chunkArray(taskIds, 100)) {
           for (const id of batch) {
-            await deleteTaskPermanent(prj, id);
+            await taskStore(ctx).deletePermanent(prj, id);
           }
         }
       }
       if (doKnowledge && knowledgeIds.length) {
         for (const batch of chunkArray(knowledgeIds, 100)) {
           for (const id of batch) {
-            await deleteDocPermanent(prj, id);
+            await docStore(ctx).deletePermanent(prj, id);
           }
         }
       }

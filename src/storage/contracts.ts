@@ -87,6 +87,15 @@ export class StoreError extends Error {
   }
 }
 
+/**
+ * Y-02e2: claim and nesting bounds are part of the task contract — registrators build their zod
+ * schemas from them, so they cannot live in the storage implementation any more.
+ */
+export const DEFAULT_CLAIM_TTL_SEC = 1800;
+export const MIN_CLAIM_TTL_SEC = 30;
+export const MAX_CLAIM_TTL_SEC = 86_400;
+export const MAX_TASK_DEPTH = 10;
+
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
 export interface TaskListFilter {
@@ -173,6 +182,10 @@ export interface TaskStore {
   restore(project: string, id: string): Promise<Task | null>;
   deletePermanent(project: string, id: string): Promise<boolean>;
   tree(filter?: TaskListFilter): Promise<TaskTreeNode[]>;
+  /** Close a task and, when `cascade` is true, all its descendants. */
+  closeWithCascade(project: string, id: string, cascade?: boolean): Promise<{ root: Task | null; cascaded: Task[] }>;
+  subtree(project: string, rootId: string): Promise<TaskTreeNode | null>;
+  children(project: string, parentId: string): Promise<Task[]>;
   claim(project: string, id: string, actor: ClaimActor): Promise<ClaimTaskResult>;
   renewClaim(project: string, id: string, actor: ClaimActor): Promise<RenewTaskResult>;
   releaseClaim(project: string, id: string, actor: ClaimActor): Promise<ReleaseTaskResult>;
