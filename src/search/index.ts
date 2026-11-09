@@ -72,11 +72,12 @@ export function fuseRankings<T>(
     .sort((a, b) => b.rrf - a.rrf)
     .slice(0, limit);
   const best = ranked[0]?.rrf ?? 0;
+  // AC-05: `undefined` drops the key from JSON, so a single-channel hit hid the other score.
   return ranked.map(({ base, rrf, bm25Score, vectorScore }) => ({
     ...base,
     score: best > 0 ? rrf / best : 0,
-    bm25Score,
-    vectorScore,
+    bm25Score: bm25Score ?? 0,
+    vectorScore: vectorScore ?? 0,
   }));
 }
 

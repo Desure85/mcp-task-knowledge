@@ -22,6 +22,7 @@ import {
   knowledgeStoreId,
   taskStoreId,
 } from '../search/fts-indexer.js';
+import { getActiveMetadataIndex } from '../storage/metadata-index.js';
 import { ok, okWith, errWith } from '../utils/respond.js';
 import type { KnowledgeDoc, Task } from '../types.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
@@ -65,8 +66,16 @@ function trackVectorError(): (err: unknown) => void {
   return () => getServiceAvailabilityRegistry().get('embeddings').recordFailure();
 }
 
+// AC-05: both channel scores are always numbers on the wire. A pure lexical hit (scan without a
+// vector adapter) carries its BM25 score in `bm25Score`; a channel that did not run contributes 0.
 function toRanked(results: Array<Ranked & { item?: unknown }>): Ranked[] {
-  return results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({ id, score, exactMatches, bm25Score, vectorScore }));
+  return results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({
+    id,
+    score,
+    exactMatches,
+    bm25Score: bm25Score ?? score,
+    vectorScore: vectorScore ?? 0,
+  }));
 }
 
 function promoteCandidates<T>(
@@ -113,7 +122,7 @@ async function hydrateCandidates<T>(
 ): Promise<Ranked[]> {
   const anchors = extractAnchors(query);
   const needItems = Boolean(adapter) || anchors.length > 0;
-  if (!needItems) return hits.map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score }));
+  if (!needItems) return hits.map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score, vectorScore: 0 }));
 
   const loaded = await Promise.all(hits.map((hit) => load(hit.id, hit.project)));
   const items = hits.flatMap((hit, index) => {
@@ -121,7 +130,7 @@ async function hydrateCandidates<T>(
     return item ? [{ id: hit.id, text: textOf(item), item }] : [];
   });
   const present = new Set(items.map((item) => item.id));
-  const ranked = hits.filter((hit) => present.has(hit.id)).map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score }));
+  const ranked = hits.filter((hit) => present.has(hit.id)).map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score, vectorScore: 0 }));
   if (adapter && items.length > 0) return fuseCandidates(query, items, ranked, adapter);
   if (anchors.length > 0 && items.length > 0) return promoteCandidates(query, items, ranked);
   return ranked;
@@ -147,11 +156,56 @@ async function ftsDocCandidates(prj: string, query: string, adapter: VectorSearc
   return { ranked, source: 'fts', totalExact: exhaustive && ranked.length === hits.length };
 }
 
+/** AC-05: hint for a client that hit a filling index; not a promise about fill duration. */
+const INDEXING_RETRY_MS = 1000;
+// AC-05: above this corpus size a file scan can outlive the client's request timeout, so the
+// answer is an explicit `INDEXING` instead. Env override exists for tests and operators.
+const DEFAULT_SCAN_MAX_TASKS = 2000;
+
+function scanMaxTasks(): number {
+  const raw = Number(process.env.SEARCH_SCAN_MAX_TASKS ?? DEFAULT_SCAN_MAX_TASKS);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : DEFAULT_SCAN_MAX_TASKS;
+}
+
+function projectTaskCount(prj: string): number | undefined {
+  const meta = getActiveMetadataIndex();
+  if (!meta) return undefined;
+  try {
+    return meta.listTasks({ project: prj, countOnly: true, excludeArchived: true, excludeTrashed: true }).total;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * AC-05: decide whether the file scan must be replaced by a typed `INDEXING` answer.
+ * Only a running fill is retryable; a dirty index needs `reindex`, and without an index the
+ * scan is the normal path. A `type`-filtered search stays on files by design (SC-03c).
+ */
+function scanDeferral(prj: string, type: string | undefined): { tasks: number } | null {
+  if (type) return null;
+  const index = getActiveFtsIndex();
+  if (!index || index.isDirty()) return null;
+  if (getProjectFtsFillState(prj) !== 'running') return null;
+  const tasks = projectTaskCount(prj);
+  if (tasks === undefined || tasks <= scanMaxTasks()) return null;
+  return { tasks };
+}
+
+/**
+ * AC-05: a scan answer states why the index was not used. A running fill is retryable; a
+ * dirty or failed index needs `reindex`; no index at all is the normal file-profile path.
+ */
 function candidateMeta(candidates: Candidates, prj: string): Record<string, unknown> {
-  return {
-    source: candidates.source,
-    ...(candidates.source === 'scan' && getProjectFtsFillState(prj) === 'running' ? { indexing: true } : {}),
-  };
+  const meta: Record<string, unknown> = { source: candidates.source };
+  if (candidates.source !== 'scan') return meta;
+  const index = getActiveFtsIndex();
+  if (!index) return meta;
+  if (index.isDirty()) return { ...meta, indexing: true, needsReindex: true };
+  const state = getProjectFtsFillState(prj);
+  if (state === 'running') return { ...meta, indexing: true, retryAfterMs: INDEXING_RETRY_MS };
+  if (state === 'error') return { ...meta, indexing: true, needsReindex: true };
+  return meta;
 }
 
 export function registerSearchTools(ctx: ServerContext): void {
@@ -182,6 +236,15 @@ export function registerSearchTools(ctx: ServerContext): void {
         // the file path: post-filtering FTS candidates would change which tasks are ranked.
         let candidates = type ? null : await ftsTaskCandidates(prj, query, adapter);
         if (!candidates) {
+          const defer = scanDeferral(prj, type);
+          if (defer) {
+            return errWith({
+              code: 'INDEXING',
+              message: `The search index for project "${prj}" is still filling (${defer.tasks} tasks); retry in about ${INDEXING_RETRY_MS} ms instead of scanning the files`,
+              hint: 'Repeat the same call after retryAfterMs, or run `reindex` to rebuild the index eagerly',
+              details: { project: prj, tasks: defer.tasks, retryAfterMs: INDEXING_RETRY_MS },
+            });
+          }
           const tasks = await listTasks({ project: prj, ...(type ? { type } : {}) });
           const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
           const results = await hybridSearch(query, items, {

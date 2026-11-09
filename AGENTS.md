@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** ses_e410a56d8ffeVJlqKeRhjidayR (SC-03c — чтение FTS5)
-**Текущая ветка:** feat/sc03c-fts-read (worktree `/home/dm/work/mcp-tk-sc03c`, от origin/master e1f32f7)
-**Текущий этап:** SC-03 — инвертированный индекс поиска
-**Статус:** `SC-03c` закрыт, `SC-03` → done. Read-path читает FTS-кандидатов только при доказанной полноте, иначе файловый скан + фоновый fill (`source`, `indexing`). Попутно исправлен квадратичный DELETE в FTS (`search_fts_keys`, схема v4). 100k: `search_tasks` median 544 мс / p95 598 мс, `search_knowledge` 42 / 636 мс, cold start 625 мс, RSS 156 МБ. Полный прогон 3408 тестов / 291 файл зелёный. **Дальше: PR.**
+**Session ID:** ses_e409dcc90ffeTgBbDcJ59Fohq9 (AC-05 — честный статус search_tasks)
+**Текущая ветка:** feat/ac05-search-status (worktree `/home/dm/work/mcp-tk-ac05`, от origin/master 64ce804)
+**Текущий этап:** AC — контракт инструментов (AC-05 закрыт)
+**Статус:** `AC-05` → done. Векторный хит всегда несёт `bm25Score: 0`, а чисто лексический скан — свой BM25-скор в `bm25Score` и `0` в `vectorScore` (нормализация в `toRanked` на границе инструмента); скан-ответ размечен (`indexing` + `retryAfterMs` при fill, `indexing` + `needsReindex` при dirty/ошибке), корпус больше `SEARCH_SCAN_MAX_TASKS` (2000) не сканируется при идущем fill — отдаётся `INDEXING` с `retryAfterMs`. Воспроизведение на базе: 200 задач — 48 мс первый / 14 мс повторный / 6 мс после fill, таймаут не воспроизводится, отдельный warmup не добавлялся. Тесты 7 новых (RED на базе, 4 revert-check), полный прогон 292 файла / 3415 тестов зелёный. **Дальше: ревью PR #317.**
+
+### Сессия ses_e409dcc90ffeTgBbDcJ59Fohq9 (AC-05 — честный статус search_tasks)
+
+- `src/search/index.ts`: `fuseRankings` подставляет `bm25Score`/`vectorScore` = `0` для канала без вклада (`undefined` выпадал из JSON).
+- `src/register/search.ts`: `toRanked` доводит оба поля числом на границе инструмента (`bm25Score ?? score`, `vectorScore ?? 0`), поэтому чисто лексический скан без векторного адаптера тоже отдаёт `bm25Score`, а не теряет ключ; `hybridSearch` не менялся — отсутствие поля у внутреннего помощника пинует `src/__tests__/hybrid_rrf.spec.ts:65`.
+- `src/register/search.ts`: `scanDeferral` — при идущем fill и корпусе больше `SEARCH_SCAN_MAX_TASKS` (2000, ленивое чтение env) возвращается `errWith({code:'INDEXING', details:{retryAfterMs:1000}})`, иначе `candidateMeta` размечает скан: fill → `indexing` + `retryAfterMs`, dirty/ошибка fill → `indexing` + `needsReindex`, нет индекса/полный индекс → без маркеров. `type`-фильтр по-прежнему на файлах и без `INDEXING`.
+- `tests/search-tasks-warmup.test.ts` (6): отдельный `mkdtemp` для metadata-индекса, иначе параллельные сьюты на общем `.tmp-vitest/.index/metadata.db` дают SQLITE_BUSY и ложные падения SC-03c.
+- Решение: `docs/dev-cycle/decisions/2026-11-09-1135-ac05-search-status.md`; контракт в `docs/features/tools.md`, запись в `CHANGELOG.md`, статус AC-05 в `BACKLOG.md`.
+- Флейк: при грязном `.tmp-vitest` от предыдущих прогонов пара `search-fts` + новый файл падала; на чистом каталоге и на полном прогоне зелёные. Полный прогон запускать после `rm -rf .tmp-vitest`.
 
 ### Сессия ses_e410a56d8ffeVJlqKeRhjidayR (SC-03c — поиск читает FTS5)
 

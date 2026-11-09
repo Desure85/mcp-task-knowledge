@@ -46,6 +46,32 @@ Rules that matter for clients:
 
 Error codes: `INVALID_CURSOR` (malformed, tampered, or issued for another query).
 
+### Search index status and channel scores (AC-05)
+
+`search_tasks` / `search_knowledge` answer from the FTS index when its completeness is proven, and
+say so in metadata next to `data`:
+
+| Field | Meaning |
+|-------|---------|
+| `source` | `'fts'` — served from the index; `'scan'` — served from files |
+| `indexing` | `true` when the answer came from a scan while the index is not ready |
+| `retryAfterMs` | Set with `indexing` while a background fill is running: retry after this delay |
+| `needsReindex` | Set with `indexing` when the index is `dirty` or a fill failed: retry will not help, run `reindex` |
+
+Every hit carries both channel scores: `bm25Score` and `vectorScore` are always numbers, `0` when
+the hit did not come from that channel. A field that is absent is never a substitute for `0`.
+On a pure lexical scan (no vector adapter), `bm25Score` is the hit's lexical score and
+`vectorScore` is `0`.
+
+When the index is filling and the project holds more than `SEARCH_SCAN_MAX_TASKS` tasks (default
+`2000`), `search_tasks` does not scan the corpus: it returns `ok: false`,
+`error.code: 'INDEXING'` and `error.details.retryAfterMs`. The fill keeps running in the background,
+so the same call succeeds from the index afterwards. This guard does not apply to a `type`-filtered
+search (it stays on the file path by design), to a disabled index (`STORAGE_INDEX=off`) or to a
+`dirty` index — those answer from files and are marked with `indexing` instead.
+
+Error codes: `INDEXING` (index fill in progress on a large project; retry after `retryAfterMs`).
+
 ### Transport and progress
 
 HTTP responses are `application/json` by default (SSE framing in the MCP SDK is quadratic in
