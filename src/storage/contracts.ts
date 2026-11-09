@@ -364,6 +364,39 @@ export interface PromptStore {
   buildItems(project: string): Promise<Array<{ id: string; text: string; item: Record<string, unknown> }>>;
 }
 
+// ─── Search provider (Y-02e4) ───────────────────────────────────────────────
+
+/** Fill state of the full-text index for one project (file-profile vocabulary). */
+export type SearchIndexFillState = 'disabled' | 'complete' | 'running' | 'error' | 'idle';
+
+/**
+ * What tools need from the search index: candidates, availability and fill status. The file
+ * profile delegates to `search/fts-indexer` and `storage/metadata-index`; SQLite and Postgres
+ * profiles (Y-05/Y-06) will provide their own implementations, which is why registrators must not
+ * import the indexers directly.
+ */
+export interface SearchProvider {
+  /** False when the FTS index is not available at all (FTS disabled or failed to open). */
+  available(): boolean;
+  /** True when the index needs a reindex (failed write or out-of-band change). */
+  dirty(): boolean;
+  isIndexComplete(project: string): boolean;
+  fillState(project: string): SearchIndexFillState;
+  /** Start one background fill per project; never blocks the request. */
+  ensureIndexed(project: string): void;
+  candidates(input: {
+    store: string;
+    kind: 'task' | 'doc';
+    project: string;
+    query: string;
+    limit: number;
+  }): Array<{ id: string; project: string; score: number }>;
+  taskStoreId(): string;
+  docStoreId(): string;
+  /** Metadata-index task count used by the AC-05 scan-deferral decision. */
+  countTasks(project: string): number | undefined;
+}
+
 // ─── Memory (Y-02d) ─────────────────────────────────────────────────────────
 
 export interface TemporalStats {
@@ -462,6 +495,8 @@ export interface StorageProfile {
   docs: DocStore;
   project: ProjectStore;
   prompts: PromptStore;
+  /** Y-02e4: full-text search index behind the profile. */
+  search: SearchProvider;
   memory: MemoryStore;
   /** Event logs are created per log file, so the profile hands out a factory. */
   events(storagePath: string): EventLogStore;

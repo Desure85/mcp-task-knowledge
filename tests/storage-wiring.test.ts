@@ -21,13 +21,11 @@ import { storageProfile } from '../src/core/storage-context.js';
 const REGISTER_DIR = path.join(process.cwd(), 'src', 'register');
 
 /**
- * Direct storage imports per registrator file. Y-02e3 state: 1 file (search.ts, see Y-02e4).
- * The list may only shrink.
+ * Direct storage imports per registrator file. Y-02e4 state: none. The list must stay empty.
  */
 const EXPECTED_ALLOWLIST: Record<string, string[]> = {
-  // Y-02e3 state: only the search registrar still touches storage directly. Its indexes are the
-  // Y-03/Y-05 providers, so it moves in Y-02e4 (after the SearchProvider contract lands).
-  'search.ts': ['search/fts-indexer.js', 'storage/knowledge.js', 'storage/metadata-index.js', 'storage/tasks.js'],
+  // Y-02e4 state: no registrator imports storage data-access modules any more. Collections and the
+  // search index come from the context profile; this list must stay empty.
 };
 
 /**
