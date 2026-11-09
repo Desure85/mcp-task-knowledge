@@ -14,7 +14,7 @@ export interface SqliteDatabase {
   close(): void;
 }
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 export function openSqliteDatabase(databasePath: string): SqliteDatabase {
   if (databasePath !== ':memory:') {
@@ -87,6 +87,15 @@ export function openSqliteDatabase(databasePath: string): SqliteDatabase {
       body,
       tokenize = 'unicode61'
     );
+    create table if not exists search_fts_keys (
+      store text not null,
+      kind text not null,
+      project text not null,
+      id text not null,
+      rowid integer not null,
+      primary key (store, kind, project, id)
+    );
+    create index if not exists search_fts_keys_project on search_fts_keys(project);
     create table if not exists search_index_state (
       project text primary key,
       complete integer not null default 0,

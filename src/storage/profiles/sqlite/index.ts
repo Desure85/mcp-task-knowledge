@@ -602,7 +602,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       deleteProjectTasks.run(projectId);
       deleteProjectDocs.run(projectId);
       deleteProjectVersions.run(projectId);
-      deleteFtsProject.run(projectId);
+      clearProjectIndex(projectId);
       deleteProjectRow.run(projectId);
       return { deleted: true, message: `project ${projectId} deleted` };
     },
@@ -811,8 +811,17 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
   const insertFtsRow = db.prepare(
     'insert into search_fts(store, kind, project, id, title, body) values(?, ?, ?, ?, ?, ?)',
   );
-  const deleteFtsRow = db.prepare('delete from search_fts where store = ? and kind = ? and project = ? and id = ?');
-  const deleteFtsProject = db.prepare('delete from search_fts where project = ?');
+  // FTS5 rows are deleted through their rowid: filtering on UNINDEXED columns makes SQLite scan the
+  // whole FTS table, which turns a bulk write into O(n^2) (measured: 10k sqlite creates 36s, 100k did
+  // not finish in the session budget before this fix).
+  const deleteFtsByRowid = db.prepare('delete from search_fts where rowid = ?');
+  const selectFtsKey = db.prepare('select rowid from search_fts_keys where store = ? and kind = ? and project = ? and id = ?');
+  const insertFtsKey = db.prepare(
+    'insert into search_fts_keys(store, kind, project, id, rowid) values(?, ?, ?, ?, ?) on conflict(store, kind, project, id) do update set rowid = excluded.rowid',
+  );
+  const deleteFtsKey = db.prepare('delete from search_fts_keys where store = ? and kind = ? and project = ? and id = ?');
+  const selectProjectKeys = db.prepare('select rowid from search_fts_keys where project = ?');
+  const deleteProjectKeys = db.prepare('delete from search_fts_keys where project = ?');
   const selectFtsState = db.prepare('select complete, dirty from search_index_state where project = ?');
   const upsertFtsState = db.prepare(
     'insert into search_index_state(project, complete, dirty, updated_at) values(?, ?, ?, ?) on conflict(project) do update set complete = excluded.complete, dirty = excluded.dirty, updated_at = excluded.updated_at',
@@ -822,11 +831,17 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     return title ? title + '\n' + text : text;
   }
 
+  function dropIndexedRow(store: string, kind: 'task' | 'doc', project: string, id: string): void {
+    const key = selectFtsKey.get(store, kind, project, id) as { rowid: number } | undefined;
+    if (key) deleteFtsByRowid.run(key.rowid);
+    deleteFtsKey.run(store, kind, project, id);
+  }
+
   function indexTask(task: Task): void {
     try {
-      deleteFtsRow.run(TASK_STORE, 'task', task.project, task.id);
+      dropIndexedRow(TASK_STORE, 'task', task.project, task.id);
       if (task.archived || task.trashed) return;
-      insertFtsRow.run(
+      const info = insertFtsRow.run(
         TASK_STORE,
         'task',
         task.project,
@@ -834,6 +849,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         task.title,
         ftsBody(buildTextForTask(task as never), task.title),
       );
+      insertFtsKey.run(TASK_STORE, 'task', task.project, task.id, Number(info.lastInsertRowid));
     } catch {
       // A failed index write must not fail the mutation: the project is marked dirty instead.
       upsertFtsState.run(task.project, 0, 1, isoNow());
@@ -842,9 +858,9 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
 
   function indexDoc(doc: KnowledgeDoc): void {
     try {
-      deleteFtsRow.run(DOC_STORE, 'doc', doc.project, doc.id);
+      dropIndexedRow(DOC_STORE, 'doc', doc.project, doc.id);
       if (doc.archived || doc.trashed) return;
-      insertFtsRow.run(
+      const info = insertFtsRow.run(
         DOC_STORE,
         'doc',
         doc.project,
@@ -852,6 +868,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         doc.title,
         ftsBody(buildTextForDoc(doc as never), doc.title),
       );
+      insertFtsKey.run(DOC_STORE, 'doc', doc.project, doc.id, Number(info.lastInsertRowid));
     } catch {
       upsertFtsState.run(doc.project, 0, 1, isoNow());
     }
@@ -859,16 +876,22 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
 
   function removeIndexed(store: string, kind: 'task' | 'doc', project: string, id: string): void {
     try {
-      deleteFtsRow.run(store, kind, project, id);
+      dropIndexedRow(store, kind, project, id);
     } catch {
       upsertFtsState.run(project, 0, 1, isoNow());
     }
   }
 
+  function clearProjectIndex(project: string): void {
+    const keys = selectProjectKeys.all(project) as Array<{ rowid: number }>;
+    for (const key of keys) deleteFtsByRowid.run(key.rowid);
+    deleteProjectKeys.run(project);
+  }
+
   function rebuildProjectIndex(project: string): void {
     const now = isoNow();
     upsertFtsState.run(project, 0, 0, now);
-    deleteFtsProject.run(project);
+    clearProjectIndex(project);
     for (const task of readAllTasks(project)) indexTask(task);
     for (const doc of readAllDocs(project)) indexDoc(doc);
     upsertFtsState.run(project, 1, 0, isoNow());

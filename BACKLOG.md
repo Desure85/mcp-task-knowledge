@@ -1539,7 +1539,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Y-05a3 | M | SQLite: события (`EventLogStore`) и замки (`LockProvider`); промпты/память — через существующие реализации с записанным ограничением | done | `npx vitest run tests/storage-sqlite.test.ts` — 25/25: события append/дельта/лимит/персистентность, компакция в снапшоты и GC, неубывающий `eventId`; замки — сериализация конкурентных секций, освобождение при исключении, таймаут против второго соединения; промпты/память делегируются и не отвечают `CAPABILITY_UNAVAILABLE`; манифест `[tasks,docs,projects,history,prompts,memory,events,locks]`. 63/63 затронутых; 5 мутаций RED. Реализовано (2026-11-10): таблицы events/snapshots/locks, экспорт FilePromptStore/FileMemoryStore. Ограничение: промпты/память — файловые по природе (wire `PromptRecord.path`), нативный SQLite для них — отдельный ADR |
 | Y-05b1 | L | SQLite: `SearchProvider` на FTS5 в той же БД — тексты из общих `buildTextForTask/Doc`, живое сопровождение индекса, dirty/fillState/ensureIndexed, кандидаты по bm25, `countTasks` | done | `npx vitest run tests/storage-sqlite.test.ts` — 28/28: доступность, `isIndexComplete` до/после `ensureIndexed`, кандидаты по задачам и документам, изоляция проектов, `countTasks`, archive/restore/update/delete в индексе, `fillState=complete`, персистентность индекса между перезапусками; `capabilities.fullText=true`; 62/62 затронутых; 5 мутаций RED. Реализовано (2026-11-10) |
 | Y-05b2 | L | `SearchProvider` SQLite (FTS5, качество ≥ baseline), `VectorProvider` (sqlite-vec или объявленная недоступность с откатом), `HistoryProvider` (таблица версий), `LockProvider` (транзакции) | done | `tests/search-fts.test.ts` + `tests/storage-sqlite.test.ts`: контракт SearchProvider, hit@1 ≥ baseline, векторный канал — контракт либо явный `CAPABILITY_UNAVAILABLE` с признаком |
-| Y-05c | M | Диагностика и обслуживание SQLite-профиля (`doctor`/`reindex`), бенчмарк file vs sqlite на 100k, документация | pending | `tests/storage-sqlite.test.ts` (часть 2): `doctor` показывает профиль и возможности, `reindex` работает, бенчмарк записан в `docs/benchmarks/`, конфигурация описана |
+| Y-05c | M | Диагностика и обслуживание SQLite-профиля (`doctor`/`reindex`), бенчмарк file vs sqlite на 100k, документация | done | `tests/storage-sqlite.test.ts` (часть 2): `doctor` показывает профиль и возможности, `reindex` работает, бенчмарк записан в `docs/benchmarks/`, конфигурация описана |
 
 #### Y-07 — BlobProvider
 
@@ -1790,3 +1790,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > на коллекцию), запрос пересчитывает точный косинус, при недоступном `sqlite-vec` — brute-force
 > фолбэк; `IndexingService` подключён к SQLite через общую фабрику провайдера. Остаток Y-05: c —
 > диагностика/бенчмарк/Docker-гейт.
+> Примечание (2026-11-10, Y-05 закрыт): SQLite-профиль полностью за контрактами — коллекции,
+> FTS5-поиск, sqlite-vec-векторы (с brute-force фолбэком), индексация, события/замки; добавлены
+> `doctor`/`reindex` для профиля, бенчмарк и документация. Попутно найден и исправлен O(n²) при
+> записи FTS (удаление по UNINDEXED-колонкам → карта rowid, схема v6). Docker-гейт sqlite-vec
+> не выполнен из-за недоступного демона Docker — ограничение записано. Дальше этап Y: Y-07 (BlobProvider),
+> Y-06 (Postgres), Y-08 (миграция).

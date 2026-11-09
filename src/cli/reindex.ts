@@ -38,6 +38,11 @@ import { inspectIndex, formatIndexSection, type IndexInspection } from './index-
 import { FtsSearchIndex } from '../search/fts-index.js';
 import { rebuildFtsIndex, type FtsRebuildResult } from '../search/fts-indexer.js';
 import { checkSchemaVersion } from '../services/schema-version.js';
+import {
+  inspectSqliteStorage,
+  rebuildSqliteStorageIndexes,
+  type SqliteReindexReport,
+} from '../storage/profiles/sqlite/diagnostics.js';
 
 export interface ReindexPaths {
   dataDir: string;
@@ -66,6 +71,9 @@ export interface ReindexReport {
   fts?: FtsRebuildResult;
   /** State of the index after the command (or the state `--verify` examined). */
   inspection?: IndexInspection;
+  /** Y-05c: set when the SQLite storage profile handled the command. */
+  storageProfile?: 'sqlite';
+  sqlite?: SqliteReindexReport | { warnings: string[] };
 }
 
 export interface ReindexCliResult {
@@ -368,6 +376,54 @@ async function runRebuild(
   const parsed = parseArgs(args);
   if (parsed.help) return { exitCode: 0, text: USAGE };
   if (parsed.error) return { exitCode: 2, text: `${parsed.error}\n\n${USAGE}` };
+
+  // Y-05c: the SQLite profile keeps its FTS/vector state inside the database, so the file-profile
+  // metadata index reindex does not apply. Handle it through the SQLite diagnostics instead of
+  // pretending a file reindex touched the database.
+  const profileKind = (process.env.STORAGE_PROFILE ?? 'file').trim().toLowerCase();
+  if (profileKind === 'sqlite') {
+    const databasePath = path.join(paths.dataDir, '.index', 'storage.sqlite');
+    try {
+      if (parsed.verify) {
+        const inspection = inspectSqliteStorage(databasePath);
+        const report: ReindexReport = {
+          mode: 'verify',
+          dataDir: paths.dataDir,
+          forced: parsed.force,
+          storageProfile: 'sqlite',
+          sqlite: { warnings: inspection.warnings },
+          inspection: undefined,
+        };
+        const text = parsed.json
+          ? JSON.stringify({ ...report, inspection }, null, 2)
+          : [
+              `reindex --verify (sqlite): ${databasePath}`,
+              `tasks=${inspection.counts.tasks} docs=${inspection.counts.docs} fts=${inspection.counts.ftsRows}`,
+              ...inspection.warnings.map((warning) => `  ${warning}`),
+            ].join('\n');
+        return { exitCode: inspection.warnings.length > 0 ? 1 : 0, text, report };
+      }
+      const rebuilt = await rebuildSqliteStorageIndexes(databasePath);
+      const report: ReindexReport = {
+        mode: 'rebuild',
+        dataDir: paths.dataDir,
+        forced: parsed.force,
+        storageProfile: 'sqlite',
+        sqlite: rebuilt,
+        ms: rebuilt.durationMs,
+      };
+      const text = parsed.json
+        ? JSON.stringify(report, null, 2)
+        : [
+            `reindex (sqlite): ${databasePath}`,
+            `projects: ${rebuilt.projects}, indexed: ${rebuilt.indexed}, fts rows: ${rebuilt.ftsRows}`,
+            `dirty before: ${rebuilt.dirtyBefore}, size: ${rebuilt.sizeBefore} → ${rebuilt.sizeAfter} bytes, ${rebuilt.durationMs}ms`,
+          ].join('\n');
+      return { exitCode: 0, text, report };
+    } catch (err) {
+      return { exitCode: 2, text: `reindex (sqlite): ${(err as Error).message}` };
+    }
+  }
 
   const mode = options.storageIndexMode ?? 'auto';
   if (mode === 'off') {
