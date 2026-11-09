@@ -425,10 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05a закрыты; Y-05b закрыт)
-**Текущая ветка:** feat/y05b2-sqlite-vectors (от origin/master 3c01cb0, PR #339 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05a; Y-05 в работе (b1/b2 готовы; остался c)
-**Статус:** `Y-05b2` → done, **Y-05b закрыт**: векторы SQLite-профиля нативные — `vector_rows` + vec0-таблицы на коллекцию, ANN-кандидаты пересчитываются точным косинусом, при недоступном `sqlite-vec` — brute-force фолбэк (`annAvailable()` честный, тест с `vecAvailable:false`), `capabilities.vectors=true`; `IndexingService` подключён к SQLite через общую фабрику провайдера (общие `buildTextForTask/Doc`, `trustLevel` до очереди, манифест в каталоге БД). 33 SQLite-теста, 78/78 затронутых, 6 мутаций RED. **Дальше: Y-05c** — диагностика (`doctor`/`reindex`) для SQLite-профиля, бенчмарк file vs sqlite на 100k, Docker-проверка `sqlite-vec`, документация; после — Y-05 закрыт.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05 закрыты)
+**Текущая ветка:** feat/y05c-sqlite-diagnostics (от origin/master 53e6975, PR #340 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05; дальше Y-07 (BlobProvider/MinIO), Y-06 (Postgres), Y-08 (миграция)
+**Статус:** `Y-05c` → done, **Y-05 закрыт**: диагностика SQLite-профиля (`inspectSqliteStorage`: схема/runtime/счётчики/FTS/векторы/размер + предупреждения dirty/drift/vec), `reindex` пересобирает FTS и снимает dirty с WAL checkpoint, `doctor` показывает секцию SQLite и превращает предупреждения в issues; бенчмарк `scripts/storage-bench.mjs` (10k: SQLite быстрее file по create 4.2×, list 23×, page 10.7×, get 23×, update 2.4×; 100k: create 99.7 с против 231 с); найден и исправлен O(n²) записи FTS (карта rowid `search_fts_keys`, схема v6: 10k create 35.9 → 5.5 с); документация `docs/features/storage-profile-sqlite.md`. Docker-гейт `sqlite-vec` не выполнен (демон Docker недоступен) — ограничение записано. 7 новых тестов, 72/72 затронутых, 6 мутаций RED.
+
+### Сессия S-20261109-night (Y-05c — диагностика, бенчмарк, закрытие Y-05)
+
+- `diagnostics.ts`: `inspectSqliteStorage` (read-only снимок: schema/node/sqlite/fts5/vec, счётчики коллекций и FTS, состояние индекса, размер, предупреждения `sqlite-fts5-unavailable`/`sqlite-fts-dirty`/`sqlite-fts-drift`/`sqlite-vec-unavailable`) и `rebuildSqliteStorageIndexes` (FTS по всем проектам, снятие dirty, `wal_checkpoint(TRUNCATE)`, метрики до/после).
+- `doctor` при `STORAGE_PROFILE=sqlite` добавляет секцию SQLite и issues из предупреждений; `reindex` обслуживает БД профиля (`--verify` → exit 1 при предупреждениях), печатает метрики/JSON.
+- Бенчмарк `scripts/storage-bench.mjs` (`npm run bench:storage`): 10k — create 22 720/5 455 ms, list 687/30, page 230/22, get 64/3, update 223/92; 100k — create 231 267/99 747 ms, SQLite list 302 ms. До фикса 10k create sqlite = 35.9 с, 100k не завершался за бюджет.
+- **O(n²) FTS:** удаление строк по UNINDEXED-колонкам сканировало весь индекс; добавлена карта `search_fts_keys(store,kind,project,id,rowid)` (schema v6), удаление по rowid, карта сопровождается при upsert/delete/удалении проекта.
+- Документация профиля + строка `STORAGE_PROFILE` в configuration.md; Docker-гейт `sqlite-vec` не выполнен (демон недоступен) — записано как ограничение, не как проверка.
+- Проверено: 7/7 диагностических тестов (40 с SQLite-сьютом), 72/72 затронутых, tsc-test чистый; 6 мутаций RED.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0230-y-05c.md`.
 
 ### Сессия S-20261109-night (Y-05b2 — векторы на sqlite-vec и индексация; Y-05b закрыт)
 
