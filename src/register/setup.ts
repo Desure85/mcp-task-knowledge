@@ -9,6 +9,7 @@ import type { ServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
 import type { VectorSearchAdapter } from "../search/index.js";
 import { createFileProfile } from '../storage/profiles/file/index.js';
+import { createFileEmbeddingProvider, type EmbeddingAdapterLike } from '../search/embeddings-file.js';
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
@@ -393,12 +394,31 @@ export async function createServerContext(): Promise<ServerContext> {
     })(rawServer.tool.bind(server));
   }
 
+  // Y-03c: the profile owns the vector collections and the indexing queue. The provider is
+  // resolved lazily through ensureVectorAdapter, so a cold start never loads the model and never
+  // blocks a search request.
+  const storage = createFileProfile({
+    embeddingProvider: async () => {
+      const adapter = await ensureVectorAdapter();
+      if (!adapter) return undefined;
+      const candidate = adapter as unknown as Partial<EmbeddingAdapterLike>;
+      if (
+        typeof candidate.isReady !== 'function' ||
+        typeof candidate.fingerprint !== 'function' ||
+        typeof candidate.embed !== 'function'
+      ) {
+        return undefined;
+      }
+      return createFileEmbeddingProvider(candidate as EmbeddingAdapterLike);
+    },
+  });
+
   const ctx: ServerContext = {
     server,
     // Y-02e: one profile per server context (file profile today; STORAGE_PROFILE
-    // selects another profile in Y-05/Y-06). Registrators will read collections from
-    // here instead of importing storage modules (Y-02e2/e3).
-    storage: createFileProfile(),
+    // selects another profile in Y-05/Y-06). Registrators read collections from here
+    // instead of importing storage modules (Y-02e2/e3).
+    storage,
     cfg,
     catalogCfg,
     catalogProvider,

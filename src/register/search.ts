@@ -440,6 +440,7 @@ export function registerSearchTools(ctx: ServerContext): void {
         adapterReady: Boolean(ctx.vectorAdapter),
         warmup: getWarmupStatus(),
         collections,
+        indexing: storageProfile(ctx).indexing?.status(),
       });
       return ok({
         ...payload,

@@ -147,6 +147,8 @@ export interface IndexingStatus {
   total: number;
   done: number;
   queued: number;
+  /** Items already indexed with the same content hash in this collection. */
+  skipped?: number;
   ratePerSec: number;
   lastError?: string;
 }

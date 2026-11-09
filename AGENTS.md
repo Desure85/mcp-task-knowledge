@@ -425,10 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 закрыт, Y-03a/b закрыты)
-**Текущая ветка:** feat/y03b-collections (от origin/master c130576, PR #329 влит)
-**Текущий этап:** Y — Y-02 закрыт, Y-03a и Y-03b закрыты; дальше Y-03c
-**Статус:** `Y-03b` → done: коллекции векторов `отпечаток + chunking + buildText` (`collectionId`, `VectorRecord.collection/collectionMeta`), файловое хранилище `vector-store-file.ts` с `collections()`, двойное чтение `dual-read.ts` без слияния оценок и с меткой `collection`, `StorageProfile.vectors` под caller-root, `embeddings_status` показывает активную коллекцию и счётчики обеих (`readOnly` для старых). 11 новых тестов, 132/132 затронутых, 5 мутаций RED. **Дальше: Y-03c** — `IndexingService` (очередь, идемпотентность по хэшу, пауза/прогресс, warmup) и расширение статуса очередью/скоростью.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 и Y-03 закрыты)
+**Текущая ветка:** feat/y03c-indexing-service (от origin/master 7c07dcd, PR #330 влит)
+**Текущий этап:** Y — закрыты Y-02 и Y-03; дальше Y-04 (внешние провайдеры эмбеддингов)
+**Статус:** `Y-03c` → done: `src/search/indexing-service.ts` (очередь, идемпотентность по хэшу содержимого и коллекции, манифест на диске, пауза/резюме, прогресс и скорость), `StorageProfile.indexing` + ленивая фабрика провайдера в `createServerContext`, `embeddings_status` показывает очередь. **Y-03 закрыт** (a — контракты, b — коллекции и двойное чтение, c — индексация; 11 новых тестов, 133/133 затронутых, 6 мутаций RED). **Дальше: Y-04a** — политика внешних провайдеров (флаг, приватность, SecretManager, исключения, лимиты) с fake-провайдером.
+
+### Сессия S-20261109-night (ночная сессия — Y-03c, Y-03 закрыт)
+
+- `src/search/indexing-service.ts`: очередь с батчами, манифест `(collection|identity) → sha1(collection|text)` на диске, ленивый провайдер (холодный старт не грузит модель и не блокирует), пауза/резюме без потери очереди, статус `state/total/done/queued/skipped/ratePerSec`, `drain()` для тестов и graceful shutdown.
+- `StorageProfile.indexing` + `FileProfileOptions.embeddingProvider/indexingManifestPath`; `createServerContext` передаёт ленивую фабрику через `ensureVectorAdapter` → `createFileEmbeddingProvider`; `embeddings_status` отдаёт `indexing`.
+- Идемпотентность учитывает коллекцию: смена модели/чанкинга/сборки текста — новая коллекция и переиндексация, повторный запуск в той же — ни одного эмбеддинга.
+- Проверено: 11/11 в `tests/indexing-service.test.ts` (включая 10k в памяти, ~1 с); 133/133 затронутых; tsc-test чистый; 6 мутаций RED (хэш без текста, манифест не пропускает, пауза no-op, холодный старт блокирует, скорость 0, профиль без indexing).
+- Ограничение среды записано: 10k — in-memory store, файловое хранилище на 10k JSON — замер для Y-05.
+- Итог Y-03: a — контракты провайдера/хранилища/чанкинга и файловый провайдер; b — коллекции, отпечаток с вектором, двойное чтение без слияния; c — очередь индексации. Y-03 закрыт 2026-11-09.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1925-y-03c.md`.
 
 ### Сессия S-20261109-night (ночная сессия — Y-03b)
 
