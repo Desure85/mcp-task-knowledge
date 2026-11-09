@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tokenize } from './bm25.js';
 
-export const FTS_SCHEMA_VERSION = 2;
+export const FTS_SCHEMA_VERSION = 3;
 
 export type FtsKind = 'task' | 'doc';
 
@@ -80,8 +80,20 @@ export interface FtsStoreStats {
   docs: number;
 }
 
+/**
+ * `search_fts_keys` maps the logical key to the FTS5 rowid. FTS5 treats `store`/`kind`/`id` as
+ * UNINDEXED, so `DELETE ... WHERE store = ?` scans the whole table; doing that per written row
+ * made a 100k rebuild quadratic (26 min of full scans, zero rows committed). Deletes go by rowid.
+ */
 const DDL = [
   `CREATE TABLE IF NOT EXISTS search_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS search_fts_keys (
+     store TEXT NOT NULL,
+     kind TEXT NOT NULL,
+     id TEXT NOT NULL,
+     rowid INTEGER NOT NULL,
+     PRIMARY KEY (store, kind, id)
+   )`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
      id UNINDEXED,
      store UNINDEXED,
@@ -126,6 +138,7 @@ export class FtsSearchIndex {
       if (current !== undefined) {
         // A different schema means the terms layout changed: drop and let the caller rebuild.
         this.db.exec('DROP TABLE IF EXISTS search_fts');
+        this.db.exec('DROP TABLE IF EXISTS search_fts_keys');
         for (const statement of DDL) this.db.exec(statement);
       }
       this.setMeta('schema_version', String(FTS_SCHEMA_VERSION));
@@ -160,14 +173,20 @@ export class FtsSearchIndex {
   /** Insert or replace records; returns how many rows were written. */
   upsert(records: FtsRecord[]): number {
     if (records.length === 0) return 0;
-    const remove = this.db.prepare('DELETE FROM search_fts WHERE store = ? AND id = ? AND kind = ?');
+    const findRowid = this.db.prepare('SELECT rowid AS rid FROM search_fts_keys WHERE store = ? AND kind = ? AND id = ?');
+    const deleteRow = this.db.prepare('DELETE FROM search_fts WHERE rowid = ?');
     const insert = this.db.prepare(
       'INSERT INTO search_fts(id, store, kind, project, updated_at, terms) VALUES(?, ?, ?, ?, ?, ?)',
     );
+    const putKey = this.db.prepare(
+      'INSERT INTO search_fts_keys(store, kind, id, rowid) VALUES(?, ?, ?, ?) ' +
+        'ON CONFLICT(store, kind, id) DO UPDATE SET rowid = excluded.rowid',
+    );
     const write = this.db.transaction((batch: FtsRecord[]) => {
       for (const record of batch) {
-        remove.run(record.store, record.id, record.kind);
-        insert.run(
+        const existing = findRowid.get(record.store, record.kind, record.id) as { rid: number } | undefined;
+        if (existing) deleteRow.run(existing.rid);
+        const row = insert.run(
           record.id,
           record.store,
           record.kind,
@@ -175,6 +194,7 @@ export class FtsSearchIndex {
           record.updatedAt,
           tokenize(record.text).join(' '),
         );
+        putKey.run(record.store, record.kind, record.id, Number(row.lastInsertRowid));
       }
       return batch.length;
     });
@@ -183,17 +203,38 @@ export class FtsSearchIndex {
 
   /** Remove one record; returns true when something was deleted. */
   remove(store: string, kind: FtsKind, id: string): boolean {
-    const result = this.db
-      .prepare('DELETE FROM search_fts WHERE store = ? AND kind = ? AND id = ?')
-      .run(store, kind, id);
-    return result.changes > 0;
+    const row = this.db
+      .prepare('SELECT rowid AS rid FROM search_fts_keys WHERE store = ? AND kind = ? AND id = ?')
+      .get(store, kind, id) as { rid: number } | undefined;
+    if (!row) return false;
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM search_fts WHERE rowid = ?').run(row.rid);
+      this.db.prepare('DELETE FROM search_fts_keys WHERE store = ? AND kind = ? AND id = ?').run(store, kind, id);
+    })();
+    return true;
   }
 
   /** Replace the whole index (all stores) in one transaction; clears the dirty flag. */
   rebuild(records: FtsRecord[]): number {
+    const insert = this.db.prepare(
+      'INSERT INTO search_fts(id, store, kind, project, updated_at, terms) VALUES(?, ?, ?, ?, ?, ?)',
+    );
+    const putKey = this.db.prepare('INSERT INTO search_fts_keys(store, kind, id, rowid) VALUES(?, ?, ?, ?)');
     const run = this.db.transaction((batch: FtsRecord[]) => {
       this.db.exec('DELETE FROM search_fts');
-      return this.upsert(batch);
+      this.db.exec('DELETE FROM search_fts_keys');
+      for (const record of batch) {
+        const row = insert.run(
+          record.id,
+          record.store,
+          record.kind,
+          record.project,
+          record.updatedAt,
+          tokenize(record.text).join(' '),
+        );
+        putKey.run(record.store, record.kind, record.id, Number(row.lastInsertRowid));
+      }
+      return batch.length;
     });
     const written = run(records);
     this.clearDirty();
@@ -202,7 +243,15 @@ export class FtsSearchIndex {
 
   /** Drop everything belonging to one store (project deletion / reindex of one storage). */
   clearStore(store: string): number {
-    return this.db.prepare('DELETE FROM search_fts WHERE store = ?').run(store).changes;
+    const rows = this.db
+      .prepare('SELECT rowid AS rid FROM search_fts WHERE store = ?')
+      .all(store) as Array<{ rid: number }>;
+    this.db.transaction(() => {
+      const deleteRow = this.db.prepare('DELETE FROM search_fts WHERE rowid = ?');
+      for (const row of rows) deleteRow.run(row.rid);
+      this.db.prepare('DELETE FROM search_fts_keys WHERE store = ?').run(store);
+    })();
+    return rows.length;
   }
 
   /**
@@ -210,9 +259,18 @@ export class FtsSearchIndex {
    * directories, so per-row `remove` calls never happen and the rows would otherwise survive.
    */
   removeProject(store: string, project: string): number {
-    return this.db
-      .prepare('DELETE FROM search_fts WHERE store = ? AND project = ?')
-      .run(store, project).changes;
+    const rows = this.db
+      .prepare('SELECT rowid AS rid, kind, id FROM search_fts WHERE store = ? AND project = ?')
+      .all(store, project) as Array<{ rid: number; kind: FtsKind; id: string }>;
+    this.db.transaction(() => {
+      const deleteRow = this.db.prepare('DELETE FROM search_fts WHERE rowid = ?');
+      const deleteKey = this.db.prepare('DELETE FROM search_fts_keys WHERE store = ? AND kind = ? AND id = ?');
+      for (const row of rows) {
+        deleteRow.run(row.rid);
+        deleteKey.run(store, row.kind, row.id);
+      }
+    })();
+    return rows.length;
   }
 
   /**
@@ -302,6 +360,30 @@ export class FtsSearchIndex {
       dbBytes: pageCount * pageSize,
       dirty: this.isDirty(),
     };
+  }
+
+  /**
+   * SC-03c: searchable rows of one project. The read path compares these counts with the
+   * metadata index (archived/trashed excluded on both sides); a mismatch means the FTS rows
+   * are incomplete and the request must keep the file-scan path rather than answer from a
+   * partial index.
+   */
+  projectCounts(store: string, project: string): { tasks: number; docs: number } {
+    const rows = this.db
+      .prepare(
+        `SELECT kind, COUNT(*) AS n
+           FROM search_fts
+          WHERE store = ? AND project = ?
+          GROUP BY kind`,
+      )
+      .all(store, project) as Array<{ kind: FtsKind; n: number }>;
+    let tasks = 0;
+    let docs = 0;
+    for (const row of rows) {
+      if (row.kind === 'task') tasks = row.n;
+      else if (row.kind === 'doc') docs = row.n;
+    }
+    return { tasks, docs };
   }
 
   /** Per-store row counts, so `doctor` can show which storage an index file covers. */
