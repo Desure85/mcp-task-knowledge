@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** ses_e409dcc90ffeTgBbDcJ59Fohq9 (AC-05 — честный статус search_tasks)
-**Текущая ветка:** feat/ac05-search-status (worktree `/home/dm/work/mcp-tk-ac05`, от origin/master 64ce804)
-**Текущий этап:** AC — контракт инструментов (AC-05 закрыт)
-**Статус:** `AC-05` → done. Векторный хит всегда несёт `bm25Score: 0`, а чисто лексический скан — свой BM25-скор в `bm25Score` и `0` в `vectorScore` (нормализация в `toRanked` на границе инструмента); скан-ответ размечен (`indexing` + `retryAfterMs` при fill, `indexing` + `needsReindex` при dirty/ошибке), корпус больше `SEARCH_SCAN_MAX_TASKS` (2000) не сканируется при идущем fill — отдаётся `INDEXING` с `retryAfterMs`. Воспроизведение на базе: 200 задач — 48 мс первый / 14 мс повторный / 6 мс после fill, таймаут не воспроизводится, отдельный warmup не добавлялся. Тесты 7 новых (RED на базе, 4 revert-check), полный прогон 292 файла / 3415 тестов зелёный. **Дальше: ревью PR #317.**
+**Session ID:** ses_e406f618fffek9DzuqwSAGs2ks (TS-02 — изоляция данных между тест-файлами)
+**Текущая ветка:** fix/test-data-isolation (worktree `/home/dm/work/mcp-tk-ts02`, от origin/master 59cb80f)
+**Текущий этап:** Надёжность тестов (TS-01 → TS-02)
+**Статус:** `TS-02` → review. У каждого тест-файла свой `DATA_DIR` (`mkdtemp` в `os.tmpdir()`, снятие в `afterAll`, свип осиротевших по префиксу `mcp-vitest-` старше 2 ч). Общий `<cwd>/.tmp-vitest` больше не создаётся и не пишется: три полных прогона при грязном каталоге (1029 проектов, 23 МБ) — 293 файла / 3417 тестов зелёные, mtime каталога не изменился, осиротевших каталогов 0. Страж `tests/data-isolation.test.ts` (2 проверки) краснеет при откате к общему каталогу; при мутации `mkdtemp` на фиксированный путь падает проверка совпадения (`expected 1 to be 2`). Воспроизведение исходного флейка (`search-fts` + сьют на metadata.db) на текущем master не удалось: 10/10 зелёных и на чистом, и на грязном каталоге — оба файла уже изолированы своим `mkdtemp` (AC-05 добавил его `search-tasks-warmup`), поэтому TS-02 убирает класс проблемы, а не один случай. **Дальше: ревью PR.**
+
+### Сессия ses_e406f618fffek9DzuqwSAGs2ks (TS-02 — изоляция каталога данных между сьютами)
+
+- `tests/setup.ts`: `DATA_DIR` и `OBSIDIAN_VAULT_ROOT` — `mkdtemp` на тест-файл (vitest исполняет `setupFiles` на каждый файл; проверено тремя пробными файлами с `--maxWorkers=1`: три исполнения setup, три pid), снятие каталога в `afterAll`, свип осиротевших каталогов и registry-файлов по своему префиксу старше 2 ч.
+- `tests/setup.ts` пишет `(pid → DATA_DIR)` в `<tmp>/mcp-vitest-registry-<ppid>.jsonl`; `tests/data-isolation.test.ts` проверяет приватность каталога и отсутствие повторов. Revert-check: старый `setup.ts` → 2 упавших проверки; мутация `mkdtemp` → `expected 1 to be 2`.
+- Прогоны (Node 24.22.2, `timeout 600`, только `npx vitest run`): 3 полных прогона при грязном `.tmp-vitest` — 293 файла / 3417 тестов, 132.6 / 133.4 / 132.6 с; серия `search-fts` + `sec003-auth-gate` 10/10 до и 10/10 после; `npm run test:types` и `npm run backlog:check` зелёные.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1233-ts02-test-data-isolation.md`; BACKLOG `TS-02` (high), CHANGELOG.
 
 ### Сессия ses_e409dcc90ffeTgBbDcJ59Fohq9 (AC-05 — честный статус search_tasks)
 
