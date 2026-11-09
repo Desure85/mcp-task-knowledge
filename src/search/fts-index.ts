@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tokenize } from './bm25.js';
 
-export const FTS_SCHEMA_VERSION = 3;
+export const FTS_SCHEMA_VERSION = 4;
 
 export type FtsKind = 'task' | 'doc';
 
@@ -91,9 +91,11 @@ const DDL = [
      store TEXT NOT NULL,
      kind TEXT NOT NULL,
      id TEXT NOT NULL,
+     project TEXT NOT NULL DEFAULT '',
      rowid INTEGER NOT NULL,
      PRIMARY KEY (store, kind, id)
    )`,
+  `CREATE INDEX IF NOT EXISTS idx_fts_keys_project ON search_fts_keys(store, kind, project)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
      id UNINDEXED,
      store UNINDEXED,
@@ -179,8 +181,8 @@ export class FtsSearchIndex {
       'INSERT INTO search_fts(id, store, kind, project, updated_at, terms) VALUES(?, ?, ?, ?, ?, ?)',
     );
     const putKey = this.db.prepare(
-      'INSERT INTO search_fts_keys(store, kind, id, rowid) VALUES(?, ?, ?, ?) ' +
-        'ON CONFLICT(store, kind, id) DO UPDATE SET rowid = excluded.rowid',
+      'INSERT INTO search_fts_keys(store, kind, id, project, rowid) VALUES(?, ?, ?, ?, ?) ' +
+        'ON CONFLICT(store, kind, id) DO UPDATE SET project = excluded.project, rowid = excluded.rowid',
     );
     const write = this.db.transaction((batch: FtsRecord[]) => {
       for (const record of batch) {
@@ -194,7 +196,7 @@ export class FtsSearchIndex {
           record.updatedAt,
           tokenize(record.text).join(' '),
         );
-        putKey.run(record.store, record.kind, record.id, Number(row.lastInsertRowid));
+        putKey.run(record.store, record.kind, record.id, record.project, Number(row.lastInsertRowid));
       }
       return batch.length;
     });
@@ -219,7 +221,7 @@ export class FtsSearchIndex {
     const insert = this.db.prepare(
       'INSERT INTO search_fts(id, store, kind, project, updated_at, terms) VALUES(?, ?, ?, ?, ?, ?)',
     );
-    const putKey = this.db.prepare('INSERT INTO search_fts_keys(store, kind, id, rowid) VALUES(?, ?, ?, ?)');
+    const putKey = this.db.prepare('INSERT INTO search_fts_keys(store, kind, id, project, rowid) VALUES(?, ?, ?, ?, ?)');
     const run = this.db.transaction((batch: FtsRecord[]) => {
       this.db.exec('DELETE FROM search_fts');
       this.db.exec('DELETE FROM search_fts_keys');
@@ -232,7 +234,7 @@ export class FtsSearchIndex {
           record.updatedAt,
           tokenize(record.text).join(' '),
         );
-        putKey.run(record.store, record.kind, record.id, Number(row.lastInsertRowid));
+        putKey.run(record.store, record.kind, record.id, record.project, Number(row.lastInsertRowid));
       }
       return batch.length;
     });
@@ -244,7 +246,7 @@ export class FtsSearchIndex {
   /** Drop everything belonging to one store (project deletion / reindex of one storage). */
   clearStore(store: string): number {
     const rows = this.db
-      .prepare('SELECT rowid AS rid FROM search_fts WHERE store = ?')
+      .prepare('SELECT rowid AS rid FROM search_fts_keys WHERE store = ?')
       .all(store) as Array<{ rid: number }>;
     this.db.transaction(() => {
       const deleteRow = this.db.prepare('DELETE FROM search_fts WHERE rowid = ?');
@@ -260,15 +262,12 @@ export class FtsSearchIndex {
    */
   removeProject(store: string, project: string): number {
     const rows = this.db
-      .prepare('SELECT rowid AS rid, kind, id FROM search_fts WHERE store = ? AND project = ?')
-      .all(store, project) as Array<{ rid: number; kind: FtsKind; id: string }>;
+      .prepare('SELECT rowid AS rid FROM search_fts_keys WHERE store = ? AND project = ?')
+      .all(store, project) as Array<{ rid: number }>;
     this.db.transaction(() => {
       const deleteRow = this.db.prepare('DELETE FROM search_fts WHERE rowid = ?');
-      const deleteKey = this.db.prepare('DELETE FROM search_fts_keys WHERE store = ? AND kind = ? AND id = ?');
-      for (const row of rows) {
-        deleteRow.run(row.rid);
-        deleteKey.run(store, row.kind, row.id);
-      }
+      for (const row of rows) deleteRow.run(row.rid);
+      this.db.prepare('DELETE FROM search_fts_keys WHERE store = ? AND project = ?').run(store, project);
     })();
     return rows.length;
   }
@@ -372,7 +371,7 @@ export class FtsSearchIndex {
     const rows = this.db
       .prepare(
         `SELECT kind, COUNT(*) AS n
-           FROM search_fts
+           FROM search_fts_keys
           WHERE store = ? AND project = ?
           GROUP BY kind`,
       )
