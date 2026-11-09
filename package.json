@@ -69,6 +69,7 @@
     "bench:seed": "node scripts/bench/seed-scale.mjs",
     "bench:scale": "node scripts/bench/run-scale.mjs",
     "bench:ui": "node scripts/bench/ui-bench.mjs",
+    "bench:storage": "node scripts/storage-bench.mjs",
     "bench:graph": "node scripts/bench/graph-bench.mjs"
   },
   "keywords": [

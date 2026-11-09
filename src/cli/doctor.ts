@@ -29,6 +29,10 @@ import { PROJECT_ID_RE } from '../projects.js';
 import { readSchemaManifest, CURRENT_SCHEMA } from '../services/schema-version.js';
 import type { Task } from '../types.js';
 import { inspectIndex, formatIndexSection, type IndexInspection } from './index-inspect.js';
+import {
+  inspectSqliteStorage,
+  type SqliteStorageReport,
+} from '../storage/profiles/sqlite/diagnostics.js';
 
 // ── Report model ────────────────────────────────────────────────────
 
@@ -49,6 +53,8 @@ export interface DoctorReport {
   schema: { found: number | 'none'; current: number };
   /** SC-02d: state of the derived metadata index, when it was inspected. */
   index?: IndexInspection;
+  /** Y-05c: SQLite-profile state, when `STORAGE_PROFILE=sqlite`. */
+  sqlite?: SqliteStorageReport;
   issues: DoctorIssue[];
   errors: number;
   warnings: number;
@@ -497,6 +503,31 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
   // SC-02d: derived index state (read-only; repaired by `reindex`, never by `--fix`).
   const index = await inspectIndexForReport(paths, issues);
 
+  // Y-05c: when the SQLite profile is active its state lives in one database file, not in the
+  // file-derived metadata index — inspect it separately and surface its warnings as doctor issues.
+  let sqlite: SqliteStorageReport | undefined;
+  if ((process.env.STORAGE_PROFILE ?? 'file').trim().toLowerCase() === 'sqlite') {
+    const databasePath = path.join(paths.dataDir, '.index', 'storage.sqlite');
+    try {
+      sqlite = inspectSqliteStorage(databasePath);
+      for (const warning of sqlite.warnings) {
+        issues.push({
+          level: 'warn',
+          check: warning.split(':')[0],
+          file: '.index/storage.sqlite',
+          detail: warning,
+        });
+      }
+    } catch (error) {
+      issues.push({
+        level: 'error',
+        check: 'sqlite-profile',
+        file: '.index/storage.sqlite',
+        detail: (error as Error).message,
+      });
+    }
+  }
+
   // DX-18: schema-version drift. Missing manifest is reported in the
   // `schema.found` field only — not an issue, since pre-DX-18 installs
   // legitimately have none. Only an actual version mismatch is flagged.
@@ -515,6 +546,7 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
     scanned,
     schema: { found: schemaFound, current: CURRENT_SCHEMA },
     index,
+    sqlite,
     issues,
     errors: issues.filter((i) => i.level === 'error').length,
     warnings: issues.filter((i) => i.level === 'warn').length,
@@ -530,6 +562,19 @@ export function formatReport(report: DoctorReport): string {
   lines.push(`Scanned: ${report.scanned.json} json, ${report.scanned.md} md`);
   lines.push(`Schema: ${report.schema.found} (supported: ${report.schema.current})`);
   if (report.index) lines.push(...formatIndexSection(report.index));
+  if (report.sqlite) {
+    const s = report.sqlite;
+    lines.push(
+      `SQLite profile: ${s.databasePath}${s.exists ? '' : ' (missing)'} — ` +
+        `tasks=${s.counts.tasks} docs=${s.counts.docs} projects=${s.counts.projects} ` +
+        `vectors=${s.counts.vectorRows} fts=${s.counts.ftsRows}`,
+    );
+    lines.push(
+      `SQLite runtime: node=${s.node} sqlite=${s.sqlite} fts5=${s.fts5 ? 'yes' : 'no'} ` +
+        `sqlite-vec=${s.vec.available ? s.vec.version ?? 'yes' : 'unavailable (brute-force fallback)'} ` +
+        `schema=${s.schemaVersion ?? 'unknown'}`,
+    );
+  }
 
   const groups = new Map<string, DoctorIssue[]>();
   for (const issue of report.issues) {

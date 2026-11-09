@@ -16,6 +16,7 @@
 | `MCP_JSON_RESPONSES` | on | HTTP transport answers tool calls with `application/json` instead of SSE, because SSE framing is quadratic in payload size inside the MCP SDK (20 MB: ~4.2 s vs 246 ms). Per-request opt-out is automatic: a request carrying `params._meta.progressToken` is served over SSE so progress notifications keep working. Set `0` to force SSE for every request. See `docs/adr/0007-json-responses-vs-sse.md` |
 | `MCP_REQUEST_TIMEOUT_MS` | `120000` | Client-side request timeout used by the bundled dev CLI and the VS Code extension (the SDK default of 60 s is too short for large lists) |
 | `STORAGE_INDEX` | `auto` | Derived SQLite metadata index: `auto` keeps it on for the file storage profile, `off` disables it and creates no `DATA_DIR/.index/` (rollback). Files stay the source of truth |
+| `STORAGE_PROFILE` | `file` | Storage implementation behind the same tool contracts: `file` (default, behavior unchanged) or `sqlite` (single database at `DATA_DIR/.index/storage.sqlite`, FTS5 search, sqlite-vec vectors with a brute-force fallback). An unknown value fails at boot with `CONFIG_MISMATCH`. See [`docs/features/storage-profile-sqlite.md`](../features/storage-profile-sqlite.md) |
 
 ### Metadata index (SC-02a/SC-02b)
 
