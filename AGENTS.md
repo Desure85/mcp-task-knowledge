@@ -425,10 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** ses_e4044f656ffecPUZcC6pQJAQRa (ADR-009 — приёмка владельцем)
-**Текущая ветка:** docs/adr-009-accepted (worktree `/home/dm/work/mcp-tk-adr9`, от origin/master 9a7b850)
-**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): ADR-009 принят, следующий — Y-02
-**Статус:** ADR-009 → `Accepted` (2026-11-09, принят владельцем), `Y-01` → done; `TS-02` → done (PR #318 смержен); `Y-02` остаётся pending и разблокирован. **Дальше: мерж docs-PR ADR-009.** Детали предыдущей сессии (TS-02, изоляция `DATA_DIR` по тест-файлам) — в блоке TS-02 ниже.
+**Session ID:** S-20261109-y02a (Y-02a — контракты хранилища и файловый профиль)
+**Текущая ветка:** feat/y02a-storage-contract (от origin/master 64f6248, PR #319 влит)
+**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-01 закрыт (ADR-009 Accepted), Y-02 разбит на a/b/c
+**Статус:** `Y-02a` → done: `src/storage/contracts.ts` (`TaskStore`, `DocStore`, `StorageProfile`, `StoreManifest`, `StoreError`), `src/storage/profiles/file/index.ts` (делегирование текущим функциям, сверка корня — `CONFIG_MISMATCH`), `tests/storage-contract.test.ts` (13 тестов, паритет против `src/storage/*`). Вызовы не переключены, поведение и wire-формат не менялись. **Дальше: Y-02b** — промпты, память, метаданные проекта, журнал, история и замки за контрактами; затем Y-02c — профиль в `AppContainer` и регистраторы без прямых импортов.
+
+### Сессия S-20261109-y02a (Y-02a — контракты хранилища и файловый профиль)
+
+- ADR-009 §«Интерфейсы» реализован для двух самых больших коллекций: `TaskStore` (list/page/get/create/update/close/lifecycle/tree/claim) и `DocStore` (list/page/read/create/update/lifecycle/versions/restoreVersion), плюс `StorageProfile`/`StoreManifest` с возможностями профиля и `StoreError` (`NOT_FOUND | CONFLICT | CAPABILITY_UNAVAILABLE | CONFIG_MISMATCH`).
+- Файловый профиль — тонкое делегирование текущим функциям `src/storage/tasks.ts`/`knowledge.ts`: контрактный тест сравнивает ответы профиля с прямыми вызовами, поэтому «поведение не меняется» проверено, а не заявлено.
+- Корень передаёт вызывающий (правило 1 ADR-009); пока модули не принимают корень параметром (Y-02c), профиль сверяет его с конфигурацией и падает `CONFIG_MISMATCH` вместо обслуживания чужого каталога.
+- `metadata-index` по-прежнему знает один `DATA_DIR`, а FTS ключуется `(store, kind, id)` — это расхождение скоупов из ADR-009 остаётся до Y-02c; в Y-02a его не трогали.
+- Проверено: `npx vitest run tests/storage-contract.test.ts --maxWorkers=2` — 13/13; revert-check 3 мутации RED (`list` теряет фильтр, `page` теряет `countOnly`, нет сверки корня).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1030-y-02a.md`; границы Y-02a: ни регистраторы, ни схемы инструментов, ни layout файлов, ни схема `search_fts`/metadata-индекса не менялись.
+- Локальный воркфлоу: полный прогон только `npx vitest run --maxWorkers=4` (AGENTS, TS-01); точечные файлы — `--maxWorkers=2`.
 
 ### Сессия ses_e4044f656ffecPUZcC6pQJAQRa (ADR-009 — приёмка владельцем)
 
