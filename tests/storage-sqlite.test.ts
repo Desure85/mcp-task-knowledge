@@ -67,7 +67,7 @@ describe('Y-05a1: profile selection', () => {
     expect(profile.manifest.capabilities).toEqual({
       transactions: true,
       history: true,
-      fullText: false,
+      fullText: true,
       vectors: false,
       efficientListing: false,
     });
@@ -243,8 +243,8 @@ describe('Y-05a1: unimplemented collections are honest', () => {
         return (error as StoreError).code ?? null;
       }
     };
-    // Search/vectors still belong to Y-05b and keep failing honestly rather than returning empty.
-    expect(codeOf(() => profile.search.available())).toBe('CAPABILITY_UNAVAILABLE');
+    // Search is implemented in Y-05b1; vectors still belong to Y-05b2 and keep failing honestly.
+    expect(profile.search.available()).toBe(true);
     expect(codeOf(() => profile.vectors.query(Float32Array.from([1, 2]), { limit: 1, fingerprint: 'fp' }))).toBe(
       'CAPABILITY_UNAVAILABLE',
     );
@@ -444,5 +444,82 @@ describe('Y-05a3: delegated prompts and memory', () => {
     const temporal = profile.memory.temporal(tempDbPath() + '.memory.json');
     expect(typeof temporal).toBe('object');
     expect(temporal).not.toBeNull();
+  });
+});
+
+describe('Y-05b1: FTS5 search provider', () => {
+  it('indexes tasks and docs live and reports complete after ensureIndexed', async () => {
+    const profile = openProfile();
+    const index = profile.search;
+    expect(index.available()).toBe(true);
+    expect(index.isIndexComplete('p')).toBe(false);
+
+    const task = await profile.tasks.create({ project: 'p', title: 'needle task', description: 'searchable body' });
+    const doc = await profile.docs.create({ project: 'p', title: 'needle doc', content: 'document body' });
+    expect(index.isIndexComplete('p')).toBe(false);
+
+    index.ensureIndexed('p');
+    expect(index.isIndexComplete('p')).toBe(true);
+    expect(index.fillState('p')).toBe('complete');
+    expect(index.dirty()).toBe(false);
+    expect(index.countTasks('p')).toBe(1);
+
+    const taskHits = index.candidates({ store: index.taskStoreId(), kind: 'task', project: 'p', query: 'needle', limit: 10 });
+    expect(taskHits.map((hit) => hit.id)).toEqual([task.id]);
+    expect(taskHits[0].score).toBeGreaterThan(0);
+
+    const docHits = index.candidates({ store: index.docStoreId(), kind: 'doc', project: 'p', query: 'document', limit: 10 });
+    expect(docHits.map((hit) => hit.id)).toEqual([doc.id]);
+
+    // Another project must not leak into candidates.
+    await profile.tasks.create({ project: 'other', title: 'needle task' });
+    index.ensureIndexed('other');
+    expect(
+      index.candidates({ store: index.taskStoreId(), kind: 'task', project: 'p', query: 'needle', limit: 10 }).map((hit) => hit.id),
+    ).toEqual([task.id]);
+    expect(index.countTasks('other')).toBe(1);
+  });
+
+  it('keeps the index in step with lifecycle changes and rebuilds on demand', async () => {
+    const profile = openProfile();
+    const index = profile.search;
+    const task = await profile.tasks.create({ project: 'p', title: 'lifecycle needle' });
+    index.ensureIndexed('p');
+    const find = () => index.candidates({ store: index.taskStoreId(), kind: 'task', project: 'p', query: 'needle', limit: 10 });
+
+    expect(find()).toHaveLength(1);
+    await profile.tasks.archive('p', task.id);
+    expect(find()).toHaveLength(0);
+    await profile.tasks.restore('p', task.id);
+    expect(find()).toHaveLength(1);
+    await profile.tasks.update('p', task.id, { title: 'renamed needle' });
+    expect(find()).toHaveLength(1);
+    await profile.tasks.deletePermanent('p', task.id);
+    expect(find()).toHaveLength(0);
+    expect(index.isIndexComplete('p')).toBe(true);
+  });
+
+  it('reports disabled when FTS is unavailable and survives reopen', async () => {
+    const databasePath = tempDbPath();
+    const profile = createSqliteProfile({ databasePath });
+    profiles.push(profile);
+    await profile.tasks.create({ project: 'p', title: 'persisted needle' });
+    profile.search.ensureIndexed('p');
+    expect(profile.search.isIndexComplete('p')).toBe(true);
+    profile.close?.();
+
+    const reopened = createSqliteProfile({ databasePath });
+    profiles.push(reopened);
+    expect(reopened.search.available()).toBe(true);
+    expect(reopened.search.isIndexComplete('p')).toBe(true);
+    expect(
+      reopened.search.candidates({
+        store: reopened.search.taskStoreId(),
+        kind: 'task',
+        project: 'p',
+        query: 'persisted',
+        limit: 10,
+      }),
+    ).toHaveLength(1);
   });
 });
