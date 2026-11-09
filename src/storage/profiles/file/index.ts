@@ -349,7 +349,7 @@ class FileHistoryProvider implements HistoryProvider {
   }
 }
 
-class FilePromptStore implements PromptStore {
+export class FilePromptStore implements PromptStore {
   async list(project: string): Promise<PromptSourceFile[]> {
     const files = await listSourceJsonFiles(project);
     const out: PromptSourceFile[] = [];
@@ -405,7 +405,7 @@ class FilePromptStore implements PromptStore {
   }
 }
 
-class FileMemoryStore implements MemoryStore {
+export class FileMemoryStore implements MemoryStore {
   temporal(storagePath: string) {
     return new TemporalGraph({ storagePath });
   }

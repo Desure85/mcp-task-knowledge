@@ -14,7 +14,7 @@ export interface SqliteDatabase {
   close(): void;
 }
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export function openSqliteDatabase(databasePath: string): SqliteDatabase {
   if (databasePath !== ':memory:') {
@@ -51,6 +51,32 @@ export function openSqliteDatabase(databasePath: string): SqliteDatabase {
       data text not null,
       updated_at text not null,
       primary key (project, id, version)
+    );
+    create table if not exists events (
+      log_path text not null,
+      event_id integer not null,
+      entity_id text not null,
+      entity_type text not null,
+      operation text not null,
+      snapshot text,
+      version integer not null,
+      timestamp text not null,
+      primary key (log_path, event_id)
+    );
+    create index if not exists events_log on events(log_path, event_id);
+    create table if not exists snapshots (
+      log_path text not null,
+      entity_id text not null,
+      entity_type text not null,
+      state text,
+      last_event_id integer not null,
+      timestamp text not null,
+      primary key (log_path, entity_id)
+    );
+    create table if not exists locks (
+      key text primary key,
+      owner text not null,
+      expires_at integer not null
     );
     create index if not exists tasks_project on tasks(project);
     create index if not exists docs_project on docs(project);

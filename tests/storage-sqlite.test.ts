@@ -54,7 +54,16 @@ describe('Y-05a1: profile selection', () => {
   it('publishes an honest manifest', () => {
     const profile = openProfile();
     expect(profile.manifest.profile).toBe('sqlite');
-    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'history']);
+    expect(profile.manifest.collections).toEqual([
+      'tasks',
+      'docs',
+      'projects',
+      'history',
+      'prompts',
+      'memory',
+      'events',
+      'locks',
+    ]);
     expect(profile.manifest.capabilities).toEqual({
       transactions: true,
       history: true,
@@ -234,12 +243,11 @@ describe('Y-05a1: unimplemented collections are honest', () => {
         return (error as StoreError).code ?? null;
       }
     };
-    expect(codeOf(() => profile.events('log.json'))).toBe('CAPABILITY_UNAVAILABLE');
-    // Proxy-backed collections throw a domain error synchronously: a silent empty answer would lie
-    // about what the profile can do.
-    expect(codeOf(() => profile.prompts.list('p'))).toBe('CAPABILITY_UNAVAILABLE');
-    expect(codeOf(() => profile.memory.temporal('/tmp/x.json'))).toBe('CAPABILITY_UNAVAILABLE');
-    expect(codeOf(() => profile.locks.withLock('x', async () => 1))).toBe('CAPABILITY_UNAVAILABLE');
+    // Search/vectors still belong to Y-05b and keep failing honestly rather than returning empty.
+    expect(codeOf(() => profile.search.available())).toBe('CAPABILITY_UNAVAILABLE');
+    expect(codeOf(() => profile.vectors.query(Float32Array.from([1, 2]), { limit: 1, fingerprint: 'fp' }))).toBe(
+      'CAPABILITY_UNAVAILABLE',
+    );
   });
 });
 
@@ -334,5 +342,107 @@ describe('Y-05a2: document history', () => {
   it('answers CAPABILITY_UNAVAILABLE for task history instead of an empty list', async () => {
     const profile = openProfile();
     await expect(profile.history.list('p', 'task', 'id')).rejects.toMatchObject({ code: 'CAPABILITY_UNAVAILABLE' });
+  });
+});
+
+describe('Y-05a3: event log', () => {
+  it('appends, reads deltas and persists across reopen', async () => {
+    const databasePath = tempDbPath();
+    const profile = createSqliteProfile({ databasePath });
+    profiles.push(profile);
+    const events = profile.events('sync/events.json');
+    const first = events.append('task-1', 'task', 'create', { title: 'one' }, 1);
+    const second = events.append('task-1', 'task', 'update', { title: 'two' }, 2);
+    expect(first.eventId).toBe(1);
+    expect(second.eventId).toBe(2);
+    expect(events.since(0).map((event) => event.eventId)).toEqual([1, 2]);
+    expect(events.since(1).map((event) => event.eventId)).toEqual([2]);
+    expect(events.since(1, 1)).toHaveLength(1);
+    profile.close?.();
+
+    const reopened = createSqliteProfile({ databasePath });
+    profiles.push(reopened);
+    expect(reopened.events('sync/events.json').since(0).map((event) => event.eventId)).toEqual([1, 2]);
+  });
+
+  it('compacts into snapshots and garbage-collects events', async () => {
+    const profile = openProfile();
+    const events = profile.events('sync/events.json');
+    events.append('task-1', 'task', 'create', { title: 'one' }, 1);
+    events.append('task-1', 'task', 'update', { title: 'two' }, 2);
+    events.append('task-2', 'task', 'create', { title: 'other' }, 1);
+
+    expect(events.snapshot('task-1')).toBeUndefined();
+    const result = events.compact();
+    expect(result).toEqual({ compacted: 3, remaining: 0 });
+    expect(events.snapshot('task-1')).toMatchObject({ entityId: 'task-1', state: { title: 'two' }, lastEventId: 2 });
+    expect(events.snapshots()).toHaveLength(2);
+
+    const after = events.append('task-1', 'task', 'update', { title: 'three' }, 3);
+    expect(after.eventId).toBe(4);
+    expect(events.compact()).toEqual({ compacted: 1, remaining: 0 });
+  });
+});
+
+describe('Y-05a3: locks', () => {
+  it('serializes concurrent critical sections per key', async () => {
+    const profile = openProfile();
+    const order: string[] = [];
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    await Promise.all([
+      profile.locks.withLock('k', async () => {
+        order.push('a:start');
+        await sleep(10);
+        order.push('a:end');
+      }),
+      profile.locks.withLock('k', async () => {
+        order.push('b:start');
+        await sleep(10);
+        order.push('b:end');
+      }),
+    ]);
+    expect(order).toHaveLength(4);
+    const pairs = [
+      ['a:start', 'a:end'],
+      ['b:start', 'b:end'],
+    ];
+    for (const [start, end] of pairs) {
+      expect(order.indexOf(end)).toBe(order.indexOf(start) + 1);
+    }
+  });
+
+  it('releases the lock when the critical section throws', async () => {
+    const profile = createSqliteProfile({ databasePath: tempDbPath(), lockTimeoutMs: 500 });
+    profiles.push(profile);
+    await expect(
+      profile.locks.withLock('k', async () => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+    await expect(profile.locks.withLock('k', async () => 42)).resolves.toBe(42);
+  });
+
+  it('times out honestly when another holder keeps the lock', async () => {
+    const databasePath = tempDbPath();
+    const slow = createSqliteProfile({ databasePath, lockTimeoutMs: 5_000 });
+    const fast = createSqliteProfile({ databasePath, lockTimeoutMs: 100 });
+    profiles.push(slow, fast);
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const holding = slow.locks.withLock('k', async () => {
+      await sleep(300);
+    });
+    await sleep(20);
+    await expect(fast.locks.withLock('k', async () => 1)).rejects.toMatchObject({ code: 'CONFLICT' });
+    await holding;
+  });
+});
+
+describe('Y-05a3: delegated prompts and memory', () => {
+  it('serves prompts and memory through their shared file-backed implementations', async () => {
+    const profile = openProfile();
+    await expect(profile.prompts.list('p')).resolves.toBeInstanceOf(Array);
+    const temporal = profile.memory.temporal(tempDbPath() + '.memory.json');
+    expect(typeof temporal).toBe('object');
+    expect(temporal).not.toBeNull();
   });
 });
