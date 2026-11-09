@@ -1,4 +1,5 @@
 import { type VectorSearchAdapter, type VectorWarmupOptions, type VectorWarmupResult } from './index.js';
+import type { EmbeddingFingerprint } from './contracts.js';
 import { type SearchResult } from '../types.js';
 import { loadConfig } from '../config.js';
 import { EmbeddingsCache } from './emb_cache.js';
@@ -517,6 +518,90 @@ export class OnnxVectorAdapter<T> implements VectorSearchAdapter<T> {
     }
 
     return { total: items.length, encoded, cached, elapsedMs: Date.now() - startedAt, budgetExceeded };
+  }
+
+  /**
+   * Y-03a: whether the model is loaded and can produce vectors.
+   * The embedding provider uses this to report `CAPABILITY_UNAVAILABLE` honestly instead of
+   * returning empty vectors that would look like "nothing found".
+   */
+  isReady(): boolean {
+    return this.ready;
+  }
+
+  /** Y-03a: identity of the loaded model (ADR-009 fingerprint). */
+  fingerprint(): EmbeddingFingerprint {
+    return {
+      modelId: this.cacheSalt,
+      dimension: this.dim,
+      pooling: this.pooling,
+      queryPrefix: this.queryPrefix,
+      docPrefix: this.docPrefix,
+    };
+  }
+
+  /**
+   * Y-03a: produce vectors without scoring a corpus — the primitive an `EmbeddingProvider` needs.
+   * Query vectors share the query cache with `search()`; document vectors reuse the embeddings
+   * cache under the same hash (`cacheSalt | docPrefix + text`), so documents fed through the
+   * provider also warm the cache the search path reads.
+   */
+  async embed(texts: string[], kind: 'query' | 'doc' = 'doc'): Promise<Float32Array[]> {
+    if (!this.ready) {
+      throw new Error('embeddings are not available: mode=none or the model failed to load');
+    }
+    if (texts.length === 0) return [];
+
+    if (kind === 'query') {
+      const vectors: Float32Array[] = [];
+      for (const text of texts) {
+        const key = `${this.cacheSalt}|${this.queryPrefix}${text}`;
+        let vector = this.queryCache.get(key);
+        if (!vector) {
+          vector = await this.encodeText(this.queryPrefix + text);
+          this.queryCache.set(key, vector);
+        }
+        vectors.push(vector);
+      }
+      return vectors;
+    }
+
+    const cfg = loadConfig();
+    const batchSize = Math.max(1, Number(cfg.embeddings.batchSize ?? 16));
+    const cache = this.cache;
+    const vectors: Array<Float32Array | undefined> = new Array(texts.length).fill(undefined);
+    const misses: Array<{ index: number; text: string; hash: string }> = [];
+
+    for (let index = 0; index < texts.length; index += 1) {
+      const text = texts[index];
+      if (!cache) {
+        misses.push({ index, text, hash: '' });
+        continue;
+      }
+      const hash = cache.textHash(`${this.cacheSalt}|${this.docPrefix}${text}`);
+      const cached = await cache.get(hash, hash);
+      if (cached) {
+        vectors[index] = cached;
+        continue;
+      }
+      misses.push({ index, text, hash });
+    }
+
+    for (let start = 0; start < misses.length; start += batchSize) {
+      const slice = misses.slice(start, start + batchSize);
+      const encoded = await this.encodeBatch(slice.map((miss) => this.docPrefix + miss.text));
+      for (let offset = 0; offset < slice.length; offset += 1) {
+        const miss = slice[offset];
+        const vector = encoded[offset];
+        vectors[miss.index] = vector;
+        if (cache && miss.hash) await cache.set(miss.hash, miss.hash, vector);
+      }
+    }
+
+    return vectors.map((vector, index) => {
+      if (!vector) throw new Error(`no embedding produced for text at index ${index}`);
+      return vector;
+    });
   }
 
   async search(query: string, items: Array<{ id: string; text: string; item: T }>, opts?: { limit?: number }): Promise<SearchResult<T>[]> {
