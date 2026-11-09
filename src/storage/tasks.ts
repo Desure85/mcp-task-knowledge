@@ -32,6 +32,12 @@ import {
   resolveProjectIndexDirs,
 } from './metadata-index.js';
 import { noteTaskRemoved, noteTaskWritten } from '../search/fts-indexer.js';
+import {
+  DEFAULT_CLAIM_TTL_SEC,
+  MAX_CLAIM_TTL_SEC,
+  MAX_TASK_DEPTH,
+  MIN_CLAIM_TTL_SEC,
+} from './contracts.js';
 
 const log = childLogger('storage:tasks');
 
@@ -487,9 +493,9 @@ export async function readTask(project: string, id: string): Promise<Task | null
 // future MU-02 `version`). Otherwise every heartbeat would invalidate other
 // clients' optimistic-lock tokens and produce false CONFLICTs.
 
-export const DEFAULT_CLAIM_TTL_SEC = 1800;
-export const MIN_CLAIM_TTL_SEC = 30;
-export const MAX_CLAIM_TTL_SEC = 86_400;
+// Y-02e2: the bounds are defined in the contract (registrators build schemas from them) and
+// re-exported here so existing callers keep working.
+export { DEFAULT_CLAIM_TTL_SEC, MIN_CLAIM_TTL_SEC, MAX_CLAIM_TTL_SEC, MAX_TASK_DEPTH };
 
 export interface ClaimActor {
   /** MCP session id of the caller. */
@@ -871,7 +877,6 @@ export async function closeTaskAndUnblock(project: string, id: string): Promise<
 // --- Hierarchy helpers ---
 
 /** Maximum allowed nesting depth for task trees */
-export const MAX_TASK_DEPTH = 10;
 
 /**
  * Compute the depth of a task in the hierarchy (root = 0).

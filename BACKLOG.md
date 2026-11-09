@@ -1511,7 +1511,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
 | Y-02e1 | S | `createServerContext()` создаёт файловый `StorageProfile` и публикует в `ServerContext.storage` (поле опциональное для тест-моков); guard-тест фиксирует точный allowlist 11 регистраторов (11 файлов / 20 импортов, только сокращается) | done | `npx vitest run tests/storage-wiring.test.ts`; pass — профиль в контексте, манифест честный (profile/коллекции/возможности), roots = `resolveStoreId(TASKS_DIR\|KNOWLEDGE_DIR)`, smoke-чтение через профиль, allowlist ровно 11 файлов; мутации «профиль не публикуется», «манифест врёт», «новый прямой импорт» — RED. Реализовано (2026-11-09) |
-| Y-02e2 | M | `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` переходят на `ctx.storage`; allowlist 11 → 7 | pending | Существующие тесты инструментов зелёные, wire-формат не изменился, guard-тест показывает 7 |
+| Y-02e2 | M | `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` переходят на `ctx.storage` через `storageProfile(ctx)`; контракт `TaskStore` расширен `closeWithCascade`/`subtree`/`children`, TTL и `MAX_TASK_DEPTH` перенесены в контракт; allowlist 11 → 7 | done | `tests/storage-contract.test.ts` 31/31 (+3 на cascade/subtree/children, паритет с функциями хранилища); `tests/storage-wiring.test.ts` — allowlist ровно 7 файлов / 12 импортов; затронутые наборы 99/99; полный прогон — 17 упавших файлов идентичны базовой линии master (Windows-среда); мутации «новый прямой импорт», «не та коллекция», «TTL сломан», «cascade игнорируется» — RED. Реализовано (2026-11-09) |
 | Y-02e3 | M | `prompts.ts`, `memory.ts`, `search.ts`, `aliases.ts`, `resources.ts`, `search-resources.ts`, `helpers.ts` переходят на профиль; allowlist → 0 | pending | Guard-тест: 0 прямых импортов хранилищ в `src/register/**`; полный прогон `--maxWorkers=4` зелёный; Y-02 → done |
 
 #### Y-03 — разделение эмбеддингов
@@ -1742,3 +1742,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > (`createServerContext`, фабрика `AppContainer`), регистраторы пока не переключены;
 > guard-тест `tests/storage-wiring.test.ts` фиксирует allowlist прямых импортов (11 файлов) и
 > может только сокращаться. «Итого» не меняется.
+> Примечание (2026-11-09, Y-02e2): задачи, знания, bulk и markdown-инструменты берут хранилище из
+> контекста; allowlist guard-теста сокращён до 7 файлов. Остаётся Y-02e3 (`aliases`, `helpers`,
+> `memory`, `prompts`, `resources`, `search-resources`, `search`) — allowlist → 0 и Y-02 закрыт.

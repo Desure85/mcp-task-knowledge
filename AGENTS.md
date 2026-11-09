@@ -425,10 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-y02e1 (Y-02e1 — профиль хранилища в контексте + guard allowlist)
-**Текущая ветка:** feat/y02e1-context-profile (от origin/master 1b5c22b, PR #324 влит)
-**Текущий этап:** Y — план принят, исполняется; Y-02e1 закрыт, переезд регистраторов измеряется guard-тестом
-**Статус:** `Y-02e1` → done: `createServerContext()` создаёт файловый `StorageProfile` и публикует его в `ServerContext.storage` (опциональное поле для лёгких тест-моков); guard-тест `tests/storage-wiring.test.ts` фиксирует точный allowlist прямых импортов хранилищ в `src/register/**` (11 файлов / 20 импортов) — он может только сокращаться. Регистраторы не переключены, поведение не менялось. **Дальше: Y-02e2** — `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` на `ctx.storage`, allowlist 11 → 7.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02e2 закрыт)
+**Текущая ветка:** feat/y02e2-storage-wiring (от origin/master 8eba6d9, PR #325 влит)
+**Текущий этап:** Y — исполняется план; Y-02e2 закрыт, allowlist 11 → 7 файлов
+**Статус:** `Y-02e2` → done: `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` берут хранилище из `ctx.storage` через общий аксессор `storageProfile(ctx)`; контракт `TaskStore` расширен `closeWithCascade`/`subtree`/`children`, TTL и `MAX_TASK_DEPTH` перенесены в контракт (реэкспорт из реализации сохранён). Guard-тест: 7 файлов / 12 импортов. **Дальше: Y-02e3** — остальные 7 регистраторов на профиль, allowlist → 0, Y-02 закрыт.
+
+### Сессия S-20261109-night (ночная сессия — Y-02e2)
+
+- `src/core/storage-context.ts`: `storageProfile(ctx)` — единый аксессор профиля; для собранных руками тест-моков лениво прикрепляет файловый профиль (продакшн-контекст всегда с профилем — проверяет guard), чтобы 30+ тестов не переписывать.
+- `src/storage/contracts.ts`: `TaskStore.closeWithCascade/subtree/children`, константы `DEFAULT_CLAIM_TTL_SEC`/`MIN_CLAIM_TTL_SEC`/`MAX_CLAIM_TTL_SEC`/`MAX_TASK_DEPTH`; `storage/tasks.ts` реэкспортирует значения — единственный источник истины теперь контракт.
+- Файловый профиль реализует три операции делегированием; контрактные тесты: cascade с потомками и без, subtree/children-паритет с функциями хранилища (31/31).
+- Переключены 4 регистратора (задачи, знания, bulk, markdown) — 60 замен в скрипте; поведение не менялось.
+- Guard: 7 файлов / 12 импортов (было 11/20); мутации «новый прямой импорт», «не та коллекция», «TTL сломан», «cascade игнорируется» — RED.
+- Полный локальный прогон: 277/295 зелёные; 17 упавших файлов идентичны базовой линии master (Windows-среда: openssl/tls, unix-сокеты, спавн, `C:\tmp`); CI — Linux-гейт.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1815-y-02e2.md`.
 
 ### Сессия S-20261109-y02e1 (Y-02e1 — профиль хранилища в контексте)
 

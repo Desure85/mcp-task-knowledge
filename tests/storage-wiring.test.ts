@@ -19,21 +19,18 @@ import { resolveStoreId } from '../src/search/fts-index.js';
 const REGISTER_DIR = path.join(process.cwd(), 'src', 'register');
 
 /**
- * Direct storage imports per registrator file. Y-02e1 state: 11 files.
- * Update this table only when an increment actually removes entries (Y-02e2 → 7, Y-02e3 → 0).
+ * Direct storage imports per registrator file. Y-02e2 state: 7 files (tasks, knowledge, bulk and
+ * markdown moved to the context profile). Update this table only when an increment removes entries
+ * (Y-02e3 → 0).
  */
 const EXPECTED_ALLOWLIST: Record<string, string[]> = {
   'aliases.ts': ['storage/knowledge.js', 'storage/tasks.js'],
-  'bulk.ts': ['storage/knowledge.js', 'storage/tasks.js'],
   'helpers.ts': ['prompts/files.js'],
-  'knowledge.ts': ['storage/knowledge.js'],
-  'markdown.ts': ['storage/knowledge.js'],
   'memory.ts': ['storage/knowledge.js'],
   'prompts.ts': ['storage/knowledge.js', 'storage/tasks.js'],
   'resources.ts': ['storage/knowledge.js', 'storage/tasks.js'],
   'search-resources.ts': ['storage/knowledge.js', 'storage/tasks.js'],
   'search.ts': ['search/fts-indexer.js', 'storage/knowledge.js', 'storage/metadata-index.js', 'storage/tasks.js'],
-  'tasks.ts': ['storage/tasks.js'],
 };
 
 /**

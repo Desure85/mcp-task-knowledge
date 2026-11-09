@@ -1,25 +1,14 @@
 import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
+import { storageProfile } from '../core/storage-context.js';
 import { resolveProject } from '../config.js';
 import {
-  createTask,
-  listTasks,
-  listTasksPage,
-  listTasksTree,
-  getTask,
-  getTaskSubtree,
-  getDirectChildren,
-  updateTask,
-  closeTaskWithCascade,
-  claimTask,
-  renewTaskClaim,
-  releaseTaskClaim,
   DEFAULT_CLAIM_TTL_SEC,
-  MIN_CLAIM_TTL_SEC,
-  MAX_CLAIM_TTL_SEC,
   MAX_TASK_DEPTH,
+  MAX_CLAIM_TTL_SEC,
+  MIN_CLAIM_TTL_SEC,
   type ClaimActor,
-} from '../storage/tasks.js';
+} from '../storage/contracts.js';
 import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
@@ -27,6 +16,14 @@ import { projectTask, writeResponseArgs } from './write-response.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
 import { WorkflowError, assertStatusAllowed, assertTypeAllowed, loadProjectTypes, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
+
+/**
+ * Y-02e2: storage comes from the context. A context without a profile is a wiring bug — say so
+ * instead of silently falling back to a module import (which would defeat the whole point).
+ */
+function taskStore(ctx: ServerContext) {
+  return storageProfile(ctx).tasks;
+}
 
 /** Resolve the claiming identity: SDK session > ALS request scope > local. */
 function resolveClaimActor(
@@ -86,13 +83,13 @@ export function registerTasksTools(ctx: ServerContext): void {
           // backlog ids (`AC-01`, `SC-02`), the Task model has no separate `code` field.
           const wantedIds = new Set(ids ?? []);
           const wantedCodes = new Set((codes ?? []).map((code) => code.toLowerCase()));
-          const picked = new Map<string, NonNullable<Awaited<ReturnType<typeof getTask>>>>();
+          const picked = new Map<string, NonNullable<Awaited<ReturnType<ReturnType<typeof taskStore>['get']>>>>();
           for (const id of wantedIds) {
-            const task = await getTask(prj, id);
+            const task = await taskStore(ctx).get(prj, id);
             if (task) picked.set(task.id, task);
           }
           if (wantedCodes.size > 0) {
-            for (const task of await listTasks({ project: prj, includeArchived })) {
+            for (const task of await taskStore(ctx).list({ project: prj, includeArchived })) {
               if (picked.has(task.id)) continue;
               if ((task.tags ?? []).some((value) => wantedCodes.has(value.toLowerCase()))) picked.set(task.id, task);
             }
@@ -103,7 +100,7 @@ export function registerTasksTools(ctx: ServerContext): void {
           const pickedPage = paginateKeyed(matched, request, (task) => task.updatedAt, (task) => task.id);
           return okWith(pickedPage.items, pickedPage.meta);
         }
-        const page = await listTasksPage(prj, {
+        const page = await taskStore(ctx).page(prj, {
           limit: request.limit ?? 50,
           cursor: request.cursor,
           status,
@@ -147,7 +144,7 @@ export function registerTasksTools(ctx: ServerContext): void {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
         if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
         const request = toPageRequest(pageArgs);
-        const roots = await listTasksTree({ project: prj, status, type, tag, includeArchived });
+        const roots = await taskStore(ctx).tree({ project: prj, status, type, tag, includeArchived });
         const result = paginateKeyed(roots, request, (n) => n.updatedAt || '', (n) => n.id);
         return okWith(result.items, result.meta);
       } catch (e) {
@@ -167,7 +164,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     },
     async ({ project, id }) => {
       const prj = resolveProject(project);
-      const t = await getTask(prj, id);
+      const t = await taskStore(ctx).get(prj, id);
       if (!t) {
         return err(`Task not found: ${project}/${id}`);
       }
@@ -199,7 +196,7 @@ export function registerTasksTools(ctx: ServerContext): void {
       try {
         const workflow = await loadProjectWorkflow(prj);
         if (status) assertStatusAllowed(workflow, status, { initial: true });
-        const task = await createTask({
+        const task = await taskStore(ctx).create({
           project: prj,
           title,
           description,
@@ -241,7 +238,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, id, fields, compact, ...patch }) => {
       const prj = resolveProject(project);
       try {
-        const task = await updateTask(prj, id, patch as any);
+        const task = await taskStore(ctx).update(prj, id, patch as any);
         if (!task) {
           return err(`Task not found: ${project}/${id}`);
         }
@@ -274,7 +271,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, id, ttlSec, client }, extra?: GateExtra) => {
       const prj = resolveProject(project);
       try {
-        const result = await claimTask(prj, id, resolveClaimActor(ctx, { ttlSec, client }, extra));
+        const result = await taskStore(ctx).claim(prj, id, resolveClaimActor(ctx, { ttlSec, client }, extra));
         if (result.status === 'not_found') {
           return err(`Task not found: ${project}/${id}`);
         }
@@ -312,7 +309,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, id, ttlSec }, extra?: GateExtra) => {
       const prj = resolveProject(project);
       try {
-        const result = await renewTaskClaim(prj, id, resolveClaimActor(ctx, { ttlSec }, extra));
+        const result = await taskStore(ctx).renewClaim(prj, id, resolveClaimActor(ctx, { ttlSec }, extra));
         if (result.status === 'not_found') {
           return err(`Task not found: ${project}/${id}`);
         }
@@ -353,7 +350,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, id }, extra?: GateExtra) => {
       const prj = resolveProject(project);
       try {
-        const result = await releaseTaskClaim(prj, id, resolveClaimActor(ctx, {}, extra));
+        const result = await taskStore(ctx).releaseClaim(prj, id, resolveClaimActor(ctx, {}, extra));
         if (result.status === 'not_found') {
           return err(`Task not found: ${project}/${id}`);
         }
@@ -394,11 +391,11 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, parentId, title, description, priority, type, tags, links }) => {
       const prj = resolveProject(project);
       try {
-        const parent = await getTask(prj, parentId);
+        const parent = await taskStore(ctx).get(prj, parentId);
         if (!parent) {
           return err(`Parent task not found: ${project}/${parentId}`);
         }
-        const task = await createTask({
+        const task = await taskStore(ctx).create({
           project: prj,
           title,
           description,
@@ -429,7 +426,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     },
     async ({ project, id, maxDepth }) => {
       const prj = resolveProject(project);
-      const subtree = await getTaskSubtree(prj, id);
+      const subtree = await taskStore(ctx).subtree(prj, id);
       if (!subtree) {
         return err(`Task not found: ${project}/${id}`);
       }
@@ -471,13 +468,13 @@ export function registerTasksTools(ctx: ServerContext): void {
     },
     async ({ project, id, ...pageArgs }) => {
       const prj = resolveProject(project);
-      const parent = await getTask(prj, id);
+      const parent = await taskStore(ctx).get(prj, id);
       if (!parent) {
         return err(`Task not found: ${project}/${id}`);
       }
       try {
         const request = toPageRequest(pageArgs);
-        const children = await getDirectChildren(prj, id);
+        const children = await taskStore(ctx).children(prj, id);
         const result = paginateKeyed(children, request, (t) => t.updatedAt || '', (t) => t.id);
         return okWith(
           { parent: { id: parent.id, title: parent.title }, children: result.items },
@@ -504,7 +501,7 @@ export function registerTasksTools(ctx: ServerContext): void {
     async ({ project, id, cascade }) => {
       const prj = resolveProject(project);
       try {
-        const result = await closeTaskWithCascade(prj, id, cascade || false);
+        const result = await taskStore(ctx).closeWithCascade(prj, id, cascade || false);
         if (!result.root) {
           return err(`Task not found: ${project}/${id}`);
         }

@@ -3,14 +3,14 @@ import path from "node:path";
 import matter from "gray-matter";
 import fg from "fast-glob";
 import type { ServerContext } from './context.js';
+import { storageProfile } from '../core/storage-context.js';
 import { resolveProject } from '../config.js';
-import {
-  listDocs,
-  readDoc,
-  createDoc,
-  updateDoc,
-} from '../storage/knowledge.js';
 import { ensureDir, pathExists, readText, writeText } from '../fs.js';
+
+/** Y-02e2: markdown import/export works on the document store from the context. */
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
 
 import { ok, err } from '../utils/respond.js';
 import type { TrustLevel } from '../types.js';
@@ -93,7 +93,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         return err('outputDir must be an absolute path');
       }
 
-      const docs = await listDocs({
+      const docs = await docStore(ctx).list({
         project: prj,
         tag,
         includeArchived,
@@ -124,7 +124,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
       // Write files
       const written: Array<{ id: string; title: string; file: string }> = [];
       for (const doc of filtered) {
-        const full = await readDoc(prj, doc.id);
+        const full = await docStore(ctx).read(prj, doc.id);
         if (!full) continue;
 
         const slug = slugify(full.title);
@@ -171,7 +171,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
     async ({ project, tag, type, parentId, includeArchived, includeFrontmatter, headingLevel }) => {
       const prj = resolveProject(project);
 
-      const docs = await listDocs({
+      const docs = await docStore(ctx).list({
         project: prj,
         tag,
         includeArchived,
@@ -197,7 +197,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
       const sections: string[] = [];
 
       for (const doc of filtered) {
-        const full = await readDoc(prj, doc.id);
+        const full = await docStore(ctx).read(prj, doc.id);
         if (!full) continue;
 
         const header = `${hashes} ${full.title}`;
@@ -293,7 +293,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
       }
 
       // Build title→id map for overwrite/skip strategies
-      const existingDocs = await listDocs({ project: prj });
+      const existingDocs = await docStore(ctx).list({ project: prj });
       const titleToId = new Map<string, string>();
       for (const d of existingDocs) {
         titleToId.set(d.title.toLowerCase(), d.id);
@@ -379,7 +379,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         }
 
         if (plan.action === 'update' && plan.existingId) {
-          const updated = await updateDoc(prj, plan.existingId, {
+          const updated = await docStore(ctx).update(prj, plan.existingId, {
             title: plan.title,
             content: parsed.content,
             tags: plan.tags,
@@ -391,7 +391,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
             results.push({ file: plan.file, title: plan.title, action: 'update', id: updated.id });
           }
         } else {
-          const created = await createDoc({
+          const created = await docStore(ctx).create({
             project: prj,
             title: plan.title,
             content: parsed.content,
@@ -463,7 +463,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
         ? [...new Set([...tags, ...parsed.tags])]
         : docTags;
 
-      const created = await createDoc({
+      const created = await docStore(ctx).create({
         project: prj,
         title: docTitle,
         content: parsed.content,
@@ -502,7 +502,7 @@ export function registerMarkdownTools(ctx: ServerContext): void {
     },
     async ({ project, id, includeSystemFields }) => {
       const prj = resolveProject(project);
-      const doc = await readDoc(prj, id);
+      const doc = await docStore(ctx).read(prj, id);
       if (!doc) {
         return err(`Knowledge doc not found: ${project}/${id}`);
       }

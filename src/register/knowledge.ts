@@ -1,10 +1,15 @@
 import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
+import { storageProfile } from '../core/storage-context.js';
 import { resolveProject } from '../config.js';
-import { listDocs, listDocsPage, readDoc } from '../storage/knowledge.js';
 import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
+
+/** Y-02e2: documents come from the context profile, not from a module import. */
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
 
 export function registerKnowledgeTools(ctx: ServerContext): void {
   ctx.server.registerTool(
@@ -27,7 +32,7 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       try {
         const request = toPageRequest(pageArgs);
-        const page = await listDocsPage(prj, {
+        const page = await docStore(ctx).page(prj, {
           limit: request.limit ?? 50,
           cursor: request.cursor,
           tag,
@@ -60,7 +65,7 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
       const prj = resolveProject(project);
       try {
         const request = toPageRequest(pageArgs);
-        const metas = await listDocs({ project: prj });
+        const metas = await docStore(ctx).list({ project: prj });
         const filtered = metas.filter((m) => !m.trashed && (includeArchived ? true : !m.archived));
         const byId = new Map(filtered.map((m) => [m.id, { ...m, children: [] as any[] }]));
         const roots: any[] = [];
@@ -92,7 +97,7 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
     },
     async ({ project, id }) => {
       const prj = resolveProject(project);
-      const d = await readDoc(prj, id);
+      const d = await docStore(ctx).read(prj, id);
       if (!d) {
         return err(`Doc not found: ${project}/${id}`);
       }
