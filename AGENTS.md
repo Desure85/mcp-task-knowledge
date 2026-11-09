@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-yplan (план закрытия этапа Y)
-**Текущая ветка:** docs/y-stage-plan (от origin/master c41602e, PR #323 влит)
-**Текущий этап:** Y — принят план закрытия этапа: 24 инкремента, порядок и гейты зафиксированы
-**Статус:** План этапа Y записан в [`docs/dev-cycle/plans/2026-11-09-y-stage.md`](docs/dev-cycle/plans/2026-11-09-y-stage.md) (решение `2026-11-09-1405-y-stage-plan.md`): Y-02e (3) → Y-03 (3) → Y-04 (2) → Y-05 (3) → Y-07 (2) → Y-06 (2) → Y-08 (2); у каждого исполняемый DoD, гейты sqlite-vec/Postgres-CI/MinIO-CI/внешние эмбеддинги/окно миграции записаны. **Следующий шаг: Y-02e1** — `AppContainer` публикует профиль в `ServerContext.storage` + guard-тест allowlist из 11 регистраторов.
+**Session ID:** S-20261109-y02e1 (Y-02e1 — профиль хранилища в контексте + guard allowlist)
+**Текущая ветка:** feat/y02e1-context-profile (от origin/master 1b5c22b, PR #324 влит)
+**Текущий этап:** Y — план принят, исполняется; Y-02e1 закрыт, переезд регистраторов измеряется guard-тестом
+**Статус:** `Y-02e1` → done: `createServerContext()` создаёт файловый `StorageProfile` и публикует его в `ServerContext.storage` (опциональное поле для лёгких тест-моков); guard-тест `tests/storage-wiring.test.ts` фиксирует точный allowlist прямых импортов хранилищ в `src/register/**` (11 файлов / 20 импортов) — он может только сокращаться. Регистраторы не переключены, поведение не менялось. **Дальше: Y-02e2** — `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` на `ctx.storage`, allowlist 11 → 7.
+
+### Сессия S-20261109-y02e1 (Y-02e1 — профиль хранилища в контексте)
+
+- `src/register/setup.ts`: в `createServerContext()` создаётся `createFileProfile()` и кладётся в контекст; так же видят профиль `AppContainer.init()` (он вызывает эту фабрику) и тесты. `ServerContext.storage` — опциональное поле с комментарием, почему: 34 тест-мока собирают контекст руками, обязательное поле ломало бы их без пользы; наличие на реальном контексте проверяет guard-тест.
+- `tests/storage-wiring.test.ts`: (а) профиль в контексте, манифест честный (`profile: 'file'`, 8 коллекций, возможности), roots = `resolveStoreId(TASKS_DIR|KNOWLEDGE_DIR)`, smoke-чтение через профиль; (б) allowlist прямых импортов data-access модулей в `src/register/**` — ровно 11 файлов / 20 импортов; `storage/contracts.js` не учитывается (типы контракта регистраторам нужны).
+- Revert-check: 3 мутации RED — профиль не публикуется; манифест врёт о профиле; новый прямой импорт в регистраторе (guard реально ловит рост).
+- Проверено: `npx vitest run tests/storage-wiring.test.ts --maxWorkers=2` — 2/2; build/type/lint/markdownlint/backlog — зелёные.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1415-y-02e1.md`.
 
 ### Сессия S-20261109-yplan (план закрытия этапа Y)
 
