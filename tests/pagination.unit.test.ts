@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
+import { utimesSync } from 'node:fs';
 import fsp from 'node:fs/promises';
 import crypto from 'node:crypto';
 
@@ -25,6 +26,26 @@ async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
 }
 
+// TS-01: page order is mtime desc, so the fixture needs distinct mtimes without
+// waiting on the wall clock. Sleeping 2 ms per item relied on the filesystem's
+// timestamp granularity; pinned timestamps are one second apart and deterministic
+// on any filesystem. `MTIME_BASE` stays in the past so later inserts are newest.
+const MTIME_BASE = Date.now() - 86_400_000;
+let mtimeSeq = 0;
+
+function pinMtime(file: string): void {
+  const at = new Date(MTIME_BASE + ++mtimeSeq * 1000);
+  utimesSync(file, at, at);
+}
+
+function taskFile(project: string, id: string): string {
+  return path.join(process.env.DATA_DIR!, 'tasks', project, `${id}.json`);
+}
+
+function docFile(project: string, id: string): string {
+  return path.join(process.env.DATA_DIR!, 'knowledge', project, `${id}.md`);
+}
+
 beforeAll(async () => {
   await rmrf(TMP_DIR);
   await fsp.mkdir(TMP_DIR, { recursive: true });
@@ -43,8 +64,7 @@ async function seedTasks(project: string, n: number) {
   for (let i = 0; i < n; i++) {
     const t = await tasks.createTask({ project, title: `Task ${i}`, tags: i % 2 === 0 ? ['even'] : ['odd'] });
     created.push(t.id);
-    // Distinct mtimes so the page order is deterministic (1 ms resolution).
-    await new Promise((r) => setTimeout(r, 2));
+    pinMtime(taskFile(project, t.id));
   }
   return created;
 }
@@ -147,8 +167,8 @@ describe('listDocsPage', () => {
   it('paginates documents and filters by type with an exact total', async () => {
     const prj = uniqProj('docs');
     for (let i = 0; i < 5; i++) {
-      await knowledge.createDoc({ project: prj, title: `Doc ${i}`, content: `body ${i}`, type: i % 2 === 0 ? 'adr' : 'note' });
-      await new Promise((r) => setTimeout(r, 2));
+      const doc = await knowledge.createDoc({ project: prj, title: `Doc ${i}`, content: `body ${i}`, type: i % 2 === 0 ? 'adr' : 'note' });
+      pinMtime(docFile(prj, doc.id));
     }
 
     const first = await knowledge.listDocsPage(prj, { limit: 2 });

@@ -138,12 +138,19 @@ describe('Q-014 slice 16: auth/session/cluster core', () => {
         JWT_SECRET,
         ...extraEnv,
       },
-      stdio: ['pipe', 'pipe', 'inherit'],
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stderr = '';
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-4000);
     });
     if (!(await waitForReady(child, port))) {
+      const state = child.exitCode !== null ? `exit=${child.exitCode}` : 'still running';
       await terminateServer(child);
       child = undefined;
-      throw new Error('server did not become ready');
+      throw new Error(
+        `server did not become ready on port ${port} (${state}); stderr: ${stderr.trim() || '(empty)'}`,
+      );
     }
   }
 
