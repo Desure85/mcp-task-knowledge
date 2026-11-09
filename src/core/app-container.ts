@@ -430,7 +430,6 @@ export class AppContainer {
                 setActiveFtsIndex(undefined);
                 this.ftsIndex?.close();
               });
-              if (schemaApplied) this.ftsIndex.markDirty('DATA_DIR schema migrations applied');
             } catch (err) {
               this.log.warn({ err }, 'FTS index unavailable — search keeps the in-memory path');
             }
@@ -441,12 +440,22 @@ export class AppContainer {
                   knowledgeDir: KNOWLEDGE_DIR,
                 });
                 this.log.info({ ...rebuilt }, 'metadata index rebuilt after schema migrations');
+                this.metadataIndex.markProjectsComplete();
+                if (this.ftsIndex) {
+                  const { rebuildFtsIndex } = await import('../search/fts-indexer.js');
+                  const ftsRebuilt = await rebuildFtsIndex(this.ftsIndex, {
+                    tasksDir: TASKS_DIR,
+                    knowledgeDir: KNOWLEDGE_DIR,
+                  });
+                  this.log.info({ ...ftsRebuilt }, 'search index rebuilt after schema migrations');
+                }
               } catch (err) {
-                this.log.warn({ err }, 'metadata index rebuild failed — marking dirty');
+                this.log.warn({ err }, 'post-migration index rebuild failed — marking dirty');
                 try {
                   this.metadataIndex.markDirty('post-migration rebuild failed');
+                  this.ftsIndex?.markDirty('post-migration rebuild failed');
                 } catch (dirtyErr) {
-                  this.log.warn({ err: dirtyErr }, 'metadata index dirty flag failed');
+                  this.log.warn({ err: dirtyErr }, 'index dirty flag failed');
                 }
               }
             }

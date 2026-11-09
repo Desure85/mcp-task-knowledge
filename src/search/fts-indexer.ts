@@ -21,6 +21,13 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import { KNOWLEDGE_DIR, TASKS_DIR } from '../config.js';
 import { childLogger } from '../core/logger.js';
+import {
+  awaitProjectIndexed,
+  ensureProjectIndexed,
+  getActiveMetadataIndex,
+  resolveProjectIndexDirs,
+  type ProjectIndexDirs,
+} from '../storage/metadata-index.js';
 import type { KnowledgeDocMeta, Task } from '../types.js';
 import { buildTextForDoc, buildTextForTask } from './index.js';
 import { FtsSearchIndex, resolveStoreId, type FtsKind, type FtsRecord } from './fts-index.js';
@@ -44,6 +51,85 @@ export function setActiveFtsIndex(index: FtsSearchIndex | null | undefined): voi
 
 export function getActiveFtsIndex(): FtsSearchIndex | undefined {
   return activeIndex;
+}
+
+export type FtsProjectFillState = 'disabled' | 'complete' | 'running' | 'error' | 'idle';
+
+/**
+ * SC-03c: prove that `search_fts` holds every searchable row of the project before the read
+ * path is allowed to answer from it. Three independent sides must agree, because each one has
+ * been seen to drift on its own: the metadata index proves the files were enumerated, the FTS
+ * dirty flag proves no write was lost, and the row counts prove the two indexes describe the
+ * same corpus. Archived/trashed rows are excluded on both sides: FTS never stores them, while
+ * the metadata tables do.
+ */
+export function isProjectFtsComplete(project: string): boolean {
+  const index = activeIndex;
+  if (!index) return false;
+  try {
+    if (index.isDirty()) return false;
+    const meta = getActiveMetadataIndex();
+    if (!meta || !meta.isProjectComplete(project)) return false;
+    const expectedTasks = meta.listTasks({ project, countOnly: true, excludeArchived: true, excludeTrashed: true }).total;
+    const expectedDocs = meta.listDocs({ project, countOnly: true, excludeArchived: true, excludeTrashed: true }).total;
+    const tasks = index.projectCounts(taskStoreId(), project);
+    const docs = index.projectCounts(knowledgeStoreId(), project);
+    return tasks.tasks === expectedTasks && docs.docs === expectedDocs;
+  } catch (err) {
+    log.warn({ err, project }, 'FTS completeness check failed — search keeps the in-memory path');
+    return false;
+  }
+}
+
+const fills = new Map<string, Promise<void>>();
+const fillErrors = new Map<string, string>();
+
+export function getProjectFtsFillState(project: string): FtsProjectFillState {
+  if (!activeIndex) return 'disabled';
+  if (fills.has(project)) return 'running';
+  if (fillErrors.has(project)) return 'error';
+  return isProjectFtsComplete(project) ? 'complete' : 'idle';
+}
+
+/**
+ * Starts one background fill per project, mirroring `ensureProjectIndexed`: the request that
+ * triggered it keeps the file-scan path, so a first search after a bulk import never blocks on
+ * a corpus walk. A dirty index is deliberately not filled here — only a full `reindex` can
+ * prove that no unrelated row is missing.
+ */
+export function ensureProjectFtsIndexed(project: string): void {
+  const index = activeIndex;
+  if (!index || fills.has(project)) return;
+  try {
+    if (index.isDirty() || isProjectFtsComplete(project)) return;
+  } catch (err) {
+    log.warn({ err, project }, 'FTS fill skipped — completeness check failed');
+    return;
+  }
+
+  const fill = (async () => {
+    const dirs = await resolveProjectIndexDirs(project, { tasksDir: TASKS_DIR, knowledgeDir: KNOWLEDGE_DIR });
+    if (getActiveMetadataIndex()) {
+      ensureProjectIndexed(project, dirs);
+      await awaitProjectIndexed(project);
+    }
+    const rebuilt = await rebuildFtsIndex(index, { tasksDir: TASKS_DIR, knowledgeDir: KNOWLEDGE_DIR }, { project, dirs });
+    fillErrors.delete(project);
+    log.info({ project, ...rebuilt }, 'FTS project filled');
+  })().catch((err: unknown) => {
+    fillErrors.set(project, err instanceof Error ? err.message : String(err));
+    log.warn({ err, project }, 'FTS project fill failed — search keeps the in-memory path');
+  }).finally(() => {
+    fills.delete(project);
+  });
+
+  fills.set(project, fill);
+}
+
+/** Test helper: wait for the background fill of one project. */
+export async function awaitProjectFtsIndexed(project: string): Promise<void> {
+  const inflight = fills.get(project);
+  if (inflight) await inflight;
 }
 
 function noteFailure(err: unknown, op: string, context: Record<string, unknown>): void {
@@ -195,10 +281,25 @@ async function listCandidateFiles(
   return out;
 }
 
+async function listFilesAt(dir: string | null, extension: string): Promise<string[]> {
+  if (!dir) return [];
+  const out: string[] = [];
+  for (const entry of await readdir(dir)) {
+    if (entry.isFile() && entry.name.endsWith(extension)) out.push(path.join(dir, entry.name));
+  }
+  return out;
+}
+
 function docContent(raw: string): { meta: KnowledgeDocMeta; content: string } {
   const parsed = matter(raw);
   const content = parsed.content.endsWith('\n') ? parsed.content.slice(0, -1) : parsed.content;
   return { meta: parsed.data as unknown as KnowledgeDocMeta, content };
+}
+
+export interface FtsRebuildOptions {
+  project?: string;
+  /** Resolved project directories (SC-02c layout), so a lazy fill honours the legacy flat layout. */
+  dirs?: ProjectIndexDirs;
 }
 
 /**
@@ -209,7 +310,7 @@ function docContent(raw: string): { meta: KnowledgeDocMeta; content: string } {
 export async function rebuildFtsIndex(
   index: FtsSearchIndex,
   paths: FtsRebuildPaths,
-  options: { project?: string } = {},
+  options: FtsRebuildOptions = {},
 ): Promise<FtsRebuildResult> {
   const startedAt = Date.now();
   const taskStore = resolveStoreId(paths.tasksDir);
@@ -217,7 +318,15 @@ export async function rebuildFtsIndex(
   const records: FtsRecord[] = [];
   let skipped = 0;
 
-  for (const { file, project } of await listCandidateFiles(paths.tasksDir, '.json', options.project)) {
+  const taskFiles = options.dirs
+    ? (await listFilesAt(options.dirs.tasksDir, '.json')).map((file) => ({
+        file,
+        project: options.dirs?.tasksLayout === 'project' ? options.project ?? '' : '',
+      }))
+    : await listCandidateFiles(paths.tasksDir, '.json', options.project);
+  const taskFlat = options.dirs?.tasksLayout === 'flat';
+
+  for (const { file, project } of taskFiles) {
     try {
       const task = JSON.parse(await fsp.readFile(file, 'utf8')) as Task;
       if (!task?.id) {
@@ -228,11 +337,16 @@ export async function rebuildFtsIndex(
         skipped++;
         continue;
       }
+      const rowProject = task.project || project;
+      if (taskFlat && options.project && rowProject !== options.project) {
+        skipped++;
+        continue;
+      }
       records.push({
         store: taskStore,
         kind: 'task',
         id: task.id,
-        project: task.project || project,
+        project: rowProject,
         updatedAt: task.updatedAt ?? '',
         text: buildTextForTask(task),
       });
@@ -242,7 +356,15 @@ export async function rebuildFtsIndex(
     }
   }
 
-  for (const { file, project } of await listCandidateFiles(paths.knowledgeDir, '.md', options.project)) {
+  const docFiles = options.dirs
+    ? (await listFilesAt(options.dirs.knowledgeDir, '.md')).map((file) => ({
+        file,
+        project: options.dirs?.knowledgeLayout === 'project' ? options.project ?? '' : '',
+      }))
+    : await listCandidateFiles(paths.knowledgeDir, '.md', options.project);
+  const docFlat = options.dirs?.knowledgeLayout === 'flat';
+
+  for (const { file, project } of docFiles) {
     try {
       const { meta, content } = docContent(await fsp.readFile(file, 'utf8'));
       const id = meta?.id ?? path.basename(file, '.md');
@@ -250,11 +372,16 @@ export async function rebuildFtsIndex(
         skipped++;
         continue;
       }
+      const rowProject = meta?.project || project;
+      if (docFlat && options.project && rowProject !== options.project) {
+        skipped++;
+        continue;
+      }
       records.push({
         store: docStore,
         kind: 'doc',
         id,
-        project: meta?.project || project,
+        project: rowProject,
         updatedAt: meta?.updatedAt ?? '',
         text: buildTextForDoc({ ...meta, id, content }),
       });

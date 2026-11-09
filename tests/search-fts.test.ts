@@ -7,7 +7,7 @@
  * and schema handling.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -355,4 +355,181 @@ describe('SC-03b: storage writes keep the index in step', () => {
     fts.rebuild([]);
     expect(fts.stats().dirty).toBe(false);
   });
+});
+
+describe('SC-03c: the search tools read the index', () => {
+  let tasks: typeof import('../src/storage/tasks.js');
+  let knowledge: typeof import('../src/storage/knowledge.js');
+  let indexer: typeof import('../src/search/fts-indexer.js');
+  let metadata: typeof import('../src/storage/metadata-index.js');
+  let registerSearchTools: typeof import('../src/register/search.js').registerSearchTools;
+  let meta: NonNullable<ReturnType<typeof metadata.createMetadataIndex>>;
+
+  const project = () => `sc03c-${Math.random().toString(16).slice(2, 10)}`;
+  const envelope = (result: { content: Array<{ text: string }> }) => JSON.parse(result.content[0].text);
+
+  function makeTools() {
+    const tools = new Map<string, (args: Record<string, unknown>) => Promise<{ content: Array<{ text: string }> }>>();
+    registerSearchTools({
+      server: {
+        registerTool: (name: string, _config: unknown, handler: (args: Record<string, unknown>) => Promise<{ content: Array<{ text: string }> }>) => {
+          tools.set(name, handler);
+        },
+      },
+      ensureVectorAdapter: async () => undefined,
+    } as unknown as Parameters<typeof registerSearchTools>[0]);
+    return tools;
+  }
+
+  beforeAll(async () => {
+    tasks = await import('../src/storage/tasks.js');
+    knowledge = await import('../src/storage/knowledge.js');
+    indexer = await import('../src/search/fts-indexer.js');
+    metadata = await import('../src/storage/metadata-index.js');
+    registerSearchTools = (await import('../src/register/search.js')).registerSearchTools;
+    const created = metadata.createMetadataIndex({ dataDir: process.env.DATA_DIR as string });
+    if (!created) throw new Error('metadata index is required for the SC-03c read path');
+    meta = created;
+    metadata.setActiveMetadataIndex(meta);
+  });
+
+  afterAll(() => {
+    metadata.setActiveMetadataIndex(undefined);
+    meta.close();
+  });
+
+  beforeEach(() => {
+    indexer.setActiveFtsIndex(index);
+  });
+
+  afterEach(() => {
+    indexer.setActiveFtsIndex(undefined);
+  });
+
+  async function waitForIndex(prj: string) {
+    await indexer.awaitProjectFtsIndexed(prj);
+    await metadata.awaitProjectIndexed(prj);
+  }
+
+  it('falls back to the file scan while the index is empty, then serves the index', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Falcon migration checklist' });
+    const tools = makeTools();
+
+    const first = envelope(await tools.get('search_tasks')!({ project: prj, query: 'falcon migration' }));
+    expect(first.ok).toBe(true);
+    expect(first.source).toBe('scan');
+    expect(first.indexing).toBe(true);
+    expect(first.data[0].item.id).toBe(task.id);
+
+    await waitForIndex(prj);
+    expect(indexer.isProjectFtsComplete(prj)).toBe(true);
+
+    const second = envelope(await tools.get('search_tasks')!({ project: prj, query: 'falcon migration checklist' }));
+    expect(second.source).toBe('fts');
+    expect(second.data[0].item.id).toBe(task.id);
+  });
+
+  it('never answers from an index that lost a row, and repairs it in the background', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Kestrel audit notes' });
+    const tools = makeTools();
+    indexer.ensureProjectFtsIndexed(prj);
+    await waitForIndex(prj);
+    expect(indexer.isProjectFtsComplete(prj)).toBe(true);
+
+    index.remove(indexer.taskStoreId(), 'task', task.id);
+    const stale = envelope(await tools.get('search_tasks')!({ project: prj, query: 'kestrel audit' }));
+    expect(stale.source).toBe('scan');
+    expect(stale.indexing).toBe(true);
+
+    await waitForIndex(prj);
+    const repaired = envelope(await tools.get('search_tasks')!({ project: prj, query: 'kestrel audit notes' }));
+    expect(repaired.source).toBe('fts');
+    expect(repaired.data[0].item.id).toBe(task.id);
+  });
+
+  it('keeps the file path while the index is dirty', async () => {
+    const prj = project();
+    await tasks.createTask({ project: prj, title: 'Merlin retention policy' });
+    const tools = makeTools();
+    indexer.ensureProjectFtsIndexed(prj);
+    await waitForIndex(prj);
+    expect(indexer.isProjectFtsComplete(prj)).toBe(true);
+
+    index.markDirty('simulated write failure');
+    const result = envelope(await tools.get('search_tasks')!({ project: prj, query: 'merlin retention' }));
+    expect(result.source).toBe('scan');
+    expect(indexer.isProjectFtsComplete(prj)).toBe(false);
+  });
+
+  it('keeps the file path for a type-filtered search, which filters the corpus before ranking', async () => {
+    const prj = project();
+    await tasks.createTask({ project: prj, title: 'Osprey rollout checklist' });
+    const tools = makeTools();
+    indexer.ensureProjectFtsIndexed(prj);
+    await waitForIndex(prj);
+
+    const result = envelope(await tools.get('search_tasks')!({ project: prj, query: 'osprey rollout', type: 'task' }));
+    expect(result.source).toBe('scan');
+    expect(result.data[0].item.id).toBeTruthy();
+  });
+
+  it('drops an archived document from the index and keeps the completeness invariant', async () => {
+    const prj = project();
+    const doc = await knowledge.createDoc({ project: prj, title: 'Harbor notes', content: 'berth allocation plan' });
+    const tools = makeTools();
+    indexer.ensureProjectFtsIndexed(prj);
+    await waitForIndex(prj);
+    expect(indexer.isProjectFtsComplete(prj)).toBe(true);
+
+    await knowledge.archiveDoc(prj, doc.id);
+    expect(indexer.isProjectFtsComplete(prj)).toBe(true);
+
+    const result = envelope(await tools.get('search_knowledge')!({ project: prj, query: 'berth allocation' }));
+    expect(result.source).toBe('fts');
+    expect(result.data).toHaveLength(0);
+  });
+
+  it('promotes a verbatim identifier hit without a vector adapter', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Fix DEV-7613 decoder', description: 'unrelated payload' });
+    const tools = makeTools();
+    indexer.ensureProjectFtsIndexed(prj);
+    await waitForIndex(prj);
+
+    const result = envelope(await tools.get('search_tasks')!({ project: prj, query: 'DEV-7613' }));
+    expect(result.source).toBe('fts');
+    expect(result.data[0].item.id).toBe(task.id);
+    expect(result.data[0].exactMatches).toBeGreaterThan(0);
+  });
+
+  it('finds a new term and drops the old one through storage writes', async () => {
+    const prj = project();
+    const task = await tasks.createTask({ project: prj, title: 'Falcon migration checklist' });
+    const tools = makeTools();
+    indexer.ensureProjectFtsIndexed(prj);
+    await waitForIndex(prj);
+
+    await tasks.updateTask(prj, task.id, { title: 'Petrel migration checklist' });
+    const found = envelope(await tools.get('search_tasks')!({ project: prj, query: 'petrel migration' }));
+    expect(found.source).toBe('fts');
+    expect(found.data[0].item.id).toBe(task.id);
+
+    const gone = envelope(await tools.get('search_tasks')!({ project: prj, query: 'falcon' }));
+    expect(gone.data).toHaveLength(0);
+  });
+});
+
+describe('SC-03a: rebuild scales with the corpus', () => {
+  it('rebuilds 20k documents without a per-row table scan', () => {
+    const text = 'deployment runbook cursor pagination storage index cache invalidation policy rollout '.repeat(3);
+    const records = Array.from({ length: 20_000 }, (_, i) => record({ id: `scale-${i}`, text }));
+    const startedAt = Date.now();
+    index.rebuild(records);
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(index.stats().rows).toBe(20_000);
+    expect(elapsedMs).toBeLessThan(10_000);
+  }, 30_000);
 });

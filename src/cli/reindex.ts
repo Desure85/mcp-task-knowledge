@@ -37,6 +37,7 @@ import { acquireServerLock, ServerLockError, type ServerLockHandle } from '../st
 import { inspectIndex, formatIndexSection, type IndexInspection } from './index-inspect.js';
 import { FtsSearchIndex } from '../search/fts-index.js';
 import { rebuildFtsIndex, type FtsRebuildResult } from '../search/fts-indexer.js';
+import { checkSchemaVersion } from '../services/schema-version.js';
 
 export interface ReindexPaths {
   dataDir: string;
@@ -261,6 +262,17 @@ async function runRebuild(
   mode: StorageIndexMode,
 ): Promise<ReindexCliResult> {
   return withIndexLock(paths, mode, async (index, fts) => {
+    // The offline repair path owns migrations: the next server boot then has nothing to
+    // migrate and skips its post-migration full rebuild, which would block /healthz on a
+    // large DATA_DIR. A project-only rebuild must not migrate, because it would leave the
+    // other projects' search rows stale.
+    if (!parsed.project) {
+      await checkSchemaVersion({
+        dataDir: paths.dataDir,
+        tasksDir: paths.tasksDir,
+        knowledgeDir: paths.knowledgeDir,
+      });
+    }
     if (parsed.project) {
       const dirs = await resolveProjectIndexDirs(parsed.project, {
         tasksDir: paths.tasksDir,
