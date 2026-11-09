@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 и Y-03 закрыты)
-**Текущая ветка:** feat/y03c-indexing-service (от origin/master 7c07dcd, PR #330 влит)
-**Текущий этап:** Y — закрыты Y-02 и Y-03; дальше Y-04 (внешние провайдеры эмбеддингов)
-**Статус:** `Y-03c` → done: `src/search/indexing-service.ts` (очередь, идемпотентность по хэшу содержимого и коллекции, манифест на диске, пауза/резюме, прогресс и скорость), `StorageProfile.indexing` + ленивая фабрика провайдера в `createServerContext`, `embeddings_status` показывает очередь. **Y-03 закрыт** (a — контракты, b — коллекции и двойное чтение, c — индексация; 11 новых тестов, 133/133 затронутых, 6 мутаций RED). **Дальше: Y-04a** — политика внешних провайдеров (флаг, приватность, SecretManager, исключения, лимиты) с fake-провайдером.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02 и Y-03 закрыты, Y-04a закрыт)
+**Текущая ветка:** feat/y04a-external-policy (от origin/master f4ef6ea, PR #331 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03; Y-04a закрыт, дальше Y-04b
+**Статус:** `Y-04a` → done: внешние эмбеддинги включаются только флагом; предупреждение при старте, ключи через `SecretManager` (лениво, без утечки в логи), лимиты текстов/минуту и учёт стоимости, гейт исключает приватные проекты и `trustLevel: external` до постановки в очередь (`blocked` в статусе), `embeddings_status.external`, запись в `docs/privacy.md`. 12 новых тестов, 108/108 затронутых, 7 мутаций RED. **Дальше: Y-04b** — HTTP-провайдер (OpenAI-совместимый) за флагом: таймауты/ретраи/лимиты/стоимость на mock-сервере, деградация с признаком.
+
+### Сессия S-20261109-night (ночная сессия — Y-04a)
+
+- `src/search/external-policy.ts`: конфигурация из env (ленивое чтение), `externalEmbeddingStartupWarning`, `externalEmbeddingPrivacyEntry` (строка для `docs/privacy.md` генерируется из кода), `createExternalEmbeddingGate` (проект + trustLevel), `ExternalEmbeddingError` с кодами DISABLED/MISSING_KEY/POLICY_DENIED/RATE_LIMITED/PROVIDER_ERROR.
+- `src/search/external-provider.ts`: обёртка `EmbeddingProvider` — без флага `DISABLED` и нулевые внешние вызовы; ленивый ключ из `SecretManager` (только имя ключа в событиях); лимит текстов/минуту; учёт запросов/текстов/токенов/стоимости; `fingerprint().modelId = external:provider:model`; ошибка провайдера → `PROVIDER_ERROR` + событие деградации.
+- Гейт встроен в `IndexingServiceOptions.externalPolicy`/`FileProfileOptions.externalPolicy` — заблокированные элементы не попадают в очередь (`blocked` в статусе), а не фильтруются после; в `setup` гейт строится из конфигурации, предупреждение логируется при старте; `embeddings_status` получил секцию `external`.
+- `docs/privacy.md`: строка про external embeddings (триггер, адресат, данные, исключения), декларация не расходится с кодом.
+- Проверено: 12/12 в `tests/embedding-external-policy.test.ts`, 108/108 затронутых, tsc-test чистый; 7 мутаций RED (включая утечку ключа в событие и политику без фильтра).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1945-y-04a.md`.
 
 ### Сессия S-20261109-night (ночная сессия — Y-03c, Y-03 закрыт)
 
