@@ -35,8 +35,17 @@ const EXPECTED_ALLOWLIST: Record<string, string[]> = {
 const STORAGE_IMPORT =
   /from '\.\.\/(?:storage\/((?!contracts\b)[a-z0-9-]+)\.js|prompts\/files\.js|search\/(fts-indexer|fts-index)\.js)'/g;
 
+/**
+ * `setup.ts` is the composition root: ADR-009 rule 1 says *it* constructs the profile, so it is the
+ * one place allowed to import profile factories/selectors (Y-05a added `profile-select`). Every
+ * other registrator must read collections from the context.
+ */
+const COMPOSITION_ROOT = 'setup.ts';
+
 function collectStorageImports(): Record<string, string[]> {
-  const files = fs.readdirSync(REGISTER_DIR).filter((name) => name.endsWith('.ts'));
+  const files = fs
+    .readdirSync(REGISTER_DIR)
+    .filter((name) => name.endsWith('.ts') && name !== COMPOSITION_ROOT);
   const found: Record<string, string[]> = {};
   for (const file of files) {
     const source = fs.readFileSync(path.join(REGISTER_DIR, file), 'utf8');

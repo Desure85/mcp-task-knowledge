@@ -9,6 +9,9 @@ import type { ServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
 import type { VectorSearchAdapter } from "../search/index.js";
 import { createFileProfile } from '../storage/profiles/file/index.js';
+import { createSqliteProfile } from '../storage/profiles/sqlite/index.js';
+import { readStorageProfileKind } from '../storage/profile-select.js';
+import { DATA_DIR } from '../config.js';
 import { createFileEmbeddingProvider, type EmbeddingAdapterLike } from '../search/embeddings-file.js';
 import {
   createExternalEmbeddingGate,
@@ -411,11 +414,13 @@ export async function createServerContext(): Promise<ServerContext> {
   if (externalEmbeddingWarning) log.warn({ external: true }, externalEmbeddingWarning);
   const externalEmbeddingGate = createExternalEmbeddingGate(externalEmbeddingConfig);
 
-  // Y-03c: the profile owns the vector collections and the indexing queue. The provider is
-  // resolved lazily through ensureVectorAdapter, so a cold start never loads the model and never
-  // blocks a search request.
-  const storage = createFileProfile({
-    externalPolicy: (item) => externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel }),
+  // Y-05a: STORAGE_PROFILE picks implementation behind the same contracts. The file profile stays
+  // the default (behaviour unchanged); the sqlite profile owns its database file under DATA_DIR so a
+  // caller-provided root still matches ADR-009 rule 1.
+  const storageKind = readStorageProfileKind();
+  const fileStorageOptions = {
+    externalPolicy: (item: { project: string; trustLevel?: 'system' | 'user' | 'external' }) =>
+      externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel }),
     embeddingProvider: async () => {
       if (externalEmbeddingConfig.enabled) {
         const problem = externalEmbeddingConfigProblem(externalEmbeddingConfig);
@@ -454,7 +459,12 @@ export async function createServerContext(): Promise<ServerContext> {
       }
       return createFileEmbeddingProvider(candidate as EmbeddingAdapterLike);
     },
-  });
+  };
+  const storage =
+    storageKind === 'sqlite'
+      ? createSqliteProfile({ databasePath: path.join(DATA_DIR, '.index', 'storage.sqlite') })
+      : createFileProfile(fileStorageOptions);
+  log.info({ storageProfile: storage.manifest.profile }, 'storage profile selected');
 
   const ctx: ServerContext = {
     server,
