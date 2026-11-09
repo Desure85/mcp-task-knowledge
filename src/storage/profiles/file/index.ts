@@ -44,6 +44,10 @@ import {
   updateDoc,
 } from '../../knowledge.js';
 import { resolveStoreId } from '../../../search/fts-index.js';
+import { createProject, deleteProject, getProjectDetail, listProjects, readProjectMetadata, updateProjectMeta } from '../../../projects.js';
+import { loadProjectWorkflow } from '../../../workflow.js';
+import { EventLog } from '../../../sync/event-log.js';
+import { withFileLock } from '../../../fs.js';
 import {
   StoreError,
   type CreateDocInput,
@@ -53,6 +57,13 @@ import {
   type DocPatch,
   type DocStore,
   type DocVersionInfo,
+  type EntityEventEntry,
+  type EventLogStore,
+  type HistoryKind,
+  type HistoryProvider,
+  type LockProvider,
+  type ProjectStore,
+  type SnapshotRecord,
   type StorageProfile,
   type StoreManifest,
   type TaskListFilter,
@@ -187,6 +198,104 @@ class FileDocStore implements DocStore {
   }
 }
 
+// ─── Y-02b: project metadata, event log, history, locks ─────────────────────
+
+class FileProjectStore implements ProjectStore {
+  async list(getCurrent: () => string) {
+    const result = await listProjects(getCurrent);
+    return result.projects;
+  }
+
+  detail(projectId: string, getCurrent: () => string) {
+    return getProjectDetail(projectId, getCurrent);
+  }
+
+  create(projectId: string, description?: string) {
+    return createProject(projectId, description);
+  }
+
+  remove(projectId: string, force: boolean) {
+    return deleteProject(projectId, force);
+  }
+
+  readMetadata(projectId: string) {
+    return readProjectMetadata(projectId);
+  }
+
+  updateMetadata(projectId: string, updates: Parameters<ProjectStore['updateMetadata']>[1]) {
+    return updateProjectMeta(projectId, updates);
+  }
+
+  workflow(project: string) {
+    return loadProjectWorkflow(project);
+  }
+}
+
+/** Event log over `EventLog`, one instance per storage directory (as the sync manager does). */
+class FileEventLogStore implements EventLogStore {
+  private readonly log: EventLog;
+
+  constructor(storagePath: string) {
+    this.log = new EventLog({ storagePath });
+  }
+
+  append(
+    entityId: string,
+    entityType: 'task' | 'knowledge',
+    operation: 'create' | 'update' | 'delete',
+    snapshot: Record<string, unknown> | null,
+    version: number,
+  ): EntityEventEntry {
+    return this.log.append(entityId, entityType, operation, snapshot, version);
+  }
+
+  since(eventId: number, limit?: number): EntityEventEntry[] {
+    return this.log.getEventsSince(eventId, limit);
+  }
+
+  snapshot(entityId: string): SnapshotRecord | undefined {
+    return this.log.getSnapshot(entityId);
+  }
+
+  snapshots(): SnapshotRecord[] {
+    return this.log.getAllSnapshots();
+  }
+
+  compact(): { compacted: number; remaining: number } {
+    return this.log.compact();
+  }
+}
+
+class FileHistoryProvider implements HistoryProvider {
+  async list(project: string, kind: HistoryKind, id: string): Promise<DocVersionInfo[]> {
+    if (kind !== 'doc') {
+      throw new StoreError('CAPABILITY_UNAVAILABLE', `The file profile has no ${kind} history`, {
+        capability: 'history',
+        kind,
+        hint: 'task history is git (stage R) and is not exposed through the storage contract',
+      });
+    }
+    return listDocVersions(project, id);
+  }
+
+  async restore(project: string, kind: HistoryKind, id: string, version: number) {
+    if (kind !== 'doc') {
+      throw new StoreError('CAPABILITY_UNAVAILABLE', `The file profile has no ${kind} history`, {
+        capability: 'history',
+        kind,
+        hint: 'task history is git (stage R) and is not exposed through the storage contract',
+      });
+    }
+    return restoreDocVersion(project, id, version);
+  }
+}
+
+class FileLockProvider implements LockProvider {
+  withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    return withFileLock(key, fn);
+  }
+}
+
 /** Build the file profile (files and git) behind the storage contracts. */
 export function createFileProfile(options: FileProfileOptions = {}): StorageProfile {
   const roots = {
@@ -207,12 +316,16 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
       efficientListing: true,
     },
     roots,
-    collections: ['tasks', 'docs'],
+    collections: ['tasks', 'docs', 'projects', 'events', 'history', 'locks'],
   };
 
   return {
     manifest,
     tasks: new FileTaskStore(),
     docs: new FileDocStore(),
+    project: new FileProjectStore(),
+    events: (storagePath: string) => new FileEventLogStore(storagePath),
+    history: new FileHistoryProvider(),
+    locks: new FileLockProvider(),
   };
 }

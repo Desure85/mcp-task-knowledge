@@ -45,7 +45,7 @@ afterAll(async () => {
 describe('Y-02a: profile manifest', () => {
   it('describes the file profile and its roots', () => {
     expect(profile.manifest.profile).toBe('file');
-    expect(profile.manifest.collections).toEqual(['tasks', 'docs']);
+    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'events', 'history', 'locks']);
     expect(profile.manifest.capabilities).toEqual({
       transactions: false,
       history: true,
@@ -252,5 +252,124 @@ describe('Y-02a: knowledge contract (file profile)', () => {
     const readAgain = await readDoc(PROJECT, created.id);
     // The stored body gains a trailing newline from the markdown writer; compare the text.
     expect(readAgain?.content.trimEnd()).toBe(restored!.content.trimEnd());
+  });
+});
+
+describe('Y-02b: project metadata contract (file profile)', () => {
+  const PROJECT_ID = `y02b-${process.pid}`;
+
+  it('creates, lists, details, updates metadata and deletes a project', async () => {
+    const created = await profile.project.create(PROJECT_ID, 'contract project');
+    expect(created.id).toBe(PROJECT_ID);
+
+    const listed = await profile.project.list(() => 'mcp');
+    expect(listed.some((project) => project.id === PROJECT_ID)).toBe(true);
+
+    const detail = await profile.project.detail(PROJECT_ID, () => 'mcp');
+    expect(detail?.id).toBe(PROJECT_ID);
+    expect(detail?.metadata?.description).toBe('contract project');
+
+    const updated = await profile.project.updateMetadata(PROJECT_ID, { description: 'updated through the contract' });
+    expect(updated?.description).toBe('updated through the contract');
+    expect((await profile.project.readMetadata(PROJECT_ID))?.description).toBe('updated through the contract');
+
+    const workflow = await profile.project.workflow(PROJECT_ID);
+    expect(Array.isArray(workflow.statuses)).toBe(true);
+    expect(workflow.statuses.length).toBeGreaterThan(0);
+
+    const removed = await profile.project.remove(PROJECT_ID, true);
+    expect(removed.deleted).toBe(true);
+    expect(await profile.project.detail(PROJECT_ID, () => 'mcp')).toBeNull();
+  });
+});
+
+describe('Y-02b: lock contract (file profile)', () => {
+  it('never runs two critical sections of the same key at once', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const finished: number[] = [];
+
+    await Promise.all(
+      [1, 2, 3].map((index) =>
+        profile.locks.withLock('contract-lock', async () => {
+          active++;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          active--;
+          finished.push(index);
+        }),
+      ),
+    );
+
+    expect(maxActive).toBe(1);
+    expect(finished).toHaveLength(3);
+  });
+
+  it('releases the section after a failure', async () => {
+    await expect(
+      profile.locks.withLock('contract-lock', async () => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+
+    await expect(profile.locks.withLock('contract-lock', async () => 'ok')).resolves.toBe('ok');
+  });
+});
+
+describe('Y-02b: history contract (file profile)', () => {
+  it('lists and restores document versions', async () => {
+    const created = await profile.docs.create({ project: PROJECT, title: 'history doc', content: 'first' });
+    await profile.docs.update(PROJECT, created.id, { content: 'second' });
+    await profile.docs.update(PROJECT, created.id, { content: 'third' });
+
+    const versions = await profile.history.list(PROJECT, 'doc', created.id);
+    expect(versions.length).toBeGreaterThan(0);
+    expect(versions).toEqual(await profile.docs.versions(PROJECT, created.id));
+
+    const oldest = versions.reduce((min, item) => (item.version < min.version ? item : min), versions[0]);
+    const restored = await profile.history.restore(PROJECT, 'doc', created.id, oldest.version);
+    expect(restored).not.toBeNull();
+    expect(restored!.id).toBe(created.id);
+  });
+
+  it('refuses task history with an explicit capability error', async () => {
+    await expect(profile.history.list(PROJECT, 'task', 'any-id')).rejects.toMatchObject({
+      code: 'CAPABILITY_UNAVAILABLE',
+    });
+    await expect(profile.history.restore(PROJECT, 'task', 'any-id', 1)).rejects.toMatchObject({
+      code: 'CAPABILITY_UNAVAILABLE',
+    });
+  });
+});
+
+describe('Y-02b: event log contract (file profile)', () => {
+  let storage: string;
+
+  beforeAll(() => {
+    storage = fs.mkdtempSync(path.join(os.tmpdir(), 'y02b-events-'));
+  });
+
+  afterAll(() => {
+    fs.rmSync(storage, { recursive: true, force: true });
+  });
+
+  it('appends, replays, snapshots and compacts events', () => {
+    // `storagePath` is the log file itself (EventLog rewrites it atomically per append).
+    const log = profile.events(path.join(storage, 'sync-events.json'));
+    const first = log.append('entity-1', 'task', 'create', { id: 'entity-1', title: 'first' }, 1);
+    const second = log.append('entity-1', 'task', 'update', { id: 'entity-1', title: 'second' }, 2);
+
+    expect(second.eventId).toBeGreaterThan(first.eventId);
+    expect(log.since(first.eventId).map((event) => event.eventId)).toEqual([second.eventId]);
+    expect(log.since(0).map((event) => event.eventId)).toEqual([first.eventId, second.eventId]);
+
+    // Snapshots are built by `compact()` (that is where the file profile folds the log).
+    const compacted = log.compact();
+    expect(compacted.compacted).toBeGreaterThanOrEqual(1);
+    expect(compacted.remaining).toBe(0);
+
+    const snapshot = log.snapshot('entity-1');
+    expect(snapshot?.state).toMatchObject({ title: 'second' });
+    expect(log.snapshots().map((entry) => entry.entityId)).toEqual(['entity-1']);
   });
 });
