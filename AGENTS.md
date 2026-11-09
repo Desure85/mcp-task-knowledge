@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05a закрыты)
-**Текущая ветка:** fix/executable-docs-timeout (от origin/master 51be937, PR #337 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05a; дальше Y-05b (поиск/векторы)
-**Статус:** Правка стабильности DX-24: `executable-docs` больше не падает по 60-секундному бюджету `execFile` под контеншеном CI — бюджет скана 180 с, hook 240 с, сам скан и проверки не менялись. **Дальше: Y-05b1** — `SearchProvider` на FTS5 внутри SQLite-БД (инкрементальный индекс, dirty/fill-состояние, кандидаты), затем Y-05b2 — `VectorProvider` на `sqlite-vec` и индексация, Y-05c — диагностика/бенчмарк/Docker-гейт.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05a закрыты; Y-05b1 сделан)
+**Текущая ветка:** feat/y05b1-sqlite-fts (от origin/master 13550dc, PR #338 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05a; Y-05 в работе (b1 готов; дальше b2/c)
+**Статус:** `Y-05b1` → done: поиск в SQLite-профиле — FTS5 в той же БД, тексты из общих `buildTextForTask/Doc`, живое сопровождение индекса (архив/trash убирают строки, restore возвращает), `dirty/fillState/isIndexComplete/ensureIndexed`, кандидаты по `bm25` с изоляцией проектов, стабильные store id и `countTasks` для AC-05; `capabilities.fullText=true`. 28 SQLite-тестов, 62/62 затронутых, 5 мутаций RED. **Дальше: Y-05b2** — `VectorProvider` на `sqlite-vec` (или объявленная недоступность с фолбэком) и проводка индексации, затем Y-05c — диагностика/бенчмарк/Docker-гейт.
+
+### Сессия S-20261109-night (Y-05b1 — FTS5 SearchProvider на SQLite)
+
+- Таблица `search_fts` в той же БД: `unicode61`, id UNINDEXED, title+body из `buildTextForTask/Doc` (общий текст с BM25-путём); `search_index_state(project, complete, dirty)`.
+- Живое сопровождение: create/update/restore/delete и lifecycle-переходы обновляют строки; ошибка записи не валит мутацию, а помечает проект dirty. `ensureIndexed` пересобирает проект и ставит complete; `isIndexComplete/fillState/available/dirty` честные.
+- Кандидаты: `bm25(search_fts)` с фильтрами store/kind/project, положительный score; пользовательский запрос токенизируется и цитируется (синтаксис FTS5 из ввода не ломает поиск). `taskStoreId/docStoreId` — `sqlite:tasks`/`sqlite:docs`; `countTasks(project)` для AC-05.
+- Манифест: `capabilities.fullText=true`; векторы/индексация — Y-05b2.
+- Проверено: 28/28 SQLite-тестов, 62/62 затронутых, tsc-test чистый; 5 мутаций RED.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0050-y-05b1.md`.
 
 ### Сессия S-20261109-night (правка DX-24 executable-docs)
 
