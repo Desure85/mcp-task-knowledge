@@ -47,6 +47,7 @@ import { resolveStoreId } from '../../../search/fts-index.js';
 import { createProject, deleteProject, getProjectDetail, listProjects, readProjectMetadata, updateProjectMeta } from '../../../projects.js';
 import { loadProjectWorkflow } from '../../../workflow.js';
 import { EventLog } from '../../../sync/event-log.js';
+import { findFileByIdVersion, listPromptVersions, listSourceJsonFiles, readPromptBuildItems, readPromptsCatalog } from '../../../prompts/files.js';
 import { withFileLock } from '../../../fs.js';
 import {
   StoreError,
@@ -63,6 +64,10 @@ import {
   type HistoryProvider,
   type LockProvider,
   type ProjectStore,
+  type PromptRecord,
+  type PromptSourceFile,
+  type PromptStore,
+  type PromptVersionRef,
   type SnapshotRecord,
   type StorageProfile,
   type StoreManifest,
@@ -290,6 +295,62 @@ class FileHistoryProvider implements HistoryProvider {
   }
 }
 
+class FilePromptStore implements PromptStore {
+  async list(project: string): Promise<PromptSourceFile[]> {
+    const files = await listSourceJsonFiles(project);
+    const out: PromptSourceFile[] = [];
+    for (const file of files) {
+      try {
+        const { readFile } = await import('node:fs/promises');
+        const data = JSON.parse(await readFile(file, 'utf8')) as Record<string, any>;
+        const id = typeof data?.id === 'string' ? data.id : undefined;
+        const version = typeof data?.version === 'string' ? data.version : undefined;
+        if (!id || !version) continue;
+        const kind = typeof data?.metadata?.kind === 'string' ? data.metadata.kind : 'prompt';
+        out.push({ id, version, kind, path: file });
+      } catch {
+        // Malformed source files are skipped, exactly as the prompt tools skip them today.
+      }
+    }
+    return out;
+  }
+
+  async get(project: string, id: string, version?: string): Promise<PromptRecord | null> {
+    let target = version;
+    if (!target) {
+      const versions = await listPromptVersions(project, id);
+      const latest = versions[versions.length - 1];
+      if (!latest) return null;
+      target = latest.version;
+    }
+    const file = await findFileByIdVersion(project, id, target);
+    if (!file) return null;
+    try {
+      const { readFile } = await import('node:fs/promises');
+      const data = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+      const kind =
+        typeof (data.metadata as Record<string, unknown> | undefined)?.kind === 'string'
+          ? ((data.metadata as Record<string, unknown>).kind as string)
+          : 'prompt';
+      return { id, version: target, kind, path: file, data };
+    } catch {
+      return null;
+    }
+  }
+
+  versions(project: string, id: string): Promise<PromptVersionRef[]> {
+    return listPromptVersions(project, id);
+  }
+
+  async catalog(project: string): Promise<Record<string, unknown> | null> {
+    return (await readPromptsCatalog(project)) as Record<string, unknown> | null;
+  }
+
+  buildItems(project: string) {
+    return readPromptBuildItems(project);
+  }
+}
+
 class FileLockProvider implements LockProvider {
   withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     return withFileLock(key, fn);
@@ -316,7 +377,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
       efficientListing: true,
     },
     roots,
-    collections: ['tasks', 'docs', 'projects', 'events', 'history', 'locks'],
+    collections: ['tasks', 'docs', 'projects', 'prompts', 'events', 'history', 'locks'],
   };
 
   return {
@@ -324,6 +385,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     tasks: new FileTaskStore(),
     docs: new FileDocStore(),
     project: new FileProjectStore(),
+    prompts: new FilePromptStore(),
     events: (storagePath: string) => new FileEventLogStore(storagePath),
     history: new FileHistoryProvider(),
     locks: new FileLockProvider(),

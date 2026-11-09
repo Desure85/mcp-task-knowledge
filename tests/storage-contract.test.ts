@@ -15,10 +15,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { createFileProfile } from '../src/storage/profiles/file/index.js';
 import { StoreError, type StorageProfile } from '../src/storage/contracts.js';
-import { KNOWLEDGE_DIR, TASKS_DIR } from '../src/config.js';
+import { KNOWLEDGE_DIR, PROMPTS_DIR, TASKS_DIR } from '../src/config.js';
 import { listTasks, listTasksPage, listTasksTree } from '../src/storage/tasks.js';
 import { listDocs, listDocsPage, readDoc } from '../src/storage/knowledge.js';
 import { resolveStoreId } from '../src/search/fts-index.js';
+import {
+  listPromptVersions,
+  listSourceJsonFiles,
+  readPromptBuildItems,
+  readPromptsCatalog,
+} from '../src/prompts/files.js';
 
 const PROJECT = `y02a-${process.pid}`;
 
@@ -45,7 +51,7 @@ afterAll(async () => {
 describe('Y-02a: profile manifest', () => {
   it('describes the file profile and its roots', () => {
     expect(profile.manifest.profile).toBe('file');
-    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'events', 'history', 'locks']);
+    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'prompts', 'events', 'history', 'locks']);
     expect(profile.manifest.capabilities).toEqual({
       transactions: false,
       history: true,
@@ -371,5 +377,70 @@ describe('Y-02b: event log contract (file profile)', () => {
     const snapshot = log.snapshot('entity-1');
     expect(snapshot?.state).toMatchObject({ title: 'second' });
     expect(log.snapshots().map((entry) => entry.entityId)).toEqual(['entity-1']);
+  });
+});
+
+describe('Y-02c: prompt contract (file profile)', () => {
+  const PROMPTS_PROJECT = `y02c-${process.pid}`;
+  const promptProjectBase = path.join(PROMPTS_DIR, PROMPTS_PROJECT);
+
+  beforeAll(() => {
+    fs.mkdirSync(path.join(promptProjectBase, 'prompts'), { recursive: true });
+    fs.mkdirSync(path.join(promptProjectBase, 'rules'), { recursive: true });
+    const write = (kind: 'prompts' | 'rules', file: string, data: Record<string, unknown>) =>
+      fs.writeFileSync(path.join(promptProjectBase, kind, file), `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+    write('prompts', 'demo@1.0.0.json', { id: 'demo', version: '1.0.0', metadata: { kind: 'prompt' }, template: 'first' });
+    write('prompts', 'demo@2.0.0.json', { id: 'demo', version: '2.0.0', metadata: { kind: 'prompt' }, template: 'second' });
+    write('rules', 'rule-a@1.0.0.json', { id: 'rule-a', version: '1.0.0', metadata: { kind: 'rule' }, template: 'rule' });
+  });
+
+  afterAll(() => {
+    fs.rmSync(promptProjectBase, { recursive: true, force: true });
+  });
+
+  it('lists source files with kind and path', async () => {
+    const listed = await profile.prompts.list(PROMPTS_PROJECT);
+    expect(listed).toHaveLength(3);
+    expect(listed.map((item) => item.id).sort()).toEqual(['demo', 'demo', 'rule-a']);
+    expect(listed.find((item) => item.id === 'rule-a')?.kind).toBe('rule');
+
+    const direct = await listSourceJsonFiles(PROMPTS_PROJECT);
+    expect(listed.map((item) => item.path).sort()).toEqual([...direct].sort());
+  });
+
+  it('reads one version or the latest by default', async () => {
+    const latest = await profile.prompts.get(PROMPTS_PROJECT, 'demo');
+    expect(latest?.version).toBe('2.0.0');
+    expect((latest?.data as { template?: string }).template).toBe('second');
+
+    const first = await profile.prompts.get(PROMPTS_PROJECT, 'demo', '1.0.0');
+    expect((first?.data as { template?: string }).template).toBe('first');
+
+    expect(await profile.prompts.get(PROMPTS_PROJECT, 'missing')).toBeNull();
+    expect(await profile.prompts.get(PROMPTS_PROJECT, 'demo', '9.9.9')).toBeNull();
+  });
+
+  it('lists versions oldest first and marks the latest', async () => {
+    const versions = await profile.prompts.versions(PROMPTS_PROJECT, 'demo');
+    expect(versions.map((item) => item.version)).toEqual(['1.0.0', '2.0.0']);
+    expect(versions.map((item) => item.latest)).toEqual([false, true]);
+    expect(versions).toEqual(await listPromptVersions(PROMPTS_PROJECT, 'demo'));
+  });
+
+  it('reports generated artifacts as absent until the pipeline builds them', async () => {
+    expect(await profile.prompts.catalog(PROMPTS_PROJECT)).toBeNull();
+    expect(await profile.prompts.catalog(PROMPTS_PROJECT)).toEqual(await readPromptsCatalog(PROMPTS_PROJECT));
+    expect(await profile.prompts.buildItems(PROMPTS_PROJECT)).toEqual([]);
+    expect(await profile.prompts.buildItems(PROMPTS_PROJECT)).toEqual(await readPromptBuildItems(PROMPTS_PROJECT));
+  });
+
+  it('exposes the moved helpers through the register/helpers re-exports', async () => {
+    const viaHelpers = await import('../src/register/helpers.js');
+    const viaFiles = await import('../src/prompts/files.js');
+    expect(viaHelpers.readPromptsCatalog).toBe(viaFiles.readPromptsCatalog);
+    expect(viaHelpers.readPromptBuildItems).toBe(viaFiles.readPromptBuildItems);
+    expect(viaHelpers.listPromptVersions).toBe(viaFiles.listPromptVersions);
+    expect(viaHelpers.findFileByIdVersion).toBe(viaFiles.findFileByIdVersion);
+    expect(viaHelpers.listSourceJsonFiles).toBe(viaFiles.listSourceJsonFiles);
   });
 });
