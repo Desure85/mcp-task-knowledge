@@ -60,7 +60,7 @@ export interface StoreManifest {
     knowledge?: string;
   };
   /** Collections this profile currently implements behind the contract. */
-  collections: Array<'tasks' | 'docs' | 'projects' | 'events' | 'history' | 'locks'>;
+  collections: Array<'tasks' | 'docs' | 'projects' | 'prompts' | 'events' | 'history' | 'locks'>;
 }
 
 export type StoreErrorCode = 'NOT_FOUND' | 'CONFLICT' | 'CAPABILITY_UNAVAILABLE' | 'CONFIG_MISMATCH';
@@ -307,12 +307,48 @@ export interface LockProvider {
   withLock<T>(key: string, fn: () => Promise<T>): Promise<T>;
 }
 
+// ─── Prompts (Y-02c) ────────────────────────────────────────────────────────
+
+export interface PromptVersionRef {
+  version: string;
+  path: string;
+  latest: boolean;
+}
+
+export interface PromptSourceFile {
+  id: string;
+  version: string;
+  /** `metadata.kind` of the source item (`prompt`, `rule`, `workflow`, …); defaults to `prompt`. */
+  kind: string;
+  path: string;
+}
+
+export interface PromptRecord extends PromptSourceFile {
+  data: Record<string, unknown>;
+}
+
+/**
+ * Prompt storage. Sources are one JSON file per id+version under `PROMPTS_DIR/<project>/`
+ * (`prompts`, `rules`, `workflows`, `templates`, `policies`); the generated catalog and build
+ * artifacts are read through the same contract. Writing prompts stays in the tools until the
+ * registrar moves onto the profile (Y-02d) — this increment must not change how files are named
+ * or validated.
+ */
+export interface PromptStore {
+  list(project: string): Promise<PromptSourceFile[]>;
+  get(project: string, id: string, version?: string): Promise<PromptRecord | null>;
+  versions(project: string, id: string): Promise<PromptVersionRef[]>;
+  catalog(project: string): Promise<Record<string, unknown> | null>;
+  buildItems(project: string): Promise<Array<{ id: string; text: string; item: Record<string, unknown> }>>;
+}
+
 /** What a profile exposes to `AppContainer` and, through it, to the tool modules. */
 export interface StorageProfile {
   manifest: StoreManifest;
   tasks: TaskStore;
   docs: DocStore;
   project: ProjectStore;
+  prompts: PromptStore;
   /** Event logs are created per log file, so the profile hands out a factory. */
   events(storagePath: string): EventLogStore;
   history: HistoryProvider;

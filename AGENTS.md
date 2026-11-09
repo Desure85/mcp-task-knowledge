@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-y02b (Y-02b — метаданные проекта, журнал, история и замки за контрактами)
-**Текущая ветка:** feat/y02b-infra-contracts (от origin/master 61cd7dd, PR #320 влит)
-**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-02 идёт, покрыто 4 из 6 коллекций и оба провайдера
-**Статус:** `Y-02b` → done: в `src/storage/contracts.ts` добавлены `ProjectStore`, `EventLogStore`, `HistoryProvider`, `LockProvider`; файловый профиль реализует их делегированием (`src/projects.ts`, `src/workflow.ts`, `src/sync/event-log.ts`, `src/fs.ts`); история задач честно отказывает `CAPABILITY_UNAVAILABLE`. `tests/storage-contract.test.ts` — 19 тестов. Вызовы не переключены. **Дальше: Y-02c** — промпты и память; затем **Y-02d** — профиль в `AppContainer`, регистраторы без прямых импортов и guard-тест.
+**Session ID:** S-20261109-y02c (Y-02c — промпты за контрактом)
+**Текущая ветка:** feat/y02c-prompt-contract (от origin/master dd49ca9, PR #321 влит)
+**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-02 идёт, за контрактами 5 из 6 коллекций
+**Статус:** `Y-02c` → done: файловый доступ к промптам вынесен из `src/register/helpers.ts` в `src/prompts/files.ts` (код перенесён без изменений, helpers реэкспортирует — проверено сравнением функций по ссылке); в контрактах появились `PromptStore` (list/get/versions/catalog/buildItems) и `profile.prompts`. `tests/storage-contract.test.ts` — 24 теста. Вызовы не переключены. **Дальше: Y-02d** — память (temporal graph, профили, слоистая и сессионная память); затем **Y-02e** — профиль в `AppContainer`, регистраторы без прямых импортов.
+
+### Сессия S-20261109-y02c (Y-02c — промпты за контрактом)
+
+- Новый `src/prompts/files.ts`: `readPromptsCatalog`, `readPromptBuildItems`, `listSourceJsonFiles`, `listPromptVersions`, `findFileByIdVersion`, `PromptVersionInfo` — перенос из `src/register/helpers.ts` (регистратор) без изменения путей и форматов; `helpers.ts` реэкспортирует их, инструменты не трогали.
+- `PromptStore` в `src/storage/contracts.ts`: `list` (id+version+kind+path), `get` (версия или последняя), `versions`, `catalog`, `buildItems`; `StorageProfile.prompts`, коллекция `prompts` в манифесте. Запись промптов (`prompts_bulk_create/update/delete` с валидацией и неймингом) осознанно осталась в инструментах до Y-02e — это часть переключения регистраторов, а не read-контракта.
+- Контрактные тесты проверяют не только паритет с прямыми функциями, но и то, что `register/helpers` отдаёт **те же ссылки** на функции — иначе перенос развёл бы две реализации.
+- Проверено: `npx vitest run tests/storage-contract.test.ts --maxWorkers=2` — 24/24 (5 новых); revert-check 3 мутации RED; build/type/lint/markdownlint/backlog — зелёные.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1310-y-02c.md`.
 
 ### Сессия S-20261109-y02b (Y-02b — метаданные проекта, журнал, история и замки)
 
