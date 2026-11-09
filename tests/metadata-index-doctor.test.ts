@@ -24,6 +24,8 @@ import { inspectIndex } from '../src/cli/index-inspect.js';
 import { runDoctorCli, formatReport, type DoctorPaths } from '../src/cli/doctor.js';
 import { runReindexCli } from '../src/cli/reindex.js';
 import { createMetadataIndex, resolveProjectIndexDirs } from '../src/storage/metadata-index.js';
+import { FtsSearchIndex } from '../src/search/fts-index.js';
+import { rebuildFtsIndex } from '../src/search/fts-indexer.js';
 import { createBackupArchive, readBackupArchive } from '../src/services/backup-archive.js';
 
 let ROOT: string;
@@ -76,6 +78,12 @@ async function fillIndex(project = 'acme'): Promise<void> {
     await index.fillProject({ project, dirs });
   } finally {
     index.close();
+  }
+  const fts = FtsSearchIndex.open(indexDb());
+  try {
+    await rebuildFtsIndex(fts, { tasksDir: PATHS.tasksDir, knowledgeDir: PATHS.knowledgeDir }, { project });
+  } finally {
+    fts.close();
   }
 }
 
@@ -228,7 +236,8 @@ describe('reindex', () => {
     const result = await runReindexCli(['--data', '--verify'], PATHS);
     expect(result.exitCode).toBe(1);
     expect(result.report?.mode).toBe('verify');
-    expect(result.text).toContain('1 problem(s)');
+    expect(result.text).toMatch(/\d+ problem\(s\)/);
+    expect(result.text).toContain('index rows without a file');
 
     expect(readMeta().get('built_at')).toBe(before.get('built_at'));
     expect((await inspectIndex(PATHS)).counts.orphans).toBe(1);

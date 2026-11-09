@@ -23,12 +23,17 @@
 
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
+import matter from 'gray-matter';
 import type BetterSqlite3 from 'better-sqlite3';
 import {
   METADATA_INDEX_DIR,
   METADATA_INDEX_FILE,
   METADATA_INDEX_SCHEMA_VERSION,
 } from '../storage/metadata-index.js';
+import { FTS_SCHEMA_VERSION, resolveStoreId } from '../search/fts-index.js';
+import { tokenize } from '../search/bm25.js';
+import { buildTextForDoc, buildTextForTask } from '../search/index.js';
+import type { KnowledgeDocMeta, Task } from '../types.js';
 
 type SqliteDatabase = BetterSqlite3.Database;
 
@@ -92,6 +97,29 @@ export interface IndexInspection {
   counts: { orphans: number; missing: number; drift: number; countDrift: number };
   /** Total indexed rows that no file backs, across all projects. */
   totals: { rows: number; files: number };
+  /** SC-03b: state of the FTS5 search index that lives in the same file. */
+  fts: FtsInspection;
+}
+
+export interface FtsStoreState {
+  store: string;
+  kind: IndexFindingKind;
+  rows: number;
+  /** Searchable rows the metadata index expects; null when it cannot be computed. */
+  expected: number | null;
+}
+
+export interface FtsInspection {
+  available: boolean;
+  reason?: string;
+  schemaVersion: number | null;
+  supportedSchemaVersion: number;
+  dirty: boolean;
+  dirtyReason: string | null;
+  stores: FtsStoreState[];
+  counts: { missingRows: number; extraRows: number; staleTerms: number };
+  /** Rows whose stored terms no longer match the file, plus rows without a file. */
+  samples: IndexSample[];
 }
 
 interface IndexRow {
@@ -173,16 +201,25 @@ async function openReadOnly(dbPath: string): Promise<SqliteDatabase> {
 }
 
 function readMeta(db: SqliteDatabase): Map<string, string> {
-  const rows = db.prepare<[], { key: string; value: string }>('SELECT key, value FROM meta').all();
-  return new Map(rows.map((row) => [row.key, row.value]));
+  try {
+    const rows = db.prepare<[], { key: string; value: string }>('SELECT key, value FROM meta').all();
+    return new Map(rows.map((row) => [row.key, row.value]));
+  } catch {
+    return new Map();
+  }
 }
 
 function readRows(db: SqliteDatabase, table: 'tasks' | 'docs'): IndexRow[] {
-  const rows = db
-    .prepare<[], { id: string; project: string; rel_path: string; mtime_ms: number }>(
-      `SELECT id, project, rel_path, mtime_ms FROM ${table}`,
-    )
-    .all();
+  let rows: Array<{ id: string; project: string; rel_path: string; mtime_ms: number }>;
+  try {
+    rows = db
+      .prepare<[], { id: string; project: string; rel_path: string; mtime_ms: number }>(
+        `SELECT id, project, rel_path, mtime_ms FROM ${table}`,
+      )
+      .all();
+  } catch {
+    return [];
+  }
   return rows.map((row) => ({
     id: row.id,
     project: row.project,
@@ -199,9 +236,171 @@ interface ProjectsRow {
 }
 
 function readProjects(db: SqliteDatabase): ProjectsRow[] {
-  return db
-    .prepare<[], ProjectsRow>('SELECT project, file_count, synced_at FROM projects')
-    .all();
+  try {
+    return db
+      .prepare<[], ProjectsRow>('SELECT project, file_count, synced_at FROM projects')
+      .all();
+  } catch {
+    return [];
+  }
+}
+
+function hasTable(db: SqliteDatabase, name: string): boolean {
+  const row = db
+    .prepare<[string], { name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(name);
+  return Boolean(row);
+}
+
+function countSearchable(db: SqliteDatabase, table: 'tasks' | 'docs'): number | null {
+  if (!hasTable(db, table)) return null;
+  const row = db
+    .prepare<[], { n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE archived = 0 AND trashed = 0`)
+    .get();
+  return row?.n ?? null;
+}
+
+function ftsFileCandidates(store: string, kind: IndexFindingKind, project: string, id: string): string[] {
+  const extension = kind === 'task' ? '.json' : '.md';
+  return project
+    ? [path.join(store, project, `${id}${extension}`), path.join(store, `${id}${extension}`)]
+    : [path.join(store, `${id}${extension}`)];
+}
+
+async function recomputeTerms(file: string, kind: IndexFindingKind): Promise<string | null> {
+  let raw: string;
+  try {
+    raw = await fsp.readFile(file, 'utf8');
+  } catch {
+    return null;
+  }
+  if (kind === 'task') {
+    const task = JSON.parse(raw) as Task;
+    return tokenize(buildTextForTask(task)).join(' ');
+  }
+  const parsed = matter(raw);
+  const content = parsed.content.endsWith('\n') ? parsed.content.slice(0, -1) : parsed.content;
+  return tokenize(buildTextForDoc({ ...(parsed.data as KnowledgeDocMeta), content })).join(' ');
+}
+
+/**
+ * SC-03b: the FTS table shares the metadata index file. Counts are compared against the
+ * metadata index (archived/trashed excluded, the same corpus the write hooks keep), and a
+ * bounded sample re-derives terms from the files: counts catch a missed hook, terms catch a
+ * stale row whose id and count are still right.
+ */
+async function inspectFts(
+  db: SqliteDatabase,
+  paths: IndexInspectPaths,
+  samples: number,
+): Promise<FtsInspection> {
+  const empty = (reason: string): FtsInspection => ({
+    available: false,
+    reason,
+    schemaVersion: null,
+    supportedSchemaVersion: FTS_SCHEMA_VERSION,
+    dirty: false,
+    dirtyReason: null,
+    stores: [],
+    counts: { missingRows: 0, extraRows: 0, staleTerms: 0 },
+    samples: [],
+  });
+
+  if (!hasTable(db, 'search_fts')) return empty('search index table is missing (reindex creates it)');
+
+  const meta = new Map(
+    (() => {
+      try {
+        return db
+          .prepare<[], { key: string; value: string }>('SELECT key, value FROM search_meta')
+          .all();
+      } catch {
+        return [];
+      }
+    })().map((row) => [row.key, row.value] as const),
+  );
+  const actual = new Map<string, number>();
+  for (const row of db
+    .prepare<[], { store: string; kind: string; n: number }>(
+      'SELECT store, kind, COUNT(*) AS n FROM search_fts GROUP BY store, kind',
+    )
+    .all()) {
+    actual.set(`${row.store}\u0000${row.kind}`, row.n);
+  }
+
+  const taskStore = resolveStoreId(paths.tasksDir);
+  const docStore = resolveStoreId(paths.knowledgeDir);
+  const expectedTasks = countSearchable(db, 'tasks');
+  const expectedDocs = countSearchable(db, 'docs');
+
+  const stores: FtsStoreState[] = [
+    { store: taskStore, kind: 'task', rows: actual.get(`${taskStore}\u0000task`) ?? 0, expected: expectedTasks },
+    { store: docStore, kind: 'doc', rows: actual.get(`${docStore}\u0000doc`) ?? 0, expected: expectedDocs },
+  ];
+  let extraRows = 0;
+  for (const [key, rows] of actual) {
+    const [store, kind] = key.split('\u0000') as [string, string];
+    if (stores.some((state) => state.store === store && state.kind === kind)) continue;
+    stores.push({ store, kind: kind === 'doc' ? 'doc' : 'task', rows, expected: null });
+    extraRows += rows;
+  }
+  let missingRows = 0;
+  for (const state of stores) {
+    if (state.expected === null) continue;
+    if (state.rows < state.expected) missingRows += state.expected - state.rows;
+    else extraRows += state.rows - state.expected;
+  }
+
+  const findings: IndexSample[] = [];
+  let staleTerms = 0;
+  const sampleRows = db
+    .prepare<[number], { store: string; kind: string; id: string; project: string; terms: string }>(
+      'SELECT store, kind, id, project, terms FROM search_fts ORDER BY store, kind, id LIMIT ?',
+    )
+    .all(samples);
+  for (const row of sampleRows) {
+    const kind: IndexFindingKind = row.kind === 'doc' ? 'doc' : 'task';
+    const files = ftsFileCandidates(row.store, kind, row.project, row.id);
+    let found = false;
+    for (const file of files) {
+      const terms = await recomputeTerms(file, kind);
+      if (terms === null) continue;
+      found = true;
+      if (terms !== row.terms) {
+        staleTerms++;
+        if (findings.length < samples) {
+          findings.push({
+            kind,
+            id: row.id,
+            relPath: normalizeRel(path.relative(paths.dataDir, file)),
+            project: row.project || null,
+            detail: 'stored terms differ from the file',
+          });
+        }
+      }
+      break;
+    }
+    if (!found && findings.length < samples) {
+      findings.push({
+        kind,
+        id: row.id,
+        relPath: files[0],
+        project: row.project || null,
+        detail: 'row has no file',
+      });
+    }
+  }
+
+  return {
+    available: true,
+    schemaVersion: Number(meta.get('schema_version') ?? 0),
+    supportedSchemaVersion: FTS_SCHEMA_VERSION,
+    dirty: meta.get('dirty') === '1',
+    dirtyReason: meta.get('dirty_reason') ?? null,
+    stores,
+    counts: { missingRows, extraRows, staleTerms },
+    samples: findings,
+  };
 }
 
 /**
@@ -236,6 +435,17 @@ export async function inspectIndex(
     drift: [],
     counts: { orphans: 0, missing: 0, drift: 0, countDrift: 0 },
     totals: { rows: 0, files: 0 },
+    fts: {
+      available: false,
+      reason: 'the index file is unavailable',
+      schemaVersion: null,
+      supportedSchemaVersion: FTS_SCHEMA_VERSION,
+      dirty: false,
+      dirtyReason: null,
+      stores: [],
+      counts: { missingRows: 0, extraRows: 0, staleTerms: 0 },
+      samples: [],
+    },
     ...extra,
   });
 
@@ -364,6 +574,7 @@ export async function inspectIndex(
         countDrift,
       },
       totals: { rows: taskRows.length + docRows.length, files: files.size },
+      fts: await inspectFts(db, paths, samples),
     };
   } catch (err) {
     return empty(`index cannot be read: ${(err as Error).message}`, {
@@ -413,5 +624,35 @@ export function formatIndexSection(inspection: IndexInspection): string[] {
   render('orphans', inspection.orphans);
   render('missing', inspection.missing);
   render('mtime drift', inspection.drift);
+  lines.push(...formatFtsSection(inspection.fts));
+  return lines;
+}
+
+/** SC-03b: one block for the FTS5 search index, so `doctor` and `reindex --verify` agree. */
+export function formatFtsSection(fts: FtsInspection): string[] {
+  if (!fts.available) {
+    return [`Search index: unavailable — ${fts.reason ?? 'unknown reason'}`];
+  }
+  const lines = [
+    `Search index: schema ${fts.schemaVersion} (supported ${fts.supportedSchemaVersion}), ` +
+      `dirty ${fts.dirty ? 'yes' : 'no'}${fts.dirtyReason ? ` (${fts.dirtyReason})` : ''}`,
+  ];
+  for (const state of fts.stores) {
+    lines.push(
+      `  ${state.store} [${state.kind}]: rows ${state.rows}, ` +
+        `expected ${state.expected ?? 'unknown'}`,
+    );
+  }
+  lines.push(
+    `  drift: ${fts.counts.missingRows} missing rows, ${fts.counts.extraRows} extra rows, ` +
+      `${fts.counts.staleTerms} stale term sets`,
+  );
+  if (fts.samples.length > 0) {
+    const shown = fts.samples
+      .slice(0, 3)
+      .map((sample) => `${sample.relPath} (${sample.detail ?? 'drift'})`)
+      .join(', ');
+    lines.push(`  stale: ${shown}${fts.samples.length > 3 ? ', …' : ''}`);
+  }
   return lines;
 }

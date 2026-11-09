@@ -425,10 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-y01 (Y-01 — ADR подключаемого хранилища и эмбеддингов; opencode `ses_e4370483fffeYPNZ0eg2AFAyIm`)
-**Текущая ветка:** docs/y01-storage-adr (worktree `/home/dm/work/mcp-tk-y01`, от origin/master 37af5fb)
-**Текущий этап:** Y — подключаемое хранилище и эмбеддинги; Y-01 в review, Y-02 после приёмки ADR владельцем
-**Статус:** `Y-01` → review: ADR-009 (Proposed) фиксирует семь интерфейсов, три профиля, манифест возможностей, отпечаток модели, двойное чтение, переход без простоя и записывает решение Y-09; отдельный раздел сопоставляет уже реализованные `metadata-index` (SC-02) и `search_fts` (SC-03a/03a2) с интерфейсами и разрешает SC-03b/03c идти на файловом профиле. **Дальше: приёмка ADR владельцем**, затем Y-02.
+**Session ID:** S-20261108-sc03b (SC-03b — запись FTS5-индекса при мутациях; opencode `ses_e43623a76ffes2ma8BMNZ07cXk`)
+**Текущая ветка:** feat/sc03b-fts-writes (worktree `/home/dm/work/mcp-tk-sc03b`, от origin/master 9275006)
+**Текущий этап:** SC — инвертированный индекс поиска; SC-03b в review, SC-03c после мержа
+**Статус:** `SC-03b` → review: индекс FTS5 пишется при мутациях storage-слоя, `reindex`/`doctor` показывают расхождение и неполноту; read-путь не тронут, `SC-03` остаётся `pending` до SC-03c. **Дальше: мерж PR**, затем SC-03c (чтение из индекса с откатом на BM25).
+
+### Сессия S-20261108-sc03b (SC-03b — запись FTS5-индекса при мутациях)
+
+- `src/search/fts-indexer.ts`: `setActiveFtsIndex`, `noteTaskWritten`/`noteDocWritten`, `noteTaskRemoved`/`noteDocRemoved`, `noteProjectRemoved`, `rebuildFtsIndex` (полная и проектная пересборка). Текст — `buildTextForTask`/`buildTextForDoc` (паритет с BM25), store — `resolveStoreId(TASKS_DIR|KNOWLEDGE_DIR)`.
+- Хуки в storage-слое рядом с metadata-индексом: `tasks.ts` (create/update/move/delete), `knowledge.ts` (create/update/delete), `projects.ts` (удаление проекта). Bulk-инструменты и `project_purge` идут через те же функции, поэтому покрыты без отдельных хуков.
+- archived/trashed удаляют строку, restore возвращает. Сбой записи индекса не валит мутацию: лог + `search_meta.dirty`, снимается `reindex`.
+- `AppContainer` открывает FTS вторым соединением к `DATA_DIR/.index/metadata.db` под тем же `STORAGE_INDEX`; после миграций схемы ставит dirty.
+- `index-inspect` считает строки по `(store, kind)` против metadata-индекса и перепроверяет термы на выборке; `reindex --verify` → exit 1 при расхождении, обычный `reindex` чинит вместо пропуска; `doctor` предупреждает `fts-unavailable|dirty|drift|stale-terms`.
+- Тесты: 8 новых в `tests/search-fts.test.ts` (28 в файле), фикстура `metadata-index-doctor` строит и FTS. Revert-check 4 мутации RED. Живая проба на копии `/data` (597 задач/570 доков): 978 строк, ±1 на create/trash/restore/delete.
+- **Полный прогон на этой машине — только `npx vitest run --maxWorkers=4`**: без лимита 72 ядра поднимают ~70 воркеров по ~0,9 ГБ и машина уходит в перезагрузку (инцидент 2026-11-08/09).
 
 ### Сессия S-20261108-y01 (Y-01 — ADR хранилища и эмбеддингов)
 

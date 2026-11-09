@@ -31,6 +31,7 @@ import {
   noteIndexPageRead,
   resolveProjectIndexDirs,
 } from './metadata-index.js';
+import { noteTaskRemoved, noteTaskWritten } from '../search/fts-indexer.js';
 
 const log = childLogger('storage:tasks');
 
@@ -57,10 +58,12 @@ export async function deleteTaskPermanent(project: string, id: string): Promise<
   const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
   if (!(await pathExists(p))) {
     indexTaskDelete(id);
+    noteTaskRemoved(project, id);
     return false;
   }
   await fs.unlink(p);
   indexTaskDelete(id);
+  noteTaskRemoved(project, id);
   return true;
 }
 
@@ -112,6 +115,7 @@ export async function createTask(input: {
     const filePath = path.join(await tasksProjectDir(input.project), `${id}.json`);
     await writeJson(filePath, task);
     await indexTaskWrite(input.project, task, filePath);
+    noteTaskWritten(task);
     return task;
   });
 }
@@ -775,6 +779,7 @@ async function updateTaskUnlocked(
   const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
   await writeJson(p, updated);
   await indexTaskWrite(project, updated, p);
+  noteTaskWritten(updated);
   return updated;
 }
 
@@ -805,6 +810,7 @@ export async function moveTasksToType(project: string, ids: string[], type: stri
       const file = taskFilePath(project, id);
       await writeJson(file, moved);
       await indexTaskWrite(project, moved, file);
+      noteTaskWritten(moved);
       return moved;
     });
     if (next) updated.push(next);
@@ -823,6 +829,7 @@ export async function moveTasksToStatus(project: string, ids: string[], status: 
       const file = taskFilePath(project, id);
       await writeJson(file, moved);
       await indexTaskWrite(project, moved, file);
+      noteTaskWritten(moved);
       return moved;
     });
     if (next) updated.push(next);

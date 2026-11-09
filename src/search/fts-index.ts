@@ -69,6 +69,8 @@ export interface FtsStats {
   docs: number;
   schemaVersion: number;
   dbBytes: number;
+  /** SC-03b: a write failed and the index may be missing rows. Cleared by `rebuild`. */
+  dirty: boolean;
 }
 
 export interface FtsStoreStats {
@@ -187,18 +189,51 @@ export class FtsSearchIndex {
     return result.changes > 0;
   }
 
-  /** Replace the whole index (all stores) in one transaction. */
+  /** Replace the whole index (all stores) in one transaction; clears the dirty flag. */
   rebuild(records: FtsRecord[]): number {
     const run = this.db.transaction((batch: FtsRecord[]) => {
       this.db.exec('DELETE FROM search_fts');
       return this.upsert(batch);
     });
-    return run(records);
+    const written = run(records);
+    this.clearDirty();
+    return written;
   }
 
   /** Drop everything belonging to one store (project deletion / reindex of one storage). */
   clearStore(store: string): number {
     return this.db.prepare('DELETE FROM search_fts WHERE store = ?').run(store).changes;
+  }
+
+  /**
+   * SC-03b: drop every row of one project inside one store. Project deletion removes whole
+   * directories, so per-row `remove` calls never happen and the rows would otherwise survive.
+   */
+  removeProject(store: string, project: string): number {
+    return this.db
+      .prepare('DELETE FROM search_fts WHERE store = ? AND project = ?')
+      .run(store, project).changes;
+  }
+
+  /**
+   * SC-03b: mark the index as possibly incomplete without throwing. Used when a write hook
+   * fails: the file is already written and stays the source of truth, `reindex` repairs.
+   */
+  markDirty(reason: string): void {
+    this.setMeta('dirty', '1');
+    this.setMeta('dirty_reason', reason);
+  }
+
+  isDirty(): boolean {
+    return this.meta('dirty') === '1';
+  }
+
+  dirtyReason(): string | undefined {
+    return this.meta('dirty_reason');
+  }
+
+  clearDirty(): void {
+    this.db.prepare("DELETE FROM search_meta WHERE key IN ('dirty', 'dirty_reason')").run();
   }
 
   /**
@@ -265,6 +300,7 @@ export class FtsSearchIndex {
       docs,
       schemaVersion: Number(this.meta('schema_version') ?? 0),
       dbBytes: pageCount * pageSize,
+      dirty: this.isDirty(),
     };
   }
 

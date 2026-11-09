@@ -412,6 +412,41 @@ async function inspectIndexForReport(paths: DoctorPaths, issues: DoctorIssue[]):
       detail: `projects served from files until filled: ${incomplete.map((project) => project.project).join(', ')}`,
     });
   }
+
+  const fts = index.fts;
+  if (!fts.available) {
+    issues.push({
+      level: 'warn',
+      check: 'fts-unavailable',
+      file,
+      detail: `${fts.reason ?? 'unknown reason'}; \`reindex --data\` builds it`,
+    });
+  } else {
+    if (fts.dirty) {
+      issues.push({
+        level: 'warn',
+        check: 'fts-dirty',
+        file,
+        detail: `a write to the search index failed${fts.dirtyReason ? ` (${fts.dirtyReason})` : ''}; \`reindex --data\` clears the flag`,
+      });
+    }
+    if (fts.counts.missingRows > 0 || fts.counts.extraRows > 0) {
+      issues.push({
+        level: 'warn',
+        check: 'fts-drift',
+        file,
+        detail: `${fts.counts.missingRows} searchable rows missing, ${fts.counts.extraRows} extra`,
+      });
+    }
+    if (fts.counts.staleTerms > 0) {
+      issues.push({
+        level: 'warn',
+        check: 'fts-stale-terms',
+        file,
+        detail: `${fts.counts.staleTerms} rows whose terms no longer match the file${example(fts.samples)}`,
+      });
+    }
+  }
   return index;
 }
 
