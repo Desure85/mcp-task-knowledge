@@ -30,6 +30,10 @@ import type {
   TaskTreeNode,
   TrustLevel,
 } from '../types.js';
+// Domain types of the modules this contract abstracts. Both are wire-visible shapes today, and
+// duplicating them here would let the contract and the tools drift apart.
+import type { ProjectDetail, ProjectInfo, ProjectMetadata, ProjectMetaUpdates } from '../projects.js';
+import type { ProjectWorkflow } from '../workflow.js';
 
 /** ADR-009 §"Возможности профиля": what a profile promises, checked by the contract tests. */
 export interface StoreCapabilities {
@@ -56,7 +60,7 @@ export interface StoreManifest {
     knowledge?: string;
   };
   /** Collections this profile currently implements behind the contract. */
-  collections: Array<'tasks' | 'docs'>;
+  collections: Array<'tasks' | 'docs' | 'projects' | 'events' | 'history' | 'locks'>;
 }
 
 export type StoreErrorCode = 'NOT_FOUND' | 'CONFLICT' | 'CAPABILITY_UNAVAILABLE' | 'CONFIG_MISMATCH';
@@ -227,10 +231,91 @@ export interface DocStore {
   restoreVersion(project: string, id: string, version: number): Promise<KnowledgeDoc | null>;
 }
 
+// ─── Project metadata (Y-02b) ───────────────────────────────────────────────
+
+/**
+ * Project metadata and workflow behind the contract. The returned shapes are the current ones —
+ * Y-02 changes the access seam, not the wire format, so `paths` stays until a separate
+ * wire-contract change removes filesystem paths from tool responses (ADR-009 rule 2 is a target,
+ * not something this increment may silently change).
+ */
+export interface ProjectStore {
+  list(getCurrent: () => string): Promise<ProjectInfo[]>;
+  detail(projectId: string, getCurrent: () => string): Promise<ProjectDetail | null>;
+  create(projectId: string, description?: string): Promise<ProjectInfo>;
+  remove(projectId: string, force: boolean): Promise<{ deleted: boolean; message: string }>;
+  readMetadata(projectId: string): Promise<ProjectMetadata | null>;
+  updateMetadata(projectId: string, updates: ProjectMetaUpdates): Promise<ProjectMetadata | null>;
+  workflow(project: string): Promise<ProjectWorkflow>;
+}
+
+// ─── Event log (Y-02b) ──────────────────────────────────────────────────────
+
+export interface EntityEventEntry {
+  eventId: number;
+  entityId: string;
+  entityType: 'task' | 'knowledge';
+  operation: 'create' | 'update' | 'delete';
+  snapshot: Record<string, unknown> | null;
+  timestamp: string;
+  version: number;
+}
+
+export interface SnapshotRecord {
+  entityId: string;
+  entityType: 'task' | 'knowledge';
+  state: Record<string, unknown> | null;
+  lastEventId: number;
+  timestamp: string;
+}
+
+/**
+ * Event log over the profile. The file profile keeps it in `storagePath` (a directory the caller
+ * passes, ADR-009 rule 1) and rewrites it atomically per append; SQLite/Postgres profiles will keep\n * it in a table.
+ */
+export interface EventLogStore {
+  append(
+    entityId: string,
+    entityType: 'task' | 'knowledge',
+    operation: 'create' | 'update' | 'delete',
+    snapshot: Record<string, unknown> | null,
+    version: number,
+  ): EntityEventEntry;
+  since(eventId: number, limit?: number): EntityEventEntry[];
+  snapshot(entityId: string): SnapshotRecord | undefined;
+  snapshots(): SnapshotRecord[];
+  compact(): { compacted: number; remaining: number };
+}
+
+// ─── History and locks (Y-02b) ──────────────────────────────────────────────
+
+/** Entities whose versions the profile can expose. The file profile has document versions only. */
+export type HistoryKind = 'doc' | 'task';
+
+/**
+ * Versions of an entity. The file profile stores document snapshots in `.versions` (TD-005);
+ * task history is git's business (stage R) and is not exposed here — asking for it must raise
+ * `CAPABILITY_UNAVAILABLE`, never return an empty list that looks like "no versions".
+ */
+export interface HistoryProvider {
+  list(project: string, kind: HistoryKind, id: string): Promise<DocVersionInfo[]>;
+  restore(project: string, kind: HistoryKind, id: string, version: number): Promise<KnowledgeDoc | null>;
+}
+
+/** Critical sections and exclusive access. */
+export interface LockProvider {
+  withLock<T>(key: string, fn: () => Promise<T>): Promise<T>;
+}
+
 /** What a profile exposes to `AppContainer` and, through it, to the tool modules. */
 export interface StorageProfile {
   manifest: StoreManifest;
   tasks: TaskStore;
   docs: DocStore;
+  project: ProjectStore;
+  /** Event logs are created per log file, so the profile hands out a factory. */
+  events(storagePath: string): EventLogStore;
+  history: HistoryProvider;
+  locks: LockProvider;
   close?(): void;
 }
