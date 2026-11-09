@@ -1500,6 +1500,67 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Y-02d | Память за контрактами | done | `npx vitest run tests/storage-contract.test.ts --maxWorkers=2` (часть 4); pass — `MemoryStore` с фабриками `temporal(storagePath)`, `profiles(storagePath)`, `layered(options)`, `session(options)`; интерфейсы `TemporalMemoryStore`/`ProfileMemoryStore`/`LayeredMemoryStore`/`SessionMemoryStore`; операции через профиль персистентны (второй экземпляр на том же пути читает то же состояние), все классы совместимы структурно. Реализовано (2026-11-09): контракты в `src/storage/contracts.ts`, `FileMemoryStore` в файловом профиле создаёт существующие классы (`TemporalGraph`, `ProfileManager`, `LayeredMemory`, `SessionMemory`); пути по-прежнему задаёт вызывающий. Тесты: 28 в файле (4 новых). Revert-check 3 мутации RED |
 | Y-02e | Профиль в `AppContainer`, регистраторы без прямых импортов | pending | `npx vitest run tests/storage-contract.test.ts` (часть 5) и guard-тест: в `src/register/**` нет импортов `src/storage/*`, `src/prompts/files.js` и `src/search/fts-index.ts`; pass — регистраторы получают хранилища из контекста, все прежние тесты инструментов зелёные, wire-формат не изменился |
 
+### Подпункты остатка этапа Y (план 2026-11-09)
+
+> План целиком — [`docs/dev-cycle/plans/2026-11-09-y-stage.md`](docs/dev-cycle/plans/2026-11-09-y-stage.md);
+> решение о плане — `docs/dev-cycle/decisions/2026-11-09-1405-y-stage-plan.md`. Подпункты вне счётчика
+> «Итого»; каждый — отдельная ветка и PR. Закрытие этапа — по условию из §5 плана.
+
+#### Y-02e — точка сборки (закрывает Y-02)
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-02e1 | S | `AppContainer` создаёт файловый `StorageProfile`, публикует в `ServerContext.storage`; guard-тест allowlist из 11 регистраторов | pending | `tests/storage-wiring.test.ts`: профиль в контексте, allowlist ровно 11 файлов, новые импорты ломают тест |
+| Y-02e2 | M | `register/tasks.ts`, `knowledge.ts`, `bulk.ts`, `markdown.ts` переходят на `ctx.storage`; allowlist 11 → 7 | pending | Существующие тесты инструментов зелёные, wire-формат не изменился, guard-тест показывает 7 |
+| Y-02e3 | M | `prompts.ts`, `memory.ts`, `search.ts`, `aliases.ts`, `resources.ts`, `search-resources.ts`, `helpers.ts` переходят на профиль; allowlist → 0 | pending | Guard-тест: 0 прямых импортов хранилищ в `src/register/**`; полный прогон `--maxWorkers=4` зелёный; Y-02 → done |
+
+#### Y-03 — разделение эмбеддингов
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-03a | M | Контракты `EmbeddingProvider`, `VectorStore`, `IndexingService`, `ChunkingStrategy`, `EmbeddingFingerprint`; файловый профиль оборачивает текущий адаптер делегированием | pending | `tests/embedding-contract.test.ts`: паритет векторов и кэша с текущим адаптером, отпечаток стабилен, chunking детерминирован |
+| Y-03b | L | Отпечаток с каждым вектором, коллекция = отпечаток + версия chunking + версия buildText; двойное чтение без слияния score, признак коллекции в хитах, статус по обеим коллекциям | pending | `tests/embedding-contract.test.ts` (часть 2): две коллекции, покрытие и добирание из старой, старые векторы не переиспользуются |
+| Y-03c | M | `IndexingService`: очередь, идемпотентность по хэшу, пауза/прогресс, warmup; `embeddings_status` очередь и скорость | pending | `tests/embedding-contract.test.ts` (часть 3): повторный хэш не добавляет работу, пауза/возобновление не теряют очередь, замер на 10k записан |
+
+#### Y-04 — внешние провайдеры эмбеддингов
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-04a | M | Политика и выбор провайдера: флаг, предупреждение при старте, приватность, ключи через SecretManager, исключения private/`trustLevel external`, лимиты и стоимость; fake-провайдер, сети нет | pending | `tests/embedding-external-policy.test.ts`: без флага внешних вызовов нет, исключения работают, ключи не в логах, лимиты срабатывают |
+| Y-04b | M | HTTP-провайдер (OpenAI-совместимый) за флагом: таймауты, ретраи, лимиты, отчёт стоимости; ошибка — признак деградации, не пустая выдача | pending | `tests/embedding-external-policy.test.ts` (часть 2) на локальном mock: успех, таймаут/5xx → ретрай и деградация, стоимость учтена, без флага запросов нет |
+
+#### Y-05 — профиль SQLite
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-05a | L | Гейт sqlite-vec (Node 24/Docker, результат в решение); `STORAGE_PROFILE=sqlite`; Store на SQLite для всех коллекций; контракт на SQLite-фабрике | pending | `tests/storage-sqlite.test.ts` + `tests/storage-contract.test.ts`: профиль по env, манифест честный, весь контракт зелёный на SQLite, file не сломан |
+| Y-05b | L | `SearchProvider` SQLite (FTS5, качество ≥ baseline), `VectorProvider` (sqlite-vec или объявленная недоступность с откатом), `HistoryProvider` (таблица версий), `LockProvider` (транзакции) | pending | `tests/search-fts.test.ts` + `tests/storage-sqlite.test.ts`: контракт SearchProvider, hit@1 ≥ baseline, векторный канал — контракт либо явный `CAPABILITY_UNAVAILABLE` с признаком |
+| Y-05c | M | Диагностика и обслуживание SQLite-профиля (`doctor`/`reindex`), бенчмарк file vs sqlite на 100k, документация | pending | `tests/storage-sqlite.test.ts` (часть 2): `doctor` показывает профиль и возможности, `reindex` работает, бенчмарк записан в `docs/benchmarks/`, конфигурация описана |
+
+#### Y-07 — BlobProvider
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-07a | S | Контракт `BlobProvider` (put/get/delete/list/size) и файловая реализация | pending | `tests/blob-provider.test.ts`: файловый провайдер проходит контракт, запись идемпотентна, отсутствующий ключ → `NOT_FOUND` |
+| Y-07b | M | S3/MinIO адаптер (SigV4 без новой зависимости), тот же контракт; прогон против MinIO в CI | pending | `tests/blob-provider.test.ts` (часть 2): оба провайдера проходят один набор; MinIO только для вложений/экспортов/копий |
+
+#### Y-06 — профиль Postgres
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-06a | L | Postgres Store, `SearchProvider` (tsvector + pg_trgm), `HistoryProvider`, `LockProvider`; схема и миграции; сервис Postgres в CI; `STORAGE_PROFILE=postgres` | pending | `tests/storage-postgres.test.ts` + `tests/storage-contract.test.ts`: весь контракт зелёный на Postgres, выбор профиля по env, другие профили не сломаны |
+| Y-06b | L | `VectorProvider` Postgres (pgvector + HNSW после гейта), оптимистичные версии (MU-02), связь с MU-01 | pending | `tests/storage-postgres.test.ts` (часть 2): векторный контракт, конфликт версий → `CONFLICT`, HNSW используется (план запроса) |
+
+#### Y-08 — migrate-storage (закрывает этап Y)
+
+| ID | Размер | Работа | Статус | DoD |
+|----|--------|--------|--------|-----|
+| Y-08a | L | Движок миграции по фазам ADR (dry-run → снимок → дельта в эксклюзивной секции → переключение → проверка → уборка), file↔sqlite; расхождения и контрольные суммы; замер окна паузы 100k | pending | `tests/storage-migrate.test.ts`: dry-run не мутирует, повторный запуск идемпотентен, откат = возврат конфигурации, отчёт с расхождениями, окно измерено |
+| Y-08b | M | Миграция в/из Postgres, runbook и отчёт; проверка на 100k или документированное ограничение среды | pending | `tests/storage-migrate.test.ts` (часть 2): Postgres как источник и цель, целостность сверена, runbook описывает шаги и откат |
+> Примечание (2026-11-09, план этапа Y): 24 инкремента, порядок и гейты — в
+> `docs/dev-cycle/plans/2026-11-09-y-stage.md`. Статусы подпунктов обновляются в их PR;
+> «Итого» не меняется.
+
 ## Статистика бэклога
 
 > Агент обновляет после каждого изменения.
