@@ -14,7 +14,7 @@ export interface SqliteDatabase {
   close(): void;
 }
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export function openSqliteDatabase(databasePath: string): SqliteDatabase {
   if (databasePath !== ':memory:') {
@@ -93,7 +93,36 @@ export function openSqliteDatabase(databasePath: string): SqliteDatabase {
       dirty integer not null default 0,
       updated_at text not null
     );
-    create index if not exists tasks_project on tasks(project);
+    create table if not exists vector_collections (
+      collection text primary key,
+      fingerprint text not null,
+      chunking_version text not null,
+      build_text_version text not null,
+      dimension integer not null,
+      active integer not null default 0,
+      read_only integer not null default 0,
+      created_at text not null
+    );
+    create table if not exists vector_rows (
+      collection text not null,
+      store text not null,
+      kind text not null,
+      project text not null,
+      id text not null,
+      fingerprint text not null,
+      vector text not null,
+      primary key (collection, store, kind, project, id)
+    );
+    create index if not exists vector_rows_identity on vector_rows(store, kind, project);
+    create table if not exists vector_keys (
+      collection text not null,
+      vec_rowid integer not null,
+      store text not null,
+      kind text not null,
+      project text not null,
+      id text not null,
+      primary key (collection, store, kind, project, id)
+    );    create index if not exists tasks_project on tasks(project);
     create index if not exists docs_project on docs(project);
   `);
   db.prepare(

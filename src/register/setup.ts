@@ -418,51 +418,57 @@ export async function createServerContext(): Promise<ServerContext> {
   // the default (behaviour unchanged); the sqlite profile owns its database file under DATA_DIR so a
   // caller-provided root still matches ADR-009 rule 1.
   const storageKind = readStorageProfileKind();
-  const fileStorageOptions = {
-    externalPolicy: (item: { project: string; trustLevel?: 'system' | 'user' | 'external' }) =>
-      externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel }),
-    embeddingProvider: async () => {
-      if (externalEmbeddingConfig.enabled) {
-        const problem = externalEmbeddingConfigProblem(externalEmbeddingConfig);
-        if (problem) {
-          log.warn({ external: true }, `external embeddings misconfigured: ${problem}`);
-          return undefined;
-        }
-        // Y-04b: OpenAI-compatible HTTP provider, created only after the secret is resolved.
-        return createExternalEmbeddingProvider({
-          config: externalEmbeddingConfig,
-          policy: externalEmbeddingGate,
-          secrets: createSecretManager(),
-          createInner: (secret) =>
-            createOpenAiCompatibleEmbeddingProvider({
-              baseUrl: externalEmbeddingConfig.baseUrl!,
-              model: externalEmbeddingConfig.model!,
-              apiKey: secret ?? '',
-            }),
-          onEvent: (event) => {
-            if (event.type === 'error') log.error({ external: true }, event.message);
-            else log.warn({ external: true }, event.message);
-          },
-        });
-      }
-
-      // Local ONNX provider: resolved lazily through ensureVectorAdapter.
-      const adapter = await ensureVectorAdapter();
-      if (!adapter) return undefined;
-      const candidate = adapter as unknown as Partial<EmbeddingAdapterLike>;
-      if (
-        typeof candidate.isReady !== 'function' ||
-        typeof candidate.fingerprint !== 'function' ||
-        typeof candidate.embed !== 'function'
-      ) {
+  const embeddingProviderFactory = async () => {
+    if (externalEmbeddingConfig.enabled) {
+      const problem = externalEmbeddingConfigProblem(externalEmbeddingConfig);
+      if (problem) {
+        log.warn({ external: true }, `external embeddings misconfigured: ${problem}`);
         return undefined;
       }
-      return createFileEmbeddingProvider(candidate as EmbeddingAdapterLike);
-    },
+      // Y-04b: OpenAI-compatible HTTP provider, created only after the secret is resolved.
+      return createExternalEmbeddingProvider({
+        config: externalEmbeddingConfig,
+        policy: externalEmbeddingGate,
+        secrets: createSecretManager(),
+        createInner: (secret) =>
+          createOpenAiCompatibleEmbeddingProvider({
+            baseUrl: externalEmbeddingConfig.baseUrl!,
+            model: externalEmbeddingConfig.model!,
+            apiKey: secret ?? '',
+          }),
+        onEvent: (event) => {
+          if (event.type === 'error') log.error({ external: true }, event.message);
+          else log.warn({ external: true }, event.message);
+        },
+      });
+    }
+
+    // Local ONNX provider: resolved lazily through ensureVectorAdapter.
+    const adapter = await ensureVectorAdapter();
+    if (!adapter) return undefined;
+    const candidate = adapter as unknown as Partial<EmbeddingAdapterLike>;
+    if (
+      typeof candidate.isReady !== 'function' ||
+      typeof candidate.fingerprint !== 'function' ||
+      typeof candidate.embed !== 'function'
+    ) {
+      return undefined;
+    }
+    return createFileEmbeddingProvider(candidate as EmbeddingAdapterLike);
+  };
+  const externalPolicy = (item: { project: string; trustLevel?: 'system' | 'user' | 'external' }) =>
+    externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel });
+  const fileStorageOptions = {
+    externalPolicy,
+    embeddingProvider: embeddingProviderFactory,
   };
   const storage =
     storageKind === 'sqlite'
-      ? createSqliteProfile({ databasePath: path.join(DATA_DIR, '.index', 'storage.sqlite') })
+      ? createSqliteProfile({
+          databasePath: path.join(DATA_DIR, '.index', 'storage.sqlite'),
+          embeddingProvider: embeddingProviderFactory,
+          externalPolicy,
+        })
       : createFileProfile(fileStorageOptions);
   log.info({ storageProfile: storage.manifest.profile }, 'storage profile selected');
 
