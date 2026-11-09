@@ -14,7 +14,7 @@ export interface SqliteDatabase {
   close(): void;
 }
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export function openSqliteDatabase(databasePath: string): SqliteDatabase {
   if (databasePath !== ':memory:') {
@@ -40,12 +40,23 @@ export function openSqliteDatabase(databasePath: string): SqliteDatabase {
       data text not null,
       primary key (project, id)
     );
+    create table if not exists projects (
+      project text primary key,
+      data text not null
+    );
+    create table if not exists doc_versions (
+      project text not null,
+      id text not null,
+      version integer not null,
+      data text not null,
+      updated_at text not null,
+      primary key (project, id, version)
+    );
     create index if not exists tasks_project on tasks(project);
     create index if not exists docs_project on docs(project);
   `);
-  db.prepare('insert into profile_meta(key, value) values(?, ?) on conflict(key) do nothing').run(
-    'schema_version',
-    String(SCHEMA_VERSION),
-  );
+  db.prepare(
+    'insert into profile_meta(key, value) values(?, ?) on conflict(key) do update set value = excluded.value',
+  ).run('schema_version', String(SCHEMA_VERSION));
   return { db, close: () => db.close() };
 }

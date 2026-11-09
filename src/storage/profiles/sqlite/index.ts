@@ -22,6 +22,7 @@ import {
   type DocPageOptions,
   type DocPatch,
   type DocStore,
+  type DocVersionInfo,
   type ProjectStore,
   type PromptStore,
   type SearchProvider,
@@ -38,6 +39,17 @@ import {
 } from '../../contracts.js';
 import type { VectorStore } from '../../../search/contracts.js';
 import type { KnowledgeDoc, KnowledgeDocMeta, Task, TaskTreeNode } from '../../../types.js';
+import { DEFAULT_PROJECT } from '../../../config.js';
+import { isValidProjectId } from '../../../projects.js';
+import type { ProjectDetail, ProjectInfo, ProjectMetadata } from '../../../projects.js';
+import {
+  DEFAULT_PROJECT_STATUSES,
+  normalizeInitialStatuses,
+  normalizeStatuses,
+  normalizeTransitions,
+  resolveCloseStatus,
+} from '../../../workflow.js';
+import type { ProjectWorkflow } from '../../../workflow.js';
 import { openSqliteDatabase, type SqliteDatabase } from './db.js';
 
 export interface SqliteProfileOptions {
@@ -313,6 +325,22 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   }
 
+  const selectDocVersions = db.prepare(
+    'select version, data, updated_at from doc_versions where project = ? and id = ? order by version',
+  );
+  const selectDocVersion = db.prepare('select data from doc_versions where project = ? and id = ? and version = ?');
+  const maxDocVersion = db.prepare(
+    'select coalesce(max(version), 0) as version from doc_versions where project = ? and id = ?',
+  );
+  const insertDocVersion = db.prepare(
+    'insert into doc_versions(project, id, version, data, updated_at) values(?, ?, ?, ?, ?)',
+  );
+
+  function recordDocVersion(doc: KnowledgeDoc): void {
+    const row = maxDocVersion.get(doc.project, doc.id) as { version: number };
+    insertDocVersion.run(doc.project, doc.id, row.version + 1, JSON.stringify(doc), doc.updatedAt);
+  }
+
   const docs: DocStore = {
     async list(filter: DocListFilter = {}): Promise<KnowledgeDocMeta[]> {
       return readAllDocs(filter.project)
@@ -354,6 +382,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         updatedAt: now,
       });
       writeDoc(doc);
+      recordDocVersion(doc);
       return doc;
     },
     async update(project: string, id: string, patch: DocPatch): Promise<KnowledgeDoc | null> {
@@ -368,6 +397,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         updatedAt: isoNow(),
       });
       writeDoc(merged);
+      recordDocVersion(merged);
       return merged;
     },
     async archive(project: string, id: string): Promise<KnowledgeDoc | null> {
@@ -393,11 +423,194 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     async deletePermanent(project: string, id: string): Promise<boolean> {
       return deleteDoc.run(project, id).changes > 0;
     },
-    async versions(): Promise<never> {
-      return unavailable('document versions');
+    async versions(project: string, id: string): Promise<DocVersionInfo[]> {
+      const rows = selectDocVersions.all(project, id) as Array<{ version: number; data: string; updated_at: string }>;
+      return rows.map((row) => {
+        const snapshot = JSON.parse(row.data) as KnowledgeDoc;
+        return { version: row.version, updatedAt: row.updated_at, title: snapshot.title };
+      });
     },
-    async restoreVersion(): Promise<never> {
-      return unavailable('document versions');
+    async restoreVersion(project: string, id: string, version: number): Promise<KnowledgeDoc | null> {
+      const row = selectDocVersion.get(project, id, version) as { data: string } | undefined;
+      if (!row) return null;
+      const snapshot = JSON.parse(row.data) as KnowledgeDoc;
+      const restored: KnowledgeDoc = { ...snapshot, project, id, updatedAt: isoNow() };
+      writeDoc(restored);
+      recordDocVersion(restored);
+      return restored;
+    },
+  };
+
+  // ─── projects (Y-05a2) ──────────────────────────────────────────────────
+  const selectProject = db.prepare('select data from projects where project = ?');
+  const selectAllProjects = db.prepare('select project, data from projects order by project');
+  const upsertProject = db.prepare(
+    'insert into projects(project, data) values(?, ?) on conflict(project) do update set data = excluded.data',
+  );
+  const deleteProjectRow = db.prepare('delete from projects where project = ?');
+  const deleteProjectTasks = db.prepare('delete from tasks where project = ?');
+  const deleteProjectDocs = db.prepare('delete from docs where project = ?');
+  const deleteProjectVersions = db.prepare('delete from doc_versions where project = ?');
+  const countProjectTasks = db.prepare('select count(*) as total from tasks where project = ?');
+  const countProjectDocs = db.prepare('select count(*) as total from docs where project = ?');
+
+  function readProjectMetadataRow(project: string): ProjectMetadata | null {
+    const row = selectProject.get(project) as { data: string } | undefined;
+    return row ? (JSON.parse(row.data) as ProjectMetadata) : null;
+  }
+
+  function workflowFor(metadata: ProjectMetadata | null): ProjectWorkflow {
+    const statuses = normalizeStatuses(metadata?.statuses ?? DEFAULT_PROJECT_STATUSES);
+    const transitions = normalizeTransitions(metadata?.transitions ?? {}, statuses);
+    const initialStatuses = normalizeInitialStatuses(metadata?.initialStatuses, statuses);
+    return {
+      statuses,
+      transitions,
+      closeStatus: resolveCloseStatus(statuses, metadata?.closeStatus),
+      initialStatuses,
+      isDefault: !metadata?.statuses || metadata.statuses.length === 0,
+    };
+  }
+
+  function projectInfo(project: string, metadata: ProjectMetadata | null, current: string): ProjectInfo {
+    const taskCount = (countProjectTasks.get(project) as { total: number }).total;
+    const knowledgeCount = (countProjectDocs.get(project) as { total: number }).total;
+    return {
+      id: project,
+      isDefault: project === DEFAULT_PROJECT,
+      isCurrent: project === current,
+      // ADR-009 target removes filesystem paths from responses; the sqlite profile has no such
+      // paths, so it reports empty ones rather than inventing file locations (recorded decision).
+      paths: { tasks: '', knowledge: '' },
+      hasTasks: taskCount > 0,
+      hasKnowledge: knowledgeCount > 0,
+      taskCount,
+      knowledgeCount,
+      description: metadata?.description,
+      createdAt: metadata?.createdAt,
+    };
+  }
+
+  const projectStore: ProjectStore = {
+    async list(getCurrent: () => string): Promise<ProjectInfo[]> {
+      const current = getCurrent();
+      const rows = selectAllProjects.all() as Array<{ project: string; data: string }>;
+      return rows.map((row) => projectInfo(row.project, JSON.parse(row.data) as ProjectMetadata, current));
+    },
+    async detail(projectId: string, getCurrent: () => string): Promise<ProjectDetail | null> {
+      const metadata = readProjectMetadataRow(projectId);
+      if (!metadata) return null;
+      const info = projectInfo(projectId, metadata, getCurrent());
+      const projectTasks = readAllTasks(projectId).filter((task) => !task.archived && !task.trashed);
+      const byStatus: Record<string, number> = {};
+      const byPriority: Record<string, number> = {};
+      for (const task of projectTasks) {
+        byStatus[task.status] = (byStatus[task.status] ?? 0) + 1;
+        byPriority[task.priority] = (byPriority[task.priority] ?? 0) + 1;
+      }
+      const projectDocs = readAllDocs(projectId).filter((doc) => !doc.archived && !doc.trashed);
+      const byType: Record<string, number> = {};
+      for (const doc of projectDocs) {
+        const type = doc.type ?? 'unknown';
+        byType[type] = (byType[type] ?? 0) + 1;
+      }
+      return {
+        ...info,
+        taskStats: {
+          total: projectTasks.length,
+          byStatus,
+          byPriority,
+          recent: projectTasks
+            .slice()
+            .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+            .slice(0, 5)
+            .map((task) => ({ id: task.id, title: task.title, status: task.status, updatedAt: task.updatedAt })),
+        },
+        knowledgeStats: {
+          total: projectDocs.length,
+          byType,
+          recent: projectDocs
+            .slice()
+            .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+            .slice(0, 5)
+            .map((doc) => ({ id: doc.id, title: doc.title, updatedAt: doc.updatedAt })),
+        },
+        metadata,
+      };
+    },
+    async create(projectId: string, description?: string): Promise<ProjectInfo> {
+      if (!isValidProjectId(projectId)) {
+        throw new StoreError('CONFLICT', `invalid project id '${projectId}'`);
+      }
+      if (readProjectMetadataRow(projectId)) {
+        throw new StoreError('CONFLICT', `project ${projectId} already exists`);
+      }
+      const now = isoNow();
+      const metadata = cleanObject({ description, createdAt: now, updatedAt: now }) as ProjectMetadata;
+      upsertProject.run(projectId, JSON.stringify(metadata));
+      return projectInfo(projectId, metadata, projectId);
+    },
+    async remove(projectId: string, force: boolean): Promise<{ deleted: boolean; message: string }> {
+      if (!readProjectMetadataRow(projectId)) {
+        return { deleted: false, message: `project ${projectId} does not exist` };
+      }
+      const taskCount = (countProjectTasks.get(projectId) as { total: number }).total;
+      const docCount = (countProjectDocs.get(projectId) as { total: number }).total;
+      if (!force && (taskCount > 0 || docCount > 0)) {
+        return {
+          deleted: false,
+          message: `project ${projectId} still has ${taskCount} tasks and ${docCount} documents (use force)`,
+        };
+      }
+      deleteProjectTasks.run(projectId);
+      deleteProjectDocs.run(projectId);
+      deleteProjectVersions.run(projectId);
+      deleteProjectRow.run(projectId);
+      return { deleted: true, message: `project ${projectId} deleted` };
+    },
+    async readMetadata(projectId: string): Promise<ProjectMetadata | null> {
+      return readProjectMetadataRow(projectId);
+    },
+    async updateMetadata(projectId: string, updates: Record<string, unknown>): Promise<ProjectMetadata | null> {
+      const existing = readProjectMetadataRow(projectId);
+      if (!existing) return null;
+      const merged = cleanObject({
+        ...existing,
+        ...(updates as Partial<ProjectMetadata>),
+        createdAt: existing.createdAt,
+        updatedAt: isoNow(),
+      }) as ProjectMetadata;
+      upsertProject.run(projectId, JSON.stringify(merged));
+      return merged;
+    },
+    async workflow(project: string): Promise<ProjectWorkflow> {
+      return workflowFor(readProjectMetadataRow(project));
+    },
+  };
+
+  // ─── history (Y-05a2) ────────────────────────────────────────────────────
+  const historyProvider: HistoryProvider = {
+    async list(project: string, kind: 'doc' | 'task', id: string) {
+      if (kind === 'task') {
+        return unavailable('task history (git stage R)') as never;
+      }
+      const rows = selectDocVersions.all(project, id) as Array<{ version: number; data: string; updated_at: string }>;
+      return rows.map((row) => {
+        const snapshot = JSON.parse(row.data) as KnowledgeDoc;
+        return { version: row.version, updatedAt: row.updated_at, title: snapshot.title };
+      });
+    },
+    async restore(project: string, kind: 'doc' | 'task', id: string, version: number): Promise<KnowledgeDoc | null> {
+      if (kind === 'task') {
+        return unavailable('task history (git stage R)') as never;
+      }
+      const row = selectDocVersion.get(project, id, version) as { data: string } | undefined;
+      if (!row) return null;
+      const snapshot = JSON.parse(row.data) as KnowledgeDoc;
+      const restored: KnowledgeDoc = { ...snapshot, project, id, updatedAt: isoNow() };
+      writeDoc(restored);
+      recordDocVersion(restored);
+      return restored;
     },
   };
 
@@ -406,23 +619,23 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       profile: 'sqlite',
       capabilities: {
         transactions: true,
-        history: false,
+        history: true,
         fullText: false,
         vectors: false,
         efficientListing: false,
       },
       roots: {},
-      collections: ['tasks', 'docs'],
+      collections: ['tasks', 'docs', 'projects', 'history'],
     },
     tasks,
     docs,
-    project: unavailableObject<ProjectStore>('projects'),
+    project: projectStore,
     prompts: unavailableObject<PromptStore>('prompts'),
     search: unavailableObject<SearchProvider>('search index'),
     vectors: unavailableObject<VectorStore>('vector store'),
     memory: unavailableObject<MemoryStore>('memory collections'),
     events: (() => unavailable('event logs')) as (storagePath: string) => EventLogStore,
-    history: unavailableObject<HistoryProvider>('history'),
+    history: historyProvider,
     locks: unavailableObject<LockProvider>('locks'),
     close: () => handle.close(),
   };
