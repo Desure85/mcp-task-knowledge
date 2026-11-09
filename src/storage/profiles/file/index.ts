@@ -115,6 +115,15 @@ export interface FileProfileOptions {
   embeddingProvider?: () => Promise<EmbeddingProvider | undefined>;
   /** Manifest of indexed content hashes; defaults to `<vectorsDir>/index-manifest.json`. */
   indexingManifestPath?: string;
+  /** Y-04a: external-provider policy; items it refuses stay local (never queued). */
+  externalPolicy?: (item: {
+    store: string;
+    kind: 'task' | 'doc' | 'chunk';
+    project: string;
+    id: string;
+    text: string;
+    trustLevel?: 'system' | 'user' | 'external';
+  }) => { allowed: boolean; reason?: string };
 }
 
 /** Refuse to serve a root the storage modules do not actually use. */
@@ -489,6 +498,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
         chunker: createFileChunkingStrategy(),
         provider: options.embeddingProvider,
         manifestPath: options.indexingManifestPath ?? path.join(vectorsRoot, 'index-manifest.json'),
+        externalPolicy: options.externalPolicy,
         collect: async (project) => {
           const [tasks, docs] = await Promise.all([listTasks({ project }), listDocs({ project })]);
           return [
@@ -505,6 +515,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
               project,
               id: doc.id,
               text: buildTextForDoc(doc as never),
+              trustLevel: doc.trustLevel,
             })),
           ];
         },

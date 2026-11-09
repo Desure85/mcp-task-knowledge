@@ -36,6 +36,7 @@ and/or call the tool. Nothing below is active in a default install.
 | Framework adapters | Configuring an `HttpMCPClient` adapter URL | The adapter URL you configure | JSON-RPC `tools/call` envelopes for the tools you invoke through the adapter | `src/memory/framework-adapters.ts` |
 | Remote service catalog | `CATALOG_MODE=remote` / `CATALOG_PREFER=remote` + `CATALOG_URL` (or `CATALOG_REMOTE_BASE_URL`) | Your configured catalog base URL | `GET /api/services` query params and `GET /api/health` | `src/catalog/provider.ts`, `src/config.ts` |
 | LAN relay | `RELAY_ENABLED=1` | Other `mcp-task-knowledge` peers on your **local network** | UDP multicast presence beacons + WebSocket messages (AES-256-GCM encrypted) containing shared rules/briefs | `src/relay/discovery.ts`, `src/relay/relay-manager.ts`, `src/core/app-container.ts` |
+| External embeddings provider | `EMBEDDINGS_EXTERNAL_ENABLED=1` (off by default) + indexing a project | Your configured `EMBEDDINGS_EXTERNAL_BASE_URL` (or the provider name when unset) | Chunk texts of indexed tasks/documents (no file paths, no secrets). Private projects (`EMBEDDINGS_EXTERNAL_EXCLUDE_PROJECTS`) and documents with `trustLevel=external` stay local | `src/search/external-policy.ts`, `src/search/external-provider.ts` |
 
 ## What is NEVER sent
 

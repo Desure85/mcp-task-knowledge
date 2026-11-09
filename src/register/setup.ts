@@ -10,6 +10,11 @@ import { getVectorAdapter } from "../search/vector.js";
 import type { VectorSearchAdapter } from "../search/index.js";
 import { createFileProfile } from '../storage/profiles/file/index.js';
 import { createFileEmbeddingProvider, type EmbeddingAdapterLike } from '../search/embeddings-file.js';
+import {
+  createExternalEmbeddingGate,
+  externalEmbeddingStartupWarning,
+  readExternalEmbeddingConfig,
+} from '../search/external-policy.js';
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
@@ -394,10 +399,19 @@ export async function createServerContext(): Promise<ServerContext> {
     })(rawServer.tool.bind(server));
   }
 
+  // Y-04a: external embeddings are opt-in. The gate is built here (the composition root) and given
+  // to the profile's indexing service, so texts of private projects and trustLevel=external docs are
+  // never queued for a remote provider. The startup warning is logged once, at boot.
+  const externalEmbeddingConfig = readExternalEmbeddingConfig();
+  const externalEmbeddingWarning = externalEmbeddingStartupWarning(externalEmbeddingConfig);
+  if (externalEmbeddingWarning) log.warn({ external: true }, externalEmbeddingWarning);
+  const externalEmbeddingGate = createExternalEmbeddingGate(externalEmbeddingConfig);
+
   // Y-03c: the profile owns the vector collections and the indexing queue. The provider is
   // resolved lazily through ensureVectorAdapter, so a cold start never loads the model and never
   // blocks a search request.
   const storage = createFileProfile({
+    externalPolicy: (item) => externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel }),
     embeddingProvider: async () => {
       const adapter = await ensureVectorAdapter();
       if (!adapter) return undefined;

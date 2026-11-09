@@ -22,6 +22,16 @@ export interface EmbeddingsStatusInput {
   collections: VectorCollectionInfo[];
   /** Background indexing status (Y-03c). */
   indexing?: IndexingStatus[];
+  /** Y-04a: external-provider egress state; disabled by default. */
+  external?: {
+    enabled: boolean;
+    provider: string;
+    model?: string;
+    baseUrl?: string;
+    warning: string | null;
+    /** Present only once the provider wrapper is created (true when configured). */
+    stats?: { requests: number; texts: number; estimatedCostUsd: number };
+  };
 }
 
 /** Collection the current configuration would write to. */
@@ -55,6 +65,7 @@ export function buildEmbeddingsStatus(input: EmbeddingsStatusInput): Record<stri
     collections,
     collectionCount: collections.length,
     indexing: input.indexing ?? [],
+    external: input.external ?? { enabled: false, provider: 'none', warning: null },
     adapterInitAttempted: input.adapterInitAttempted,
     adapterReady: input.adapterReady,
     warmup: input.warmup,

@@ -28,6 +28,8 @@ export interface IndexingItem {
   project: string;
   id: string;
   text: string;
+  /** Trust level of the source document (ADR-009 external-provider policy). */
+  trustLevel?: 'system' | 'user' | 'external';
 }
 
 export interface FileIndexingServiceOptions {
@@ -45,6 +47,11 @@ export interface FileIndexingServiceOptions {
   batchSize?: number;
   /** Clock injection for deterministic rate measurements in tests. */
   now?: () => number;
+  /**
+   * Y-04a: external-provider policy. Items it refuses never enter the queue, so their texts cannot
+   * leave the machine by accident; they are counted as `blocked` in the status.
+   */
+  externalPolicy?: (item: IndexingItem) => { allowed: boolean; reason?: string };
 }
 
 export interface FileIndexingService extends IndexingService {
@@ -65,6 +72,7 @@ interface ProjectProgress {
   total: number;
   done: number;
   skipped: number;
+  blocked: number;
   embeddings: number;
   startedAt?: number;
   lastError?: string;
@@ -90,7 +98,7 @@ export function createFileIndexingService(options: FileIndexingServiceOptions): 
   function ensureProgress(project: string): ProjectProgress {
     const existing = progress.get(project);
     if (existing) return existing;
-    const created: ProjectProgress = { total: 0, done: 0, skipped: 0, embeddings: 0 };
+    const created: ProjectProgress = { total: 0, done: 0, skipped: 0, blocked: 0, embeddings: 0 };
     progress.set(project, created);
     return created;
   }
@@ -152,6 +160,7 @@ export function createFileIndexingService(options: FileIndexingServiceOptions): 
       total: state.total,
       done: state.done,
       skipped: state.skipped,
+      blocked: state.blocked,
       queued,
       ratePerSec: rate,
       lastError: state.lastError,
@@ -228,6 +237,13 @@ export function createFileIndexingService(options: FileIndexingServiceOptions): 
       for (const item of items) {
         const identity = identityOf(item);
         if (queuedIdentities.has(identity)) continue;
+        if (options.externalPolicy) {
+          const decision = options.externalPolicy(item);
+          if (!decision.allowed) {
+            state.blocked += 1;
+            continue;
+          }
+        }
         queuedIdentities.add(identity);
         queue.push({ item, project });
         queued += 1;
