@@ -14,7 +14,7 @@
  */
 
 import path from 'node:path';
-import { EMBEDDINGS_DIR, KNOWLEDGE_DIR, TASKS_DIR } from '../../../config.js';
+import { DATA_DIR, EMBEDDINGS_DIR, KNOWLEDGE_DIR, TASKS_DIR } from '../../../config.js';
 import {
   archiveTask,
   claimTask,
@@ -66,6 +66,7 @@ import {
 } from '../../../search/fts-indexer.js';
 import { getActiveMetadataIndex } from '../../metadata-index.js';
 import { createFileVectorStore } from '../../../search/vector-store-file.js';
+import { createFileBlobProvider } from '../../blobs/file-blob-provider.js';
 import { createFileIndexingService } from '../../../search/indexing-service.js';
 import { createFileChunkingStrategy } from '../../../search/embeddings-file.js';
 import type { EmbeddingProvider } from '../../../search/contracts.js';
@@ -108,6 +109,10 @@ export interface FileProfileOptions {
   knowledgeDir?: string;
   /** Root of the vector collections; defaults to the configured `EMBEDDINGS_DIR`. */
   vectorsDir?: string;
+  /** Y-07a: root of the blob collection; defaults to `DATA_DIR/blobs`. */
+  blobsDir?: string;
+  /** Y-07a: optional blob size ceiling; larger payloads are rejected with `CONFLICT`. */
+  blobMaxBytes?: number;
   /**
    * Lazy embedding provider factory (Y-03c). When present, the profile builds its own indexing
    * service: provider resolution happens on the first batch, so a cold start never loads the model.
@@ -492,6 +497,10 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
 
   const vectorsRoot = options.vectorsDir ?? EMBEDDINGS_DIR;
   const vectors = createFileVectorStore({ root: vectorsRoot });
+  const blobs = createFileBlobProvider({
+    root: options.blobsDir ?? path.join(DATA_DIR, 'blobs'),
+    ...(options.blobMaxBytes === undefined ? {} : { maxBytes: options.blobMaxBytes }),
+  });
   const indexing = options.embeddingProvider
     ? createFileIndexingService({
         store: vectors,
@@ -535,7 +544,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
       efficientListing: true,
     },
     roots,
-    collections: ['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks'],
+    collections: ['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks', 'blobs'],
   };
 
   return {
@@ -547,6 +556,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     search: new FileSearchProvider(),
     vectors,
     indexing,
+    blobs,
     memory: new FileMemoryStore(),
     events: (storagePath: string) => new FileEventLogStore(storagePath),
     history: new FileHistoryProvider(),

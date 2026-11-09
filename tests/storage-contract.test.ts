@@ -55,7 +55,7 @@ afterAll(async () => {
 describe('Y-02a: profile manifest', () => {
   it('describes the file profile and its roots', () => {
     expect(profile.manifest.profile).toBe('file');
-    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks']);
+    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks', 'blobs']);
     expect(profile.manifest.capabilities).toEqual({
       transactions: false,
       history: true,

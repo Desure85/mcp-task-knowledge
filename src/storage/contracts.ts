@@ -70,7 +70,9 @@ export interface StoreManifest {
     knowledge?: string;
   };
   /** Collections this profile currently implements behind the contract. */
-  collections: Array<'tasks' | 'docs' | 'projects' | 'prompts' | 'memory' | 'events' | 'history' | 'locks'>;
+  collections: Array<
+    'tasks' | 'docs' | 'projects' | 'prompts' | 'memory' | 'events' | 'history' | 'locks' | 'blobs'
+  >;
 }
 
 export type StoreErrorCode = 'NOT_FOUND' | 'CONFLICT' | 'CAPABILITY_UNAVAILABLE' | 'CONFIG_MISMATCH';
@@ -490,8 +492,47 @@ export interface MemoryStore {
 }
 
 /** What a profile exposes to `AppContainer` and, through it, to the tool modules. */
-export interface StorageProfile {
-  manifest: StoreManifest;
+/** Y-07a: metadata of one immutable blob; `checksum` is sha256 of its bytes. */
+export interface BlobMetadata {
+  /** Caller-chosen key; the contract treats it as an opaque address, not a filesystem path. */
+  key: string;
+  size: number;
+  /** `sha256:<hex>` of the stored bytes — the integrity handle for copies and exports. */
+  checksum: string;
+  contentType?: string;
+  updatedAt: string;
+}
+
+export interface BlobPutOptions {
+  contentType?: string;
+}
+
+/**
+ * Y-07a: content-addressed-by-key blob storage for attachments, exports and backups.
+ *
+ * Blobs are not the primary store for tasks/documents: the file/SQLite/pg profiles keep their own
+ * canonical collections, and this provider is for opaque byte payloads only (ADR-009).
+ */
+export interface BlobProvider {
+  readonly kind: 'file' | 's3' | 'memory';
+  readonly capabilities: {
+    /** False for local providers: there is no operating system to sign a URL for. */
+    presign: boolean;
+    maxBytes?: number;
+  };
+  /** Idempotent for identical bytes: the same key+payload yields the same checksum and one blob. */
+  put(key: string, data: Uint8Array, options?: BlobPutOptions): Promise<BlobMetadata>;
+  /** Missing key throws `StoreError('NOT_FOUND')` instead of returning empty bytes. */
+  get(key: string): Promise<Uint8Array>;
+  /** Missing key throws `StoreError('NOT_FOUND')`. */
+  size(key: string): Promise<number>;
+  /** Idempotent: `true` when a blob existed and was removed, `false` when the key was already gone. */
+  delete(key: string): Promise<boolean>;
+  /** Keys starting with `prefix` (all keys when omitted), sorted lexicographically. */
+  list(prefix?: string): Promise<BlobMetadata[]>;
+}
+
+export interface StorageProfile {  manifest: StoreManifest;
   tasks: TaskStore;
   docs: DocStore;
   project: ProjectStore;
@@ -502,6 +543,8 @@ export interface StorageProfile {
   vectors: VectorStore;
   /** Y-03c: background indexing of vector collections; present when a provider factory is wired. */
   indexing?: IndexingService;
+  /** Y-07a: opaque blob storage (attachments/exports/copies); local file provider until Y-07b. */
+  blobs?: BlobProvider;
   memory: MemoryStore;
   /** Event logs are created per log file, so the profile hands out a factory. */
   events(storagePath: string): EventLogStore;

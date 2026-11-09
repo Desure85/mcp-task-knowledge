@@ -52,10 +52,12 @@ import {
   resolveCloseStatus,
 } from '../../../workflow.js';
 import type { ProjectWorkflow } from '../../../workflow.js';
+import os from 'node:os';
 import path from 'node:path';
 import { openSqliteDatabase, type SqliteDatabase } from './db.js';
 import { probeSqliteVec } from './vec-gate.js';
 import { createSqliteVectorStore } from './vector-store.js';
+import { createFileBlobProvider } from '../../blobs/file-blob-provider.js';
 import { createFileIndexingService } from '../../../search/indexing-service.js';
 import { createFileChunkingStrategy } from '../../../search/embeddings-file.js';
 import type { EmbeddingProvider } from '../../../search/contracts.js';
@@ -82,6 +84,10 @@ export interface SqliteProfileOptions {
   }) => { allowed: boolean; reason?: string };
   /** Test/ops override for the sqlite-vec gate; defaults to probing the real extension. */
   vecAvailable?: boolean;
+  /** Y-07a: root of the blob collection; defaults to `<db dir>/blobs`. */
+  blobsDir?: string;
+  /** Y-07a: optional blob size ceiling. */
+  blobMaxBytes?: number;
 }
 
 function isoNow(): string {
@@ -958,6 +964,14 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     db,
     vecAvailable: options.vecAvailable ?? probeSqliteVec(db).vec.available,
   });
+  const blobs = createFileBlobProvider({
+    root:
+      options.blobsDir ??
+      (options.databasePath === ':memory:'
+        ? path.join(os.tmpdir(), `mcp-sqlite-blobs-${process.pid}-${Date.now()}`)
+        : path.join(path.dirname(options.databasePath), 'blobs')),
+    ...(options.blobMaxBytes === undefined ? {} : { maxBytes: options.blobMaxBytes }),
+  });
 
   const profile: StorageProfile = {
     manifest: {
@@ -970,7 +984,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         efficientListing: false,
       },
       roots: {},
-      collections: ['tasks', 'docs', 'projects', 'history', 'prompts', 'memory', 'events', 'locks'],
+      collections: ['tasks', 'docs', 'projects', 'history', 'prompts', 'memory', 'events', 'locks', 'blobs'],
     },
     tasks,
     docs,
@@ -981,6 +995,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     prompts: new FilePromptStore(),
     search,
     vectors,
+    blobs,
     memory: new FileMemoryStore(),
     events: (storagePath: string) => eventLogFor(storagePath),
     history: historyProvider,

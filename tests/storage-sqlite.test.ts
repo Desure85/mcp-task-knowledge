@@ -67,6 +67,7 @@ describe('Y-05a1: profile selection', () => {
       'memory',
       'events',
       'locks',
+      'blobs',
     ]);
     expect(profile.manifest.capabilities).toEqual({
       transactions: true,
