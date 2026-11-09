@@ -48,6 +48,10 @@ import { createProject, deleteProject, getProjectDetail, listProjects, readProje
 import { loadProjectWorkflow } from '../../../workflow.js';
 import { EventLog } from '../../../sync/event-log.js';
 import { findFileByIdVersion, listPromptVersions, listSourceJsonFiles, readPromptBuildItems, readPromptsCatalog } from '../../../prompts/files.js';
+import { TemporalGraph } from '../../../memory/temporal-graph.js';
+import { ProfileManager } from '../../../memory/user-profile.js';
+import { LayeredMemory } from '../../../memory/layers.js';
+import { SessionMemory } from '../../../memory/session-memory.js';
 import { withFileLock } from '../../../fs.js';
 import {
   StoreError,
@@ -62,6 +66,7 @@ import {
   type EventLogStore,
   type HistoryKind,
   type HistoryProvider,
+  type MemoryStore,
   type LockProvider,
   type ProjectStore,
   type PromptRecord,
@@ -351,6 +356,24 @@ class FilePromptStore implements PromptStore {
   }
 }
 
+class FileMemoryStore implements MemoryStore {
+  temporal(storagePath: string) {
+    return new TemporalGraph({ storagePath });
+  }
+
+  profiles(storagePath: string) {
+    return new ProfileManager({ storagePath });
+  }
+
+  layered(options: Parameters<MemoryStore['layered']>[0]) {
+    return new LayeredMemory(options);
+  }
+
+  session(options?: Parameters<MemoryStore['session']>[0]) {
+    return new SessionMemory(options);
+  }
+}
+
 class FileLockProvider implements LockProvider {
   withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     return withFileLock(key, fn);
@@ -377,7 +400,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
       efficientListing: true,
     },
     roots,
-    collections: ['tasks', 'docs', 'projects', 'prompts', 'events', 'history', 'locks'],
+    collections: ['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks'],
   };
 
   return {
@@ -386,6 +409,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     docs: new FileDocStore(),
     project: new FileProjectStore(),
     prompts: new FilePromptStore(),
+    memory: new FileMemoryStore(),
     events: (storagePath: string) => new FileEventLogStore(storagePath),
     history: new FileHistoryProvider(),
     locks: new FileLockProvider(),
