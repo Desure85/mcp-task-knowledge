@@ -8,7 +8,7 @@
  *   - a deliberately broken JSON block in a temp file fails (negative path)
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -41,32 +41,38 @@ function diag(r: { code: number; stdout: string; stderr: string }): string {
 }
 
 describe('executable-docs (DX-24)', () => {
-  it('exits 0 on the real repo docs', async () => {
-    const r = await runScript();
-    expect(r.code, diag(r)).toBe(0);
-    expect(r.stdout, diag(r)).toMatch(/\d+ passed, 0 failed, \d+ skipped/);
+  // TS-01: one real-repo scan shared by the positive assertions. Running the
+  // script once per test spawned four Node+TypeScript processes per worker; under
+  // CI oversubscription each spawn crept toward the 60 s exec budget and the file
+  // failed with a bare `code=1` (the run was killed mid-scan).
+  let real: Awaited<ReturnType<typeof runScript>>;
+  beforeAll(async () => {
+    real = await runScript();
+  }, 120_000);
+
+  it('exits 0 on the real repo docs', () => {
+    expect(real.code, diag(real)).toBe(0);
+    expect(real.stdout, diag(real)).toMatch(/\d+ passed, 0 failed, \d+ skipped/);
     // The summary must be the LAST line: a truncated pipe loses exactly this tail.
-    const lastLine = r.stdout.trimEnd().split('\n').pop() ?? '';
-    expect(lastLine, diag(r)).toMatch(/^\d+ passed, 0 failed, \d+ skipped$/);
-  }, 90_000);
+    const lastLine = real.stdout.trimEnd().split('\n').pop() ?? '';
+    expect(lastLine, diag(real)).toMatch(/^\d+ passed, 0 failed, \d+ skipped$/);
+  });
 
-  it('validates JSON blocks from README and integrations', async () => {
-    const r = await runScript();
-    expect(r.code, diag(r)).toBe(0);
+  it('validates JSON blocks from README and integrations', () => {
+    expect(real.code, diag(real)).toBe(0);
     // README has a ```json mcpServers block
-    expect(r.stdout).toMatch(/PASS README\.md:\d+ \[json\]/);
+    expect(real.stdout).toMatch(/PASS README\.md:\d+ \[json\]/);
     // integrations.md has several ```json blocks
-    expect(r.stdout).toMatch(/PASS docs\/getting-started\/integrations\.md:\d+ \[json\]/);
-  }, 90_000);
+    expect(real.stdout).toMatch(/PASS docs\/getting-started\/integrations\.md:\d+ \[json\]/);
+  });
 
-  it('honours skip markers and no-run-marker default for bash', async () => {
-    const r = await runScript();
-    expect(r.code, diag(r)).toBe(0);
+  it('honours skip markers and no-run-marker default for bash', () => {
+    expect(real.code, diag(real)).toBe(0);
     // docker/npm-install blocks are skipped (no run marker)
-    expect(r.stdout).toMatch(/SKIP README\.md:\d+ \[bash\] \(no-run-marker\)/);
+    expect(real.stdout).toMatch(/SKIP README\.md:\d+ \[bash\] \(no-run-marker\)/);
     // pseudo-code TS blocks carry doc-test: skip
-    expect(r.stdout).toMatch(/SKIP docs\/features\/web-ui\.md:\d+ \[typescript\] \(marker\)/);
-  }, 90_000);
+    expect(real.stdout).toMatch(/SKIP docs\/features\/web-ui\.md:\d+ \[typescript\] \(marker\)/);
+  });
 
   it('fails on a broken JSON block (negative path)', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-test-neg-'));

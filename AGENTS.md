@@ -424,11 +424,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-11-08
-**Session ID:** S-20261108-sc03b (SC-03b — запись FTS5-индекса при мутациях; opencode `ses_e43623a76ffes2ma8BMNZ07cXk`)
-**Текущая ветка:** feat/sc03b-fts-writes (worktree `/home/dm/work/mcp-tk-sc03b`, от origin/master 9275006)
-**Текущий этап:** SC — инвертированный индекс поиска; SC-03b в review, SC-03c после мержа
-**Статус:** `SC-03b` → review: индекс FTS5 пишется при мутациях storage-слоя, `reindex`/`doctor` показывают расхождение и неполноту; read-путь не тронут, `SC-03` остаётся `pending` до SC-03c. **Дальше: мерж PR**, затем SC-03c (чтение из индекса с откатом на BM25).
+**Дата последнего обновления:** 2026-11-09
+**Session ID:** TS-01 (стабильность тестов и безопасный прогон; opencode `ses_e417bd055ffe5h04upQe7cIGsV`)
+**Текущая ветка:** fix/test-stability (worktree `/home/dm/work/mcp-tk-stab`, от origin/master 3566d62)
+**Текущий этап:** надёжность тестов — потолок воркеров и три флейка
+**Статус:** `TS-01` → review: потолок воркеров `min(4, ядра/2)` с `VITEST_MAX_WORKERS` в конфиге, `npm test`/`test:coverage`/pre-push; полный прогон 3400 тестов / 291 файл зелёный 3/3, пик памяти 2.3 ГБ; флейки `executable-docs`, `mcp-inspector`, `auth-session-stress`, `pagination` исправлены по причине (0/20 после). **Дальше: мерж PR.**
+
+### Сессия TS-01 (стабильность тестов и безопасный прогон)
+
+- `vitest.config.ts`: `resolveMaxWorkers(cores, VITEST_MAX_WORKERS)` = `min(4, cores/2)`, значение попадает в `test.maxWorkers`; `tests/vitest-limits.test.ts` (4 теста) падает, если потолок убрать из конфига.
+- `package.json` (`test`, `test:coverage`) и `.husky/pre-push` передают `--maxWorkers=${VITEST_MAX_WORKERS:-4}`; CI-воркфлоу не менялись — конфиг применяется в любом `vitest run`.
+- Причины флейков: `executable-docs` запускал скрипт 5 раз на файл (60-с exec-бюджет под нагрузкой), `mcp-inspector` поднимал 5 серверов внутри дефолтного 5-с таймаута, `auth-session-stress` терял stderr ребёнка, `pagination` полагался на разницу mtime от `setTimeout(2)` (при равных mtime вставленная задача дублировалась в 6/10 обходов курсора).
+- Замер: полный прогон на 72-ядерной машине — пик 2352 МБ по сумме RSS дерева процессов, наблюдаемый максимум 3 воркера из 4; 3/3 прогона по 144/145/136 с.
 
 ### Сессия S-20261108-sc03b (SC-03b — запись FTS5-индекса при мутациях)
 
