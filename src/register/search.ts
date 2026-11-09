@@ -66,8 +66,16 @@ function trackVectorError(): (err: unknown) => void {
   return () => getServiceAvailabilityRegistry().get('embeddings').recordFailure();
 }
 
+// AC-05: both channel scores are always numbers on the wire. A pure lexical hit (scan without a
+// vector adapter) carries its BM25 score in `bm25Score`; a channel that did not run contributes 0.
 function toRanked(results: Array<Ranked & { item?: unknown }>): Ranked[] {
-  return results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({ id, score, exactMatches, bm25Score, vectorScore }));
+  return results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({
+    id,
+    score,
+    exactMatches,
+    bm25Score: bm25Score ?? score,
+    vectorScore: vectorScore ?? 0,
+  }));
 }
 
 function promoteCandidates<T>(
@@ -114,7 +122,7 @@ async function hydrateCandidates<T>(
 ): Promise<Ranked[]> {
   const anchors = extractAnchors(query);
   const needItems = Boolean(adapter) || anchors.length > 0;
-  if (!needItems) return hits.map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score }));
+  if (!needItems) return hits.map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score, vectorScore: 0 }));
 
   const loaded = await Promise.all(hits.map((hit) => load(hit.id, hit.project)));
   const items = hits.flatMap((hit, index) => {
@@ -122,7 +130,7 @@ async function hydrateCandidates<T>(
     return item ? [{ id: hit.id, text: textOf(item), item }] : [];
   });
   const present = new Set(items.map((item) => item.id));
-  const ranked = hits.filter((hit) => present.has(hit.id)).map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score }));
+  const ranked = hits.filter((hit) => present.has(hit.id)).map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score, vectorScore: 0 }));
   if (adapter && items.length > 0) return fuseCandidates(query, items, ranked, adapter);
   if (anchors.length > 0 && items.length > 0) return promoteCandidates(query, items, ranked);
   return ranked;

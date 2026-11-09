@@ -60,6 +60,8 @@ say so in metadata next to `data`:
 
 Every hit carries both channel scores: `bm25Score` and `vectorScore` are always numbers, `0` when
 the hit did not come from that channel. A field that is absent is never a substitute for `0`.
+On a pure lexical scan (no vector adapter), `bm25Score` is the hit's lexical score and
+`vectorScore` is `0`.
 
 When the index is filling and the project holds more than `SEARCH_SCAN_MAX_TASKS` tasks (default
 `2000`), `search_tasks` does not scan the corpus: it returns `ok: false`,

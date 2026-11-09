@@ -162,6 +162,23 @@ describe('AC-05: search_tasks reports the index state instead of blocking', () =
     expect(served.source).toBe('fts');
   });
 
+  it('carries both channel scores on a scan without a vector adapter', async () => {
+    indexer.setActiveFtsIndex(undefined);
+    const prj = project();
+    const first = await tasks.createTask({ project: prj, title: 'Falcon migration checklist' });
+    await tasks.createTask({ project: prj, title: 'Falcon rollout notes' });
+
+    const result = await search(makeTools(), { project: prj, query: 'falcon migration' });
+    expect(result.source).toBe('scan');
+    expect(result.data.length).toBeGreaterThan(0);
+    for (const row of result.data) {
+      expect(typeof row.bm25Score).toBe('number');
+      expect(row.bm25Score).toBeGreaterThan(0);
+      expect(row.vectorScore).toBe(0);
+    }
+    expect(result.data[0].item.id).toBe(first.id);
+  });
+
   it('keeps scanning without markers when no index exists at all', async () => {
     indexer.setActiveFtsIndex(undefined);
     const prj = project();
