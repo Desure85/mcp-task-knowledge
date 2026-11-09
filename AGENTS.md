@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04 закрыты; Y-05a1 сделан)
-**Текущая ветка:** feat/y05a1-sqlite-profile (от origin/master 28f194a, PR #334 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04; Y-05 в работе (a1 готов, дальше a2)
-**Статус:** `Y-05a1` → done: SQLite-профиль за контрактами для задач и документов (CRUD/страницы/жизненный цикл/дерево/cascade/персистентность), `STORAGE_PROFILE=file|sqlite` с ошибкой на неизвестном значении, `createServerContext` строит SQLite-профиль в `<DATA_DIR>/.index/storage.sqlite`, честный манифест (`[tasks, docs]`, transactions=true, остальное false, нереализованное → `CAPABILITY_UNAVAILABLE`), гейт `sqlite-vec` подтверждён (Node 24.22.2 / SQLite 3.53.2 / FTS5 / sqlite-vec 0.1.9 / vec0 ищет), Docker-проверка — Y-05c. 18 новых тестов, 69/69 затронутых, 6 мутаций RED. **Дальше: Y-05a2** — проекты, промпты, память, события, история, замки на SQLite.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04 закрыты; Y-05a1/a2 сделаны)
+**Текущая ветка:** feat/y05a2-sqlite-collections (от origin/master be4f9e3, PR #335 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04; Y-05 в работе (a1, a2 готовы; дальше a3/b/c)
+**Статус:** `Y-05a2` → done: SQLite-профиль получил проекты (create/list/detail/metadata/workflow/remove, счётчики из SQLite) и историю версий документов (create v1, update vN, restore снапшота новой версией, task history — `CAPABILITY_UNAVAILABLE`); манифест честно расширен до `[tasks, docs, projects, history]`, capabilities.history=true; `ProjectInfo.paths` — пустые строки (wire-формат не менялся, решение записано). 19 тестов SQLite-профиля, 51/51 затронутых, 6 мутаций RED. **Дальше: Y-05a3** — события/замки на SQLite и решение по промптам/памяти (источник истины — файлы).
+
+### Сессия S-20261109-night (Y-05a2 — проекты и история на SQLite)
+
+- `profiles/sqlite`: таблицы `projects` и `doc_versions`; `ProjectStore` (create/list/detail/updateMetadata/remove с force, workflow из метаданных через общие нормализаторы `src/workflow.ts`) и `HistoryProvider`/верversions документов; версия пишется на create и update, restore восстанавливает снапшот и фиксируется новой версией.
+- Манифест: `collections: [tasks, docs, projects, history]`, `capabilities.history = true`; промпты/память/события/замки/поиск/векторы — по-прежнему `CAPABILITY_UNAVAILABLE`, вынесены в Y-05a3/Y-05b.
+- `ProjectInfo.paths` в SQLite — пустые строки: путей нет физически, выдумывать их нельзя; удаление поля — отдельное изменение wire-контракта (ADR-009 цель).
+- Проверено: 19/19 SQLite-тестов, 51/51 затронутых, tsc-test чистый; 6 мутаций RED.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-2345-y-05a2.md`.
 
 ### Сессия S-20261109-night (Y-05a1 — SQLite-профиль и гейт sqlite-vec)
 
