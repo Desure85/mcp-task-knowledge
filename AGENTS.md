@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-y02c (Y-02c — промпты за контрактом)
-**Текущая ветка:** feat/y02c-prompt-contract (от origin/master dd49ca9, PR #321 влит)
-**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-02 идёт, за контрактами 5 из 6 коллекций
-**Статус:** `Y-02c` → done: файловый доступ к промптам вынесен из `src/register/helpers.ts` в `src/prompts/files.ts` (код перенесён без изменений, helpers реэкспортирует — проверено сравнением функций по ссылке); в контрактах появились `PromptStore` (list/get/versions/catalog/buildItems) и `profile.prompts`. `tests/storage-contract.test.ts` — 24 теста. Вызовы не переключены. **Дальше: Y-02d** — память (temporal graph, профили, слоистая и сессионная память); затем **Y-02e** — профиль в `AppContainer`, регистраторы без прямых импортов.
+**Session ID:** S-20261109-y02d (Y-02d — память за контрактами)
+**Текущая ветка:** feat/y02d-memory-contract (от origin/master 5450605, PR #322 влит)
+**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-02 идёт, за контрактами все коллекции Store и оба провайдера
+**Статус:** `Y-02d` → done: `MemoryStore` в контрактах — фабрики `temporal(storagePath)`, `profiles(storagePath)`, `layered(options)`, `session(options)`; интерфейсы `TemporalMemoryStore`, `ProfileMemoryStore`, `LayeredMemoryStore`, `SessionMemoryStore`. Файловый профиль создаёт существующие классы, совместимость проверена типами; тесты доказывают персистентность перезагрузкой вторым экземпляром. `tests/storage-contract.test.ts` — 28 тестов. Вызовы не переключены. **Дальше: Y-02e** — `AppContainer` отдаёт профиль, регистраторы перестают импортировать хранилища напрямую, guard-тест.
+
+### Сессия S-20261109-y02d (Y-02d — память за контрактами)
+
+- `MemoryStore` в `src/storage/contracts.ts`: фабрики `temporal`/`profiles`/`layered`/`session` (путь задаёт вызывающий — правило 1 ADR-009), плюс интерфейсы `TemporalMemoryStore`, `ProfileMemoryStore`, `LayeredMemoryStore`, `SessionMemoryStore` с операциями хранилища, а не полным списком методов классов. Методы синхронные: файловая реализация синхронна, `better-sqlite3` тоже — async-вариант останется решением профиля Y-05.
+- Файловый профиль (`FileMemoryStore`) создаёт существующие классы памяти; TypeScript проверяет структурную совместимость, поэтому будущая SQLite-реализация проходит те же интерфейсы без обёрток.
+- Тесты проверяют **персистентность**: после операций через профиль второй экземпляр класса на том же пути читает то же состояние (temporal, profiles, layered, session). Мутации «пишем в другой файл» и «игнорируем `filePath`» — RED.
+- Проверено: `npx vitest run tests/storage-contract.test.ts --maxWorkers=2` — 28/28 (4 новых); revert-check 3 мутации RED; build/type/lint/markdownlint/backlog — зелёные.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1325-y-02d.md`.
 
 ### Сессия S-20261109-y02c (Y-02c — промпты за контрактом)
 
