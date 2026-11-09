@@ -1534,7 +1534,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
-| Y-05a | L | Гейт sqlite-vec (Node 24/Docker, результат в решение); `STORAGE_PROFILE=sqlite`; Store на SQLite для всех коллекций; контракт на SQLite-фабрике | pending | `tests/storage-sqlite.test.ts` + `tests/storage-contract.test.ts`: профиль по env, манифест честный, весь контракт зелёный на SQLite, file не сломан |
+| Y-05a1 | L | Гейт sqlite-vec (Node 24/Docker, результат в решение); `STORAGE_PROFILE=sqlite`; SQLite-Store для задач и документов + контрактные тесты на SQLite-фабрике | done | `npx vitest run tests/storage-sqlite.test.ts tests/sqlite-vec-gate.test.ts` — 18/18: гейт Node 24.22.2 / SQLite 3.53.2 / FTS5 / sqlite-vec 0.1.9 загружается и vec0 ищет; выбор профиля (`file` по умолчанию, `sqlite`, ошибка на неизвестном, обязательный `databasePath`); задачи CRUD/фильтры/жизненный цикл/пагинация с курсором/tree/subtree/cascade/персистентность; документы CRUD/page/lifecycle, list без content; заглушки → `CAPABILITY_UNAVAILABLE`; 69/69 затронутых; 6 мутаций RED. Реализовано (2026-11-09): `profiles/sqlite/*`, `profile-select.ts`, выбор в `setup.ts`, `sqlite-vec@0.1.9` в dependencies. Ограничение: Docker-проверка — Y-05c |
+| Y-05a2 | M | Store на SQLite для остальных коллекций: проекты, промпты, память, события, история версий, замки (задачи и документы — Y-05a1) | pending | `tests/storage-sqlite.test.ts` + `tests/storage-contract.test.ts`: профиль по env, манифест честный, весь контракт зелёный на SQLite, file не сломан |
 | Y-05b | L | `SearchProvider` SQLite (FTS5, качество ≥ baseline), `VectorProvider` (sqlite-vec или объявленная недоступность с откатом), `HistoryProvider` (таблица версий), `LockProvider` (транзакции) | pending | `tests/search-fts.test.ts` + `tests/storage-sqlite.test.ts`: контракт SearchProvider, hit@1 ≥ baseline, векторный канал — контракт либо явный `CAPABILITY_UNAVAILABLE` с признаком |
 | Y-05c | M | Диагностика и обслуживание SQLite-профиля (`doctor`/`reindex`), бенчмарк file vs sqlite на 100k, документация | pending | `tests/storage-sqlite.test.ts` (часть 2): `doctor` показывает профиль и возможности, `reindex` работает, бенчмарк записан в `docs/benchmarks/`, конфигурация описана |
 
@@ -1769,3 +1770,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > исключения работают до выхода из машины, ключи — через SecretManager, HTTP-провайдер с
 > таймаутами/ретраями и честной деградацией. Остаток этапа Y: Y-05 (SQLite), Y-06 (Postgres),
 > Y-07 (BlobProvider), Y-08 (миграция).
+> Примечание (2026-11-09, Y-05a1): SQLite-профиль поднят за теми же контрактами (задачи и документы);
+> гейт sqlite-vec на Node 24 подтверждён, Docker-проверка вынесена в Y-05c. Остаток Y-05: a2 —
+> остальные коллекции, b — поиск/векторы/история/замки, c — диагностика/бенчмарк.
