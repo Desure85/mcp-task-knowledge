@@ -2,24 +2,60 @@ import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject } from '../config.js';
 import { assertTypeAllowed, loadProjectTypes, WorkflowError } from '../workflow.js';
-import { listTasks } from '../storage/tasks.js';
+import { getTask, listTasks } from '../storage/tasks.js';
 import { listDocs, readDoc } from '../storage/knowledge.js';
-import { buildTextForDoc, buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
+import {
+  buildTextForDoc,
+  buildTextForTask,
+  extractAnchors,
+  fuseRankings,
+  hybridSearch,
+  promoteExactMatches,
+  twoStageHybridKnowledgeSearch,
+  type VectorSearchAdapter,
+} from '../search/index.js';
+import {
+  ensureProjectFtsIndexed,
+  getActiveFtsIndex,
+  getProjectFtsFillState,
+  isProjectFtsComplete,
+  knowledgeStoreId,
+  taskStoreId,
+} from '../search/fts-indexer.js';
 import { ok, okWith, errWith } from '../utils/respond.js';
+import type { KnowledgeDoc, Task } from '../types.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 import { getWarmupStatus } from '../search/warmup.js';
 import { TtlLruCache } from '../search/cache.js';
-import { PaginationError, clampLimit, encodeOffsetCursor, finalizePage, paginateRanked, rankedStart, scopeOf } from '../utils/pagination.js';
+import { PaginationError, clampLimit, encodeOffsetCursor, finalizePage, rankedStart, scopeOf } from '../utils/pagination.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
 
 /** Ranked id list for one query — ids only, so the cache stays tiny. */
 const RANKED_LIMIT = 200;
 const SNIPPET_CHARS = 300;
+/** SC-03c: how many FTS rows one query may pull before the in-memory rerank. */
+const FTS_CANDIDATE_LIMIT = 500;
 // Staleness is bounded by time, not by every write: a corpus fingerprint would be
 // invalidated by each sync write and the cache would never hit. 0 disables caching.
 const SEARCH_CACHE_TTL_MS = Number(process.env.SEARCH_CACHE_TTL_MS ?? 60_000);
 const SEARCH_CACHE_MAX = Number(process.env.SEARCH_CACHE_MAX ?? 200);
-const rankedCache = new TtlLruCache<string, Array<{ id: string; score: number; exactMatches?: number; bm25Score?: number; vectorScore?: number }>>(
+
+interface Ranked {
+  id: string;
+  score: number;
+  exactMatches?: number;
+  bm25Score?: number;
+  vectorScore?: number;
+}
+
+interface Candidates {
+  ranked: Ranked[];
+  source: 'fts' | 'scan';
+  /** False when the list is a candidate pool, not the whole match set (AC-02). */
+  totalExact: boolean;
+}
+
+const rankedCache = new TtlLruCache<string, Candidates>(
   Number.isFinite(SEARCH_CACHE_MAX) ? SEARCH_CACHE_MAX : 200,
   Number.isFinite(SEARCH_CACHE_TTL_MS) ? SEARCH_CACHE_TTL_MS : 15 * 60_000,
 );
@@ -27,6 +63,95 @@ const rankedCache = new TtlLruCache<string, Array<{ id: string; score: number; e
 /** Record vector adapter failures on the process-wide availability tracker. */
 function trackVectorError(): (err: unknown) => void {
   return () => getServiceAvailabilityRegistry().get('embeddings').recordFailure();
+}
+
+function toRanked(results: Array<Ranked & { item?: unknown }>): Ranked[] {
+  return results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({ id, score, exactMatches, bm25Score, vectorScore }));
+}
+
+function promoteCandidates<T>(
+  query: string,
+  items: Array<{ id: string; text: string; item: T }>,
+  ranked: Ranked[],
+): Ranked[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const base = ranked.flatMap((row) => {
+    const item = byId.get(row.id);
+    return item ? [{ id: row.id, score: row.score, item: item.item, bm25Score: row.bm25Score }] : [];
+  });
+  return toRanked(promoteExactMatches(query, items, base, base.length));
+}
+
+async function fuseCandidates<T>(
+  query: string,
+  items: Array<{ id: string; text: string; item: T }>,
+  ranked: Ranked[],
+  adapter: VectorSearchAdapter<T>,
+): Promise<Ranked[]> {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const lexical = ranked.flatMap((row) => {
+    const item = byId.get(row.id);
+    return item ? [{ id: row.id, score: row.score, item: item.item, bm25Score: row.bm25Score }] : [];
+  });
+  const poolSize = Math.max(items.length, 1);
+  try {
+    const semantic = await adapter.search(query, items, { limit: poolSize });
+    const fused = fuseRankings(lexical, semantic, poolSize);
+    return toRanked(promoteExactMatches(query, items, fused, poolSize));
+  } catch (err) {
+    trackVectorError()(err);
+    return ranked;
+  }
+}
+
+async function hydrateCandidates<T>(
+  query: string,
+  hits: Array<{ id: string; project: string; score: number }>,
+  load: (id: string, project: string) => Promise<T | null>,
+  adapter: VectorSearchAdapter<T> | undefined,
+  textOf: (item: T) => string,
+): Promise<Ranked[]> {
+  const anchors = extractAnchors(query);
+  const needItems = Boolean(adapter) || anchors.length > 0;
+  if (!needItems) return hits.map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score }));
+
+  const loaded = await Promise.all(hits.map((hit) => load(hit.id, hit.project)));
+  const items = hits.flatMap((hit, index) => {
+    const item = loaded[index];
+    return item ? [{ id: hit.id, text: textOf(item), item }] : [];
+  });
+  const present = new Set(items.map((item) => item.id));
+  const ranked = hits.filter((hit) => present.has(hit.id)).map((hit) => ({ id: hit.id, score: hit.score, bm25Score: hit.score }));
+  if (adapter && items.length > 0) return fuseCandidates(query, items, ranked, adapter);
+  if (anchors.length > 0 && items.length > 0) return promoteCandidates(query, items, ranked);
+  return ranked;
+}
+
+async function ftsTaskCandidates(prj: string, query: string, adapter: VectorSearchAdapter<Task> | undefined): Promise<Candidates | null> {
+  const fts = getActiveFtsIndex();
+  if (!fts || !isProjectFtsComplete(prj)) return null;
+  const hits = fts.query({ q: query, store: taskStoreId(), kind: 'task', project: prj, limit: FTS_CANDIDATE_LIMIT });
+  const exhaustive = hits.length < FTS_CANDIDATE_LIMIT;
+  if (hits.length === 0) return adapter ? null : { ranked: [], source: 'fts', totalExact: true };
+  const ranked = await hydrateCandidates(query, hits, (id) => getTask(prj, id), adapter, buildTextForTask);
+  return { ranked, source: 'fts', totalExact: exhaustive && ranked.length === hits.length };
+}
+
+async function ftsDocCandidates(prj: string, query: string, adapter: VectorSearchAdapter<KnowledgeDoc> | undefined): Promise<Candidates | null> {
+  const fts = getActiveFtsIndex();
+  if (!fts || !isProjectFtsComplete(prj)) return null;
+  const hits = fts.query({ q: query, store: knowledgeStoreId(), kind: 'doc', project: prj, limit: FTS_CANDIDATE_LIMIT });
+  const exhaustive = hits.length < FTS_CANDIDATE_LIMIT;
+  if (hits.length === 0) return adapter ? null : { ranked: [], source: 'fts', totalExact: true };
+  const ranked = await hydrateCandidates(query, hits, (id, project) => readDoc(project || prj, id), adapter, buildTextForDoc);
+  return { ranked, source: 'fts', totalExact: exhaustive && ranked.length === hits.length };
+}
+
+function candidateMeta(candidates: Candidates, prj: string): Record<string, unknown> {
+  return {
+    source: candidates.source,
+    ...(candidates.source === 'scan' && getProjectFtsFillState(prj) === 'running' ? { indexing: true } : {}),
+  };
 }
 
 export function registerSearchTools(ctx: ServerContext): void {
@@ -47,23 +172,56 @@ export function registerSearchTools(ctx: ServerContext): void {
       try {
         if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
         const request = toPageRequest(pageArgs);
-        const tasks = await listTasks({ project: prj, ...(type ? { type } : {}) });
-        const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
+        const scope = scopeOf(prj, query, type);
+        const limit = clampLimit(request.limit);
         const pool = Math.max(request.limit ?? 50, 50);
-        const results = await hybridSearch(query, items, {
-          limit: pool,
-          vectorAdapter: await ctx.ensureVectorAdapter(),
-          onVectorError: trackVectorError(),
-        });
-        const paged = paginateRanked(results, request, scopeOf(prj, query, type));
-        // AC-02: the ranked list is a pool, not the full match set. When the pool covers
-        // every candidate the total is exact; otherwise report it as a lower bound and name
-        // the candidate count instead of pretending `total: 50` means "50 matches".
-        const exhaustive = items.length <= pool;
-        const meta = exhaustive
-          ? paged.meta
-          : { ...paged.meta, totalExact: false, candidates: results.length };
-        return okWith(paged.items, meta);
+        const adapter = (await ctx.ensureVectorAdapter()) as VectorSearchAdapter<Task> | undefined;
+        ensureProjectFtsIndexed(prj);
+
+        // A type filter is a listing filter applied to the corpus before ranking, so it keeps
+        // the file path: post-filtering FTS candidates would change which tasks are ranked.
+        let candidates = type ? null : await ftsTaskCandidates(prj, query, adapter);
+        if (!candidates) {
+          const tasks = await listTasks({ project: prj, ...(type ? { type } : {}) });
+          const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
+          const results = await hybridSearch(query, items, {
+            limit: pool,
+            vectorAdapter: adapter,
+            onVectorError: trackVectorError(),
+          });
+          candidates = { ranked: toRanked(results), source: 'scan', totalExact: items.length <= pool };
+        }
+
+        const ranked = candidates.ranked;
+        const start = rankedStart(request, scope, ranked.length);
+        const page = ranked.slice(start, start + limit);
+        const shape = {
+          total: ranked.length,
+          totalExact: candidates.totalExact,
+          hasMore: start + page.length < ranked.length,
+          limit,
+        };
+        const extra = candidateMeta(candidates, prj);
+        if (request.countOnly) {
+          const result = finalizePage([], shape, request, () => null);
+          return okWith(result.items, { ...result.meta, ...extra });
+        }
+        const hydrated = await Promise.all(
+          page.map(async (row) => {
+            const task = await getTask(prj, row.id);
+            return task ? { ...row, item: task } : null;
+          }),
+        );
+        const result = finalizePage(
+          hydrated.filter((row): row is Ranked & { item: Task } => row !== null),
+          shape,
+          request,
+          (index) => encodeOffsetCursor(start + index + 1, scope),
+        );
+        const meta = candidates.totalExact
+          ? { ...result.meta, ...extra }
+          : { ...result.meta, ...extra, candidates: ranked.length };
+        return okWith(result.items, meta);
       } catch (e) {
         if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
         if (e instanceof WorkflowError) return errWith(e.toPayload());
@@ -87,33 +245,39 @@ export function registerSearchTools(ctx: ServerContext): void {
     },
     async ({ project, query, offset, snippet, ...pageArgs }: { project?: string; query: string; offset?: number; snippet?: boolean } & Record<string, any>) => {
       const prj = resolveProject(project);
-      const metas = await listDocs({ project: prj });
       const cacheKey = `${prj}|${query}`;
-      let ranked = rankedCache.get(cacheKey);
-      if (!ranked) {
-        const docs = await Promise.all(metas.map((m) => readDoc(m.project || prj, m.id)));
-        const valid = docs.filter(Boolean) as NonNullable<typeof docs[number]>[];
-        const items = valid.map((d) => ({ id: d.id, text: buildTextForDoc(d), item: d }));
-        const results = await hybridSearch(query, items, {
-          limit: Math.min(items.length, RANKED_LIMIT),
-          vectorAdapter: await ctx.ensureVectorAdapter(),
-          onVectorError: trackVectorError(),
-        });
-        ranked = results.map(({ id, score, exactMatches, bm25Score, vectorScore }) => ({ id, score, exactMatches, bm25Score, vectorScore }));
-        rankedCache.set(cacheKey, ranked);
+      ensureProjectFtsIndexed(prj);
+      let candidates: Candidates | null | undefined = rankedCache.get(cacheKey);
+      if (!candidates) {
+        const adapter = (await ctx.ensureVectorAdapter()) as VectorSearchAdapter<KnowledgeDoc> | undefined;
+        candidates = await ftsDocCandidates(prj, query, adapter);
+        if (!candidates) {
+          const metas = await listDocs({ project: prj });
+          const docs = await Promise.all(metas.map((m) => readDoc(m.project || prj, m.id)));
+          const valid = docs.filter(Boolean) as NonNullable<typeof docs[number]>[];
+          const items = valid.map((d) => ({ id: d.id, text: buildTextForDoc(d), item: d }));
+          const results = await hybridSearch(query, items, {
+            limit: Math.min(items.length, RANKED_LIMIT),
+            vectorAdapter: adapter,
+            onVectorError: trackVectorError(),
+          });
+          candidates = { ranked: toRanked(results), source: 'scan', totalExact: metas.length <= RANKED_LIMIT };
+        }
+        rankedCache.set(cacheKey, candidates);
       }
+      const ranked = candidates.ranked;
       const scope = scopeOf(prj, query);
       const request = toPageRequest({ ...pageArgs, offset });
-      // AC-02: the ranking is capped at RANKED_LIMIT, so `ranked.length` is the exact number
-      // of matches only when every document was ranked; otherwise it is the candidate count.
-      const exhaustive = metas.length <= RANKED_LIMIT;
-      const withHonesty = (meta: Record<string, unknown>) => (exhaustive ? meta : { ...meta, candidates: ranked.length });
+      const extra = candidateMeta(candidates, prj);
+      // AC-02: a capped ranking is a candidate pool, not the whole match set.
+      const withHonesty = (meta: Record<string, unknown>) =>
+        candidates!.totalExact ? { ...meta, ...extra } : { ...meta, ...extra, candidates: ranked.length };
       try {
         const limit = clampLimit(request.limit);
         const start = rankedStart(request, scope, ranked.length);
         const page = ranked.slice(start, start + limit);
         if (request.countOnly) {
-          const result = finalizePage([], { total: ranked.length, totalExact: exhaustive, hasMore: false, limit }, request, () => null);
+          const result = finalizePage([], { total: ranked.length, totalExact: candidates.totalExact, hasMore: false, limit }, request, () => null);
           return okWith(result.items, withHonesty(result.meta as unknown as Record<string, unknown>));
         }
         // Read only the requested slice: the rest of the ranking stays as ids.
@@ -130,7 +294,7 @@ export function registerSearchTools(ctx: ServerContext): void {
         });
         const result = finalizePage(
           hydrated,
-          { total: ranked.length, totalExact: exhaustive, hasMore: start + page.length < ranked.length, limit },
+          { total: ranked.length, totalExact: candidates.totalExact, hasMore: start + page.length < ranked.length, limit },
           request,
           (index) => encodeOffsetCursor(start + index + 1, scope),
         );

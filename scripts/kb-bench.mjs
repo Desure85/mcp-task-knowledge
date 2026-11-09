@@ -175,6 +175,114 @@ function pct(x, n) {
   return n ? Number(((x / n) * 100).toFixed(1)) : 0;
 }
 
+function benchEnv() {
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') env[key] = value;
+  }
+  return { ...env, ...embeddingsEnv(EMB_MODE), DATA_DIR: DIR, CURRENT_PROJECT: PROJECT, CATALOG_ENABLED: 'false', LOG_LEVEL: 'silent' };
+}
+
+function runChild(args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (chunk) => { out += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { err += chunk.toString(); });
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, out, err }));
+  });
+}
+
+/** Reindex builds the metadata and FTS indexes from files, so every query below can use them. */
+async function reindexFixture() {
+  const result = await runChild(
+    [path.join(DIST, 'index.js'), 'reindex', '--data', '--project', PROJECT],
+    benchEnv(),
+  );
+  if (result.code !== 0) throw new Error(`reindex failed (${result.code}):\n${result.err || result.out}`);
+}
+
+async function startStdioServer() {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [path.join(DIST, 'index.js')],
+    env: { ...benchEnv(), MCP_TRANSPORT: 'stdio' },
+    stderr: 'ignore',
+  });
+  const client = new Client({ name: 'kb-bench-via-tool', version: '0.0.1' });
+  await client.connect(transport);
+  return client;
+}
+
+/**
+ * SC-03c gate: the same query set through the real `search_knowledge` tool. Unlike the
+ * in-process runRetrieval this exercises the read path, and it fails when any query was
+ * answered by the file scan instead of the FTS index.
+ */
+async function runRetrievalViaTool() {
+  const queries = JSON.parse(fs.readFileSync(path.join(HERE, 'kb-bench-queries.json'), 'utf8'));
+  await reindexFixture();
+  const client = await startStdioServer();
+  try {
+    const srcOf = (item) => {
+      const match = /\[([^\]\[]+)#\d+\]/.exec(item?.title ?? '');
+      if (match) return match[1];
+      return String(item?.source ?? '').replace(/^bench:/, '').replace(/#\d+$/, '');
+    };
+    const perLang = {};
+    let hit1 = 0, hit3 = 0, mrr = 0, n = 0, missing = 0, scanned = 0;
+    const rows = [];
+    for (const query of queries) {
+      const result = await client.callTool(
+        { name: 'search_knowledge', arguments: { project: PROJECT, query: query.query, limit: 10 } },
+        undefined,
+        { timeout: 600_000 },
+      );
+      const envelope = JSON.parse(result.content[0].text);
+      if (!envelope.ok) throw new Error(`search_knowledge failed for "${query.query}": ${JSON.stringify(envelope.error)}`);
+      if (envelope.source !== 'fts') scanned++;
+      const items = Array.isArray(envelope.data) ? envelope.data : [];
+      const rankIdx = items.findIndex((row) => query.expect.includes(srcOf(row.item ?? row)));
+      const finalRank = rankIdx >= 0 ? rankIdx + 1 : 0;
+      const bucket = perLang[query.lang] ?? (perLang[query.lang] = { n: 0, hit1: 0, hit3: 0, mrr: 0 });
+      n += 1;
+      bucket.n += 1;
+      if (finalRank === 1) { hit1 += 1; bucket.hit1 += 1; }
+      if (finalRank > 0 && finalRank <= 3) { hit3 += 1; bucket.hit3 += 1; }
+      if (finalRank > 0) { mrr += 1 / finalRank; bucket.mrr += 1 / finalRank; }
+      if (finalRank === 0) missing += 1;
+      rows.push({ query: query.query, lang: query.lang, expect: query.expect, rank: finalRank, source: envelope.source, top1: items[0]?.item?.title ?? null });
+    }
+    const summary = {
+      model: MODEL,
+      mode: EMB_MODE,
+      viaTool: true,
+      sourceScanned: scanned,
+      docs: null,
+      queries: n,
+      hit1: pct(hit1, n),
+      hit3: pct(hit3, n),
+      mrr: Number((mrr / n).toFixed(3)),
+      missed: missing,
+      perLang: Object.fromEntries(
+        Object.entries(perLang).map(([key, value]) => [key, { n: value.n, hit1: pct(value.hit1, value.n), hit3: pct(value.hit3, value.n), mrr: Number((value.mrr / value.n).toFixed(3)) }]),
+      ),
+    };
+    console.log(JSON.stringify(summary, null, 2));
+    if (flag('verbose')) for (const row of rows) console.log(`${row.rank || 'MISS'} [${row.lang}] ${row.query} → ${row.top1} (${row.source})`);
+    if (scanned > 0) {
+      console.error(`kb-bench: ${scanned}/${n} queries were answered by the file scan, not the FTS index`);
+      process.exitCode = 2;
+    }
+  } finally {
+    await client.close().catch(() => {});
+  }
+}
+
 async function loadItems() {
   const { listDocs, readDoc } = await imp('storage/knowledge.js');
   const { buildTextForDoc } = await imp('search/index.js');
@@ -194,6 +302,7 @@ async function makeAdapter(mode) {
 }
 
 async function runRetrieval() {
+  if (flag('via-tool')) return runRetrievalViaTool();
   const { hybridSearch } = await imp('search/index.js');
   const items = await loadItems();
   const byId = new Map(items.map((i) => [i.id, i.item]));

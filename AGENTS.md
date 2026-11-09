@@ -425,10 +425,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** TS-01 (стабильность тестов и безопасный прогон; opencode `ses_e417bd055ffe5h04upQe7cIGsV`)
-**Текущая ветка:** fix/test-stability (worktree `/home/dm/work/mcp-tk-stab`, от origin/master 3566d62)
-**Текущий этап:** надёжность тестов — потолок воркеров и три флейка
-**Статус:** `TS-01` → review: потолок воркеров `min(4, ядра/2)` с `VITEST_MAX_WORKERS` в конфиге, `npm test`/`test:coverage`/pre-push; полный прогон 3400 тестов / 291 файл зелёный 3/3, пик памяти 2.3 ГБ; флейки `executable-docs`, `mcp-inspector`, `auth-session-stress`, `pagination` исправлены по причине (0/20 после). **Дальше: мерж PR.**
+**Session ID:** ses_e410a56d8ffeVJlqKeRhjidayR (SC-03c — чтение FTS5)
+**Текущая ветка:** feat/sc03c-fts-read (worktree `/home/dm/work/mcp-tk-sc03c`, от origin/master e1f32f7)
+**Текущий этап:** SC-03 — инвертированный индекс поиска
+**Статус:** `SC-03c` закрыт, `SC-03` → done. Read-path читает FTS-кандидатов только при доказанной полноте, иначе файловый скан + фоновый fill (`source`, `indexing`). Попутно исправлен квадратичный DELETE в FTS (`search_fts_keys`, схема v4). 100k: `search_tasks` median 544 мс / p95 598 мс, `search_knowledge` 42 / 636 мс, cold start 625 мс, RSS 156 МБ. Полный прогон 3408 тестов / 291 файл зелёный. **Дальше: PR.**
+
+### Сессия ses_e410a56d8ffeVJlqKeRhjidayR (SC-03c — поиск читает FTS5)
+
+- `src/register/search.ts`: `search_tasks`/`search_knowledge` берут до 500 id из `search_fts`, затем прогоняют существующие `hybridSearch`/`promoteExactMatches` по кандидатам; `type`-фильтр остаётся на файловом пути (фильтр корпуса до ранжирования). Meta: `source: 'fts'|'scan'`, `indexing: true` при фоновом fill, `totalExact: false` + `candidates` при упёртом пуле.
+- `src/search/fts-indexer.ts`: `isProjectFtsComplete` (metadata complete + `!dirty` + равенство счётчиков без archived/trashed), `ensureProjectFtsIndexed`/`awaitProjectFtsIndexed`/`getProjectFtsFillState` — один inflight на проект; грязный индекс не дозаполняется.
+- `src/core/app-container.ts` + `src/cli/reindex.ts`: `reindex --data` применяет миграции DATA_DIR, boot после миграций не перестраивает индекс; сама перестройка помечает проекты complete и пересобирает FTS.
+- **Найдено владельцем:** `FtsSearchIndex.upsert` удалял строку по UNINDEXED-колонкам → полный скан на запись, 100k reindex 26 мин без результата. Исправлено `search_fts_keys(store,kind,id,project,rowid)` + индекс `(store,kind,project)`, удаление по rowid, `rebuild` — очистка один раз; схема v4. Масштабный тест: rebuild 20k за 0.5 с, revert-check RED.
+- `scripts/kb-bench.mjs`: `retrieval --via-tool` — реальный MCP-тул, reindex фикстуры, exit 2 если хоть один запрос ушёл в скан. 530 чанков, embeddings off: via-tool 77.8/0.838 против старого 77.8/0.830.
+
+### Сессия TS-01 (стабильность тестов и безопасный прогон)
 
 ### Сессия TS-01 (стабильность тестов и безопасный прогон)
 

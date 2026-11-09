@@ -124,6 +124,30 @@ function exactMatches<T>(
   return hits.sort((a, b) => b.score - a.score);
 }
 
+/**
+ * Verbatim hits outrank everything: a query that names a file, symbol or ticket wants the
+ * document containing that exact string, not its semantic neighbours. Shared by the in-memory
+ * hybrid path and the FTS read path (SC-03c) so both keep the same identifier lookup.
+ */
+export function promoteExactMatches<T>(
+  query: string,
+  items: Array<{ id: string; text: string; item: T }>,
+  ranked: SearchResult<T>[],
+  limit: number,
+): SearchResult<T>[] {
+  const anchors = extractAnchors(query);
+  if (!anchors.length) return ranked.slice(0, limit);
+  const exact = exactMatches(items, anchors);
+  if (isAnchorOnlyQuery(query, anchors) && exact.length === 0) return [];
+  if (!exact.length) return ranked.slice(0, limit);
+  const exactIds = new Set(exact.map((hit) => hit.id));
+  const promoted = exact.map((hit) => {
+    const base = ranked.find((r) => r.id === hit.id);
+    return { ...(base ?? hit), score: 1, exactMatches: hit.exactMatches };
+  });
+  return [...promoted, ...ranked.filter((r) => !exactIds.has(r.id))].slice(0, limit);
+}
+
 export async function hybridSearch<T>(
   query: string,
   items: Array<{ id: string; text: string; item: T }>,
@@ -144,20 +168,7 @@ export async function hybridSearch<T>(
     const floor = lexicalConfidenceFloor();
     const lexical = floor > 0 ? bm25.filter((r) => (r.bm25Confidence ?? 1) >= floor) : bm25;
     const fused = fuseRankings(lexical, vec, poolSize);
-    // A verbatim hit outranks everything: if the query names a file, symbol or ticket,
-    // the document containing that exact string is what the caller asked for.
-    const anchors = extractAnchors(query);
-    const exact = exactMatches(items, anchors);
-    // A bare identifier is a lookup, not a topic: if the base does not contain it,
-    // returning semantic neighbours is noise ("DEV-7158" -> unrelated tickets).
-    if (isAnchorOnlyQuery(query, anchors) && exact.length === 0) return [];
-    if (!exact.length) return fused.slice(0, limit);
-    const exactIds = new Set(exact.map((hit) => hit.id));
-    const promoted = exact.map((hit) => {
-      const base = fused.find((r) => r.id === hit.id);
-      return { ...(base ?? hit), score: 1, exactMatches: hit.exactMatches };
-    });
-    return [...promoted, ...fused.filter((r) => !exactIds.has(r.id))].slice(0, limit);
+    return promoteExactMatches(query, items, fused, limit);
   } catch (err) {
     options.onVectorError?.(err);
     return bm25.slice(0, limit);
