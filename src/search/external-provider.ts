@@ -7,7 +7,7 @@
  * деградации вместо «ничего не найдено».
  */
 
-import type { EmbeddingProvider } from './contracts.js';
+import type { EmbeddingFingerprint, EmbeddingProvider } from './contracts.js';
 import {
   ExternalEmbeddingError,
   externalEmbeddingStartupWarning,
@@ -38,7 +38,14 @@ export interface ExternalEmbeddingProvider extends EmbeddingProvider {
 export interface ExternalEmbeddingProviderOptions {
   config: ExternalEmbeddingConfig;
   policy: ExternalEmbeddingGate;
-  inner: EmbeddingProvider;
+  /** Ready inner provider (tests/local mocks). Mutually exclusive with `createInner`. */
+  inner?: EmbeddingProvider;
+  /**
+   * Builds the inner provider once the API key is known (HTTP provider, Y-04b). Keeping this
+   * lazy means the secret is resolved before any provider object exists, and with the flag off
+   * no provider is built at all.
+   */
+  createInner?: (secret: string | undefined) => EmbeddingProvider;
   secrets?: SecretAccess;
   now?: () => number;
   /** Observability hook: warning/error text only — never the secret value. */
@@ -48,7 +55,7 @@ export interface ExternalEmbeddingProviderOptions {
 const RATE_WINDOW_MS = 60_000;
 
 export function createExternalEmbeddingProvider(options: ExternalEmbeddingProviderOptions): ExternalEmbeddingProvider {
-  const { config, policy, inner } = options;
+  const { config, policy } = options;
   const clock = options.now ?? (() => Date.now());
   const usage: ExternalUsageStats = {
     requests: 0,
@@ -62,6 +69,22 @@ export function createExternalEmbeddingProvider(options: ExternalEmbeddingProvid
   let secretValue: string | undefined;
   let secretFetched = false;
   let secretRequested = false;
+  let innerInstance: EmbeddingProvider | undefined = options.inner;
+
+  function innerFingerprint(): EmbeddingFingerprint {
+    return innerInstance
+      ? innerInstance.fingerprint()
+      : { modelId: 'external', dimension: 0, pooling: 'mean', queryPrefix: '', docPrefix: '' };
+  }
+
+  function ensureInner(): EmbeddingProvider {
+    if (innerInstance) return innerInstance;
+    if (!options.createInner) {
+      throw new ExternalEmbeddingError('PROVIDER_ERROR', 'no external provider is configured');
+    }
+    innerInstance = options.createInner(secretValue);
+    return innerInstance;
+  }
 
   if (warning) options.onEvent?.({ type: 'warning', message: warning });
 
@@ -120,15 +143,16 @@ export function createExternalEmbeddingProvider(options: ExternalEmbeddingProvid
 
   return {
     fingerprint: () => {
-      const innerFingerprint = inner.fingerprint();
+      const fingerprint = innerFingerprint();
       return {
-        ...innerFingerprint,
-        modelId: `external:${config.provider}:${config.model ?? innerFingerprint.modelId}`,
+        ...fingerprint,
+        modelId: `external:${config.provider}:${config.model ?? fingerprint.modelId}`,
       };
     },
-    isReady: () => config.enabled && inner.isReady(),
+    isReady: () => config.enabled && (innerInstance?.isReady() ?? false),
     async embedQuery(text: string): Promise<Float32Array> {
       await assertEnabled();
+      const inner = ensureInner();
       enforceRateLimit(1);
       try {
         const vector = await inner.embedQuery(text);
@@ -143,6 +167,7 @@ export function createExternalEmbeddingProvider(options: ExternalEmbeddingProvid
     async embedDocuments(texts: string[]): Promise<Float32Array[]> {
       if (texts.length === 0) return [];
       await assertEnabled();
+      const inner = ensureInner();
       enforceRateLimit(texts.length);
       try {
         const vectors = await inner.embedDocuments(texts);

@@ -62,6 +62,14 @@ export function readExternalEmbeddingConfig(env: NodeJS.ProcessEnv = process.env
   };
 }
 
+/** Why an enabled configuration cannot run; `null` when it is complete (or disabled). */
+export function externalEmbeddingConfigProblem(config: ExternalEmbeddingConfig): string | null {
+  if (!config.enabled) return null;
+  if (!config.baseUrl) return 'EMBEDDINGS_EXTERNAL_BASE_URL is required when external embeddings are enabled';
+  if (!config.model) return 'EMBEDDINGS_EXTERNAL_MODEL is required when external embeddings are enabled';
+  return null;
+}
+
 /** Startup warning required by ADR-009 rule 2; `null` when the feature is off. */
 export function externalEmbeddingStartupWarning(config: ExternalEmbeddingConfig): string | null {
   if (!config.enabled) return null;

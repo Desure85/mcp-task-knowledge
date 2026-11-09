@@ -12,9 +12,13 @@ import { createFileProfile } from '../storage/profiles/file/index.js';
 import { createFileEmbeddingProvider, type EmbeddingAdapterLike } from '../search/embeddings-file.js';
 import {
   createExternalEmbeddingGate,
+  externalEmbeddingConfigProblem,
   externalEmbeddingStartupWarning,
   readExternalEmbeddingConfig,
 } from '../search/external-policy.js';
+import { createExternalEmbeddingProvider } from '../search/external-provider.js';
+import { createOpenAiCompatibleEmbeddingProvider } from '../search/external-http-provider.js';
+import { createSecretManager } from '../core/secret-manager.js';
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
@@ -413,6 +417,31 @@ export async function createServerContext(): Promise<ServerContext> {
   const storage = createFileProfile({
     externalPolicy: (item) => externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel }),
     embeddingProvider: async () => {
+      if (externalEmbeddingConfig.enabled) {
+        const problem = externalEmbeddingConfigProblem(externalEmbeddingConfig);
+        if (problem) {
+          log.warn({ external: true }, `external embeddings misconfigured: ${problem}`);
+          return undefined;
+        }
+        // Y-04b: OpenAI-compatible HTTP provider, created only after the secret is resolved.
+        return createExternalEmbeddingProvider({
+          config: externalEmbeddingConfig,
+          policy: externalEmbeddingGate,
+          secrets: createSecretManager(),
+          createInner: (secret) =>
+            createOpenAiCompatibleEmbeddingProvider({
+              baseUrl: externalEmbeddingConfig.baseUrl!,
+              model: externalEmbeddingConfig.model!,
+              apiKey: secret ?? '',
+            }),
+          onEvent: (event) => {
+            if (event.type === 'error') log.error({ external: true }, event.message);
+            else log.warn({ external: true }, event.message);
+          },
+        });
+      }
+
+      // Local ONNX provider: resolved lazily through ensureVectorAdapter.
       const adapter = await ensureVectorAdapter();
       if (!adapter) return undefined;
       const candidate = adapter as unknown as Partial<EmbeddingAdapterLike>;
