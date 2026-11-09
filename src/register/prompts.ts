@@ -6,15 +6,26 @@ import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateRanked, scopeOf } from '../utils/pagination.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
 
-import { readPromptsCatalog, readPromptBuildItems, findFileByIdVersion, listPromptVersions, ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
+import { ensureDirForFile, listFilesRecursive, appendJsonl, readJsonl } from './helpers.js';
 import { appendAssignments, appendEvents, listBuildVariants, readExperiment, readAggregates, updateAggregates } from '../ab-testing/storage.js';
 import { pickWithEpsilonGreedy } from '../ab-testing/bandits.js';
 import { hybridSearch } from '../search/index.js';
-import { listTasks } from '../storage/tasks.js';
-import { listDocs} from '../storage/knowledge.js';
+import { storageProfile } from '../core/storage-context.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 
+
+function taskStore(ctx: ServerContext) {
+  return storageProfile(ctx).tasks;
+}
+
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
+
+function promptStore(ctx: ServerContext) {
+  return storageProfile(ctx).prompts;
+}
 
 export function registerPromptsTools(ctx: ServerContext) {
   ctx.server.registerTool(
@@ -29,8 +40,8 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, includeArchived }: { project?: string; includeArchived?: boolean }) => {
       const prj = resolveProject(project);
-      const tasks = await listTasks({ project: prj, includeArchived: !!includeArchived });
-      const kMetas = await listDocs({ project: prj, includeArchived: !!includeArchived });
+      const tasks = await taskStore(ctx).list({ project: prj, includeArchived: !!includeArchived });
+      const kMetas = await docStore(ctx).list({ project: prj, includeArchived: !!includeArchived });
       const esc = (s: string) => (s || '').replace(/"/g, '\\"');
       const label = (title?: string) => esc((title || '').trim() || 'untitled');
       const lines: string[] = [];
@@ -108,7 +119,7 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, id, version }: { project?: string; id: string; version?: string }) => {
       const prj = resolveProject(project);
-      const versions = await listPromptVersions(prj, id);
+      const versions = await promptStore(ctx).versions(prj, id);
       if (versions.length === 0) return err(`Prompt not found: ${prj}/${id}`);
       const selected = !version || version === 'latest'
         ? versions[versions.length - 1]
@@ -200,7 +211,7 @@ export function registerPromptsTools(ctx: ServerContext) {
           let baseVer = it.selector.version;
           if (!targetPath) {
             if (!baseId || !baseVer) throw new Error('selector requires either path or id+version');
-            targetPath = await findFileByIdVersion(prj, baseId, baseVer);
+            targetPath = ((await promptStore(ctx).get(prj, baseId, baseVer))?.path ?? null);
             if (!targetPath) throw new Error(`file not found for ${baseId}@${baseVer}`);
           }
           const raw = await fs.readFile(targetPath, 'utf8');
@@ -250,7 +261,7 @@ export function registerPromptsTools(ctx: ServerContext) {
           let targetPath = sel.path || null;
           if (!targetPath) {
             if (!sel.id || !sel.version) throw new Error('selector requires either path or id+version');
-            targetPath = await findFileByIdVersion(prj, sel.id, sel.version);
+            targetPath = ((await promptStore(ctx).get(prj, sel.id, sel.version))?.path ?? null);
             if (!targetPath) throw new Error(`file not found for ${sel.id}@${sel.version}`);
           }
           if (!dryRun) await fs.unlink(targetPath);
@@ -308,7 +319,7 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, writeToDisk }: { project?: string; writeToDisk?: boolean }) => {
       const prj = resolveProject(project);
-      const catalog = await readPromptsCatalog(prj);
+      const catalog: any = await promptStore(ctx).catalog(prj);
       const keys: string[] = Object.keys(catalog?.items || {});
       const byPrompt: Record<string, any> = {};
       for (const k of keys) {
@@ -360,7 +371,7 @@ export function registerPromptsTools(ctx: ServerContext) {
       const prj = resolveProject(project);
       try {
         const request = toPageRequest(pageArgs);
-        const catalog = await readPromptsCatalog(prj);
+        const catalog: any = await promptStore(ctx).catalog(prj);
         const items: any[] = [];
         const tagSet = tag && tag.length ? new Set(tag) : undefined;
         for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
@@ -447,8 +458,8 @@ export function registerPromptsTools(ctx: ServerContext) {
     },
     async ({ project, query, limit, tags, kinds }: { project?: string; query: string; limit?: number; tags?: string[]; kinds?: string[] }) => {
       const prj = resolveProject(project);
-      const catalog = await readPromptsCatalog(prj);
-      const items = await readPromptBuildItems(prj);
+      const catalog: any = await promptStore(ctx).catalog(prj);
+      const items: any[] = await promptStore(ctx).buildItems(prj);
       const tagSet = tags && tags.length ? new Set(tags) : undefined;
       const kindSet = kinds && kinds.length ? new Set(kinds) : undefined;
       const filtered = items.filter((it) => {
@@ -461,7 +472,7 @@ export function registerPromptsTools(ctx: ServerContext) {
       });
       const va = await ctx.ensureVectorAdapter();
       const results = await hybridSearch(query, filtered, { limit: limit ?? 20, vectorAdapter: va });
-      const mapped = results.map((r) => {
+      const mapped = results.map((r: any) => {
         const meta = catalog?.items?.[r.item.key] || {};
         const kind = r.item.kind || meta.kind || meta.type || 'prompt';
         const title = r.item.title || meta.title || r.item.key;

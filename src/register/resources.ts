@@ -1,9 +1,8 @@
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, getCurrentProject } from '../config.js';
 import { listProjects } from '../projects.js';
-import { listTasks, getTask } from '../storage/tasks.js';
-import { listDocs, readDoc } from '../storage/knowledge.js';
-import { readPromptsCatalog, listFilesRecursive } from './helpers.js';
+import { listFilesRecursive } from './helpers.js';
+import { storageProfile } from '../core/storage-context.js';
 import { resolveUnder, resolveUnderPath } from '../fs.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -11,6 +10,18 @@ import type { Dirent } from 'node:fs';
 
 const ACTIONS_HINT =
   'task mutations are tools-only (tasks_update/tasks_close/...). Resource reads never mutate state (AUD-02)';
+
+function taskStore(ctx: ServerContext) {
+  return storageProfile(ctx).tasks;
+}
+
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
+
+function promptStore(ctx: ServerContext) {
+  return storageProfile(ctx).prompts;
+}
 
 export function registerResources(ctx: ServerContext) {
   const buildTaskResponder = (_baseTitle: string, _baseDescription: string) => async (uri: { href: string }) => {
@@ -30,7 +41,7 @@ export function registerResources(ctx: ServerContext) {
       const allTasks: any[] = [];
       for (const project of projectsData.projects.map((p: any) => p.id)) {
         try {
-          const tasks = await listTasks({ project, includeArchived: false });
+          const tasks = await taskStore(ctx).list({ project, includeArchived: false });
           for (const task of tasks) {
             allTasks.push({ ...task, uri: `task://${project}/${task.id}`, name: `Task: ${task.title}`, description: `Project: ${project}, Status: ${task.status}, Priority: ${task.priority}`, project });
           }
@@ -54,7 +65,7 @@ export function registerResources(ctx: ServerContext) {
 
     const project = decodeURIComponent(host);
     const id = decodeURIComponent(pathSegments.join('/'));
-    const task = await getTask(project, id);
+    const task = await taskStore(ctx).get(project, id);
     return { contents: [{ uri: uri.href, text: JSON.stringify(task, null, 2), mimeType: 'application/json' }] };
   };
 
@@ -84,7 +95,7 @@ export function registerResources(ctx: ServerContext) {
     const project = String(vars?.project ?? '').trim();
     const id = String(vars?.id ?? '').trim();
     if (!project || !id) return respond({ ok: false, error: 'project and id are required' });
-    const task = await getTask(project, id);
+    const task = await taskStore(ctx).get(project, id);
     if (!task) return respond({ ok: false, error: 'task not found', project, id });
     return { contents: [{ uri: uri.href, text: JSON.stringify(task, null, 2), mimeType: 'application/json' }] };
   });
@@ -97,7 +108,7 @@ export function registerResources(ctx: ServerContext) {
       const allDocs: any[] = [];
       for (const project of projectsData.projects.map((p: any) => p.id)) {
         try {
-          const docs = await listDocs({ project, includeArchived: false });
+          const docs = await docStore(ctx).list({ project, includeArchived: false });
           for (const doc of docs) {
             allDocs.push({ ...doc, uri: `knowledge://${project}/${doc.id}`, name: `Knowledge: ${doc.title}`, description: `Project: ${project}, Type: ${doc.type || 'document'}, Tags: ${(doc.tags || []).join(', ')}`, project });
           }
@@ -108,7 +119,7 @@ export function registerResources(ctx: ServerContext) {
     const match = uri.href.match(/^knowledge:\/\/([^\/]+)\/(.+)$/);
     if (!match) throw new Error("Invalid knowledge URI format. Expected: knowledge://{project}/{id}");
     const [, project, id] = match;
-    const doc = await readDoc(project, id);
+    const doc = await docStore(ctx).read(project, id);
     return { contents: [{ uri: uri.href, text: JSON.stringify(doc, null, 2), mimeType: "application/json" }] };
   });
 
@@ -145,7 +156,7 @@ export function registerResources(ctx: ServerContext) {
       const allPrompts: any[] = [];
       for (const project of projectsData.projects.map((p: any) => p.id)) {
         try {
-          const catalog = await readPromptsCatalog(project);
+          const catalog = await promptStore(ctx).catalog(project);
           for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
             const version = meta.version || meta.buildVersion || 'latest';
             allPrompts.push({ ...meta, uri: `prompt://${project}/${key}@${version}`, name: `Prompt: ${meta.title || key}`, description: `Project: ${project}, Kind: ${meta.kind || 'prompt'}, Domain: ${meta.domain}, Status: ${meta.status}`, project, key, version });

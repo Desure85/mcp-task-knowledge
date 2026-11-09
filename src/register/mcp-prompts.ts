@@ -34,7 +34,7 @@ import fs from 'node:fs/promises';
 import { z } from 'zod/v3';
 import type { ServerContext } from './context.js';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
-import { readPromptsCatalog } from './helpers.js';
+import { storageProfile } from '../core/storage-context.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('mcp-prompts');
@@ -128,7 +128,7 @@ function renderTemplate(template: string, args: Record<string, unknown>): string
  */
 export async function registerMcpPrompts(ctx: ServerContext): Promise<void> {
   const project = resolveProject(undefined);
-  const catalog = await readPromptsCatalog(project);
+  const catalog = await storageProfile(ctx).prompts.catalog(project);
   let registered = 0;
 
   const items = catalog && typeof catalog === 'object' && catalog.items

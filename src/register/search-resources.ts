@@ -1,12 +1,19 @@
 import type { ServerContext } from './context.js';
 import type { KnowledgeDoc } from '../types.js';
 import type { VectorSearchAdapter } from '../search/index.js';
-import { listTasks } from '../storage/tasks.js';
-import { listDocs, readDoc } from '../storage/knowledge.js';
+import { storageProfile } from '../core/storage-context.js';
 import { buildTextForTask, hybridSearch, twoStageHybridKnowledgeSearch } from '../search/index.js';
 import { childLogger } from '../core/logger.js';
 
 const log = childLogger('resources');
+
+function taskStore(ctx: ServerContext) {
+  return storageProfile(ctx).tasks;
+}
+
+function docStore(ctx: ServerContext) {
+  return storageProfile(ctx).docs;
+}
 
 export function registerSearchResources(ctx: ServerContext): void {
   const handleSearchTasksHref = async (href: string) => {
@@ -16,7 +23,7 @@ export function registerSearchResources(ctx: ServerContext): void {
       if (!project) {
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'project is required' }, null, 2), mimeType: 'application/json' }] };
       }
-      const items: any[] = await listTasks({ project, includeArchived: false } as any);
+      const items: any[] = await taskStore(ctx).list({ project, includeArchived: false } as any);
       items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
       return { contents: [{ uri: href, text: JSON.stringify(items.slice(0, 20), null, 2), mimeType: 'application/json' }] };
     }
@@ -35,7 +42,7 @@ export function registerSearchResources(ctx: ServerContext): void {
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'query is required' }, null, 2), mimeType: 'application/json' }] };
       }
       const limit: number = Math.max(1, Math.min(100, Number(params.limit ?? 20)));
-      const tasks = await listTasks({ project, includeArchived: false } as any);
+      const tasks = await taskStore(ctx).list({ project, includeArchived: false } as any);
       const items = tasks.map((t) => ({ id: t.id, text: buildTextForTask(t), item: t }));
       const results = await hybridSearch(query, items, { limit, vectorAdapter: await ctx.ensureVectorAdapter() });
       return { contents: [{ uri: href, text: JSON.stringify(results, null, 2), mimeType: 'application/json' }] };
@@ -50,7 +57,7 @@ export function registerSearchResources(ctx: ServerContext): void {
       if (!project) {
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'project is required' }, null, 2), mimeType: 'application/json' }] };
       }
-      const items: any[] = await listDocs({ project, includeArchived: false } as any);
+      const items: any[] = await docStore(ctx).list({ project, includeArchived: false } as any);
       const sorted = items.sort((a: any, b: any) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
       return { contents: [{ uri: href, text: JSON.stringify(sorted.slice(0, 20), null, 2), mimeType: 'application/json' }] };
     }
@@ -69,8 +76,8 @@ export function registerSearchResources(ctx: ServerContext): void {
         return { contents: [{ uri: href, text: JSON.stringify({ ok: false, error: 'query is required' }, null, 2), mimeType: 'application/json' }] };
       }
       const limit: number = Math.max(1, Math.min(100, Number(params.limit ?? 20)));
-      const metas = await listDocs({ project, includeArchived: false } as any);
-      const docs = (await Promise.all(metas.map(async (m: any) => await readDoc(project, m.id)))).filter(Boolean) as any[];
+      const metas = await docStore(ctx).list({ project, includeArchived: false } as any);
+      const docs = (await Promise.all(metas.map(async (m: any) => await docStore(ctx).read(project, m.id)))).filter(Boolean) as any[];
       const results = await twoStageHybridKnowledgeSearch(query, docs as unknown as KnowledgeDoc[], { limit, vectorAdapter: await ctx.ensureVectorAdapter() as VectorSearchAdapter<{ doc: KnowledgeDoc; chunkIndex: number }> | undefined });
       return { contents: [{ uri: href, text: JSON.stringify(results, null, 2), mimeType: 'application/json' }] };
     }
