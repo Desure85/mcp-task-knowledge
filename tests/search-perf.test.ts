@@ -74,6 +74,36 @@ const MAX_MS_PER_10K = 4000;
 const MAX_MS_PER_50K = 12_000;
 const MAX_PER_DOC_GROWTH = 3;
 
+/**
+ * Q-006 stability fix: CI neighbours cause CPU contention that drifts on a seconds scale, so a
+ * small-then-large sequential pair can compare a quiet run with a throttled one (observed 3.6x on
+ * the same code). Measuring the two corpora **interleaved, round by round**, cancels that drift:
+ * each ratio is computed from measurements taken microseconds apart, and the median ratio is
+ * robust to a single stalled round while still catching a super-linear regression.
+ */
+async function measurePerDocGrowth(
+  small: ReturnType<typeof makeCorpus>,
+  large: ReturnType<typeof makeCorpus>,
+  rounds = 5,
+): Promise<number> {
+  bm25Search(small, 'needle', { limit: 20 }); // warm JIT and allocations for both sizes
+  bm25Search(large, 'needle', { limit: 20 });
+  const ratios: number[] = [];
+  for (let round = 0; round < rounds; round += 1) {
+    await yieldToEventLoop();
+    const smallStarted = performance.now();
+    bm25Search(small, 'needle', { limit: 20 });
+    const smallMs = performance.now() - smallStarted;
+    await yieldToEventLoop();
+    const largeStarted = performance.now();
+    bm25Search(large, 'needle', { limit: 20 });
+    const largeMs = performance.now() - largeStarted;
+    if (smallMs <= 0) continue;
+    ratios.push(largeMs / large.length / (smallMs / small.length));
+  }
+  return median(ratios);
+}
+
 describe('Q-006: BM25 load tests', () => {
   it('searches 10k docs under the load-tolerant ceiling', async () => {
     const corpus = makeCorpus(10_000);
@@ -88,10 +118,9 @@ describe('Q-006: BM25 load tests', () => {
   it('keeps per-document cost flat when the corpus grows fivefold', async () => {
     const small = makeCorpus(2_000);
     const large = makeCorpus(10_000);
-    const smallPerDoc = (await measureMedianMs(() => bm25Search(small, 'needle', { limit: 20 }))) / small.length;
-    const largePerDoc = (await measureMedianMs(() => bm25Search(large, 'needle', { limit: 20 }))) / large.length;
+    const growth = await measurePerDocGrowth(small, large);
 
-    expect(largePerDoc).toBeLessThan(smallPerDoc * MAX_PER_DOC_GROWTH);
+    expect(growth).toBeLessThan(MAX_PER_DOC_GROWTH);
   }, 180_000);
 
   it('searches 50k docs under the load-tolerant ceiling', async () => {
