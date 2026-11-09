@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02e3 закрыт)
-**Текущая ветка:** feat/y02e3-registrar-wiring (от origin/master a4f01c4, PR #326 влит)
-**Текущий этап:** Y — исполняется план; Y-02e3 закрыт, allowlist 7 → 1 файл (search.ts, Y-02e4)
-**Статус:** `Y-02e3` → done: `aliases`, `helpers`, `memory`, `prompts`, `resources`, `search-resources` и найденный `mcp-prompts` читают хранилище из `ctx.storage`; `register/helpers` больше не реэкспортирует файловый доступ к промптам. Guard-тест: 1 файл / 4 импорта (`search.ts`). Для `search.ts` заведён **Y-02e4** — сразу после Y-03a (`SearchProvider`), тогда Y-02 закрывается. **Дальше по плану: Y-03a** — контракты эмбеддингов, отпечаток и паритет с текущим адаптером.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-03a закрыт)
+**Текущая ветка:** feat/y03a-embedding-contracts (от origin/master 38a0f57, PR #327 влит)
+**Текущий этап:** Y — исполняется план; Y-03a закрыт (контракты эмбеддингов); порядок дальше: Y-02e4 → Y-03b
+**Статус:** `Y-03a` → done: `src/search/contracts.ts` (`EmbeddingFingerprint`, `fingerprintKey`, `EmbeddingProvider`, `ChunkingStrategy`, `VectorStore`, `IndexingService`, `EmbeddingError`) и файловые реализации `src/search/embeddings-file.ts`; адаптеру добавлены `isReady`/`fingerprint`/`embed` (аддитивно, поиск не менялся). `tests/embedding-contract.test.ts` — 12 тестов, 4 мутации RED. **Дальше: Y-02e4** — `register/search.ts` на `SearchProvider` (тогда Y-02 закрыт), затем **Y-03b** — отпечаток с каждым вектором и двойное чтение коллекций.
+
+### Сессия S-20261109-night (ночная сессия — Y-03a)
+
+- `src/search/contracts.ts`: отпечаток модели (`modelId` = basename:size, размерность, пулинг, query/doc-префиксы), `fingerprintKey()` — единый ключ коллекции для Y-03b/Y-05/Y-06; `EmbeddingProvider`, `ChunkingStrategy`, `VectorStore`, `IndexingService`, `EmbeddingError(CAPABILITY_UNAVAILABLE)`.
+- `src/search/embeddings-file.ts`: файловый провайдер делегирует новому публичному `OnnxVectorAdapter.embed(texts, kind)` (query-кэш для запросов, embeddings-кэш по `cacheSalt|docPrefix+text` для документов — прогревает тот же кэш, что поиск); чанкинг делегирует `chunkText`/`buildChunksForDoc`, версия включает параметры окна.
+- Адаптер расширен аддитивно (`isReady`/`fingerprint`/`embed`), `search`/`warmup` не тронуты; поведение сервера не менялось.
+- Паритет с реальной ONNX-моделью не проверяется (модели нет в CI) — вместо этого честный `CAPABILITY_UNAVAILABLE` на незагруженном адаптере и fake-адаптер для делегирования; ограничение записано в решении.
+- Проверено: 12/12 в `tests/embedding-contract.test.ts`; 4 мутации RED (усечённый `fingerprintKey`, пустой вектор вместо ошибки, версия чанкинга без опций, обратный порядок документов); связанные наборы зелёные (один известный флейк search-fts под параллелью, отдельно 36/36); tsc test-проекта чистый.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1840-y-03a.md`.
 
 ### Сессия S-20261109-night (ночная сессия — Y-02e3)
 
