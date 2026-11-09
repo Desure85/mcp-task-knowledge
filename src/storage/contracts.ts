@@ -42,6 +42,7 @@ import type {
 } from '../memory/temporal-graph.js';
 import type { DynamicFact, ProfileUpdateInput, UserProfile } from '../memory/user-profile.js';
 import type { LayeredFact, LayeredMemoryOptions, MemoryLayer } from '../memory/layers.js';
+import type { VectorStore } from '../search/contracts.js';
 import type { SessionDecision, SessionMemoryOptions, SessionRecord } from '../memory/session-memory.js';
 
 /** ADR-009 §"Возможности профиля": what a profile promises, checked by the contract tests. */
@@ -497,6 +498,8 @@ export interface StorageProfile {
   prompts: PromptStore;
   /** Y-02e4: full-text search index behind the profile. */
   search: SearchProvider;
+  /** Y-03b: vector collections behind the profile (file profile stores them under `vectorsDir`). */
+  vectors: VectorStore;
   memory: MemoryStore;
   /** Event logs are created per log file, so the profile hands out a factory. */
   events(storagePath: string): EventLogStore;

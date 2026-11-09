@@ -58,6 +58,33 @@ export interface EmbeddingProvider {
 }
 
 /** A vector as stored by a VectorStore: identity plus the collection it belongs to. */
+/**
+ * Y-03b: version of the text builder whose output was embedded. A change here creates a new
+ * collection, exactly like a model change (ADR-009 rule 2).
+ */
+export const BUILD_TEXT_VERSION = 'build-text:v1';
+
+/** Collection address: fingerprint + chunking version + build-text version (ADR-009 rule 2). */
+export function collectionId(
+  fingerprint: string,
+  chunkingVersion: string,
+  buildTextVersion: string = BUILD_TEXT_VERSION,
+): string {
+  return `${fingerprint}::${chunkingVersion}::${buildTextVersion}`;
+}
+
+export interface VectorCollectionInfo {
+  id: string;
+  fingerprint: string;
+  chunkingVersion: string;
+  buildTextVersion: string;
+  vectors: number;
+  /** True for the collection the current configuration would write to. */
+  active: boolean;
+  /** Old collections keep serving reads but never receive writes (ADR-009 dual read). */
+  readOnly: boolean;
+}
+
 export interface VectorRecord {
   /** `(store, kind, id)` — the same identity the storage profile uses. */
   store: string;
@@ -66,11 +93,17 @@ export interface VectorRecord {
   id: string;
   /** `fingerprintKey()` of the model that produced the vector. */
   fingerprint: string;
+  /** Collection the vector belongs to: `collectionId(fingerprint, chunking, buildText)`. */
+  collection: string;
+  /** Versions that completed the collection address; stored once with the collection descriptor. */
+  collectionMeta?: { chunkingVersion: string; buildTextVersion: string };
   vector: Float32Array;
 }
 
 export interface VectorQueryOptions {
   limit?: number;
+  /** Explicit collection to read; when omitted the store falls back to `fingerprint`. */
+  collection?: string;
   project?: string;
   kind?: VectorRecord['kind'];
   /** Only vectors of this collection; a store must never mix collections (ADR-009). */

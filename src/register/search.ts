@@ -17,6 +17,8 @@ import { ok, okWith, errWith } from '../utils/respond.js';
 import type { KnowledgeDoc, Task } from '../types.js';
 import { getServiceAvailabilityRegistry } from '../core/graceful-degradation.js';
 import { getWarmupStatus } from '../search/warmup.js';
+import { buildEmbeddingsStatus } from '../search/embeddings-status.js';
+import type { VectorCollectionInfo } from '../search/contracts.js';
 import { TtlLruCache } from '../search/cache.js';
 import { PaginationError, clampLimit, encodeOffsetCursor, finalizePage, rankedStart, scopeOf } from '../utils/pagination.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
@@ -427,18 +429,22 @@ export function registerSearchTools(ctx: ServerContext): void {
     },
     async () => {
       const c = loadConfig();
-      const payload = {
-        mode: c.embeddings.mode,
-        hasModelPath: Boolean(c.embeddings.modelPath),
-        modelPath: c.embeddings.modelPath ?? null,
-        dim: c.embeddings.dim ?? null,
-        cacheDir: c.embeddings.cacheDir || null,
-        vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.mode !== "none"),
+      const store = storageProfile(ctx).vectors;
+      const collections: VectorCollectionInfo[] =
+        typeof (store as { collections?: unknown }).collections === 'function'
+          ? await (store as unknown as { collections: () => Promise<VectorCollectionInfo[]> }).collections()
+          : [];
+      const payload = buildEmbeddingsStatus({
+        config: c,
         adapterInitAttempted: ctx.vectorInitAttempted,
         adapterReady: Boolean(ctx.vectorAdapter),
         warmup: getWarmupStatus(),
-      };
-      return ok(payload);
+        collections,
+      });
+      return ok({
+        ...payload,
+        vectorAdapterEnabled: Boolean(c.embeddings.modelPath && c.embeddings.mode !== "none"),
+      });
     }
   );
 }

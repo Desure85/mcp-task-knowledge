@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   EmbeddingError,
+  collectionId,
   fingerprintKey,
   type EmbeddingFingerprint,
   type IndexingService,
@@ -194,6 +195,7 @@ describe('Y-03a: VectorStore and IndexingService are implementable contracts', (
         project: 'p',
         id: 't1',
         fingerprint,
+        collection: collectionId(fingerprint, FILE_CHUNKING_VERSION),
         vector: Float32Array.from([1, 0]),
       },
     ]);
