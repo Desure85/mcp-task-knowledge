@@ -32,7 +32,9 @@ import {
   type TaskPageOptions,
   type TaskPatch,
   type TaskStore,
+  type EntityEventEntry,
   type EventLogStore,
+  type SnapshotRecord,
   type HistoryProvider,
   type LockProvider,
   type MemoryStore,
@@ -51,10 +53,13 @@ import {
 } from '../../../workflow.js';
 import type { ProjectWorkflow } from '../../../workflow.js';
 import { openSqliteDatabase, type SqliteDatabase } from './db.js';
+import { FileMemoryStore, FilePromptStore } from '../file/index.js';
 
 export interface SqliteProfileOptions {
   /** SQLite database file; caller owns the path (ADR-009 rule 1). */
   databasePath: string;
+  /** How long `withLock` waits for a busy key before failing; defaults to 10s. */
+  lockTimeoutMs?: number;
 }
 
 function isoNow(): string {
@@ -614,6 +619,157 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     },
   };
 
+  // ─── event log (Y-05a3) ────────────────────────────────────────────────
+  const selectEventsSince = db.prepare(
+    'select event_id, entity_id, entity_type, operation, snapshot, version, timestamp from events where log_path = ? and event_id > ? order by event_id limit ?',
+  );
+  const selectAllEvents = db.prepare(
+    'select event_id, entity_id, entity_type, operation, snapshot, version, timestamp from events where log_path = ? order by event_id',
+  );
+  // The counter must survive compaction: snapshots remember the last event id even after the
+  // events themselves are garbage-collected, exactly like sync/event-log.ts keeps nextEventId.
+  const nextEventId = db.prepare(
+    'select coalesce(max(value), 0) + 1 as next from (select max(event_id) as value from events where log_path = ? union all select max(last_event_id) as value from snapshots where log_path = ?)',
+  );
+  const insertEvent = db.prepare(
+    'insert into events(log_path, event_id, entity_id, entity_type, operation, snapshot, version, timestamp) values(?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  const selectSnapshotRow = db.prepare(
+    'select entity_id, entity_type, state, last_event_id, timestamp from snapshots where log_path = ? and entity_id = ?',
+  );
+  const selectSnapshots = db.prepare(
+    'select entity_id, entity_type, state, last_event_id, timestamp from snapshots where log_path = ? order by entity_id',
+  );
+  const upsertSnapshot = db.prepare(
+    'insert into snapshots(log_path, entity_id, entity_type, state, last_event_id, timestamp) values(?, ?, ?, ?, ?, ?) on conflict(log_path, entity_id) do update set entity_type = excluded.entity_type, state = excluded.state, last_event_id = excluded.last_event_id, timestamp = excluded.timestamp',
+  );
+  const deleteEventsThrough = db.prepare('delete from events where log_path = ? and event_id <= ?');
+  const countEvents = db.prepare('select count(*) as total from events where log_path = ?');
+
+  type EventRow = {
+    event_id: number;
+    entity_id: string;
+    entity_type: 'task' | 'knowledge';
+    operation: 'create' | 'update' | 'delete';
+    snapshot: string | null;
+    version: number;
+    timestamp: string;
+  };
+
+  function toEventEntry(row: EventRow): EntityEventEntry {
+    return {
+      eventId: row.event_id,
+      entityId: row.entity_id,
+      entityType: row.entity_type,
+      operation: row.operation,
+      snapshot: row.snapshot ? (JSON.parse(row.snapshot) as Record<string, unknown>) : null,
+      version: row.version,
+      timestamp: row.timestamp,
+    };
+  }
+
+  function eventLogFor(storagePath: string): EventLogStore {
+    return {
+      append(entityId, entityType, operation, snapshot, version): EntityEventEntry {
+        const next = (nextEventId.get(storagePath, storagePath) as { next: number }).next;
+        const timestamp = isoNow();
+        insertEvent.run(
+          storagePath,
+          next,
+          entityId,
+          entityType,
+          operation,
+          snapshot === null ? null : JSON.stringify(snapshot),
+          version,
+          timestamp,
+        );
+        return { eventId: next, entityId, entityType, operation, snapshot, timestamp, version };
+      },
+      since(eventId, limit = 100) {
+        return (selectEventsSince.all(storagePath, eventId, limit) as EventRow[]).map(toEventEntry);
+      },
+      snapshot(entityId): SnapshotRecord | undefined {
+        const row = selectSnapshotRow.get(storagePath, entityId) as
+          | { entity_id: string; entity_type: 'task' | 'knowledge'; state: string | null; last_event_id: number; timestamp: string }
+          | undefined;
+        if (!row) return undefined;
+        return {
+          entityId: row.entity_id,
+          entityType: row.entity_type,
+          state: row.state ? (JSON.parse(row.state) as Record<string, unknown>) : null,
+          lastEventId: row.last_event_id,
+          timestamp: row.timestamp,
+        };
+      },
+      snapshots(): SnapshotRecord[] {
+        const rows = selectSnapshots.all(storagePath) as Array<{
+          entity_id: string;
+          entity_type: 'task' | 'knowledge';
+          state: string | null;
+          last_event_id: number;
+          timestamp: string;
+        }>;
+        return rows.map((row) => ({
+          entityId: row.entity_id,
+          entityType: row.entity_type,
+          state: row.state ? (JSON.parse(row.state) as Record<string, unknown>) : null,
+          lastEventId: row.last_event_id,
+          timestamp: row.timestamp,
+        }));
+      },
+      compact(): { compacted: number; remaining: number } {
+        // Mirrors sync/event-log.ts: the latest event per entity becomes a snapshot, then events up
+        // to the newest snapshot point are garbage-collected.
+        const events = (selectAllEvents.all(storagePath) as EventRow[]).map(toEventEntry);
+        const latest = new Map<string, EntityEventEntry>();
+        for (const event of events) latest.set(event.entityId, event);
+        for (const event of latest.values()) {
+          upsertSnapshot.run(
+            storagePath,
+            event.entityId,
+            event.entityType,
+            event.snapshot === null ? null : JSON.stringify(event.snapshot),
+            event.eventId,
+            event.timestamp,
+          );
+        }
+        const maxSnapshotEventId = Math.max(0, ...([...latest.values()].map((event) => event.eventId)));
+        const compacted = deleteEventsThrough.run(storagePath, maxSnapshotEventId).changes;
+        const remaining = (countEvents.get(storagePath) as { total: number }).total;
+        return { compacted, remaining };
+      },
+    };
+  }
+
+  // ─── locks (Y-05a3) ──────────────────────────────────────────────────────
+  const LOCK_LEASE_MS = 30_000;
+  const lockTimeoutMs = options.lockTimeoutMs ?? 10_000;
+  const acquireLock = db.prepare(
+    'insert into locks(key, owner, expires_at) values(?, ?, ?) on conflict(key) do update set owner = excluded.owner, expires_at = excluded.expires_at where locks.expires_at <= ?',
+  );
+  const releaseLock = db.prepare('delete from locks where key = ? and owner = ?');
+
+  const locks: LockProvider = {
+    async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+      const owner = randomUUID();
+      const deadline = Date.now() + lockTimeoutMs;
+      for (;;) {
+        const now = Date.now();
+        const acquired = acquireLock.run(key, owner, now + LOCK_LEASE_MS, now).changes > 0;
+        if (acquired) break;
+        if (Date.now() >= deadline) {
+          throw new StoreError('CONFLICT', 'lock timeout for key ' + key);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      try {
+        return await fn();
+      } finally {
+        releaseLock.run(key, owner);
+      }
+    },
+  };
+
   const profile: StorageProfile = {
     manifest: {
       profile: 'sqlite',
@@ -625,18 +781,21 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         efficientListing: false,
       },
       roots: {},
-      collections: ['tasks', 'docs', 'projects', 'history'],
+      collections: ['tasks', 'docs', 'projects', 'history', 'prompts', 'memory', 'events', 'locks'],
     },
     tasks,
     docs,
     project: projectStore,
-    prompts: unavailableObject<PromptStore>('prompts'),
+    // Y-05a3: prompts stay file-sourced (their wire shape carries a real path), memory classes
+    // already take caller-provided paths — reusing them is honest; a native SQLite store for
+    // either would be a separate ADR-sized change, not a silent reinterpretation.
+    prompts: new FilePromptStore(),
     search: unavailableObject<SearchProvider>('search index'),
     vectors: unavailableObject<VectorStore>('vector store'),
-    memory: unavailableObject<MemoryStore>('memory collections'),
-    events: (() => unavailable('event logs')) as (storagePath: string) => EventLogStore,
+    memory: new FileMemoryStore(),
+    events: (storagePath: string) => eventLogFor(storagePath),
     history: historyProvider,
-    locks: unavailableObject<LockProvider>('locks'),
+    locks,
     close: () => handle.close(),
   };
   return profile;
