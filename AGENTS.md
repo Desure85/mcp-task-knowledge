@@ -426,9 +426,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-10
 **Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05 закрыты)
-**Текущая ветка:** feat/y05c-sqlite-diagnostics (от origin/master 53e6975, PR #340 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05; дальше Y-07 (BlobProvider/MinIO), Y-06 (Postgres), Y-08 (миграция)
-**Статус:** `Y-05c` → done, **Y-05 закрыт**: диагностика SQLite-профиля (`inspectSqliteStorage`: схема/runtime/счётчики/FTS/векторы/размер + предупреждения dirty/drift/vec), `reindex` пересобирает FTS и снимает dirty с WAL checkpoint, `doctor` показывает секцию SQLite и превращает предупреждения в issues; бенчмарк `scripts/storage-bench.mjs` (10k: SQLite быстрее file по create 4.2×, list 23×, page 10.7×, get 23×, update 2.4×; 100k: create 99.7 с против 231 с); найден и исправлен O(n²) записи FTS (карта rowid `search_fts_keys`, схема v6: 10k create 35.9 → 5.5 с); документация `docs/features/storage-profile-sqlite.md`. Docker-гейт `sqlite-vec` не выполнен (демон Docker недоступен) — ограничение записано. 7 новых тестов, 72/72 затронутых, 6 мутаций RED.
+**Текущая ветка:** feat/y07a-blob-provider (от origin/master 29095f8, PR #341 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05; Y-07 в работе (a готов; остался b — S3/MinIO), дальше Y-06 (Postgres), Y-08 (миграция)
+**Статус:** `Y-07a` → done: контракт `BlobProvider` (put/get/size/delete/list, ключ, `sha256:` checksum, NOT_FOUND для отсутствующего, идемпотентные put/delete) и файловый провайдер (атомарная запись temp+rename, строгая валидация ключа и containment внутри root, скрытые `.meta/`, префиксный list, `maxBytes`); коллекция `blobs` в манифестах file/sqlite профилей. Общий контрактный набор `runBlobProviderContract` — его же обязан пройти S3-адаптер в Y-07b. 8 новых тестов, 75/75 затронутых, 5 мутаций RED. **Дальше: Y-07b** — S3/MinIO SigV4 без новой зависимости, тот же контракт, CI-сервис MinIO или документированный ручной прогон.
+
+### Сессия S-20261109-night (Y-07a — контракт BlobProvider и файловый провайдер)
+
+- `contracts.ts`: `BlobProvider`/BlobMetadata/BlobPutOptions, `StorageProfile.blobs?`, коллекция `blobs`; отсутствующий ключ → `NOT_FOUND`, put/delete идемпотентны, checksum = sha256.
+- `storage/blobs/file-blob-provider.ts`: root от вызывающего, валидация ключа (`[A-Za-z0-9._-]` по сегментам, без `..`/абсолютных путей), containment-проверка резолва, атомарная запись, скрытые метаданные, `list(prefix)`, `maxBytes`.
+- Проводка: file-профиль (`DATA_DIR/blobs` или `blobsDir`), sqlite-профиль (`<db dir>/blobs`); манифесты обоих содержат `blobs`; обновлены ожидания в `storage-wiring`/`storage-contract`/`storage-sqlite`.
+- `tests/blob-provider.test.ts`: экспортируемый `runBlobProviderContract` (для Y-07b) + 7 кейсов файлового провайдера + проводка в оба профиля; 8/8.
+- Проверено: 75/75 затронутых, tsc-test чистый; 5 мутаций RED (пустые байты вместо NOT_FOUND, без валидации ключа, list без префикса, delete отсутствующего true, maxBytes игнорируется).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0300-y-07a.md`.
 
 ### Сессия S-20261109-night (Y-05c — диагностика, бенчмарк, закрытие Y-05)
 
