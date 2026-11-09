@@ -13,7 +13,7 @@
  * and refuses to work otherwise (`CONFIG_MISMATCH`), instead of silently serving another directory.
  */
 
-import { KNOWLEDGE_DIR, TASKS_DIR } from '../../../config.js';
+import { EMBEDDINGS_DIR, KNOWLEDGE_DIR, TASKS_DIR } from '../../../config.js';
 import {
   archiveTask,
   claimTask,
@@ -64,6 +64,7 @@ import {
   taskStoreId,
 } from '../../../search/fts-indexer.js';
 import { getActiveMetadataIndex } from '../../metadata-index.js';
+import { createFileVectorStore } from '../../../search/vector-store-file.js';
 import { withFileLock } from '../../../fs.js';
 import {
   StoreError,
@@ -100,6 +101,8 @@ export interface FileProfileOptions {
   tasksDir?: string;
   /** Root of the knowledge collection; defaults to the configured `KNOWLEDGE_DIR`. */
   knowledgeDir?: string;
+  /** Root of the vector collections; defaults to the configured `EMBEDDINGS_DIR`. */
+  vectorsDir?: string;
 }
 
 /** Refuse to serve a root the storage modules do not actually use. */
@@ -466,6 +469,8 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     knowledge: assertRootMatchesConfig('knowledge', options.knowledgeDir, KNOWLEDGE_DIR),
   };
 
+  const vectorsRoot = options.vectorsDir ?? EMBEDDINGS_DIR;
+
   const manifest: StoreManifest = {
     profile: 'file',
     // Files and git: no multi-record transactions; versions are `.versions` snapshots; the
@@ -489,6 +494,7 @@ export function createFileProfile(options: FileProfileOptions = {}): StorageProf
     project: new FileProjectStore(),
     prompts: new FilePromptStore(),
     search: new FileSearchProvider(),
+    vectors: createFileVectorStore({ root: vectorsRoot }),
     memory: new FileMemoryStore(),
     events: (storagePath: string) => new FileEventLogStore(storagePath),
     history: new FileHistoryProvider(),
