@@ -54,6 +54,7 @@ import {
 import type { ProjectWorkflow } from '../../../workflow.js';
 import { openSqliteDatabase, type SqliteDatabase } from './db.js';
 import { FileMemoryStore, FilePromptStore } from '../file/index.js';
+import { buildTextForDoc, buildTextForTask } from '../../../search/index.js';
 
 export interface SqliteProfileOptions {
   /** SQLite database file; caller owns the path (ADR-009 rule 1). */
@@ -174,6 +175,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         updatedAt: now,
       });
       writeTask(task);
+      indexTask(task);
       return task;
     },
     async update(project: string, id: string, patch: TaskPatch): Promise<Task | null> {
@@ -188,6 +190,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         updatedAt: isoNow(),
       });
       writeTask(merged);
+      indexTask(merged);
       return merged;
     },
     async close(project: string, id: string): Promise<Task | null> {
@@ -211,10 +214,13 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         updatedAt: isoNow(),
       });
       writeTask(restored);
+      indexTask(restored);
       return restored;
     },
     async deletePermanent(project: string, id: string): Promise<boolean> {
-      return deleteTask.run(project, id).changes > 0;
+      const changed = deleteTask.run(project, id).changes > 0;
+      if (changed) removeIndexed(TASK_STORE, 'task', project, id);
+      return changed;
     },
     async tree(filter: TaskListFilter = {}): Promise<TaskTreeNode[]> {
       const all = await tasks.list({ ...filter, includeArchived: true, includeTrashed: true });
@@ -388,6 +394,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       });
       writeDoc(doc);
       recordDocVersion(doc);
+      indexDoc(doc);
       return doc;
     },
     async update(project: string, id: string, patch: DocPatch): Promise<KnowledgeDoc | null> {
@@ -403,6 +410,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       });
       writeDoc(merged);
       recordDocVersion(merged);
+      indexDoc(merged);
       return merged;
     },
     async archive(project: string, id: string): Promise<KnowledgeDoc | null> {
@@ -426,7 +434,9 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       return restored;
     },
     async deletePermanent(project: string, id: string): Promise<boolean> {
-      return deleteDoc.run(project, id).changes > 0;
+      const changed = deleteDoc.run(project, id).changes > 0;
+      if (changed) removeIndexed(DOC_STORE, 'doc', project, id);
+      return changed;
     },
     async versions(project: string, id: string): Promise<DocVersionInfo[]> {
       const rows = selectDocVersions.all(project, id) as Array<{ version: number; data: string; updated_at: string }>;
@@ -442,6 +452,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       const restored: KnowledgeDoc = { ...snapshot, project, id, updatedAt: isoNow() };
       writeDoc(restored);
       recordDocVersion(restored);
+      indexDoc(restored);
       return restored;
     },
   };
@@ -570,6 +581,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       deleteProjectTasks.run(projectId);
       deleteProjectDocs.run(projectId);
       deleteProjectVersions.run(projectId);
+      deleteFtsProject.run(projectId);
       deleteProjectRow.run(projectId);
       return { deleted: true, message: `project ${projectId} deleted` };
     },
@@ -615,6 +627,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       const restored: KnowledgeDoc = { ...snapshot, project, id, updatedAt: isoNow() };
       writeDoc(restored);
       recordDocVersion(restored);
+      indexDoc(restored);
       return restored;
     },
   };
@@ -770,13 +783,140 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     },
   };
 
+  // ─── FTS5 search provider (Y-05b1) ─────────────────────────────────────
+  const TASK_STORE = 'sqlite:tasks';
+  const DOC_STORE = 'sqlite:docs';
+
+  const insertFtsRow = db.prepare(
+    'insert into search_fts(store, kind, project, id, title, body) values(?, ?, ?, ?, ?, ?)',
+  );
+  const deleteFtsRow = db.prepare('delete from search_fts where store = ? and kind = ? and project = ? and id = ?');
+  const deleteFtsProject = db.prepare('delete from search_fts where project = ?');
+  const selectFtsState = db.prepare('select complete, dirty from search_index_state where project = ?');
+  const upsertFtsState = db.prepare(
+    'insert into search_index_state(project, complete, dirty, updated_at) values(?, ?, ?, ?) on conflict(project) do update set complete = excluded.complete, dirty = excluded.dirty, updated_at = excluded.updated_at',
+  );
+
+  function ftsBody(text: string, title: string): string {
+    return title ? title + '\n' + text : text;
+  }
+
+  function indexTask(task: Task): void {
+    try {
+      deleteFtsRow.run(TASK_STORE, 'task', task.project, task.id);
+      if (task.archived || task.trashed) return;
+      insertFtsRow.run(
+        TASK_STORE,
+        'task',
+        task.project,
+        task.id,
+        task.title,
+        ftsBody(buildTextForTask(task as never), task.title),
+      );
+    } catch {
+      // A failed index write must not fail the mutation: the project is marked dirty instead.
+      upsertFtsState.run(task.project, 0, 1, isoNow());
+    }
+  }
+
+  function indexDoc(doc: KnowledgeDoc): void {
+    try {
+      deleteFtsRow.run(DOC_STORE, 'doc', doc.project, doc.id);
+      if (doc.archived || doc.trashed) return;
+      insertFtsRow.run(
+        DOC_STORE,
+        'doc',
+        doc.project,
+        doc.id,
+        doc.title,
+        ftsBody(buildTextForDoc(doc as never), doc.title),
+      );
+    } catch {
+      upsertFtsState.run(doc.project, 0, 1, isoNow());
+    }
+  }
+
+  function removeIndexed(store: string, kind: 'task' | 'doc', project: string, id: string): void {
+    try {
+      deleteFtsRow.run(store, kind, project, id);
+    } catch {
+      upsertFtsState.run(project, 0, 1, isoNow());
+    }
+  }
+
+  function rebuildProjectIndex(project: string): void {
+    const now = isoNow();
+    upsertFtsState.run(project, 0, 0, now);
+    deleteFtsProject.run(project);
+    for (const task of readAllTasks(project)) indexTask(task);
+    for (const doc of readAllDocs(project)) indexDoc(doc);
+    upsertFtsState.run(project, 1, 0, isoNow());
+  }
+
+  function ftsQuery(query: string): string | null {
+    const trimmed = query.trim();
+    if (!trimmed) return null;
+    // Quote every token: raw FTS5 syntax from a user query must not produce errors.
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    return tokens.map((token) => '"' + token.replace(/"/g, '') + '"').join(' OR ');
+  }
+
+  const search: SearchProvider = {
+    available: () => {
+      try {
+        db.prepare("select count(*) as total from search_fts where search_fts match 'probe'").get();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    dirty: () => {
+      const row = db.prepare('select count(*) as total from search_index_state where dirty = 1').get() as { total: number };
+      return row.total > 0;
+    },
+    isIndexComplete: (project) => {
+      const row = selectFtsState.get(project) as { complete: number; dirty: number } | undefined;
+      return Boolean(row && row.complete === 1 && row.dirty === 0);
+    },
+    fillState: (project) => {
+      if (!search.available()) return 'disabled';
+      const row = selectFtsState.get(project) as { complete: number; dirty: number } | undefined;
+      if (!row) return 'idle';
+      if (row.dirty === 1) return 'error';
+      return row.complete === 1 ? 'complete' : 'idle';
+    },
+    ensureIndexed: (project) => {
+      rebuildProjectIndex(project);
+    },
+    candidates: ({ store, kind, project, query, limit }) => {
+      const match = ftsQuery(query);
+      if (!match) return [];
+      try {
+        const rows = db
+          .prepare(
+            'select id, project, bm25(search_fts) as score from search_fts where search_fts match ? and store = ? and kind = ? and project = ? order by bm25(search_fts) limit ?',
+          )
+          .all(match, store, kind, project, limit) as Array<{ id: string; project: string; score: number }>;
+        return rows.map((row) => ({ id: row.id, project: row.project, score: -row.score }));
+      } catch {
+        return [];
+      }
+    },
+    taskStoreId: () => TASK_STORE,
+    docStoreId: () => DOC_STORE,
+    countTasks: (project) => {
+      const row = db.prepare('select count(*) as total from tasks where project = ?').get(project) as { total: number };
+      return row.total;
+    },
+  };
+
   const profile: StorageProfile = {
     manifest: {
       profile: 'sqlite',
       capabilities: {
         transactions: true,
         history: true,
-        fullText: false,
+        fullText: true,
         vectors: false,
         efficientListing: false,
       },
@@ -790,7 +930,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     // already take caller-provided paths — reusing them is honest; a native SQLite store for
     // either would be a separate ADR-sized change, not a silent reinterpretation.
     prompts: new FilePromptStore(),
-    search: unavailableObject<SearchProvider>('search index'),
+    search,
     vectors: unavailableObject<VectorStore>('vector store'),
     memory: new FileMemoryStore(),
     events: (storagePath: string) => eventLogFor(storagePath),
