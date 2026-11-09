@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05a закрыты; Y-05b1 сделан)
-**Текущая ветка:** feat/y05b1-sqlite-fts (от origin/master 13550dc, PR #338 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05a; Y-05 в работе (b1 готов; дальше b2/c)
-**Статус:** `Y-05b1` → done: поиск в SQLite-профиле — FTS5 в той же БД, тексты из общих `buildTextForTask/Doc`, живое сопровождение индекса (архив/trash убирают строки, restore возвращает), `dirty/fillState/isIndexComplete/ensureIndexed`, кандидаты по `bm25` с изоляцией проектов, стабильные store id и `countTasks` для AC-05; `capabilities.fullText=true`. 28 SQLite-тестов, 62/62 затронутых, 5 мутаций RED. **Дальше: Y-05b2** — `VectorProvider` на `sqlite-vec` (или объявленная недоступность с фолбэком) и проводка индексации, затем Y-05c — диагностика/бенчмарк/Docker-гейт.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05a закрыты; Y-05b закрыт)
+**Текущая ветка:** feat/y05b2-sqlite-vectors (от origin/master 3c01cb0, PR #339 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05a; Y-05 в работе (b1/b2 готовы; остался c)
+**Статус:** `Y-05b2` → done, **Y-05b закрыт**: векторы SQLite-профиля нативные — `vector_rows` + vec0-таблицы на коллекцию, ANN-кандидаты пересчитываются точным косинусом, при недоступном `sqlite-vec` — brute-force фолбэк (`annAvailable()` честный, тест с `vecAvailable:false`), `capabilities.vectors=true`; `IndexingService` подключён к SQLite через общую фабрику провайдера (общие `buildTextForTask/Doc`, `trustLevel` до очереди, манифест в каталоге БД). 33 SQLite-теста, 78/78 затронутых, 6 мутаций RED. **Дальше: Y-05c** — диагностика (`doctor`/`reindex`) для SQLite-профиля, бенчмарк file vs sqlite на 100k, Docker-проверка `sqlite-vec`, документация; после — Y-05 закрыт.
+
+### Сессия S-20261109-night (Y-05b2 — векторы на sqlite-vec и индексация; Y-05b закрыт)
+
+- `vector-store.ts`: `vector_collections`/`vector_rows`/`vector_keys`; upsert помечает коллекцию активной, старые — read-only; смена размерности → `CONFLICT`; delete/clear/stats/collections по контракту.
+- ANN через `sqlite-vec` на коллекцию (`vec0`): top-`max(limit*8,32)` кандидатов, затем точный косинус по каноническим векторам и фильтры project/kind/minScore; при недоступном расширении (нет пакета/ошибка/явный `vecAvailable:false`) — brute-force по `vector_rows`; `annAvailable()` честно сообщает путь, `capabilities.vectors=true`.
+- `SqliteProfileOptions.embeddingProvider/indexingManifestPath/externalPolicy` создают `profile.indexing` поверх того же `IndexingService`: collect из SQLite-таблиц через общие `buildTextForTask/Doc`, `trustLevel` документа доходит до политики Y-04a, манифест в каталоге БД; `setup` делит одну фабрику провайдера между профилями.
+- Проверено: 33/33 SQLite-тестов, 78/78 затронутых, tsc-test чистый; 6 мутаций RED (без сортировки, minScore, размерность, delete, фолбэк, документы в индексации).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0110-y-05b2.md`.
 
 ### Сессия S-20261109-night (Y-05b1 — FTS5 SearchProvider на SQLite)
 
