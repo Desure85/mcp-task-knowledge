@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-09
-**Session ID:** S-20261109-y02a (Y-02a — контракты хранилища и файловый профиль)
-**Текущая ветка:** feat/y02a-storage-contract (от origin/master 64f6248, PR #319 влит)
-**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-01 закрыт (ADR-009 Accepted), Y-02 разбит на a/b/c
-**Статус:** `Y-02a` → done: `src/storage/contracts.ts` (`TaskStore`, `DocStore`, `StorageProfile`, `StoreManifest`, `StoreError`), `src/storage/profiles/file/index.ts` (делегирование текущим функциям, сверка корня — `CONFIG_MISMATCH`), `tests/storage-contract.test.ts` (13 тестов, паритет против `src/storage/*`). Вызовы не переключены, поведение и wire-формат не менялись. **Дальше: Y-02b** — промпты, память, метаданные проекта, журнал, история и замки за контрактами; затем Y-02c — профиль в `AppContainer` и регистраторы без прямых импортов.
+**Session ID:** S-20261109-y02b (Y-02b — метаданные проекта, журнал, история и замки за контрактами)
+**Текущая ветка:** feat/y02b-infra-contracts (от origin/master 61cd7dd, PR #320 влит)
+**Текущий этап:** Подключаемое хранилище и эмбеддинги (Y): Y-02 идёт, покрыто 4 из 6 коллекций и оба провайдера
+**Статус:** `Y-02b` → done: в `src/storage/contracts.ts` добавлены `ProjectStore`, `EventLogStore`, `HistoryProvider`, `LockProvider`; файловый профиль реализует их делегированием (`src/projects.ts`, `src/workflow.ts`, `src/sync/event-log.ts`, `src/fs.ts`); история задач честно отказывает `CAPABILITY_UNAVAILABLE`. `tests/storage-contract.test.ts` — 19 тестов. Вызовы не переключены. **Дальше: Y-02c** — промпты и память; затем **Y-02d** — профиль в `AppContainer`, регистраторы без прямых импортов и guard-тест.
+
+### Сессия S-20261109-y02b (Y-02b — метаданные проекта, журнал, история и замки)
+
+- `ProjectStore` (list/detail/create/remove/readMetadata/updateMetadata/workflow) — делегирование `src/projects.ts` и `loadProjectWorkflow`; `EventLogStore` — фабрика `events(storagePath)` поверх `EventLog` (путь задаёт вызывающий, правило 1 ADR-009); `HistoryProvider` — версии документов, для `kind: 'task'` бросает `StoreError('CAPABILITY_UNAVAILABLE')` (история задач — git этапа R, пустой список врал бы); `LockProvider` — `withLock` поверх `withFileLock`.
+- Границы: wire-формат не менялся, поэтому `ProjectInfo`/`ProjectDetail` по-прежнему содержат `paths` (type-only импорт из `src/projects.ts`); удаление путей из ответов — отдельное изменение контракта инструментов после Y-02, записано в решении.
+- Остаток Y-02 разбит на три: Y-02c — промпты и память; Y-02d — `AppContainer` и регистраторы без прямых импортов.
+- Проверено: `npx vitest run tests/storage-contract.test.ts --maxWorkers=2` — 19/19 (6 новых: проект, замки, история, журнал); revert-check 4 мутации RED; build/type/lint/markdownlint/backlog — зелёные.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-09-1105-y-02b.md`.
 
 ### Сессия S-20261109-y02a (Y-02a — контракты хранилища и файловый профиль)
 
