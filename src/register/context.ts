@@ -19,9 +19,16 @@ import type { SetupLinkStore } from '../core/setup-link.js';
 import type { RelayManager } from '../relay/relay-manager.js';
 import type { RuleManager } from '../rules/rule-manager.js';
 import type { ConnectorRegistry } from '../connectors/registry.js';
+import type { StorageProfile } from '../storage/contracts.js';
 
 export interface ServerContext {
   server: McpServer;
+  /**
+   * Y-02e: the storage profile of this deployment (file profile by default).
+   * Always set by createServerContext(); optional only because lightweight test
+   * mocks build the context object by hand.
+   */
+  storage?: StorageProfile;
   cfg: ServerConfig;
   catalogCfg: CatalogConfig;
   catalogProvider: ServiceCatalogProvider;

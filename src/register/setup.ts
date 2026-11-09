@@ -8,6 +8,7 @@ import { createServiceCatalogProvider } from "../catalog/provider.js";
 import type { ServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
 import type { VectorSearchAdapter } from "../search/index.js";
+import { createFileProfile } from '../storage/profiles/file/index.js';
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
@@ -394,6 +395,10 @@ export async function createServerContext(): Promise<ServerContext> {
 
   const ctx: ServerContext = {
     server,
+    // Y-02e: one profile per server context (file profile today; STORAGE_PROFILE
+    // selects another profile in Y-05/Y-06). Registrators will read collections from
+    // here instead of importing storage modules (Y-02e2/e3).
+    storage: createFileProfile(),
     cfg,
     catalogCfg,
     catalogProvider,
