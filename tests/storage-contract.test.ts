@@ -19,6 +19,10 @@ import { KNOWLEDGE_DIR, PROMPTS_DIR, TASKS_DIR } from '../src/config.js';
 import { listTasks, listTasksPage, listTasksTree } from '../src/storage/tasks.js';
 import { listDocs, listDocsPage, readDoc } from '../src/storage/knowledge.js';
 import { resolveStoreId } from '../src/search/fts-index.js';
+import { TemporalGraph } from '../src/memory/temporal-graph.js';
+import { ProfileManager } from '../src/memory/user-profile.js';
+import { LayeredMemory } from '../src/memory/layers.js';
+import { SessionMemory } from '../src/memory/session-memory.js';
 import {
   listPromptVersions,
   listSourceJsonFiles,
@@ -51,7 +55,7 @@ afterAll(async () => {
 describe('Y-02a: profile manifest', () => {
   it('describes the file profile and its roots', () => {
     expect(profile.manifest.profile).toBe('file');
-    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'prompts', 'events', 'history', 'locks']);
+    expect(profile.manifest.collections).toEqual(['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks']);
     expect(profile.manifest.capabilities).toEqual({
       transactions: false,
       history: true,
@@ -442,5 +446,102 @@ describe('Y-02c: prompt contract (file profile)', () => {
     expect(viaHelpers.listPromptVersions).toBe(viaFiles.listPromptVersions);
     expect(viaHelpers.findFileByIdVersion).toBe(viaFiles.findFileByIdVersion);
     expect(viaHelpers.listSourceJsonFiles).toBe(viaFiles.listSourceJsonFiles);
+  });
+});
+
+describe('Y-02d: memory contract (file profile)', () => {
+  let memoryDir: string;
+
+  beforeAll(() => {
+    memoryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'y02d-memory-'));
+  });
+
+  afterAll(() => {
+    fs.rmSync(memoryDir, { recursive: true, force: true });
+  });
+
+  it('persists temporal facts through the profile factory', () => {
+    const storagePath = path.join(memoryDir, 'temporal.json');
+    const temporal = profile.memory.temporal(storagePath);
+
+    const fact = temporal.addFact({ statement: 'the sky is blue', category: 'world', tags: ['sky'] });
+    expect(temporal.getFact(fact.id)).toMatchObject({ statement: 'the sky is blue', valid: true });
+    expect(temporal.query({ tag: 'sky' }).map((item) => item.id)).toContain(fact.id);
+
+    expect(temporal.invalidateFact(fact.id, 'night')).toBe(true);
+    expect(temporal.getFact(fact.id)?.valid).toBe(false);
+    expect(temporal.getFactHistory(fact.id).length).toBeGreaterThan(0);
+    expect(temporal.stats()).toMatchObject({ totalFacts: 1, validFacts: 0, invalidatedFacts: 1 });
+
+    // The factory hands out real storage: another instance on the same path sees the same state.
+    const reloaded = new TemporalGraph({ storagePath });
+    expect(reloaded.getFact(fact.id)?.statement).toBe('the sky is blue');
+    expect(reloaded.getFact(fact.id)?.invalidationReason).toBe('night');
+  });
+
+  it('persists user profiles through the factory', () => {
+    const storagePath = path.join(memoryDir, 'profiles');
+    const profiles = profile.memory.profiles(storagePath);
+
+    const updated = profiles.updateProfile('user-1', {
+      static: { role: 'engineer' },
+      dynamicFact: { statement: 'prefers dark mode', category: 'ui' },
+    });
+    expect(updated.static.role.value).toBe('engineer');
+    expect(profiles.getValidDynamicFacts('user-1')).toHaveLength(1);
+    expect(profiles.buildContextBlock('user-1')).toContain('engineer');
+    expect(profiles.listUsers()).toContain('user-1');
+
+    const reloaded = new ProfileManager({ storagePath });
+    expect(reloaded.getProfile('user-1')?.static.role.value).toBe('engineer');
+
+    expect(profiles.deleteProfile('user-1')).toBe(true);
+    expect(profiles.getProfile('user-1')).toBeNull();
+  });
+
+  it('keeps layered memory and promotions', () => {
+    const storagePath = path.join(memoryDir, 'layers.json');
+    const layered = profile.memory.layered({ storagePath });
+
+    const fact = layered.add('conversation', { statement: 'user asked about the DAG', category: 'topic' });
+    expect(layered.get('conversation', fact.id)?.statement).toBe('user asked about the DAG');
+    expect(layered.getLayer('conversation')).toHaveLength(1);
+
+    expect(layered.promote('conversation', 'session', fact.id)).toBe(true);
+    expect(layered.getLayer('session')).toHaveLength(1);
+
+    // Persistence parity is checked while the fact is still valid: `getLayer` returns valid facts.
+    const reloaded = new LayeredMemory({ storagePath });
+    expect(reloaded.getLayer('session')[0]?.statement).toBe('user asked about the DAG');
+
+    expect(layered.invalidate('session', fact.id)).toBe(true);
+    expect(layered.stats().session.total).toBe(1);
+  });
+
+  it('keeps session memory and conventions', () => {
+    const filePath = path.join(memoryDir, 'session-memory.json');
+    const session = profile.memory.session({ filePath });
+
+    const saved = session.saveSession({
+      startedAt: '2026-11-09T10:00:00.000Z',
+      endedAt: '2026-11-09T11:00:00.000Z',
+      summary: 'Y-02d memory contract',
+      nextSteps: ['Y-02e'],
+      filesModified: ['src/storage/contracts.ts'],
+      decisions: [],
+      conventions: [],
+      metadata: {},
+    });
+    expect(saved.id).toBeTruthy();
+    expect(session.getLastSession()?.summary).toBe('Y-02d memory contract');
+    expect(session.getSessions()).toHaveLength(1);
+
+    session.addConvention('one increment per PR');
+    expect(session.getConventions()).toContain('one increment per PR');
+    expect(session.getContextSummary()).toContain('Y-02d memory contract');
+
+    const reloaded = new SessionMemory({ filePath });
+    expect(reloaded.getLastSession()?.summary).toBe('Y-02d memory contract');
+    expect(reloaded.getConventions()).toContain('one increment per PR');
   });
 });

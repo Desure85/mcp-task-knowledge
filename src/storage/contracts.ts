@@ -34,6 +34,15 @@ import type {
 // duplicating them here would let the contract and the tools drift apart.
 import type { ProjectDetail, ProjectInfo, ProjectMetadata, ProjectMetaUpdates } from '../projects.js';
 import type { ProjectWorkflow } from '../workflow.js';
+import type {
+  AddFactInput,
+  FactRelationType,
+  TemporalFact,
+  TemporalQuery,
+} from '../memory/temporal-graph.js';
+import type { DynamicFact, ProfileUpdateInput, UserProfile } from '../memory/user-profile.js';
+import type { LayeredFact, LayeredMemoryOptions, MemoryLayer } from '../memory/layers.js';
+import type { SessionDecision, SessionMemoryOptions, SessionRecord } from '../memory/session-memory.js';
 
 /** ADR-009 §"Возможности профиля": what a profile promises, checked by the contract tests. */
 export interface StoreCapabilities {
@@ -60,7 +69,7 @@ export interface StoreManifest {
     knowledge?: string;
   };
   /** Collections this profile currently implements behind the contract. */
-  collections: Array<'tasks' | 'docs' | 'projects' | 'prompts' | 'events' | 'history' | 'locks'>;
+  collections: Array<'tasks' | 'docs' | 'projects' | 'prompts' | 'memory' | 'events' | 'history' | 'locks'>;
 }
 
 export type StoreErrorCode = 'NOT_FOUND' | 'CONFLICT' | 'CAPABILITY_UNAVAILABLE' | 'CONFIG_MISMATCH';
@@ -342,6 +351,97 @@ export interface PromptStore {
   buildItems(project: string): Promise<Array<{ id: string; text: string; item: Record<string, unknown> }>>;
 }
 
+// ─── Memory (Y-02d) ─────────────────────────────────────────────────────────
+
+export interface TemporalStats {
+  totalFacts: number;
+  validFacts: number;
+  invalidatedFacts: number;
+  categories: Record<string, number>;
+}
+
+export interface LayeredStats {
+  conversation: { total: number; valid: number };
+  session: { total: number; valid: number };
+  user: { total: number; valid: number };
+}
+
+/**
+ * Temporal fact graph. Methods are synchronous because the file implementation is synchronous;
+ * a database-backed profile may return the same shapes from a sync driver (SQLite) or expose a
+ * separate async contract in Y-05 — the call sites are what matter here.
+ */
+export interface TemporalMemoryStore {
+  addFact(input: AddFactInput): TemporalFact;
+  invalidateFact(factId: string, reason: string): boolean;
+  getFact(factId: string): TemporalFact | null;
+  queryAtTime(atTime: string): TemporalFact[];
+  query(query: TemporalQuery): TemporalFact[];
+  getFactHistory(factId: string): TemporalFact[];
+  addRelationship(
+    sourceId: string,
+    targetId: string,
+    type: FactRelationType,
+    metadata?: Record<string, unknown>,
+  ): boolean;
+  getRelatedFacts(factId: string, type?: FactRelationType): TemporalFact[];
+  stats(): TemporalStats;
+  clear(): void;
+}
+
+/** User profiles: static facts plus time-ordered dynamic facts. */
+export interface ProfileMemoryStore {
+  getProfile(userId: string): UserProfile | null;
+  updateProfile(userId: string, input: ProfileUpdateInput): UserProfile;
+  getValidDynamicFacts(userId: string): DynamicFact[];
+  buildContextBlock(userId: string, maxTokens?: number): string;
+  listUsers(): string[];
+  deleteProfile(userId: string): boolean;
+}
+
+/** Layered memory: conversation → session → user, with promotion between layers. */
+export interface LayeredMemoryStore {
+  add(
+    layer: MemoryLayer,
+    input: { statement: string; category?: string; confidence?: number; tags?: string[] },
+  ): LayeredFact;
+  get(layer: MemoryLayer, factId: string): LayeredFact | null;
+  getLayer(layer: MemoryLayer): LayeredFact[];
+  promote(from: MemoryLayer, to: MemoryLayer, factId: string): boolean;
+  promoteAll(from: MemoryLayer, to: MemoryLayer): number;
+  invalidate(layer: MemoryLayer, factId: string): boolean;
+  clearLayer(layer: MemoryLayer): number;
+  stats(): LayeredStats;
+}
+
+/** Session memory: summaries, decisions and conventions of past work sessions. */
+export interface SessionMemoryStore {
+  saveSession(record: Omit<SessionRecord, 'id'>): SessionRecord;
+  getLastSession(): SessionRecord | undefined;
+  getSession(id: string): SessionRecord | undefined;
+  getSessions(limit?: number): SessionRecord[];
+  getDecisions(): SessionDecision[];
+  getDecisionsByTag(tag: string): SessionDecision[];
+  getConventions(): string[];
+  addConvention(convention: string): void;
+  search(query: string): SessionRecord[];
+  getSessionsInRange(startISO: string, endISO: string): SessionRecord[];
+  getContextSummary(lastN?: number): string;
+  deleteSession(id: string): boolean;
+  clear(): void;
+}
+
+/**
+ * Memory subsystem behind the profile. Every store is created for a path the caller names
+ * (ADR-009 rule 1) — memory files are not tied to `DATA_DIR` and the profile must not assume it.
+ */
+export interface MemoryStore {
+  temporal(storagePath: string): TemporalMemoryStore;
+  profiles(storagePath: string): ProfileMemoryStore;
+  layered(options: LayeredMemoryOptions): LayeredMemoryStore;
+  session(options?: SessionMemoryOptions): SessionMemoryStore;
+}
+
 /** What a profile exposes to `AppContainer` and, through it, to the tool modules. */
 export interface StorageProfile {
   manifest: StoreManifest;
@@ -349,6 +449,7 @@ export interface StorageProfile {
   docs: DocStore;
   project: ProjectStore;
   prompts: PromptStore;
+  memory: MemoryStore;
   /** Event logs are created per log file, so the profile hands out a factory. */
   events(storagePath: string): EventLogStore;
   history: HistoryProvider;
