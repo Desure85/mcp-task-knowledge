@@ -47,7 +47,7 @@ function fixture(): { home: string; opts: AgentDeployOptions; artifacts: AgentDe
   const artifacts: AgentDeployArtifact[] = [
     { id: 'review', kind: 'skill', target: 'claude', content: 'new claude skill\n' },
     { id: 'notes', kind: 'prompt', target: 'opencode', content: 'new opencode prompt\n' },
-    { id: 'removed', kind: 'skill', target: 'universal', delete: true },
+    { id: 'removed', kind: 'skill', target: 'universal', content: '', delete: true },
   ];
   return { home, opts, artifacts };
 }
