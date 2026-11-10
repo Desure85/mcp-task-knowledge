@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, resolveMcpApiUrl, resolveToken, type SetupLink } from '@/lib/api-client';
+import { api, resolveMcpApiUrl, resolveToken, type AdminToken, type AdminUser, type SetupLink } from '@/lib/api-client';
 import { decodeJwtClaims, formatRemaining } from '@/lib/auth';
 import { PageHeader } from '@/components/PageHeader';
 import { Button, Card, Input } from '@/components/ui';
@@ -72,6 +72,43 @@ export default function AccessPage() {
   const [error, setError] = useState<string | null>(null);
   const [links, setLinks] = useState<SetupLink[]>([]);
 
+  // T-01c: users and personal tokens (admin role required by the server tools).
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [userUsername, setUserUsername] = useState('');
+  const [userPassword, setUserPassword] = useState('');
+  const [userRoles, setUserRoles] = useState('agent');
+  const [newPassword, setNewPassword] = useState('');
+  const [editRoles, setEditRoles] = useState('');
+  const [tokens, setTokens] = useState<AdminToken[]>([]);
+  const [tokenName, setTokenName] = useState('personal');
+  const [tokenExpiry, setTokenExpiry] = useState('');
+  const [rawToken, setRawToken] = useState<string | null>(null);
+  const [adminBusy, setAdminBusy] = useState(false);
+
+  async function refreshUsers(): Promise<void> {
+    try {
+      setUsers(await api.admin.usersList());
+      setUsersError(null);
+    } catch (err) {
+      setUsersError((err as Error).message);
+    }
+  }
+
+  async function refreshTokens(userId: string): Promise<void> {
+    setSelectedUser(userId);
+    const user = users.find((candidate) => candidate.id === userId);
+    if (user) setEditRoles(user.roles.join(', '));
+    setRawToken(null);
+    try {
+      setTokens(await api.admin.tokensList(userId));
+      setUsersError(null);
+    } catch (err) {
+      setUsersError((err as Error).message);
+    }
+  }
+
   useEffect(() => {
     setToken(resolveToken());
     setBaseUrl(defaultPublicBase());
@@ -79,6 +116,13 @@ export default function AccessPage() {
       .list()
       .then((d) => setProject(d.current ?? ''))
       .catch(() => undefined);
+    api.admin
+      .usersList()
+      .then((list) => {
+        setUsers(list);
+        setUsersError(null);
+      })
+      .catch((err: Error) => setUsersError(err.message));
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
@@ -224,6 +268,211 @@ export default function AccessPage() {
           </ul>
         )}
       </Card>
+
+      <Card className="p-5">
+        <h3 className="text-[14px] font-semibold text-ink">Users</h3>
+        <p className="mt-1 text-[12px] text-muted">
+          Users and roles live in <code>DATA_DIR/auth.db</code>. Passwords are hashed; changing one revokes that
+          user&apos;s personal tokens.
+        </p>
+        {usersError && (
+          <p role="alert" className="mt-3 rounded-[var(--radius-control)] border border-danger/40 bg-surface-2 px-3 py-2 text-[12px] text-danger">
+            {/admin/i.test(usersError) ? 'Your account needs the admin role to manage users and tokens.' : usersError}
+          </p>
+        )}
+        <form
+          className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setAdminBusy(true);
+            try {
+              await api.admin.userCreate({
+                username: userUsername,
+                password: userPassword,
+                roles: userRoles.split(',').map((role) => role.trim()).filter(Boolean),
+              });
+              setUserUsername('');
+              setUserPassword('');
+              await refreshUsers();
+            } catch (err) {
+              setUsersError((err as Error).message);
+            } finally {
+              setAdminBusy(false);
+            }
+          }}
+        >
+          <Input label="Username" value={userUsername} onChange={(e) => setUserUsername(e.target.value)} />
+          <Input label="Password" type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} />
+          <Input label="Roles (comma-separated)" value={userRoles} onChange={(e) => setUserRoles(e.target.value)} />
+          <div className="sm:col-span-3">
+            <Button type="submit" variant="primary" loading={adminBusy} disabled={adminBusy || !userUsername || !userPassword}>
+              Create user
+            </Button>
+          </div>
+        </form>
+
+        <ul className="mt-5 divide-y divide-line">
+          {users.map((user) => (
+            <li key={user.id} className="flex min-h-[32px] flex-wrap items-center justify-between gap-2 py-2 text-[13px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-ink">{user.username}</span>
+                <span className="text-muted">{user.roles.join(', ') || '—'}</span>
+                {user.disabled && <span className="text-danger">disabled</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => void refreshTokens(user.id)}>
+                  Tokens
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    setAdminBusy(true);
+                    try {
+                      await api.admin.userDisable({ userId: user.id, disabled: !user.disabled });
+                      await refreshUsers();
+                    } catch (err) {
+                      setUsersError((err as Error).message);
+                    } finally {
+                      setAdminBusy(false);
+                    }
+                  }}
+                >
+                  {user.disabled ? 'Enable' : 'Disable'}
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {selectedUser && (
+        <Card className="p-5">
+          <h3 className="text-[14px] font-semibold text-ink">Personal tokens</h3>
+          <p className="mt-1 text-[12px] text-muted">
+            The raw token is shown once. Lists expose only the prefix; revoke a token to make it stop working
+            immediately.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <Input label="New password (optional)" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <div className="flex items-end">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!newPassword || adminBusy}
+                onClick={async () => {
+                  setAdminBusy(true);
+                  try {
+                    await api.admin.userSetPassword({ userId: selectedUser, password: newPassword });
+                    setNewPassword('');
+                  } catch (err) {
+                    setUsersError((err as Error).message);
+                  } finally {
+                    setAdminBusy(false);
+                  }
+                }}
+              >
+                Set password
+              </Button>
+            </div>
+            <Input label="Token name" value={tokenName} onChange={(e) => setTokenName(e.target.value)} />
+            <Input label="Roles (selected user)" value={editRoles} onChange={(e) => setEditRoles(e.target.value)} />
+            <div className="flex items-end">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={adminBusy}
+                onClick={async () => {
+                  setAdminBusy(true);
+                  try {
+                    await api.admin.userSetRoles({
+                      userId: selectedUser,
+                      roles: editRoles.split(',').map((role) => role.trim()).filter(Boolean),
+                    });
+                    await refreshUsers();
+                  } catch (err) {
+                    setUsersError((err as Error).message);
+                  } finally {
+                    setAdminBusy(false);
+                  }
+                }}
+              >
+                Set roles
+              </Button>
+            </div>
+            <Input label="Expires (optional)" type="datetime-local" value={tokenExpiry} onChange={(e) => setTokenExpiry(e.target.value)} />
+            <div className="sm:col-span-4">
+              <Button
+                type="button"
+                variant="primary"
+                disabled={adminBusy}
+                onClick={async () => {
+                  setAdminBusy(true);
+                  try {
+                    const created = await api.admin.tokenCreate({
+                      userId: selectedUser,
+                      name: tokenName || undefined,
+                      ...(tokenExpiry ? { expiresAt: new Date(tokenExpiry).toISOString() } : {}),
+                    });
+                    setRawToken(created.token);
+                    await refreshTokens(selectedUser);
+                  } catch (err) {
+                    setUsersError((err as Error).message);
+                  } finally {
+                    setAdminBusy(false);
+                  }
+                }}
+              >
+                Create token
+              </Button>
+            </div>
+          </div>
+
+          {rawToken && (
+            <div className="mt-4 rounded-[var(--radius-control)] border border-line bg-surface-2 p-3">
+              <code className="block break-all text-[12px] text-ink">{rawToken}</code>
+              <div className="mt-2">
+                <CopyButton text={rawToken} label="Copy token" />
+              </div>
+            </div>
+          )}
+
+          <ul className="mt-5 divide-y divide-line">
+            {tokens.map((item) => (
+              <li key={item.id} className="flex min-h-[32px] flex-wrap items-center justify-between gap-2 py-2 text-[13px]">
+                <div className="flex flex-wrap items-center gap-2 text-muted">
+                  <span className="font-medium text-ink">{item.name}</span>
+                  <code className="text-[11px]">{item.prefix}…</code>
+                  {item.revokedAt ? <span className="text-danger">revoked</span> : <span>active</span>}
+                  {item.expiresAt && <span>expires {new Date(item.expiresAt).toLocaleString()}</span>}
+                </div>
+                {!item.revokedAt && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      setAdminBusy(true);
+                      try {
+                        await api.admin.tokenRevoke({ userId: selectedUser, tokenId: item.id });
+                        await refreshTokens(selectedUser);
+                      } catch (err) {
+                        setUsersError((err as Error).message);
+                      } finally {
+                        setAdminBusy(false);
+                      }
+                    }}
+                  >
+                    Revoke
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

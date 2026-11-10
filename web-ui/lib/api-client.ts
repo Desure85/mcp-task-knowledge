@@ -399,6 +399,26 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface AdminUser {
+  id: string;
+  username: string;
+  roles: string[];
+  disabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminToken {
+  id: string;
+  userId: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  expiresAt?: string;
+  revokedAt?: string;
+  lastUsedAt?: string;
+}
+
 export interface SetupLink {
   url: string;
   expiresAt: string;
@@ -756,6 +776,21 @@ export const api = {
     /** One-time setup link that reveals a scoped agent token (DX-29). */
     setupLink: (args: { project?: string; role?: string; ttlMs?: number; baseUrl?: string }) =>
       callTool<SetupLink>('admin_setup_link', args),
+    /** T-01c: users and personal tokens from DATA_DIR/auth.db. */
+    usersList: () => callTool<AdminUser[]>('admin_users_list'),
+    userCreate: (args: { username: string; password: string; roles?: string[] }) =>
+      callTool<AdminUser>('admin_user_create', args),
+    userSetPassword: (args: { userId: string; password: string }) =>
+      callTool<{ updated: boolean }>('admin_user_set_password', args),
+    userSetRoles: (args: { userId: string; roles: string[] }) =>
+      callTool<{ updated: boolean }>('admin_user_set_roles', args),
+    userDisable: (args: { userId: string; disabled: boolean }) =>
+      callTool<{ updated: boolean }>('admin_user_disable', args),
+    tokensList: (userId: string) => callTool<AdminToken[]>('admin_tokens_list', { userId }),
+    tokenCreate: (args: { userId: string; name?: string; expiresAt?: string }) =>
+      callTool<{ record: AdminToken; token: string }>('admin_token_create', args),
+    tokenRevoke: (args: { userId: string; tokenId: string }) =>
+      callTool<{ revoked: boolean }>('admin_token_revoke', args),
   },
 
   // Tasks

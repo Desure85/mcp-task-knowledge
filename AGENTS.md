@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01a, T-01b закрыты)
-**Текущая ветка:** feat/t01b-admin-users (от origin/master e36c72d, PR #363 влит)
-**Текущий этап:** бэклог по приоритету; T-01a/T-01b закрыты, T-01 остаётся pending (T-01c — web-админка); CM-03 pending (CM-03b); дальше — UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** T-01b: 8 admin-MCP инструментов, personal-token `TokenValidator` композируется с JWT/static; 5/5 тестов, 3 мутации RED. Raw-токен только при создании; web-UI — T-01c.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01 закрыты)
+**Текущая ветка:** feat/t01c-users-admin (от origin/master 9a14a66, PR #364 влит)
+**Текущий этап:** бэклог по приоритету; T-01 закрыт (a+b+c); CM-03 pending (CM-03b); дальше — UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** T-01c: страница `/access` управляет users/roles/password/disable и токенами через admin-MCP; raw-токен один раз; tsc+design guards 33/33, браузерного e2e нет. T-01 закрыт.
+
+### Сессия S-20261109-night (T-01c — web-админка; T-01 закрыт)
+
+- `web-ui/lib/api-client.ts`: AdminUser/AdminToken + методы users/tokens поверх `callTool`.
+- `web-ui/app/access/page.tsx`: Users (list/create/disable/password/roles) + Personal tokens (list/create/revoke, expiry, raw один раз); только примитивы UI.
+- Проверено: web tsc чистый; design guards + no-hardcoded + api-client 33/33; design-doc локально не парсится (не связано) — CI гейт.
+- Ограничения: браузерного e2e нет; роли free-form; expiry — локальный datetime-local.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-2100-t01c.md`.
 
 ### Сессия S-20261109-night (T-01b — админ-MCP и TokenValidator)
 
