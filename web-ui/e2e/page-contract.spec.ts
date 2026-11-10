@@ -43,6 +43,8 @@ for (const route of ROUTES) {
     const expectedHref = route === '/' ? '/' : route;
     await expect(active).toHaveAttribute('href', expectedHref);
 
+    // Webfonts can arrive after the page shell; wait so the baseline is not a fallback glyph set.
+    await page.evaluate(() => document.fonts.ready);
     // Screenshot comparison is scoped to the heading, so page data does not
     // leak into the baseline. Tolerance covers platform font antialiasing.
     await expect(h1).toHaveScreenshot(`h1-${route === '/' ? 'overview' : route.replaceAll('/', '-').slice(1)}.png`, {
