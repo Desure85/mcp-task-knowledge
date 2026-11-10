@@ -46,3 +46,19 @@ export {
   exportPluginPackage,
 } from './plugin-container.js';
 export type { PluginPackage, PluginManifest, PluginFile, PluginComponent } from './plugin-container.js';
+
+export {
+  PluginSecurityError,
+  activatePluginPackage,
+  inspectPluginSecurity,
+  pluginLicenseFile,
+  pluginLicenseWarning,
+} from './plugin-security.js';
+export type {
+  PluginActivation,
+  PluginActivationRequest,
+  PluginLicenseInfo,
+  PluginSecurityErrorCode,
+  PluginSecurityFile,
+  PluginSecurityReport,
+} from './plugin-security.js';
