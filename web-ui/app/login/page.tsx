@@ -19,6 +19,7 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = sanitizeNextPath(params.get('next'));
+  const expired = params.get('expired') === '1';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -55,6 +56,11 @@ function LoginForm() {
           <BrandMark size="md" />
           <div>
             <h1 className="text-[16px] font-semibold tracking-tight text-ink">Sign in</h1>
+        {expired && (
+          <p role="status" className="mt-3 rounded-[var(--radius-control)] border border-line bg-surface-2 px-3 py-2 text-[12px] text-ink">
+            Session expired. Sign in again to continue.
+          </p>
+        )}
             <p className="text-[12px] text-muted">MCP Task &amp; Knowledge</p>
           </div>
         </div>

@@ -26,10 +26,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isLogin = pathname === '/login';
   const [gate, setGate] = useState<GateState>('checking');
 
-  const toLogin = useCallback(() => {
+  const toLogin = useCallback((expired = false) => {
     const here = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/';
-    const next = here && here !== '/' && !here.startsWith('/login') ? `?next=${encodeURIComponent(here)}` : '';
-    router.replace(`/login${next}`);
+    const params = new URLSearchParams();
+    if (here && here !== '/' && !here.startsWith('/login')) params.set('next', here);
+    if (expired) params.set('expired', '1');
+    const query = params.toString();
+    router.replace(`/login${query ? `?${query}` : ''}`);
   }, [router]);
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     (async () => {
       if (hasAuthToken() && isExpired(decodeJwtClaims(resolveToken()))) {
         clearAuthToken();
-        if (alive) toLogin();
+        if (alive) toLogin(true);
         return;
       }
       if (hasAuthToken()) {
@@ -60,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [isLogin, toLogin]);
 
   useEffect(() => {
-    const onExpired = () => toLogin();
+    const onExpired = () => toLogin(true);
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, [toLogin]);
