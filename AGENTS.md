@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-10, CM-03a, T-01, UI-11a, UI-12a закрыты)
-**Текущая ветка:** feat/z10-agent-targets (от origin/master 375f378, PR #367 влит)
-**Текущий этап:** бэклог по приоритету; Z-10 закрыт; UI-11/UI-12 pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — UI-11b/UI-12b, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** Z-10: target у промптов/скиллов + реестр project_agents_get/set, 5/5, 3 мутации RED, api-reference 141 tools. Skill deployment per target — Z-12.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-10, CM-03a, T-01, UI-11a, UI-12a закрыты)
+**Текущая ветка:** feat/z02-plugin-container (от origin/master 54eab0d, PR #368 влит)
+**Текущий этап:** бэклог по приоритету; Z-02 закрыт; UI-11/UI-12 pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — Z-03/Z-04, UI-11b/UI-12b, AA-04
+**Статус:** Z-02: plugin.json + все компоненты/вложения, lossless export со sha256; 5/5, 3 мутации RED. ZIP/UI/MCP-инструменты — Z-03/транспорт.
+
+### Сессия S-20261109-night (Z-02 — плагин-контейнер)
+
+- `src/skills/plugin-container.ts`: манифест, проверка компонентов по каталогам, undeclared → `other`, лимиты/пути Z-01.
+- `exportPluginPackage`: staging→dest, sha256+count сверка, отказ перезаписи; бинарные байты.
+- Проверено: 5/5 plugin-container, 3 мутации RED; build/tsc чистые.
+- Ограничения: directory→directory, ZIP/UI/MCP-инструменты — Z-03/транспорт; манифест обязателен.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0100-z-02.md`.
 
 ### Сессия S-20261109-night (Z-10 — target и реестр агентов)
 
