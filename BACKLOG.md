@@ -1871,7 +1871,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > `scripts/dev-cli.mjs backup|restore`, ADR-008). Нового кода не добавлялось. Локальный Windows-прогон
 > DX-16 частично красный из-за системного tar без GNU `--transform` и symlink-привилегий — это
 > записанный класс среды, решающий гейт — CI Linux.
-
+>
 > Примечание (2026-11-10, DX-10 done): `mcp-task-knowledge setup` детектит Claude Desktop/
 > Cursor/Windsurf/VS Code/Claude Code, спрашивает transport/DATA_DIR (`--client X --yes` для CI),
 > идемпотентно мержит `mcpServers` с бэкапом, делает stdio self-check (`initialize`→`tools/list`,
