@@ -1882,7 +1882,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > поведение — порядок = порядку items, default не останавливается на ошибке, `stopOnError`
 > останавливает, `tools_batch` параллелен (барьер + счётчик активных, без sleep), без флага
 > остановки и с лимитом 1..50. 5/5 тестов, 3 мутации RED; кода не менялось.
-
+>
 > Примечание (2026-11-10, AA-01 done): ADR `docs/adr/0010-agent-core-and-launch-modes.md`
 > фиксирует модель «ядро vs клиенты» — режимы (stdio/http/tcp/unix/bridge), время жизни,
 > владение DATA_DIR через `.server.lock` (MU-01), сигналы, Windows-границы и отказ от выбора
