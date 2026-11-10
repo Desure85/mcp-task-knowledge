@@ -28,6 +28,8 @@ export interface Skill {
   body: string;
   /** Tags for categorization. */
   tags: string[];
+  /** Target agent (Z-10); missing/blank means universal. */
+  target?: string;
   /** Skill status. */
   status: SkillStatus;
   /** Current version. */
@@ -49,6 +51,7 @@ export interface CreateSkillInput {
   description: string;
   body: string;
   tags?: string[];
+  target?: string;
   frontmatter?: Record<string, unknown>;
   createdBy?: string;
 }
@@ -59,6 +62,7 @@ export interface UpdateSkillInput {
   body?: string;
   tags?: string[];
   status?: SkillStatus;
+  target?: string;
   frontmatter?: Record<string, unknown>;
   changelog?: string;
   createdBy?: string;

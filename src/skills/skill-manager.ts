@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { childLogger } from '../core/logger.js';
 import type { Skill, CreateSkillInput, UpdateSkillInput, SkillVersion, SkillStatus } from './types.js';
+import { DEFAULT_AGENT_TARGET, normalizeAgentTarget } from '../agents.js';
 
 const log = childLogger('skill-manager');
 
@@ -57,10 +58,11 @@ export class SkillManager {
       description: input.description,
       body: input.body,
       tags: input.tags ?? [],
+      target: normalizeAgentTarget(input.target ?? DEFAULT_AGENT_TARGET),
       status: 'draft',
       version,
       versions: [{ version, createdAt: now, createdBy: input.createdBy, changelog: 'Initial version' }],
-      frontmatter: input.frontmatter ?? {},
+      frontmatter: { ...(input.frontmatter ?? {}), target: normalizeAgentTarget(input.target ?? DEFAULT_AGENT_TARGET) },
       createdAt: now,
       updatedAt: now,
       createdBy: input.createdBy,
@@ -96,6 +98,10 @@ export class SkillManager {
     if (input.description !== undefined) skill.description = input.description;
     if (input.body !== undefined) skill.body = input.body;
     if (input.tags !== undefined) skill.tags = input.tags;
+    if (input.target !== undefined) {
+      skill.target = normalizeAgentTarget(input.target);
+      skill.frontmatter = { ...skill.frontmatter, target: skill.target };
+    }
     if (input.status !== undefined) skill.status = input.status;
     if (input.frontmatter !== undefined) skill.frontmatter = input.frontmatter;
     skill.updatedAt = now;

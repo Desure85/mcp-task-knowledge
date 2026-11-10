@@ -53,6 +53,7 @@ export interface ProjectMetadata {
   transitions?: Record<string, string[]>;
   closeStatus?: string;
   initialStatuses?: string[];
+  agents?: string[];
 }
 
 const PROJECT_META_FILE = '.project.json';
@@ -273,6 +274,7 @@ export type ProjectMetaUpdates = {
   transitions?: Record<string, string[]> | null;
   closeStatus?: string | null;
   initialStatuses?: string[] | null;
+  agents?: string[] | null;
 };
 
 export async function updateProjectMeta(
@@ -306,6 +308,10 @@ export async function updateProjectMeta(
     if (updates.initialStatuses !== undefined) {
       if (updates.initialStatuses === null) delete meta.initialStatuses;
       else meta.initialStatuses = updates.initialStatuses;
+    }
+    if (updates.agents !== undefined) {
+      if (updates.agents === null) delete meta.agents;
+      else meta.agents = updates.agents;
     }
     await writeProjectMetadata(projectId, meta);
     return meta;
