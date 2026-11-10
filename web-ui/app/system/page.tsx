@@ -277,7 +277,12 @@ export default function SystemPage() {
                 </div>
                 <Button onClick={() => void searchTools()}>Filter</Button>
               </div>
-              <div className="mt-3 max-h-96 divide-y divide-line overflow-y-auto">
+              <div
+                className="mt-3 max-h-96 divide-y divide-line overflow-y-auto"
+                role="region"
+                aria-label="Tools list"
+                tabIndex={0}
+              >
                 {tools.map((tool) => (
                   <div key={tool.name} className="flex items-baseline gap-3 py-2">
                     <code className="shrink-0 font-mono text-[11px] font-semibold text-accent">{tool.name}</code>

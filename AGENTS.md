@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11a, UI-12a закрыты)
-**Текущая ветка:** feat/z12-agent-deploy (от origin/master e47ce19, PR #370 влит)
-**Текущий этап:** бэклог по приоритету; Z-12 закрыт; за ним — Z-11/Z-03 UI, UI-11b/UI-12b Playwright, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** Z-12: preview/apply/rollback деплоя по target, allowlist+symlink+external gates, snapshot; 6/6, 3 мутации RED, api-reference 143. Веб-админки/custom roots/конвертации нет — записано.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11a, UI-12a, UI-15 закрыты)
+**Текущая ветка:** feat/ui-15-accessibility (от origin/master 282adcc, PR #371 влит)
+**Текущий этап:** бэклог по приоритету; UI-15 закрыт; за ним — UI-11b/UI-12b/UI-16/UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-15: axe 12 маршрутов 0 critical/serious, Tab 3 маршрута, contrast 24×6; 15/15 e2e, 2 мутации RED. CI web-ui запускает Playwright.
+
+### Сессия S-20261109-night (UI-15 — доступность)
+
+- `web-ui/playwright.config.ts` + `e2e/accessibility.spec.ts`: login, axe 12 routes, Tab /knowledge /tasks /graph; `test:e2e`.
+- `/system`: scroll-регион списка инструментов получил `role="region"`, `aria-label`, `tabIndex={0}`.
+- Проверено: 15/15 Playwright, 24/24 unit (contrast/guards/page/states); 2 мутации RED (tabIndex, lang); CI web-ui шаг добавлен.
+- Ограничения: axe ≠ ручная WCAG-сертификация; CI полагается на Chrome runner'а; e2e требует MCP login.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0400-ui-15.md`.
 
 ### Сессия S-20261109-night (Z-12 — деплой по агентам)
 
