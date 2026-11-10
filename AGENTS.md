@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; подпункты Y-02…Y-08 закрыты)
-**Текущая ветка:** feat/y-gate-benchmarks (от origin/master 5747192, PR #351 влит)
-**Текущий этап:** Y — gate §5.2/§5.3/§5.5 закрыты; **этап НЕ объявлен закрытым**: остался §5.6 (`doctor` показывает активный профиль/манифест/возможности)
-**Статус:** §5.5: `docs/benchmarks/` на 100k — hit@1=1.0 на всех профилях; medianMs file 213.4 / sqlite 0.25 / postgres 727.8, RSS 355/265/99 MB; медленные file/postgres пути записаны follow-up'ами. До этого: §5.2 (общий контрактный набор, PR #351) и §5.3 (реальные Postgres/MinIO в CI, PR #350). **Дальше: §5.6** — секция профиля в `doctor`, затем закрытие этапа Y.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; **этап Y закрыт**)
+**Текущая ветка:** feat/y-gate-doctor (от origin/master 5e83af2, PR #352 влит)
+**Текущий этап:** **Y закрыт 2026-11-10** — §5.1–§5.7 gate выполнены; открытые follow-up'ы записаны (производительность Postgres/file-поиска, COPY/батчи миграции, MU-02, pgvector/HNSW локально).
+**Статус:** §5.6: `doctor` показывает реальный активный профиль (`storage-profile-inspect`) — roots/collections/capabilities, отсутствующая БД/URL/неизвестный профиль → warning без создания состояния; 4/4 теста, 3 мутации RED. Этап Y закрыт по всем семи условиям плана §5. **Дальше:** очередь бэклога — high TS-01 (стабильность тестов/воркеры) и далее.
+
+### Сессия S-20261109-night (Y-gate §5.6 + закрытие этапа Y)
+
+- `src/cli/storage-profile-inspect.ts`: реальный профиль по `STORAGE_PROFILE` (file/sqlite/postgres), манифест/возможности, честные ошибки (нет БД/URL/неизвестный профиль).
+- `doctor`: секция `storage` в JSON и тексте; предупреждение `storage-profile` при ошибке; exit-код не меняется.
+- Документация: `configuration.md` (postgres/POSTGRES_URL), `architecture.md` (раздел профилей), CHANGELOG/AGENTS/BACKLOG; gate §5.1–§5.7 со evidence в решении.
+- Проверено: 4/4 doctor-теста, 3 мутации RED; build/tsc/eslint/markdownlint/backlog зелёные.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1000-y-gate-doctor-stage-close.md`.
 
 ### Сессия S-20261109-night (Y-gate §5.5 — benchmarks 100k)
 

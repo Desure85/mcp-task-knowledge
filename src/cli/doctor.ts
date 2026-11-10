@@ -29,6 +29,7 @@ import { PROJECT_ID_RE } from '../projects.js';
 import { readSchemaManifest, CURRENT_SCHEMA } from '../services/schema-version.js';
 import type { Task } from '../types.js';
 import { inspectIndex, formatIndexSection, type IndexInspection } from './index-inspect.js';
+import { inspectActiveStorageProfile, type StorageProfileSummary } from './storage-profile-inspect.js';
 import {
   inspectSqliteStorage,
   type SqliteStorageReport,
@@ -55,6 +56,8 @@ export interface DoctorReport {
   index?: IndexInspection;
   /** Y-05c: SQLite-profile state, when `STORAGE_PROFILE=sqlite`. */
   sqlite?: SqliteStorageReport;
+  /** Gate §5.6: active profile, its manifest and capabilities (honest, incl. errors). */
+  storage?: StorageProfileSummary;
   issues: DoctorIssue[];
   errors: number;
   warnings: number;
@@ -541,12 +544,23 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
     }
   }
 
+  let storage: StorageProfileSummary | undefined;
+  try {
+    storage = await inspectActiveStorageProfile(paths.dataDir);
+    if (storage.error) {
+      issues.push({ level: 'warn', check: 'storage-profile', file: 'STORAGE_PROFILE', detail: storage.error });
+    }
+  } catch (error) {
+    issues.push({ level: 'warn', check: 'storage-profile', file: 'STORAGE_PROFILE', detail: (error as Error).message });
+  }
+
   return {
     dataDir: paths.dataDir,
     scanned,
     schema: { found: schemaFound, current: CURRENT_SCHEMA },
     index,
     sqlite,
+    storage,
     issues,
     errors: issues.filter((i) => i.level === 'error').length,
     warnings: issues.filter((i) => i.level === 'warn').length,
@@ -562,6 +576,15 @@ export function formatReport(report: DoctorReport): string {
   lines.push(`Scanned: ${report.scanned.json} json, ${report.scanned.md} md`);
   lines.push(`Schema: ${report.schema.found} (supported: ${report.schema.current})`);
   if (report.index) lines.push(...formatIndexSection(report.index));
+  if (report.storage) {
+    const s = report.storage;
+    lines.push(`Storage profile: ${s.profile}${s.error ? ` (${s.error})` : ''}`);
+    if (!s.error) {
+      lines.push(`Storage collections: ${s.collections.join(', ')}`);
+      lines.push(`Storage capabilities: ${Object.entries(s.capabilities).map(([key, value]) => `${key}=${value}`).join(' ')}`);
+      lines.push(`Storage roots: tasks=${s.roots.tasks ?? '-'} knowledge=${s.roots.knowledge ?? '-'}`);
+    }
+  }
   if (report.sqlite) {
     const s = report.sqlite;
     lines.push(
