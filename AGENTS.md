@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-10, CM-03a, T-01, UI-11a, UI-12a закрыты)
-**Текущая ветка:** feat/z02-plugin-container (от origin/master 54eab0d, PR #368 влит)
-**Текущий этап:** бэклог по приоритету; Z-02 закрыт; UI-11/UI-12 pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — Z-03/Z-04, UI-11b/UI-12b, AA-04
-**Статус:** Z-02: plugin.json + все компоненты/вложения, lossless export со sha256; 5/5, 3 мутации RED. ZIP/UI/MCP-инструменты — Z-03/транспорт.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, CM-03a, T-01, UI-11a, UI-12a закрыты)
+**Текущая ветка:** feat/z04-plugin-security (от origin/master c221b5a, PR #369 влит)
+**Текущий этап:** бэклог по приоритету; Z-04 закрыт; UI-11/UI-12 pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — Z-03, UI-11b/UI-12b, AA-04
+**Статус:** Z-04: external trust, deny-by-default активация, hooks/scripts/mcp/network и лицензия видны; 5/5, 3 мутации RED. Песочницы исполнения нет — записано.
+
+### Сессия S-20261109-night (Z-04 — безопасность пакетов)
+
+- `src/skills/plugin-security.ts`: `inspectPluginSecurity` (external/disabled, hooks/mcp/executables/network/license), `activatePluginPackage` с именованными allow-флагами.
+- `PluginManifest.license`; экспорт из `src/skills/index.ts`; UI/MCP-инструменты не добавлялись.
+- Проверено: 5/5 plugin-security, 3 мутации RED; build/tsc чистые.
+- Ограничения: политика/API, не sandbox; эвристика сети по тексту ≤256 KiB; UI — Z-03.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0200-z-04.md`.
 
 ### Сессия S-20261109-night (Z-02 — плагин-контейнер)
 

@@ -61,6 +61,7 @@ export interface PluginManifest {
   name: string;
   version: string;
   description?: string;
+  license?: string;
   components: Partial<Record<PluginComponent, string[]>>;
   /** Files declared by the manifest; empty when the manifest is declaration-only. */
   declaredFiles: string[];
@@ -185,6 +186,9 @@ function parseManifest(raw: string): PluginManifest {
     version,
     ...(typeof data.description === 'string' && data.description.trim().length > 0
       ? { description: data.description.trim() }
+      : {}),
+    ...(typeof data.license === 'string' && data.license.trim().length > 0
+      ? { license: data.license.trim() }
       : {}),
     components,
     declaredFiles: Array.from(new Set(declaredFiles)),
