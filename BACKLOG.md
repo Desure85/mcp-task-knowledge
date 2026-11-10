@@ -1815,7 +1815,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > `tsvector`+GIN и `pg_trgm` с async-путём `candidatesAsync` (аддитивное расширение
 > контракта); индекс ведётся на мутациях, `ensureIndexed` пересобирает проект; проверено на
 > реальном PostgreSQL 18.6, 16/16, 126/126 затронутых. Остаток Y-06: b — pgvector/HNSW.
-
 >
 > Примечание (2026-11-10, Y-06 закрыт): Postgres-профиль полностью за контрактами — Store,
 > SearchProvider (tsvector+pg_trgm), VectorProvider (pgvector/HNSW при наличии расширения, иначе
