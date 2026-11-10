@@ -1887,7 +1887,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > фиксирует модель «ядро vs клиенты» — режимы (stdio/http/tcp/unix/bridge), время жизни,
 > владение DATA_DIR через `.server.lock` (MU-01), сигналы, Windows-границы и отказ от выбора
 > лидера. DoD: 4 раздела `##`, lint зелёный; кода не менялось.
-
+>
 > Примечание (2026-11-10, Z-01 done): `src/skills/skill-package.ts` — `SKILL.md`+вложения,
 > sha256/размеры/лимиты, безопасные относительные пути (без `..`, absolute, drive/ADS, Windows-reserved),
 > symlink отклоняется, `SkillPackageStore` на файловом профиле. 12/12 тестов, 5 мутаций RED.

@@ -91,8 +91,11 @@ export function normalizeSkillPackagePath(input: string, options: SkillPackageOp
   if (typeof input !== 'string' || input.length === 0) {
     throw new SkillPackageError('PATH_INVALID', 'empty package path');
   }
-  if (input.includes('\0') || /[\u0000-\u001f]/.test(input)) {
-    throw new SkillPackageError('PATH_INVALID', `control character in package path: ${JSON.stringify(input)}`);
+  for (let index = 0; index < input.length; index += 1) {
+    const code = input.charCodeAt(index);
+    if (code === 0 || code < 32 || code === 127) {
+      throw new SkillPackageError('PATH_INVALID', `control character in package path: ${JSON.stringify(input)}`);
+    }
   }
   const slashed = input.replace(/\\/g, '/');
   if (slashed.startsWith('/') || /^[A-Za-z]:/.test(slashed) || slashed.includes(':')) {
