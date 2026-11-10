@@ -45,9 +45,13 @@ for (const route of ROUTES) {
 
     // Webfonts can arrive after the page shell; wait so the baseline is not a fallback glyph set.
     await page.evaluate(() => document.fonts.ready);
-    // Screenshot comparison is scoped to the heading, so page data does not
-    // leak into the baseline. Tolerance covers platform font antialiasing.
-    await expect(h1).toHaveScreenshot(`h1-${route === '/' ? 'overview' : route.replaceAll('/', '-').slice(1)}.png`, {
+    // Screenshot a fixed clip around the heading, not the heading element: glyph
+    // advance widths differ by a few px between platform font hinting, and an
+    // element screenshot would then fail on image dimensions before comparing.
+    const box = await h1.boundingBox();
+    if (!box) throw new Error(`heading has no box on ${route}`);
+    await expect(page).toHaveScreenshot(`h1-${route === '/' ? 'overview' : route.replaceAll('/', '-').slice(1)}.png`, {
+      clip: { x: Math.max(0, box.x - 8), y: Math.max(0, box.y - 4), width: 440, height: Math.ceil(box.height) + 8 },
       animations: 'disabled',
       caret: 'hide',
       maxDiffPixelRatio: 0.15,
