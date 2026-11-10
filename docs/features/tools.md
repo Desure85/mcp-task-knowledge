@@ -239,6 +239,8 @@ SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 | `project_types_set` | Replace the type set; removing a used type requires `moveTo` or `moves` |
 | `project_agents_get` | Get the project agent-target registry (built-ins universal, claude, opencode) |
 | `project_agents_set` | Replace the agent targets; removing a used target requires `moveTo` or `moves` |
+| `agents_deploy` | Preview or apply deployment of skills/prompts into target agent directories; apply requires confirm and snapshots touched files |
+| `agents_deploy_rollback` | Restore files from a deployment snapshot and remove files it created |
 
 ### Project statuses and transitions (V-01/V-02)
 
@@ -462,4 +464,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 139 tools by default (141 with catalog; 143 when catalog writes are enabled) + 6 resources
+## Total: 141 tools by default (143 with catalog; 145 when catalog writes are enabled) + 6 resources
