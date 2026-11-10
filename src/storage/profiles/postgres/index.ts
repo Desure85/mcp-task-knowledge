@@ -57,6 +57,8 @@ import {
 } from '../../../workflow.js';
 import type { ProjectWorkflow } from '../../../workflow.js';
 import { openPostgresDatabase, type PostgresDatabase } from './db.js';
+import { buildTextForDoc, buildTextForTask } from '../../../search/index.js';
+import type { SearchIndexFillState, SearchProvider } from '../../contracts.js';
 import { FileMemoryStore, FilePromptStore } from '../file/index.js';
 import { createFileBlobProvider } from '../../blobs/file-blob-provider.js';
 
@@ -155,6 +157,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
          trashed = excluded.trashed, updated_at = now()`,
       [task.project, task.id, JSON.stringify(task), Boolean(task.archived), Boolean(task.trashed)],
     );
+    void indexTaskRow(task);
     return task;
   }
 
@@ -266,6 +269,8 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     },
     async deletePermanent(project, id) {
       const result = await pool.query('delete from tasks where project = $1 and id = $2', [project, id]);
+      await deleteSearchRow(TASK_SEARCH_STORE, 'task', project, id);
+      await refreshTaskCount(project);
       return (result.rowCount ?? 0) > 0;
     },
     async tree(filter) {
@@ -321,6 +326,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
          trashed = excluded.trashed, updated_at = now()`,
       [doc.project, doc.id, JSON.stringify(doc), Boolean(doc.archived), Boolean(doc.trashed)],
     );
+    void indexDocRow(doc);
     if (recordVersion) {
       await pool.query('insert into doc_versions(project, id, version, data) values($1,$2,$3,$4) on conflict do nothing', [
         doc.project,
@@ -430,6 +436,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     async deletePermanent(project, id) {
       const result = await pool.query('delete from docs where project = $1 and id = $2', [project, id]);
       await pool.query('delete from doc_versions where project = $1 and id = $2', [project, id]);
+      await deleteSearchRow(DOC_SEARCH_STORE, 'doc', project, id);
       return (result.rowCount ?? 0) > 0;
     },
     async versions(project, id) {
@@ -445,6 +452,168 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
       if (!result.rows[0]) return null;
       return patchDoc(project, id, result.rows[0].data as Record<string, unknown>);
     },
+  };
+
+  // ─── search (Y-06a2: tsvector + pg_trgm) ─────────────────────────────────
+  const TASK_SEARCH_STORE = 'postgres:tasks';
+  const DOC_SEARCH_STORE = 'postgres:docs';
+  interface SearchStateEntry {
+    complete: boolean;
+    running: boolean;
+    dirty: boolean;
+  }
+  const searchStates = new Map<string, SearchStateEntry>();
+  const taskCounts = new Map<string, number>();
+
+  async function setSearchState(project: string, state: SearchStateEntry): Promise<void> {
+    searchStates.set(project, state);
+    await pool.query(
+      `insert into search_state(project, complete, dirty, updated_at) values($1,$2,$3,now())
+       on conflict(project) do update set complete = excluded.complete, dirty = excluded.dirty, updated_at = now()`,
+      [project, state.complete, state.dirty],
+    );
+  }
+
+  async function upsertSearchRow(
+    storeId: string,
+    kind: 'task' | 'doc',
+    project: string,
+    id: string,
+    title: string,
+    body: string,
+  ): Promise<void> {
+    await pool.query(
+      `insert into search_index(store, kind, project, id, title, body) values($1,$2,$3,$4,$5,$6)
+       on conflict(store, kind, project, id) do update set title = excluded.title, body = excluded.body`,
+      [storeId, kind, project, id, title, body],
+    );
+  }
+
+  async function deleteSearchRow(storeId: string, kind: 'task' | 'doc', project: string, id: string): Promise<void> {
+    await pool.query('delete from search_index where store = $1 and kind = $2 and project = $3 and id = $4', [
+      storeId,
+      kind,
+      project,
+      id,
+    ]);
+  }
+
+  async function refreshTaskCount(project: string): Promise<void> {
+    const result = await pool.query(
+      'select count(*)::int as total from tasks where project = $1 and archived = false and trashed = false',
+      [project],
+    );
+    taskCounts.set(project, result.rows[0].total as number);
+  }
+
+  async function indexTaskRow(task: Task): Promise<void> {
+    try {
+      if (task.archived || task.trashed) await deleteSearchRow(TASK_SEARCH_STORE, 'task', task.project, task.id);
+      else await upsertSearchRow(TASK_SEARCH_STORE, 'task', task.project, task.id, task.title, buildTextForTask(task));
+      await refreshTaskCount(task.project);
+    } catch {
+      searchStates.set(task.project, {
+        ...(searchStates.get(task.project) ?? { complete: false, running: false, dirty: false }),
+        dirty: true,
+      });
+    }
+  }
+
+  async function indexDocRow(doc: KnowledgeDoc): Promise<void> {
+    try {
+      if (doc.archived || doc.trashed) await deleteSearchRow(DOC_SEARCH_STORE, 'doc', doc.project, doc.id);
+      else await upsertSearchRow(DOC_SEARCH_STORE, 'doc', doc.project, doc.id, doc.title, buildTextForDoc(doc));
+    } catch {
+      searchStates.set(doc.project, {
+        ...(searchStates.get(doc.project) ?? { complete: false, running: false, dirty: false }),
+        dirty: true,
+      });
+    }
+  }
+
+  async function rebuildProjectSearch(project: string): Promise<void> {
+    const current = searchStates.get(project);
+    if (current?.running) return;
+    searchStates.set(project, { complete: false, running: true, dirty: false });
+    try {
+      await setSearchState(project, { complete: false, running: true, dirty: false });
+      const [projectTasks, projectDocs] = await Promise.all([
+        listTasks({ project, includeArchived: true, includeTrashed: true }),
+        listDocs({ project, includeArchived: true, includeTrashed: true }),
+      ]);
+      await pool.query('delete from search_index where project = $1 and store in ($2, $3)', [
+        project,
+        TASK_SEARCH_STORE,
+        DOC_SEARCH_STORE,
+      ]);
+      let liveTasks = 0;
+      for (const task of projectTasks as Task[]) {
+        if (task.archived || task.trashed) continue;
+        liveTasks += 1;
+        await upsertSearchRow(TASK_SEARCH_STORE, 'task', project, task.id, task.title, buildTextForTask(task));
+      }
+      for (const meta of projectDocs as KnowledgeDocMeta[]) {
+        if (meta.archived || meta.trashed) continue;
+        const doc = await readDoc(meta.project, meta.id);
+        if (doc) await upsertSearchRow(DOC_SEARCH_STORE, 'doc', project, doc.id, doc.title, buildTextForDoc(doc));
+      }
+      taskCounts.set(project, liveTasks);
+      searchStates.set(project, { complete: true, running: false, dirty: false });
+      await setSearchState(project, { complete: true, running: false, dirty: false });
+    } catch {
+      searchStates.set(project, { complete: false, running: false, dirty: true });
+      await setSearchState(project, { complete: false, running: false, dirty: true }).catch(() => undefined);
+    }
+  }
+
+  async function searchCandidates(input: {
+    store: string;
+    kind: 'task' | 'doc';
+    project: string;
+    query: string;
+    limit: number;
+  }): Promise<Array<{ id: string; project: string; score: number }>> {
+    const trgm = database.trgm;
+    const similarity = trgm ? "similarity(title || ' ' || body, $1)" : '0';
+    const fallback = trgm ? "or similarity(title || ' ' || body, $1) > 0.15" : '';
+    const result = await pool.query(
+      `with query as (select plainto_tsquery('simple', $1) as tsq)
+       select id, project, ts_rank(tsv, query.tsq) as rank, ${similarity} as sim
+       from search_index, query
+       where store = $2 and kind = $3 and project = $4
+         and (tsv @@ query.tsq ${fallback})
+       order by (ts_rank(tsv, query.tsq) + 0.5 * (${similarity})) desc, id asc
+       limit $5`,
+      [input.query, input.store, input.kind, input.project, input.limit],
+    );
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      project: row.project as string,
+      score: Number(row.rank) + 0.5 * Number(row.sim),
+    }));
+  }
+
+  const search: SearchProvider = {
+    available: () => true,
+    dirty: () => [...searchStates.values()].some((state) => state.dirty),
+    isIndexComplete: (project) => Boolean(searchStates.get(project)?.complete),
+    fillState: (project): SearchIndexFillState => {
+      const state = searchStates.get(project);
+      if (!state) return 'idle';
+      if (state.running) return 'running';
+      if (state.dirty) return 'error';
+      return state.complete ? 'complete' : 'idle';
+    },
+    ensureIndexed: (project) => {
+      if (searchStates.get(project)?.running) return;
+      void rebuildProjectSearch(project);
+    },
+    // The synchronous facade cannot query Postgres; the registrar prefers candidatesAsync below.
+    candidates: () => [],
+    candidatesAsync: (input) => searchCandidates(input),
+    taskStoreId: () => TASK_SEARCH_STORE,
+    docStoreId: () => DOC_SEARCH_STORE,
+    countTasks: (project) => taskCounts.get(project),
   };
 
   // ─── projects and history ────────────────────────────────────────────────
@@ -540,6 +709,10 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
       await pool.query('delete from tasks where project = $1', [projectId]);
       await pool.query('delete from docs where project = $1', [projectId]);
       await pool.query('delete from doc_versions where project = $1', [projectId]);
+      await pool.query('delete from search_index where project = $1', [projectId]);
+      await pool.query('delete from search_state where project = $1', [projectId]);
+      taskCounts.delete(projectId);
+      searchStates.delete(projectId);
       const result = await pool.query('delete from projects where project = $1', [projectId]);
       return { deleted: (result.rowCount ?? 0) > 0, message: `project ${projectId} deleted` };
     },
@@ -605,7 +778,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
   const profile: StorageProfile = {
     manifest: {
       profile: 'postgres',
-      capabilities: { transactions: true, history: true, fullText: false, vectors: false, efficientListing: true },
+      capabilities: { transactions: true, history: true, fullText: true, vectors: false, efficientListing: true },
       roots: {},
       collections: ['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks', 'blobs'],
     },
@@ -613,17 +786,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     docs,
     project: projectStore,
     prompts,
-    search: {
-      available: () => false,
-      dirty: () => false,
-      isIndexComplete: () => false,
-      fillState: () => 'disabled',
-      ensureIndexed: () => undefined,
-      candidates: () => [],
-      taskStoreId: () => 'postgres:tasks',
-      docStoreId: () => 'postgres:docs',
-      countTasks: () => undefined,
-    },
+    search,
     vectors: {
       upsert: () => Promise.reject(new StoreError('CAPABILITY_UNAVAILABLE', 'Postgres vectors require pgvector (Y-06b)', { capability: 'vectors' })),
       delete: () => Promise.reject(new StoreError('CAPABILITY_UNAVAILABLE', 'Postgres vectors require pgvector (Y-06b)', { capability: 'vectors' })),

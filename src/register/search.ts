@@ -142,10 +142,19 @@ async function hydrateCandidates<T>(
   return ranked;
 }
 
+/** Y-06a2: async-capable profiles (Postgres) expose `candidatesAsync`; sync profiles keep `candidates`. */
+async function candidateHits(
+  index: ReturnType<typeof searchIndex>,
+  input: { store: string; kind: 'task' | 'doc'; project: string; query: string; limit: number },
+): Promise<Array<{ id: string; project: string; score: number }>> {
+  if (typeof index.candidatesAsync === 'function') return index.candidatesAsync(input);
+  return index.candidates(input);
+}
+
 async function ftsTaskCandidates(ctx: ServerContext, prj: string, query: string, adapter: VectorSearchAdapter<Task> | undefined): Promise<Candidates | null> {
   const index = searchIndex(ctx);
   if (!index.isIndexComplete(prj)) return null;
-  const hits = index.candidates({
+  const hits = await candidateHits(index, {
     store: index.taskStoreId(),
     kind: 'task',
     project: prj,
@@ -161,7 +170,7 @@ async function ftsTaskCandidates(ctx: ServerContext, prj: string, query: string,
 async function ftsDocCandidates(ctx: ServerContext, prj: string, query: string, adapter: VectorSearchAdapter<KnowledgeDoc> | undefined): Promise<Candidates | null> {
   const index = searchIndex(ctx);
   if (!index.isIndexComplete(prj)) return null;
-  const hits = index.candidates({
+  const hits = await candidateHits(index, {
     store: index.docStoreId(),
     kind: 'doc',
     project: prj,

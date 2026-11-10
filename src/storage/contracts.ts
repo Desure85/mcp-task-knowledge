@@ -394,6 +394,18 @@ export interface SearchProvider {
     query: string;
     limit: number;
   }): Array<{ id: string; project: string; score: number }>;
+  /**
+   * Y-06a2: async candidates for profiles whose driver is async (Postgres). Registrators prefer this
+   * over the sync `candidates` when present; the sync path stays for file/SQLite profiles and for
+   * call sites that cannot await.
+   */
+  candidatesAsync?(input: {
+    store: string;
+    kind: 'task' | 'doc';
+    project: string;
+    query: string;
+    limit: number;
+  }): Promise<Array<{ id: string; project: string; score: number }>>;
   taskStoreId(): string;
   docStoreId(): string;
   /** Metadata-index task count used by the AC-05 scan-deferral decision. */
