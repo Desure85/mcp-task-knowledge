@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01, UI-11a закрыты)
-**Текущая ветка:** feat/ui-11a-page-contract (от origin/master e7b6dc8, PR #365 влит)
-**Текущий этап:** бэклог по приоритету; UI-11a готов, UI-11 остаётся pending (UI-11b — Playwright); CM-03 pending (CM-03b); дальше — UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-11a: PageHeader — единственный h1 на 12 маршрутах, Topbar без h1, skip-link/focusable main, Overview+shortLabel; 5/5 + 12/12 guards, 3 мутации RED. Playwright — UI-11b.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01, UI-11a, UI-12a закрыты)
+**Текущая ветка:** feat/ui-12a-states (от origin/master b92246c, PR #366 влит)
+**Текущий этап:** бэклог по приоритету; UI-11/UI-12 остаются pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — UI-11b/UI-12b, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-12a: loading/not-found/error + expired-баннер на /login, 5/5 states-contract + 22/22 guards, 3 мутации RED. Playwright abort — UI-12b.
+
+### Сессия S-20261109-night (UI-12a — route states)
+
+- `app/loading.tsx` — SkeletonCard ×3, без «Loading...»; `app/not-found.tsx` — «Page not found» и ссылка на `/`.
+- `AppShell` → `/login?next=…&expired=1`; `/login` — `role="status"` баннер «Session expired».
+- Проверено: 5/5 states-contract, 22/22 с page-contract/guards; 3 мутации RED (нет expired, баннер off, Loading...); tsc чистый.
+- Не сделано: error > empty, «Сервер недоступен» + retry на 11 маршрутах, Playwright abort — UI-12b; UI-12 pending.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-2300-ui-12a.md`.
 
 ### Сессия S-20261109-night (UI-11a — контракт страницы)
 
