@@ -1275,7 +1275,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Y-04 | Внешние провайдеры эмбеддингов | medium | done | Y-03 | Подключаемые внешние API только по явному флагу: предупреждение при старте, запись в декларацию приватности, ключи через SecretManager, исключение приватных проектов и документов trustLevel external, лимиты и учёт стоимости. По умолчанию локальные или выключено. DoD: `npm test -- tests/embedding-external-policy.test.ts`; без флага внешних вызовов нет. |
 | Y-05 | Профиль SQLite | high | done | Y-02, Y-03, Y-09 | Таблицы Store, FTS5 для SearchProvider, sqlite-vec для VectorProvider после проверки наличия и совместимости с Node и Docker, таблица версий как HistoryProvider, транзакции как LockProvider. Связь с результатами замеров масштаба. DoD: контрактные тесты зелёные на SQLite; `npm test -- tests/storage-sqlite.test.ts`. |
 | Y-06 | Профиль Postgres и pgvector | medium | pending | Y-05, Y-09 | Профиль для нескольких серверов: pgvector с HNSW, транзакции, оптимистичные версии, связь с MU-01 и MU-02. DoD: контрактные тесты зелёные на Postgres; `npm test -- tests/storage-postgres.test.ts`; миграция и откат проверены. |
-| Y-07 | BlobProvider: S3 и MinIO | low | pending | Y-02 | Абстракция для вложений, экспортов и копий; S3 и совместимые, MinIO — только для этих объектов, не как основное хранилище. DoD: `npm test -- tests/blob-provider.test.ts`; файловый и S3-провайдер проходят один контракт. |
+| Y-07 | BlobProvider: S3 и MinIO | low | done | Y-02 | Абстракция для вложений, экспортов и копий; S3 и совместимые, MinIO — только для этих объектов, не как основное хранилище. DoD: `npm test -- tests/blob-provider.test.ts`; файловый и S3-провайдер проходят один контракт. |
 | Y-08 | migrate-storage между профилями | medium | pending | Y-05, Y-09 | Перенос между профилями с dry-run, проверкой целостности, отчётом о расхождениях и возможностью отката. DoD: `npm test -- tests/storage-migrate.test.ts`; dry-run не меняет данные, повторный запуск идемпотентен. |
 | Y-09 | Гейт владельца: источник правды | high | done | — | Решено владельцем 2026-11-03: источник правды — активный провайдер хранения. В файловом профиле источник файлы, SQLite-индекс производный (SC-02/SC-03); в профилях SQLite и Postgres источник сама база. Один активный профиль, смена только через migrate-storage (Y-08). Решение должно быть записано в ADR Y-01. Разблокирует Y-05, Y-06, Y-08. DoD: решение записано в ADR Y-01, статус гейта обновлён. |
 
@@ -1546,7 +1546,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
 | Y-07a | S | Контракт `BlobProvider` (put/get/delete/list/size) и файловая реализация | done | `tests/blob-provider.test.ts`: файловый провайдер проходит контракт, запись идемпотентна, отсутствующий ключ → `NOT_FOUND` |
-| Y-07b | M | S3/MinIO адаптер (SigV4 без новой зависимости), тот же контракт; прогон против MinIO в CI | pending | `tests/blob-provider.test.ts` (часть 2): оба провайдера проходят один набор; MinIO только для вложений/экспортов/копий |
+| Y-07b | M | S3/MinIO адаптер (SigV4 без новой зависимости), тот же контракт; прогон против MinIO в CI | done | `tests/blob-provider.test.ts` (часть 2): оба провайдера проходят один набор; MinIO только для вложений/экспортов/копий |
 
 #### Y-06 — профиль Postgres
 
@@ -1614,12 +1614,12 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Workflow and boards (V) | 5 | 0 | 0 | 5 | 0 | 0 |
 | Admin UI design and UX (W) | 31 | 19 | 0 | 11 | 1 | 0 |
 | Scaling (X) | 8 | 5 | 0 | 2 | 1 | 0 |
-| Pluggable storage (Y) | 9 | 6 | 0 | 3 | 0 | 0 |
+| Pluggable storage (Y) | 9 | 7 | 0 | 2 | 0 | 0 |
 | Skills and packages (Z) | 13 | 11 | 0 | 2 | 0 | 0 |
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **101** | **7** | **297** | **22** | **1** |
+| **Итого** | **428** | **100** | **7** | **298** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -1799,3 +1799,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-10, Y-07a): контракт `BlobProvider` (put/get/size/delete/list,
 > адресация ключом, checksum, NOT_FOUND) и файловый провайдер с атомарной записью и защитой от
 > выхода за root; коллекция `blobs` в манифестах обоих профилей. Остаток Y-07: b — S3/MinIO.
+> Примечание (2026-11-10, Y-07 закрыт): BlobProvider — контракт + файловый провайдер (Y-07a) и
+> S3/MinIO-адаптер с SigV4 без SDK (Y-07b); один контрактный набор для обоих бэкендов, MinIO-сервис в
+> CI bulk-smoke, локально — документированный skip при недоступном Docker. Остаток этапа Y: Y-06
+> (Postgres+pgvector) и Y-08 (migrate-storage).

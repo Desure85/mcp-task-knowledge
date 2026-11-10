@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05 закрыты)
-**Текущая ветка:** feat/y07a-blob-provider (от origin/master 29095f8, PR #341 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05; Y-07 в работе (a готов; остался b — S3/MinIO), дальше Y-06 (Postgres), Y-08 (миграция)
-**Статус:** `Y-07a` → done: контракт `BlobProvider` (put/get/size/delete/list, ключ, `sha256:` checksum, NOT_FOUND для отсутствующего, идемпотентные put/delete) и файловый провайдер (атомарная запись temp+rename, строгая валидация ключа и containment внутри root, скрытые `.meta/`, префиксный list, `maxBytes`); коллекция `blobs` в манифестах file/sqlite профилей. Общий контрактный набор `runBlobProviderContract` — его же обязан пройти S3-адаптер в Y-07b. 8 новых тестов, 75/75 затронутых, 5 мутаций RED. **Дальше: Y-07b** — S3/MinIO SigV4 без новой зависимости, тот же контракт, CI-сервис MinIO или документированный ручной прогон.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-07 закрыты)
+**Текущая ветка:** feat/y07b-s3-blob-provider (от origin/master dc1d8be, PR #342 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07; остались Y-06 (Postgres+pgvector) и Y-08 (migrate-storage)
+**Статус:** `Y-07b` → done, **Y-07 закрыт**: S3/MinIO-`BlobProvider` с SigV4 без SDK (canonical request → signing key → Authorization, подписанные `x-amz-content-sha256`/`x-amz-meta-sha256`, lazy bucket, path-style MinIO, prefix, NOT_FOUND/idempotent delete, env-конфиг `BLOB_S3_*`), тот же `runBlobProviderContract` для файлового и S3-бэкендов; MinIO-прогон включается через `BLOB_S3_*`, но CI-сервис не добавлен — токен `gh` без scope `workflow`, ограничение записано; локально без Docker MinIO-часть документированно пропускается, fake-S3 покрывает протокол. 18 тестов + 1 skip локально, 51/51 затронутых, 6 мутаций RED. **Дальше: Y-06a** — профиль Postgres (Store/Search/History/Lock, сервис Postgres в CI).
+
+### Сессия S-20261109-night (Y-07b — S3/MinIO BlobProvider; Y-07 закрыт)
+
+- `s3-blob-provider.ts`: собственный SigV4 (canonical request/string to sign/signing key/Authorization), fetch-транспорт, lazy `createBucket`, path-style MinIO, prefix, `x-amz-meta-sha256` как checksum, `list-type=2` + HEAD-метаданные, NOT_FOUND/idempotent delete, та же валидация ключей, `presign=false`; `s3BlobProviderConfigFromEnv()` для `BLOB_S3_*`.
+- Тесты: общий `runBlobProviderContract` прогнан через fake S3 (протокол, SigV4-заголовки, bucket/prefix) и опционально через MinIO; локально MinIO-часть — задокументированный skip (Docker-демон недоступен).
+- Среда: CI-сервис MinIO добавить не удалось (push workflow отклонён без scope `workflow`) — ограничение записано; MinIO-контракт запускается через `BLOB_S3_*` вручную/в инфраструктуре с workflow-scope, fake-S3 покрывает протокол локально.
+- Документация `docs/features/blob-storage.md` (бэкенды, env, ручной MinIO-прогон).
+- Проверено: 18 passed + 1 skip локально, 51/51 затронутых, tsc-test чистый; 6 мутаций RED (checksum, 404→пустые байты, delete отсутствующего, prefix в URL, bucket, валидация ключа).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0330-y-07b.md`.
 
 ### Сессия S-20261109-night (Y-07a — контракт BlobProvider и файловый провайдер)
 
