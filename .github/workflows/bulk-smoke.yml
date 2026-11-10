@@ -88,7 +88,7 @@ jobs:
           EMBEDDINGS_MODE: none
           POSTGRES_URL: postgres://postgres:postgres@127.0.0.1:5432/mcp_test
         run: |
-          npx vitest run tests/storage-postgres.test.ts tests/storage-migrate.test.ts --maxWorkers=1
+          npx vitest run tests/storage-postgres.test.ts tests/storage-migrate.test.ts tests/storage-contract-shared.test.ts --maxWorkers=1
 
       # Gate §5.3 (этап Y): MinIO как настоящий S3-совместимый сервис для blob-контракта.
       - name: Start MinIO

@@ -426,9 +426,22 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-10
 **Session ID:** S-20261109-night (ночная сессия по бэклогу; подпункты Y-02…Y-08 закрыты)
-**Текущая ветка:** feat/y08b-migrate-postgres (от origin/master d4c6687, PR #348 влит)
-**Текущий этап:** Y — все подпункты Y-02…Y-08 закрыты; **этап НЕ объявлен закрытым**: открыт gate §5 плана (единый контрактный набор на трёх профилях, docs/benchmarks hit@1/medianMs/RSS на 100k, CI-сервисы Postgres/MinIO)
-**Статус:** `Y-08b` → done, Y-08 как пункт закрыт: миграция file↔sqlite↔postgres (6 направлений, транзакционная запись, backup/checksums/verify-only), бенчмарк 100k — окно паузы **42.9 с** при checksums equal, runbook обновлён. 5/5 тестов миграции, 90/90 затронутых. **Честный gate-статус:** три условия плана §5 не выполнены (shared contract suite, benchmarks hit@1/RSS, CI services) — записаны в BACKLOG/CHANGELOG как follow-up; этап Y не закрывается фиктивно.
+**Текущая ветка:** feat/y-gate-shared-contract (от origin/master 86bf8cf, PR #350 влит)
+**Текущий этап:** Y — все подпункты закрыты; gate §5.2 и §5.3 закрыты, **этап НЕ объявлен закрытым**: остался §5.5 (`docs/benchmarks/` hit@1/medianMs/RSS на 100k для file/sqlite/postgres)
+**Статус:** gate §5.3: реальные Postgres/MinIO в CI (PR #350; MinIO через `bitnamilegacy/minio`, официальный образ удалён из Docker Hub; сервисный прогон нашёл и исправил S3 `delete()` — HEAD перед DELETE). gate §5.2: единый runner `tests/storage-contract-shared.test.ts` на трёх профилях — 18/18, 108/108 затронутых, 3 мутации RED; найдено и исправлено расхождение close status (sqlite/postgres теперь `workflowFor(...).closeStatus`). **Дальше: §5.5** — benchmarks hit@1/medianMs/RSS на 100k, затем закрытие этапа Y и переход к следующим пунктам бэклога (TS-01 high и др.).
+
+### Сессия S-20261109-night (Y-gate: §5.2 shared contract suite)
+
+- `tests/storage-contract-shared.test.ts`: один runner × file/sqlite/postgres — манифест, задачи+paging, документы/версии/history, проекты/метаданные, locks, events (compact/snapshot); postgres по `POSTGRES_URL`, иначе документированный skip.
+- Найдено расхождение: sqlite/postgres close возвращали `'done'`, файловый — `workflowFor(...).closeStatus` (`'closed'`); оба DB-профиля исправлены, postgres-тест обновлён.
+- CI: файл добавлен в шаг «Storage contracts against real Postgres»; 18/18 на реальном PostgreSQL 18.6 + file/sqlite; 108/108 затронутых; 3 мутации RED.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0810-y-gate-shared-contract.md`.
+
+### Сессия S-20261109-night (Y-gate: §5.3 CI services)
+
+- `bulk-smoke.yml`: service `postgres:16` + отдельный шаг контрактов; MinIO через `docker run bitnamilegacy/minio` (образы minio/minio удалены из Docker Hub, quay отдаёт 401) с healthcheck и blob-контрактом.
+- Сервисный прогон поймал реальный баг: S3 `delete()` возвращал true для отсутствующего ключа (MinIO DELETE идемпотентен) — добавлен HEAD перед DELETE; blob-контракт на MinIO 25/25.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0710-y-gate-ci-services.md`.
 
 ### Сессия S-20261109-night (Y-08b — миграция в/из Postgres, 100k)
 

@@ -329,7 +329,7 @@ describe('Y-06b: Postgres vectors', () => {
     expect((await profile.tasks.update('p', 'missing', { title: 'x' }))).toBeNull();
 
     const closed = await profile.tasks.close('p', created.id);
-    expect(closed?.status).toBe('done');
+    expect(closed?.status).toBe('closed');
 
     expect((await profile.tasks.archive('p', created.id))?.archived).toBe(true);
     expect(await profile.tasks.list({ project: 'p' })).toHaveLength(0);
