@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import config, { resolveMaxWorkers } from '../vitest.config.js';
 
@@ -21,6 +22,18 @@ describe('TS-01 worker ceiling', () => {
     expect(resolveMaxWorkers(72, '0')).toBe(4);
     expect(resolveMaxWorkers(72, '-2')).toBe(4);
     expect(resolveMaxWorkers(72, 'garbage')).toBe(4);
+  });
+
+  it('leaves worker selection to the config in npm scripts and the pre-push hook', () => {
+    // TS-01: the config is the single authority. A CLI --maxWorkers in a script would silently
+    // override the cores/2 formula (and on a 2-core host would spawn 4 workers).
+    const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    expect(pkg.scripts.test).not.toContain('--maxWorkers');
+    expect(pkg.scripts['test:coverage']).not.toContain('--maxWorkers');
+    const hook = fs.readFileSync(new URL('../.husky/pre-push', import.meta.url), 'utf8');
+    expect(hook).not.toContain('--maxWorkers');
   });
 
   it('the exported config actually applies the ceiling', () => {

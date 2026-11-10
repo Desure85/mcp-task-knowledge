@@ -18,7 +18,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "🧪 Running tests..."
-npx vitest run --reporter=dot --maxWorkers="${VITEST_MAX_WORKERS:-4}"
+npx vitest run --reporter=dot
 if [ $? -ne 0 ]; then
   echo "❌ Tests failed. Push aborted."
   echo "   Fix failing tests, then retry."

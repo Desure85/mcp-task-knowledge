@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; **этап Y закрыт**)
-**Текущая ветка:** feat/y-gate-doctor (от origin/master 5e83af2, PR #352 влит)
-**Текущий этап:** **Y закрыт 2026-11-10** — §5.1–§5.7 gate выполнены; открытые follow-up'ы записаны (производительность Postgres/file-поиска, COPY/батчи миграции, MU-02, pgvector/HNSW локально).
-**Статус:** §5.6: `doctor` показывает реальный активный профиль (`storage-profile-inspect`) — roots/collections/capabilities, отсутствующая БД/URL/неизвестный профиль → warning без создания состояния; 4/4 теста, 3 мутации RED. Этап Y закрыт по всем семи условиям плана §5. **Дальше:** очередь бэклога — high TS-01 (стабильность тестов/воркеры) и далее.
+**Session ID:** S-20261109-night (бэклог: этап Y закрыт, TS-01 закрыт)
+**Текущая ветка:** feat/ts-01-vitest-workers (от origin/master 10a39f8, PR #353 влит)
+**Текущий этап:** бэклог по приоритету; **Y закрыт**, **TS-01 закрыт**; дальше — следующие high-пункты (DX-10/DX-11 и др.)
+**Статус:** TS-01: конфиг — единственный источник истины (env override, min(4, cores/2)); CLI-флаги убраны из npm/pre-push; страж 5/5, 3 мутации RED. Флейки: pagination 20/20, auth-session 20/20 после build; executable-docs на Windows 20/20 красный (bash-блоки — среда, CI зелёный). RSS 1300/1677 МБ ≤ 8 ГБ. Полные зелёные прогоны — CI Linux (#350–#353), Windows baseline записан.
+
+### Сессия S-20261109-night (TS-01 — потолок воркеров, флейки, RSS)
+
+- `vitest.config.ts`: `resolveMaxWorkers` (env override / min(4, cores/2)); `package.json` и `.husky/pre-push` больше не передают `--maxWorkers`.
+- `tests/vitest-limits.test.ts`: 5 тестов, включая запрет CLI-переопределений; 3 мутации RED.
+- Флейки: pagination 20/20 (mtime-фикстура), auth-session 20/20 после build (dist-guard/stderr), executable-docs — Windows 20/20 red по среде; CI Linux зелёный.
+- RSS без флагов: 1300/1677 МБ; полный Windows-прогон красный по платформенным классам (19 файлов), зелёные полные — CI bulk-smoke #350–#353.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1100-ts-01.md`.
 
 ### Сессия S-20261109-night (Y-gate §5.6 + закрытие этапа Y)
 
