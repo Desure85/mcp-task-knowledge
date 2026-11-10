@@ -790,7 +790,7 @@ export default function TasksPage() {
                 </button>
               ))}
             </div>
-            <Button type="button" variant="secondary" onClick={() => void toggleDag()}>
+            <Button type="button" variant="secondary" onClick={() => router.push('/tasks/dag')}>
               <IconDependencies className="h-4 w-4 text-muted" />
               {showDag ? 'Hide DAG' : 'Dependencies'}
             </Button>

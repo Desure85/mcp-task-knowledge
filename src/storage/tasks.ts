@@ -13,6 +13,7 @@ import {
   defaultStatusId,
   isDone,
   loadProjectWorkflow,
+  WorkflowError,
   type ProjectWorkflow,
 } from '../workflow.js';
 import type { Dirent } from 'node:fs';
@@ -724,7 +725,7 @@ async function updateTaskUnlocked(
       let p = parent.parentId as string | undefined;
       while (p) {
         if (p === id) {
-          throw new Error(`Cycle detected: cannot move ${id} under ${parentId}`);
+          throw new WorkflowError('DEPENDENCY_CYCLE', `Cycle detected: cannot move ${id} under ${parentId}`);
         }
         p = byId.get(p)?.parentId;
       }
@@ -767,7 +768,7 @@ async function updateTaskUnlocked(
 
       const cycleNodes = detectDependencyCycle(allIds, existingEdges, newEdges);
       if (cycleNodes.length > 0) {
-        throw new Error(`Dependency cycle detected involving tasks: ${cycleNodes.join(', ')}`);
+        throw new WorkflowError('DEPENDENCY_CYCLE', `Dependency cycle detected involving tasks: ${cycleNodes.join(', ')}`, 'Remove one of the edges in the cycle', { taskIds: cycleNodes });
       }
     }
     normalizedPatch.dependsOn = newDeps;

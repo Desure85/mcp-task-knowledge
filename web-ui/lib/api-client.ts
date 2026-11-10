@@ -658,6 +658,8 @@ export interface DagData {
   topologicalOrder: DagNode[];
   criticalPath: DagNode[];
   edges: Array<{ from: string; to: string }>;
+  truncated?: boolean;
+  returnedNodes?: number;
 }
 
 export interface DashboardStats {
@@ -857,7 +859,16 @@ export const api = {
     // ВРЕМЕННО: дерево отдаёт корневые узлы страницами (SC-04 сделает это в UI).
     tree: (project?: string, status?: string, type?: string) =>
       callToolAll<unknown>('tasks_tree', { project, status, ...(type ? { type } : {}) }),
-    dag: (project?: string) => callTool<DagData>('tasks_dag', { project }),
+    dag: (project?: string, args?: { tag?: string; limit?: number; onlyWithDeps?: boolean }) =>
+      callTool<DagData>('tasks_dag', { project, ...(args ?? {}) }),
+    getDeps: (project: string, id: string) =>
+      callTool<{
+        task: { id: string; title: string; status: string };
+        dependsOn: Array<{ id: string; title: string; status: string }>;
+        dependedBy: Array<{ id: string; title: string; status: string }>;
+        isBlocked: boolean;
+        unmetDependencies: Array<{ id: string; title: string; status: string }>;
+      }>('tasks_get_deps', { project, id }),
   },
 
   // Knowledge (single create/update are bulk-only server-side)

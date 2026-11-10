@@ -38,7 +38,8 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
   const [details, setDetails] = useState<Task | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [children, setChildren] = useState<Task[]>([]);
-  const [blockingIds, setBlockingIds] = useState<string[]>([]);
+  const [deps, setDeps] = useState<Awaited<ReturnType<typeof api.tasks.getDeps>> | null>(null);
+  const [rootChain, setRootChain] = useState<Array<{ id: string; title: string; status: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
@@ -48,17 +49,31 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
       setLoading(true);
       setFailed(false);
       try {
-        const [full, list, childResult, dag] = await Promise.all([
+        const [full, list, childResult, depResult] = await Promise.all([
           api.tasks.get(project, task.id),
           api.tasks.list(project),
           api.tasks.getChildren(project, task.id),
-          api.tasks.dag(project),
+          api.tasks.getDeps(project, task.id),
         ]);
         if (!alive) return;
         setDetails(full);
         setTasks(list);
         setChildren(childResult.children);
-        setBlockingIds(dag.edges.filter((edge) => edge.to === task.id).map((edge) => edge.from));
+        setDeps(depResult);
+        const chain: Array<{ id: string; title: string; status: string }> = [];
+        let cursor = depResult.dependsOn[0];
+        const seen = new Set<string>();
+        while (cursor && !seen.has(cursor.id) && chain.length < 10) {
+          seen.add(cursor.id);
+          chain.push(cursor);
+          try {
+            const next = await api.tasks.getDeps(project, cursor.id);
+            cursor = next.dependsOn[0];
+          } catch {
+            break;
+          }
+        }
+        setRootChain(chain);
       } catch {
         if (alive) setFailed(true);
       } finally {
@@ -72,6 +87,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
 
   const value = details ?? task;
   const titleById = useMemo(() => new Map(tasks.map((item) => [item.id, item.title])), [tasks]);
+  const statusOf = (id: string) => statuses.find((status) => status.id === id)?.label ?? id;
   const statusLabel = statuses.find((status) => status.id === value.status)?.label ?? value.status;
   const typeLabel = types.find((item) => item.id === (value.type ?? 'task'))?.label ?? value.type ?? 'Task';
   const activeClaim = Boolean(value.claim && new Date(value.claim.expiresAt).getTime() > Date.now());
@@ -138,36 +154,39 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Depends on</p>
-              {(value.dependsOn ?? []).length === 0 ? (
+              {rootChain.length > 0 && (
+                <p className="mt-1 text-[11px] text-muted">Root chain: {rootChain.map((node) => `${node.title} (${statusOf(node.status)})`).join(' → ')}</p>
+              )}
+              {(deps?.dependsOn ?? []).length === 0 ? (
                 <p className="mt-1 text-muted">No dependencies.</p>
               ) : (
                 <ul className="mt-1 space-y-1">
-                  {(value.dependsOn ?? []).map((depId) => (
-                    <li key={depId}>
-                      <Link href={`/tasks/${depId}`} className="text-accent underline">
-                        {titleById.get(depId) ?? depId}
-                      </Link>
+                  {(deps?.dependsOn ?? []).map((dep) => (
+                    <li key={dep.id}>
+                      <Link href={`/tasks/${dep.id}`} className="text-accent underline">{dep.title}</Link>
+                      <span className="ml-1 text-muted">({statusOf(dep.status)})</span>
                     </li>
                   ))}
                 </ul>
               )}
+              <p className="mt-2 text-[11px] text-muted">{deps?.isBlocked ? 'Blocked by unmet dependencies' : 'Dependencies satisfied'}</p>
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Blocks</p>
-              {blockingIds.length === 0 ? (
+              {(deps?.dependedBy ?? []).length === 0 ? (
                 <p className="mt-1 text-muted">Does not block other tasks.</p>
               ) : (
                 <ul className="mt-1 space-y-1">
-                  {blockingIds.map((depId) => (
-                    <li key={depId}>
-                      <Link href={`/tasks/${depId}`} className="text-accent underline">
-                        {titleById.get(depId) ?? depId}
-                      </Link>
+                  {(deps?.dependedBy ?? []).map((dep) => (
+                    <li key={dep.id}>
+                      <Link href={`/tasks/${dep.id}`} className="text-accent underline">{dep.title}</Link>
+                      <span className="ml-1 text-muted">({statusOf(dep.status)})</span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
+
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Subtasks</p>
               {children.length === 0 ? (
@@ -176,9 +195,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
                 <ul className="mt-1 space-y-1">
                   {children.map((child) => (
                     <li key={child.id}>
-                      <Link href={`/tasks/${child.id}`} className="text-accent underline">
-                        {child.title}
-                      </Link>
+                      <Link href={`/tasks/${child.id}`} className="text-accent underline">{child.title}</Link>
                     </li>
                   ))}
                 </ul>
@@ -201,9 +218,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">History</p>
             <p className="mt-1 text-muted">Created {format(value.createdAt)}</p>
             <p className="text-muted">Updated {format(value.updatedAt)}</p>
-            <p className="mt-1 text-[11px] text-muted">
-              Version history is not part of the task wire format; this is the current revision.
-            </p>
+            <p className="mt-1 text-[11px] text-muted">Version history is not part of the task wire format; this is the current revision.</p>
           </div>
         </div>
       )}
