@@ -109,7 +109,9 @@ export function inspectClientConfigs(paths: string[]): HealthCheck {
     }
   }
   if (existing.length === 0) {
-    return { name: 'clients', level: 'warn', ok: false, detail: `no client config found (searched ${paths.length} paths)` };
+    // An absent client config is informational, not an issue: MCP clients are optional and the
+    // server can be installed before the client is configured. `doctor` must not fail healthy trees.
+    return { name: 'clients', level: 'warn', ok: true, detail: `no client config found (searched ${paths.length} paths)` };
   }
   const broken = existing.flatMap((entry) => entry.broken);
   if (broken.length > 0) {
