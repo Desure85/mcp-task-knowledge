@@ -1233,7 +1233,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | UI-11 | Контракт страницы и навигация | high | pending | UI-10 | `PageHeader` на всех страницах, ровно один `h1`, skip-link, активное состояние пункта меню, «Overview» в навигации (или логотип-ссылка), единый источник заголовка (Topbar не дублирует `h1`), короткая метка раздела для узких экранов. DoD: Playwright по 12 маршрутам: `h1` ровно 1, skip-link переводит фокус в `main`; скриншот-сравнение заголовков; на `/` можно попасть из меню |
 | UI-11a | PageHeader/h1, skip-link, Overview и активная навигация (без Playwright) | high | done | UI-11 | `PageHeader` — единственный `h1`; Topbar без `h1`; внутренние `h1` knowledge/prompts → `h2`; skip-link → focusable `main#main-content`; Overview в nav + `shortLabel`; `tests page-contract` 5/5, 3 мутации RED. Playwright — UI-11b |
 | UI-11b | Playwright: 12 маршрутов, skip-link focus, скриншот-сравнение заголовков | high | pending | UI-11, UI-11a | Добавить `@playwright/test`, конфиг и e2e-спеку: по 12 маршрутам ровно один `h1`, skip-link переводит фокус в `main`, скриншот заголовка (baseline для Linux CI), переход на `/` из меню. В браузере gates не требуется MCP-сервер: при недоступном API AppShell дорисовывает страницу |
-| UI-12 | Контракт состояний (loading, error, empty, offline) | high | pending | UI-10 | Состояния не смешиваются (`error` побеждает `empty`), `app/error.tsx`, `app/loading.tsx`, `not-found.tsx`, скелетоны вместо «Loading...», «Сервер недоступен» + «Повторить», баннер «Сессия истекла» на `/login`. DoD: сценарий отказа `route.abort('**/api/mcp**')` на 11 маршрутах: на каждом сообщение об ошибке и кнопка повтора, нигде нет одновременно пустого состояния; просроченный JWT ведёт на `/login` с баннером и возвратом на `next`; `rg -c "Loading\\.\\.\\." web-ui/app` → 0 |
+| UI-12 | Контракт состояний (loading, error, empty, offline) | high | done | UI-10 | Состояния не смешиваются (`error` побеждает `empty`), `app/error.tsx`, `app/loading.tsx`, `not-found.tsx`, скелетоны вместо «Loading...», «Сервер недоступен» + «Повторить», баннер «Сессия истекла» на `/login`. DoD: сценарий отказа `route.abort('**/api/mcp**')` на 11 маршрутах: на каждом сообщение об ошибке и кнопка повтора, нигде нет одновременно пустого состояния; просроченный JWT ведёт на `/login` с баннером и возвратом на `next`; `rg -c "Loading\\.\\.\\." web-ui/app` → 0 |
 | UI-12a | app-level states: loading/not-found/error и баннер истёкшей сессии (без Playwright) | high | done | UI-12 | `app/loading.tsx` на `SkeletonCard`, `app/not-found.tsx` со ссылкой на `/`, `error.tsx` с retry; `AppShell` добавляет `expired=1` и `next`, `/login` показывает баннер; `states-contract` 5/5, 3 мутации RED. Playwright abort — UI-12b |
 | UI-12b | Playwright: error > empty, «Сервер недоступен» + «Повторить» на 11 маршрутах, abort('/api/mcp') | high | pending | UI-12, UI-12a | Сценарий `route.abort('**/api/mcp**')`: на каждом маршруте сообщение об ошибке и кнопка повтора, нигде одновременно пустое состояние; просроченный JWT ведёт на `/login` с баннером и возвратом на `next`; `rg -c "Loading\\.\\.\\." web-ui/app` → 0. Добавить `@playwright/test` и конфиг |
 | UI-15 | Доступность до AA | high | done | UI-10 | Подписи и `aria-label` на всех полях, `aria-label` на иконочных кнопках, клавиатурный доступ к карточкам и узлам графа, `role="tab"` и `aria-selected` для табов, `aria-expanded` для раскрывашек, брендовое `focus-visible`-кольцо, токен `--color-muted` с контрастом ≥ 4.5:1. DoD: `@axe-core/playwright` на 12 маршрутах: 0 critical и serious; скрипт контраста: 0 пар ниже 4.5:1; Tab-обход `/knowledge`, `/tasks`, `/graph` доходит до основного действия |
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **84** | **7** | **314** | **22** | **1** |
+| **Итого** | **428** | **83** | **7** | **315** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -1965,3 +1965,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > 12 маршрутах (0 critical/serious) и Tab-обход /knowledge /tasks /graph; контраст — существующий
 > theme.contrast 24 пары × 6. Найден и исправлен scrollable-region-focusable на /system (tabIndex+role).
 > 15/15 e2e, 2 мутации RED (tabIndex off, lang off). CI web-ui запускает Playwright после build.
+>
+> Примечание (2026-11-11, UI-12 закрыт): AppShell gate error/Retry (11 маршрутов при abort MCP),
+> error побеждает empty; expired JWT → `/login?next=…&expired=1`, после логина возврат на next.
+> `states.spec.ts` 12/12, полный Playwright 27/27. До фикса offline падали 11/11, expired терял next.
+> Shell-level контракт; собственные ошибки страниц отдельно не аудировались.

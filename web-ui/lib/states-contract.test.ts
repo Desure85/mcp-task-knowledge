@@ -29,6 +29,8 @@ describe('UI-12a: route-level states and session expiry', () => {
     const shell = read('components/AppShell.tsx');
     expect(shell).toContain("params.set('expired', '1')");
     expect(shell).toContain('toLogin(true)');
+    expect(shell).toContain("setGate('error')");
+    expect(shell).toContain('Server unavailable');
     const login = read('app/login/page.tsx');
     expect(login).toContain("params.get('expired') === '1'");
     expect(login).toContain('Session expired');
