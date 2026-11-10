@@ -128,3 +128,4 @@ flowchart TD
 - 0007 — JSON responses and SSE for the HTTP transport
 - 0008 — `admin_backup` / `admin_restore` — portable DATA_DIR archive
 - 0009 — Pluggable storage and embeddings (profiles, interfaces, transition)
+- 0010 — Agent core and launch modes (single writer, stdio/http/bridge, Windows/signals)
