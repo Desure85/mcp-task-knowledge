@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-11, DX-16, DX-10 закрыты)
-**Текущая ветка:** feat/dx-10-setup (от origin/master 68b896b, PR #356 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16; дальше — DX-29 (зависит от blocked DX-12), MU-07/TK-02/T-01 по зависимостям
-**Статус:** DX-10: `setup` — детект пяти клиентов, `--client X --yes`, идемпотентный merge с бэкапом, stdio self-check (129 tools) в temp-DATA_DIR, health-gate DX-11; 8/8 тестов, 4 мутации RED, live exit 0. Ограничение: self-check dist, не npx-доставка.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01 закрыты)
+**Текущая ветка:** feat/cm-01-tools-contract (от origin/master 6ec8ec8, PR #357 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01; дальше — следующие high (UI-контракты, T-01, Z-01, AA-01; blocked — DX-29/MU-07/TK-02/T-02)
+**Статус:** CM-01: тест-спека текущего поведения tools_run/tools_batch — 5/5, 3 мутации RED, кода не менялось. DX-10 setup, DX-11 health-gate, DX-16 backup, TS-01 и этап Y закрыты ранее.
+
+### Сессия S-20261109-night (CM-01 — контракт tools_run/tools_batch)
+
+- `tests/tools-run-batch-contract.test.ts`: фейковый ServerContext, порядок = items, default продолжает после ошибки, `stopOnError` останавливает; batch — `Promise.all` (барьер, maxActive=2), порядок, `parallel:true`, без stop-флага, лимит 1..50.
+- Проверено: 5/5, 3 мутации RED (stopOnError игнорируется, batch последовательный, stopOnError в схеме); кода не менялось.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1400-cm-01.md`.
 
 ### Сессия S-20261109-night (DX-10 — setup-установщик)
 
