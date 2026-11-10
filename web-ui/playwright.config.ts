@@ -6,6 +6,8 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  // Platform-independent names: the committed baselines are compared on Linux CI too.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}',
   timeout: 90_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

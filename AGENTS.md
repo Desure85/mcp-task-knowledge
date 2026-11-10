@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11a, UI-12, UI-15 закрыты)
-**Текущая ветка:** feat/ui-12b-states (от origin/master f73c88e, PR #372 влит)
-**Текущий этап:** бэклог по приоритету; UI-12 закрыт; за ним — UI-11b, UI-16/UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-12b: shell error/Retry на 11 маршрутах, expired→login с next; 12/12 states, 27/27 Playwright.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15 закрыты)
+**Текущая ветка:** feat/ui-11b-page-contract (от origin/master 9ee93a2, PR #373 влит)
+**Текущий этап:** бэклог по приоритету; UI-11/UI-12/UI-15 закрыты; за ним — UI-16/UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-11b: 12 маршрутов (h1/nav/screenshot), skip-link focus, Overview; 14/14, full Playwright 41/41. Baselines платформонезависимые, CI Linux.
+
+### Сессия S-20261109-night (UI-11b — Playwright-контракт; UI-11 закрыт)
+
+- `web-ui/e2e/page-contract.spec.ts`: 12 маршрутов (один h1, активный nav, screenshot заголовка), skip-link → main, Overview из меню.
+- `snapshotPathTemplate` без платформенного суффикса, 12 PNG в `e2e/__screenshots__`, допуск 0.15.
+- Проверено: 14/14, full Playwright 41/41; baseline переснят и сравнён; Linux — CI.
+- Ограничения: сравнивается только заголовок; Linux-допуск может потребовать калибровки.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0600-ui-11b.md`.
 
 ### Сессия S-20261109-night (UI-12b — offline/empty и next)
 
