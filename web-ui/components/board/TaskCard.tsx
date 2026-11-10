@@ -10,8 +10,8 @@
 import type { DragEvent } from 'react';
 import type { ProjectStatus, ProjectType, Task } from '../../lib/api-client';
 import { PriorityDot } from '../PriorityDot';
-import { IconSubtask } from '../icons';
-import { Button } from '../ui';
+import { IconDependencies, IconSubtask } from '../icons';
+import { Badge, Button } from '../ui';
 import { MoveMenu } from './MoveMenu';
 import { TypeBadge } from './TypeBadge';
 
@@ -86,6 +86,26 @@ export function TaskCard({
       >
         {task.title}
       </p>
+
+      {(task.onCriticalPath || (task.dependentsCount ?? 0) > 0) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {task.onCriticalPath && (
+            <Badge tone="doing" title="On the longest dependency chain">
+              <IconDependencies className="mr-1 h-3 w-3" />
+              Critical path
+            </Badge>
+          )}
+          {(task.dependentsCount ?? 0) > 0 && (
+            <Badge
+              tone={(task.dependentsCount ?? 0) >= 3 ? 'blocked' : 'medium'}
+              title={`${task.dependentsCount} tasks transitively depend on this one`}
+            >
+              <IconDependencies className="mr-1 h-3 w-3" />
+              Blocks {task.dependentsCount}
+            </Badge>
+          )}
+        </div>
+      )}
 
       {tags.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1">

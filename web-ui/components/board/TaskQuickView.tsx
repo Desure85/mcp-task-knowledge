@@ -50,7 +50,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
       setFailed(false);
       try {
         const [full, list, childResult, depResult] = await Promise.all([
-          api.tasks.get(project, task.id),
+          api.tasks.get(project, task.id, { includeGraphMetrics: true }),
           api.tasks.list(project),
           api.tasks.getChildren(project, task.id),
           api.tasks.getDeps(project, task.id),
@@ -129,6 +129,14 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{statusLabel}</Badge>
             <Badge tone="neutral">{value.priority}</Badge>
+            {value.onCriticalPath && (
+              <Badge tone="doing" title="On the longest dependency chain">Critical path</Badge>
+            )}
+            {(value.dependentsCount ?? 0) > 0 && (
+              <Badge tone={(value.dependentsCount ?? 0) >= 3 ? 'blocked' : 'medium'} title="Transitive dependents">
+                Blocks {value.dependentsCount}
+              </Badge>
+            )}
             {(value.tags ?? []).map((tag) => (
               <Badge key={tag} tone="neutral">
                 {tag}

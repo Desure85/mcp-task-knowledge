@@ -408,6 +408,9 @@ export interface Task {
     expiresAt: string;
   };
   dependsOn?: string[];
+  /** UI-39: present only when includeGraphMetrics=true was requested. */
+  onCriticalPath?: boolean;
+  dependentsCount?: number;
   archived?: boolean;
   trashed?: boolean;
   createdAt: string;
@@ -820,7 +823,8 @@ export const api = {
     },
     create: (input: { title: string; project?: string; priority?: string; status?: string; type?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
       callTool<Task>('tasks_create', input),
-    get: (project: string, id: string) => callTool<Task>('tasks_get', { project, id }),
+    get: (project: string, id: string, args?: { includeGraphMetrics?: boolean }) =>
+      callTool<Task>('tasks_get', { project, id, ...(args ?? {}) }),
     update: (project: string, id: string, patch: Partial<Task>) =>
       callTool<Task>('tasks_update', { project, id, ...patch }),
     close: (project: string, id: string) => callTool<Task>('tasks_close', { project, id }),

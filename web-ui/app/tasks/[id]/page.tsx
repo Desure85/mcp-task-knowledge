@@ -108,7 +108,7 @@ export default function TaskPage() {
         setProject(current.project);
         const [taskResult, statusResult, transitionResult, typeResult, listResult, dagResult, childrenResult, depsResult] =
           await Promise.allSettled([
-            api.tasks.get(current.project, id),
+            api.tasks.get(current.project, id, { includeGraphMetrics: true }),
             api.projects.statuses.get(current.project),
             api.projects.transitions.get(current.project),
             api.projects.types.get(current.project),
@@ -193,7 +193,7 @@ export default function TaskPage() {
     setDepError(null);
     try {
       const updated = await api.tasks.update(project, id, { dependsOn: next });
-      hydrate(updated);
+      hydrate({ ...updated, onCriticalPath: task?.onCriticalPath, dependentsCount: task?.dependentsCount });
       await refreshDeps();
     } catch (e) {
       if (e instanceof ToolCallError && e.code === 'DEPENDENCY_CYCLE') {
