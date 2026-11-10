@@ -47,8 +47,10 @@ describe('Y-05a1: profile selection', () => {
   });
 
   it('rejects unknown profile names instead of silently falling back', () => {
-    expect(() => readStorageProfileKind({ STORAGE_PROFILE: 'postgres' })).toThrow(StoreError);
-    expect(() => readStorageProfileKind({ STORAGE_PROFILE: 'postgres' })).toThrow(/unknown STORAGE_PROFILE/);
+    // Y-06a: postgres is a known profile; only unknown values fail.
+    expect(readStorageProfileKind({ STORAGE_PROFILE: 'postgres' })).toBe('postgres');
+    expect(() => readStorageProfileKind({ STORAGE_PROFILE: 'oracle' })).toThrow(StoreError);
+    expect(() => readStorageProfileKind({ STORAGE_PROFILE: 'oracle' })).toThrow(/unknown STORAGE_PROFILE/);
   });
 
   it('requires an explicit database path for the sqlite kind', () => {
