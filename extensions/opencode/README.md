@@ -164,3 +164,16 @@ cp extensions/opencode/memory-context.ts ~/.config/opencode/plugins/
 | `maxTokensPerEntry` | `400` | Token budget per entry |
 | `cacheTtlMs` | `300000` | Cache TTL (5 min) |
 | `enabled` | `true` | Enable/disable |
+
+## Suite: drafts, consolidation and sync
+
+The repository is the single source of truth for the whole suite:
+
+- `session-draft.ts` — injects the self-reflection/draft procedure;
+- `scripts/collect-subagent-drafts.sh` — collects drafts of the session and its subagents;
+- `commands/end-session.md` — consolidation ritual (dedupe/classify → facts/patterns);
+- `memory-sync.ts` — syncs `facts.md`/`patterns.json` into the knowledge base.
+
+Inventory, live-vs-repository hashes and every explained discrepancy live in
+[`docs/plugins/opencode.md`](../../docs/plugins/opencode.md). Install copies from this directory; do not
+edit `~/.config/opencode/` as the primary source.

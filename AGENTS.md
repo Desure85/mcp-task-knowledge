@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, Z-01, CM-03a закрыты)
-**Текущая ветка:** feat/cm-03-server-instructions (от origin/master 0991d53, PR #360 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01/Z-01/CM-03a; CM-03 остаётся pending (CM-03b — живая проба клиентов), дальше — T-01, UI-11/UI-12, AA-04/05; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** CM-03a: instructions из живого реестра, ≤15 строк, wiring main/TCP/HTTP/bridge; 4/4 тестов, 3 мутации RED. CM-03 не закрыт: Claude Code/OpenCode проба зависла в среде — CM-03b.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a закрыты)
+**Текущая ветка:** feat/aa-05-opencode-suite (от origin/master ccc2fda, PR #361 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01/AA-05/Z-01/CM-03a; CM-03 pending (CM-03b), дальше — T-01, UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** AA-05: OpenCode-комплект в repo (session-draft, сборщик, end-session, memory-плагины), инвентаризация и все расхождения — `docs/plugins/opencode.md`; 3/3 тестов, 2 мутации RED. Живые копии не перезаписывались.
+
+### Сессия S-20261109-night (AA-05 — OpenCode suite в репозитории)
+
+- Перенесены `session-draft.ts`, `scripts/collect-subagent-drafts.sh`, `commands/end-session.md` из `~/work/ci-agent`; семь memory-плагинов остаются каноном repo.
+- `docs/plugins/opencode.md`: инвентаризация (size/date/sha256), таблица расхождений live/ci-agent/repo, причины и решения; README дополнен.
+- Проверено: `git ls-files` содержит `session-draft.ts`; `diff` объяснён для всех; `bash -n` exit 0; 3/3 тестов, 2 мутации RED; markdownlint чист.
+- Ограничения: живые копии не обновлялись; отдельного каталога `draft-consolidation` нет — консолидация в `end-session.md`; `loopx-goal.js` вне комплекта.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1800-aa-05.md`.
 
 ### Сессия S-20261109-night (CM-03a — server instructions)
 
