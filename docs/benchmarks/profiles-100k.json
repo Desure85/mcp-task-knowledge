@@ -1,0 +1,43 @@
+{
+  "count": 100000,
+  "queries": 50,
+  "generatedAt": "2026-11-10T05:14:31.372Z",
+  "results": [
+    {
+      "profile": "file",
+      "count": 100000,
+      "queries": 50,
+      "seedMs": 48962,
+      "indexMs": 56061,
+      "hitAt1": 1,
+      "medianMs": 213.37510000000475,
+      "p95Ms": 218.87050000000454,
+      "rssMb": 355.26171875,
+      "rssDeltaMb": 312.51171875
+    },
+    {
+      "profile": "sqlite",
+      "count": 100000,
+      "queries": 50,
+      "seedMs": 1114,
+      "indexMs": 85091,
+      "hitAt1": 1,
+      "medianMs": 0.24559999999473803,
+      "p95Ms": 0.28049999999348074,
+      "rssMb": 264.65234375,
+      "rssDeltaMb": 221.83203125
+    },
+    {
+      "profile": "postgres",
+      "count": 100000,
+      "queries": 50,
+      "seedMs": 4982,
+      "indexMs": 60845,
+      "hitAt1": 1,
+      "medianMs": 727.8225999999995,
+      "p95Ms": 786.9953999999998,
+      "rssMb": 99.3671875,
+      "rssDeltaMb": 56.6328125
+    }
+  ]
+}
