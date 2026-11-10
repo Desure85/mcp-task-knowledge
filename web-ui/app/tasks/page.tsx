@@ -18,6 +18,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import {
   api,
@@ -61,6 +62,7 @@ import { LaneSection } from '@/components/board/LaneSection';
 import { StatusCell } from '@/components/board/StatusCell';
 import { StatusHeaderCell } from '@/components/board/StatusHeaderCell';
 import { TypeMultiSelect } from '@/components/board/TypeMultiSelect';
+import { TaskQuickView } from '@/components/board/TaskQuickView';
 import { publishLiveStatus, clearLiveStatus } from '@/components/live-status';
 import {
   IconAlert,
@@ -145,6 +147,8 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterTag, setFilterTag] = useState<string>('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewTask, setViewTask] = useState<Task | null>(null);
+  const router = useRouter();
   const [view, setView] = useState<TaskView>('board');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: TaskSortKey; dir: 'asc' | 'desc' }>({
@@ -764,7 +768,7 @@ export default function TasksPage() {
     <div className="space-y-5">
       <PageHeader
         title="Tasks"
-        description="Drag cards between columns to change status. Click a title to edit."
+        description="Drag cards between columns to change status. Click a card to preview it; Edit opens the full task page."
         actions={
           <>
             <div
@@ -1337,6 +1341,7 @@ export default function TasksPage() {
                       }
                       onMove={(task, to) => void moveTask(task, to, droppable)}
                       onEdit={(task) => setEditingTask({ ...task })}
+            onView={(task) => setViewTask(task)}
                       onClose={(task) => void closeTask(task.id)}
                       closeStatusId={closeStatus}
                       filtersActive={filtersActive}
@@ -1380,6 +1385,16 @@ export default function TasksPage() {
             </button>
           )}
         </div>
+      )}
+      {viewTask && project && (
+        <TaskQuickView
+          task={viewTask}
+          project={project}
+          statuses={statuses}
+          types={types}
+          onClose={() => setViewTask(null)}
+          onEdit={() => router.push(`/tasks/${viewTask.id}`)}
+        />
       )}
     </div>
   );
