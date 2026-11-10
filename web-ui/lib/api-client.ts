@@ -33,7 +33,7 @@ export interface Page<T> extends PageMeta {
 interface McpEnvelope<T> {
   ok: boolean;
   data?: T;
-  error?: { message: string; code?: string; hint?: string; details?: unknown };
+  error?: { message: string; code?: string; hint?: string; details?: unknown; allowed?: string[]; from?: string; to?: string };
   total?: number;
   totalExact?: boolean;
   count?: number;
@@ -179,6 +179,7 @@ export class ToolCallError extends Error {
     readonly code?: string,
     readonly hint?: string,
     readonly details?: unknown,
+    readonly allowed?: string[],
   ) {
     super(message);
     this.name = 'ToolCallError';
@@ -317,6 +318,7 @@ export async function callTool<T>(name: string, args: Record<string, unknown> = 
         env.error?.code,
         env.error?.hint,
         env.error?.details,
+        env.error?.allowed,
       );
     }
     return env.data as T;
@@ -344,6 +346,7 @@ export async function callToolPage<T>(name: string, args: Record<string, unknown
       env.error?.code,
       env.error?.hint,
       env.error?.details,
+      env.error?.allowed,
     );
   }
   // Не-массив в `data` (старый мок/неожидаемый ответ) не должен ломать долистывание.
@@ -395,6 +398,18 @@ export interface Task {
   parentId?: string | null;
   project?: string;
   links?: string[];
+  /** U-01 lease metadata; absent/expired means the task is free to claim. */
+  claim?: {
+    bySessionId: string;
+    byUserId?: string;
+    client?: string;
+    claimedAt: string;
+    heartbeatAt: string;
+    expiresAt: string;
+  };
+  dependsOn?: string[];
+  archived?: boolean;
+  trashed?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -807,9 +822,33 @@ export const api = {
     update: (project: string, id: string, patch: Partial<Task>) =>
       callTool<Task>('tasks_update', { project, id, ...patch }),
     close: (project: string, id: string) => callTool<Task>('tasks_close', { project, id }),
+    claim: (project: string, id: string, args?: { ttlSec?: number; client?: string }) =>
+      callTool<{ taskId: string; status: string; claim: NonNullable<Task['claim']>; renewed: boolean }>('tasks_claim', {
+        project,
+        id,
+        ...(args ?? {}),
+      }),
+    renew: (project: string, id: string, ttlSec?: number) =>
+      callTool<{ taskId: string; status: string; claim: NonNullable<Task['claim']>; renewed: boolean }>('tasks_renew', {
+        project,
+        id,
+        ...(ttlSec ? { ttlSec } : {}),
+      }),
+    release: (project: string, id: string) =>
+      callTool<{ taskId: string; status: string; released: boolean; alreadyFree?: boolean }>('tasks_release', {
+        project,
+        id,
+      }),
+    bulkArchive: (project: string, ids: string[]) =>
+      callTool<{ count: number; results: Task[] }>('tasks_bulk_archive', { project, ids }),
+    bulkTrash: (project: string, ids: string[]) =>
+      callTool<{ count: number; results: Task[] }>('tasks_bulk_trash', { project, ids }),
+    bulkRestore: (project: string, ids: string[]) =>
+      callTool<{ count: number; results: Task[] }>('tasks_bulk_restore', { project, ids }),
     addSubtask: (project: string, parentId: string, title: string) =>
       callTool<Task>('tasks_add_subtask', { project, parentId, title }),
-    getChildren: (project: string, id: string) => callTool<Task[]>('tasks_get_children', { project, id }),
+    getChildren: (project: string, id: string) =>
+      callTool<{ parent: { id: string; title: string }; children: Task[] }>('tasks_get_children', { project, id }),
     getSubtree: (project: string, id: string) => callTool<unknown>('tasks_get_subtree', { project, id }),
     bulkUpdate: (project: string, items: Array<{ id: string } & Record<string, unknown>>) =>
       callTool<{ count: number; results: Task[]; failed?: Array<{ id: string; error: Record<string, unknown> }> }>('tasks_bulk_update', { project, items }),
