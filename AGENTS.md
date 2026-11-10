@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01 закрыты)
-**Текущая ветка:** feat/cm-01-tools-contract (от origin/master 6ec8ec8, PR #357 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01; дальше — следующие high (UI-контракты, T-01, Z-01, AA-01; blocked — DX-29/MU-07/TK-02/T-02)
-**Статус:** CM-01: тест-спека текущего поведения tools_run/tools_batch — 5/5, 3 мутации RED, кода не менялось. DX-10 setup, DX-11 health-gate, DX-16 backup, TS-01 и этап Y закрыты ранее.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01 закрыты)
+**Текущая ветка:** feat/aa-01-agent-core-adr (от origin/master 20db52a, PR #358 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01; дальше — Z-01 (модель скилл-пакета), T-01 (пользователи/токены), UI-11/UI-12, AA-04/05/07; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** AA-01: ADR-0010 — ядро/клиенты, режимы, владение DATA_DIR, сигналы, Windows-границы, отказ от лидера; 4 `##`-раздела, lint зелёный, кода не менялось.
+
+### Сессия S-20261109-night (AA-01 — ADR общего ядра)
+
+- `docs/adr/0010-agent-core-and-launch-modes.md`: режимы stdio/http/tcp/unix/bridge, время жизни, владение `DATA_DIR` (`.server.lock`, MU-01) как ownership, а не leader election; сигналы/graceful shutdown; Windows: сокеты нет, named pipe не реализован (записано).
+- Проверено: 4 раздела `##` (DoD ≥4), markdownlint exit 0, ссылки на реальные тесты; кода не менялось.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1500-aa-01.md`.
 
 ### Сессия S-20261109-night (CM-01 — контракт tools_run/tools_batch)
 
