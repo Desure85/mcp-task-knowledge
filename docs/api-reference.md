@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **131** — 129 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **139** — 137 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -11,6 +11,14 @@
 | `admin_backup` | Create a portable tar.gz archive of DATA_DIR (ADR-008): manifest.json with formatVersion/profile/sch |
 | `admin_restore` | Restore DATA_DIR from a tar.gz archive created by admin_backup (ADR-008): validates every entry (pat |
 | `admin_setup_link` | Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transpor |
+| `admin_token_create` | Mint a personal access token for a user (admin only). The raw token is returned exactly once and nev |
+| `admin_token_revoke` | Revoke one personal token by id (admin only). |
+| `admin_tokens_list` | List a user personal tokens (prefix/metadata only; never the raw token). |
+| `admin_user_create` | Create a user with a scrypt-hashed password (admin only). |
+| `admin_user_disable` | Disable a user (blocks password login and personal tokens) or enable it again. |
+| `admin_user_set_password` | Replace a user password (admin only); existing personal tokens are revoked. |
+| `admin_user_set_roles` | Replace a user roles array (admin only). |
+| `admin_users_list` | List users from DATA_DIR/auth.db (admin only; hashes and tokens are never returned). |
 | `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
 | `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
 | `cluster_nodes` | List all known cluster nodes with status and heartbeat info. |
@@ -220,6 +228,184 @@ Create a one-time setup link (TTL ~15min) that reveals a markdown document with 
     "ttlMs": "example",
     "baseUrl": "example"
   }
+}
+```
+
+## admin_token_create
+
+**Create personal token**
+
+Mint a personal access token for a user (admin only). The raw token is returned exactly once and never stored in plaintext.
+
+**Параметры:**
+
+- `userId`
+- `name`
+- `expiresAt`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_token_create",
+  "arguments": {
+    "userId": "example",
+    "name": "example",
+    "expiresAt": "example"
+  }
+}
+```
+
+## admin_token_revoke
+
+**Revoke personal token**
+
+Revoke one personal token by id (admin only).
+
+**Параметры:**
+
+- `userId`
+- `tokenId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_token_revoke",
+  "arguments": {
+    "userId": "example",
+    "tokenId": "example"
+  }
+}
+```
+
+## admin_tokens_list
+
+**List personal tokens**
+
+List a user personal tokens (prefix/metadata only; never the raw token).
+
+**Параметры:**
+
+- `userId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_tokens_list",
+  "arguments": {
+    "userId": "example"
+  }
+}
+```
+
+## admin_user_create
+
+**Create user**
+
+Create a user with a scrypt-hashed password (admin only).
+
+**Параметры:**
+
+- `username`
+- `password`
+- `roles`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_user_create",
+  "arguments": {
+    "username": "example",
+    "password": "example",
+    "roles": "example"
+  }
+}
+```
+
+## admin_user_disable
+
+**Disable/enable user**
+
+Disable a user (blocks password login and personal tokens) or enable it again.
+
+**Параметры:**
+
+- `userId`
+- `disabled`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_user_disable",
+  "arguments": {
+    "userId": "example",
+    "disabled": "example"
+  }
+}
+```
+
+## admin_user_set_password
+
+**Set user password**
+
+Replace a user password (admin only); existing personal tokens are revoked.
+
+**Параметры:**
+
+- `userId`
+- `password`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_user_set_password",
+  "arguments": {
+    "userId": "example",
+    "password": "example"
+  }
+}
+```
+
+## admin_user_set_roles
+
+**Set user roles**
+
+Replace a user roles array (admin only).
+
+**Параметры:**
+
+- `userId`
+- `roles`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_user_set_roles",
+  "arguments": {
+    "userId": "example",
+    "roles": "example"
+  }
+}
+```
+
+## admin_users_list
+
+**List users**
+
+List users from DATA_DIR/auth.db (admin only; hashes and tokens are never returned).
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_users_list",
+  "arguments": {}
 }
 ```
 

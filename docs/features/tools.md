@@ -287,6 +287,14 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `admin_backup` | Create a portable `tar.gz` archive of `DATA_DIR` (ADR-008) |
 | `admin_restore` | Restore `DATA_DIR` from an archive: dry-run plan by default, apply with `confirm` (ADR-008) |
 | `admin_setup_link` | Create a one-time (~15 min) setup link with server URL, transport, scoped token and agent instructions |
+| `admin_users_list` | List users from DATA_DIR/auth.db (admin only) |
+| `admin_user_create` | Create a user with scrypt-hashed password (admin only) |
+| `admin_user_set_password` | Replace a user password; revokes personal tokens (admin only) |
+| `admin_user_set_roles` | Replace user roles (admin only) |
+| `admin_user_disable` | Disable or enable a user (admin only) |
+| `admin_tokens_list` | List personal tokens (prefix/metadata only) |
+| `admin_token_create` | Mint a personal token; raw value returned once (admin only) |
+| `admin_token_revoke` | Revoke a personal token by id (admin only) |
 
 `admin_backup` writes `backup-<timestamp>[-<label>].tar.gz` to `out` (default `DATA_DIR/.backups/`)
 through a `.partial` file and an atomic rename. The archive is a standard `tar.gz` (`tar -tzf`
@@ -452,4 +460,4 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 129 tools by default (131 with catalog; 133 when catalog writes are enabled) + 6 resources
+## Total: 137 tools by default (139 with catalog; 141 when catalog writes are enabled) + 6 resources

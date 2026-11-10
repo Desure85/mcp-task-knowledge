@@ -42,7 +42,9 @@ import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
 import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
 import { createServerContext } from '../register/setup.js';
+import { registerUsersTools } from '../register/users.js';
 import { buildServerInstructions, setServerInstructions } from './server-instructions.js';
+import { composeTokenValidators, createUserTokenValidator } from '../auth/user-token-validator.js';
 import { registerHelpers } from '../register/helpers.js';
 import { registerCatalogTools } from '../register/catalog.js';
 import { registerResources } from '../register/resources.js';
@@ -189,6 +191,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerConfigTools(ctx);
   registerMemoryTools(ctx);
   registerAuthTools(ctx);
+  registerUsersTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerLogTools(ctx);
@@ -977,6 +980,12 @@ export class AppContainer {
 
   // ─── Cleanup registration ────────────────────────────────────────
 
+  private withUserTokens(validator: TokenValidator): TokenValidator {
+    const store = this.ctx?.userStore;
+    if (!store) return validator;
+    return composeTokenValidators(createUserTokenValidator(store), validator);
+  }
+
   private async buildDefaultValidator(): Promise<TokenValidator> {
     const secret = process.env.JWT_SECRET;
     const jwksUrl = process.env.JWKS_URL;
@@ -995,13 +1004,13 @@ export class AppContainer {
         this.ctx.revokeJwt = (jti, exp) => validator.revokeByJti(jti, exp);
         this.ctx.isJwtRevoked = (jti) => validator.isRevoked(jti);
       }
-      return validator.asTokenValidator();
+      return this.withUserTokens(validator.asTokenValidator());
     }
     const manager = new TokenManager();
     this.tokenManager = manager;
     this.tokenManagerCleanup = () => manager.close();
     this.addCleanup(() => manager.close());
-    return manager.createValidator();
+    return this.withUserTokens(manager.createValidator());
   }
 
   /**
