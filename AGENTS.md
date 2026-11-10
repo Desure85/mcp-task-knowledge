@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-37 закрыты)
-**Текущая ветка:** feat/ui-37-task-page (от origin/master d12c577, PR #375 влит)
-**Текущий этап:** бэклог по приоритету; UI-11/12/15/16/37 закрыты; дальше UI-36/UI-38/UI-39 и UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-37: /tasks/[id], переходы с allowed/hint, claim/renew, archive/trash, 404; 3/3 e2e, full 46/46; 2 мутации RED.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37 закрыты)
+**Текущая ветка:** feat/ui-36-quick-view (от origin/master 3d32511, PR #376 влит)
+**Текущий этап:** бэклог по приоритету; UI-11/12/15/16/36/37 закрыты; дальше UI-38/UI-39 и UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-36: read-only Dialog, Edit → /tasks/[id], Esc/focus, 1/1 e2e; 2 мутации RED; full Playwright 47/47 на file-профиле.
+
+### Сессия S-20261109-night (UI-36 — быстрый просмотр)
+
+- `components/board/TaskQuickView.tsx`: read-only Dialog, полное описание, тип/приоритет/теги/ссылки, deps/blocks/subtasks, claim, timestamps; ноль контролов.
+- `TaskCard/StatusCell/tasks page`: `onView`; заголовок и свободная область карточки; Edit → `/tasks/<id>`.
+- `e2e/task-quick-view.spec.ts`: 1/1; 2 мутации RED (onClick→onEdit, лишний input). Скриншоты `docs/ui/screens/ui-36`.
+- Ограничения: SQLite не реализует claim и отдаёт 0 DAG-рёбер (file/CI зелёный); history вне wire; глубокая цепочка UI-38/39.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0900-ui-36.md`.
 
 ### Сессия S-20261109-night (UI-37 — полная страница задачи)
 

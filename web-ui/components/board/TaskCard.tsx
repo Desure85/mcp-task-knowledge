@@ -28,6 +28,7 @@ export interface TaskCardProps {
   onDragEnd: () => void;
   onMove: (task: Task, to: string) => void;
   onEdit: (task: Task) => void;
+  onView: (task: Task) => void;
   onClose: (task: Task) => void;
 }
 
@@ -41,6 +42,7 @@ export function TaskCard({
   onDragEnd,
   onMove,
   onEdit,
+  onView,
   onClose,
 }: TaskCardProps) {
   const tags = task.tags ?? [];
@@ -51,6 +53,11 @@ export function TaskCard({
       draggable
       onDragStart={(event) => onDragStart(event, task)}
       onDragEnd={onDragEnd}
+      onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest('button, a, [role="button"]')) return;
+        onView(task);
+      }}
       className={`group/card cursor-grab rounded-[var(--radius-control)] border border-line bg-surface p-3 transition duration-150 hover:border-line-strong active:cursor-grabbing ${
         dragging ? 'opacity-60' : ''
       }`}
@@ -69,11 +76,11 @@ export function TaskCard({
         role="button"
         tabIndex={0}
         className="line-clamp-2 cursor-pointer rounded text-[13px] font-medium leading-snug text-ink transition duration-150 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        onClick={() => onEdit(task)}
+        onClick={() => onView(task)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            onEdit(task);
+            onView(task);
           }
         }}
       >

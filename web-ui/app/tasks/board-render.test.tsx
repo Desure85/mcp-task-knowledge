@@ -102,6 +102,7 @@ function makeCellProps(overrides: Partial<StatusCellProps> = {}): StatusCellProp
     onDrop: () => undefined,
     onMove: () => undefined,
     onEdit: () => undefined,
+    onView: () => undefined,
     onClose: () => undefined,
     closeStatusId: 'archive',
     filtersActive: false,

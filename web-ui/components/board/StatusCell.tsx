@@ -46,6 +46,7 @@ export interface StatusCellProps {
   onDrop: (event: DragEvent<HTMLElement>) => void;
   onMove: (task: Task, to: string) => void;
   onEdit: (task: Task) => void;
+  onView: (task: Task) => void;
   onClose: (task: Task) => void;
   closeStatusId?: string | null;
   filtersActive: boolean;
@@ -76,6 +77,7 @@ export function StatusCell({
   onDrop,
   onMove,
   onEdit,
+  onView,
   onClose,
   closeStatusId,
   filtersActive,
@@ -143,6 +145,7 @@ export function StatusCell({
           onDragEnd={onDragEnd}
           onMove={onMove}
           onEdit={onEdit}
+          onView={onView}
           onClose={onClose}
         />
       ))}
