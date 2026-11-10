@@ -369,9 +369,9 @@ export default function KnowledgePage() {
       <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">
+            <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">
               {selectedDoc ? 'Edit document' : 'New document'}
-            </h1>
+            </h2>
             <p className="mt-1 text-[13px] text-muted">
               Markdown is rendered in the preview; links are always sanitised.
             </p>
@@ -488,9 +488,9 @@ export default function KnowledgePage() {
           <div ref={readerRef} className="mt-3 grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
             <article className="min-w-0">
               <header className="border-b border-line pb-4">
-                <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.015em] text-ink sm:text-[30px]">
+                <h2 className="text-[24px] font-semibold leading-tight tracking-[-0.015em] text-ink sm:text-[30px]">
                   {title}
-                </h1>
+                </h2>
                 <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-muted">
                   {doc?.type && <span>type <span className="font-mono text-ink">{doc.type}</span></span>}
                   <span className="h-3 w-px bg-line-strong" aria-hidden="true" />

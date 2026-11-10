@@ -25,6 +25,8 @@ export type NavItem = {
   label: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
+  /** Short label for the horizontal mobile strip. */
+  shortLabel?: string;
 };
 
 export type NavSection = {
@@ -38,6 +40,7 @@ export const NAV_SECTIONS: NavSection[] = [
     id: 'workspace',
     label: 'Workspace',
     items: [
+      { href: '/', label: 'Overview', shortLabel: 'Home', description: 'Workspace at a glance', icon: IconProjects },
       { href: '/tasks', label: 'Tasks', description: 'Kanban board, priorities, tags, dependency DAG', icon: IconTasks },
       { href: '/knowledge', label: 'Knowledge', description: 'Markdown documents with frontmatter, full CRUD', icon: IconKnowledge },
       { href: '/prompts', label: 'Prompts', description: 'Versioned prompts, A/B experiments, catalog', icon: IconPrompts },

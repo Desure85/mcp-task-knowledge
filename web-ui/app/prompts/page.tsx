@@ -328,9 +328,9 @@ export default function PromptsPage() {
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">
+                    <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">
                       {typeof meta.title === 'string' && meta.title ? meta.title : prompt.id}
-                    </h1>
+                    </h2>
                     <p className="mt-1 font-mono text-[11px] text-muted">{prompt.id} · {versionLabel(prompt.version)}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge>{typeof meta.kind === 'string' ? meta.kind : 'prompt'}</Badge>
@@ -379,7 +379,7 @@ export default function PromptsPage() {
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">Edit prompt</h1>
+                    <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-ink">Edit prompt</h2>
                     <p className="mt-1 font-mono text-[11px] text-muted">{prompt.id} · {versionLabel(prompt.version)}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">

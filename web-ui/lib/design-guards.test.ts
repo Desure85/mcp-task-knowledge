@@ -89,8 +89,7 @@ const BARE_CONTROL_ALLOWLIST: Record<string, string> = {
 
 /** Page → why it still breaks the heading part of the contract. */
 const PAGE_HEADING_ALLOWLIST: Record<string, string> = {
-  'app/knowledge/page.tsx': 'долг, UI-11: собственные h1 в экране чтения документа',
-  'app/prompts/page.tsx': 'долг, UI-11: собственные h1 в просмотре и редакторе промпта',
+  // UI-11: no page draws its own h1 anymore; PageHeader is the only source.
 };
 
 const NATIVE_DIALOG = /\b(?:window\.)?(confirm|alert|prompt)\(/;
