@@ -2,7 +2,7 @@ import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { storageProfile } from '../core/storage-context.js';
 import { resolveProject } from '../config.js';
-import { computeGraphMetrics, withGraphMetrics } from './graph-metrics.js';
+import { computeGraphMetrics, withGraphMetrics } from '../core/graph-metrics.js';
 import {
   DEFAULT_CLAIM_TTL_SEC,
   MAX_TASK_DEPTH,
