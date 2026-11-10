@@ -37,3 +37,12 @@ export type {
   SkillPackageOptions,
   SkillPackageErrorCode,
 } from './skill-package.js';
+
+export {
+  PLUGIN_MANIFEST_FILE,
+  PLUGIN_COMPONENTS,
+  PluginPackageError,
+  readPluginPackage,
+  exportPluginPackage,
+} from './plugin-container.js';
+export type { PluginPackage, PluginManifest, PluginFile, PluginComponent } from './plugin-container.js';
