@@ -1834,3 +1834,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > (2) `docs/benchmarks/` с hit@1/medianMs/RSS на 100k, (3) сервисные CI-прогоны Postgres/MinIO
 > (заблокированы отсутствием `workflow` scope). Эти три пункта — открытый follow-up, а не
 > сделанное.
+>
+> Примечание (2026-11-10, gate этапа Y): закрыты §5.2 (единый контрактный набор
+> `tests/storage-contract-shared.test.ts` на file/sqlite/postgres, 18/18) и §5.3 (реальные
+> Postgres и MinIO в CI, PR #350). Остался §5.5 — `docs/benchmarks/` с hit@1/medianMs/RSS на
+> 100k для трёх профилей; после него этап Y можно закрывать. Этап пока НЕ закрыт.

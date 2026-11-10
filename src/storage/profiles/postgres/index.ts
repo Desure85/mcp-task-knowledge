@@ -276,7 +276,11 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
       return writeTask(task);
     },
     update: (project, id, patch: TaskPatch) => patchTask(project, id, patch as Record<string, unknown>),
-    close: (project, id) => patchTask(project, id, { status: 'done' }),
+    async close(project, id) {
+      // Same workflow-owned close status as the file and sqlite profiles.
+      const workflow = workflowFor(await readProjectMetadata(project));
+      return patchTask(project, id, { status: workflow.closeStatus });
+    },
     archive: (project, id) => patchTask(project, id, { archived: true, archivedAt: isoNow() }),
     trash: (project, id) => patchTask(project, id, { trashed: true, trashedAt: isoNow() }),
     async restore(project, id) {

@@ -221,7 +221,9 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       return merged;
     },
     async close(project: string, id: string): Promise<Task | null> {
-      return tasks.update(project, id, { status: 'done' });
+      // Project workflow owns the close status (file profile delegates to closeTask); hardcoding
+      // 'done' made the same contract return different values per profile.
+      return tasks.update(project, id, { status: workflowFor(readProjectMetadataRow(project)).closeStatus });
     },
     async archive(project: string, id: string): Promise<Task | null> {
       return tasks.update(project, id, { archived: true, archivedAt: isoNow() });
