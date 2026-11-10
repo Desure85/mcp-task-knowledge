@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: этап Y закрыт, TS-01 закрыт)
-**Текущая ветка:** feat/ts-01-vitest-workers (от origin/master 10a39f8, PR #353 влит)
-**Текущий этап:** бэклог по приоритету; **Y закрыт**, **TS-01 закрыт**; дальше — следующие high-пункты (DX-10/DX-11 и др.)
-**Статус:** TS-01: конфиг — единственный источник истины (env override, min(4, cores/2)); CLI-флаги убраны из npm/pre-push; страж 5/5, 3 мутации RED. Флейки: pagination 20/20, auth-session 20/20 после build; executable-docs на Windows 20/20 красный (bash-блоки — среда, CI зелёный). RSS 1300/1677 МБ ≤ 8 ГБ. Полные зелёные прогоны — CI Linux (#350–#353), Windows baseline записан.
+**Session ID:** S-20261109-night (бэклог: Y закрыт, TS-01 и DX-11 закрыты)
+**Текущая ветка:** feat/dx-11-doctor-health (от origin/master 1c6897f, PR #354 влит)
+**Текущий этап:** бэклог по приоритету; **Y/TS-01/DX-11 закрыты**; дальше — следующие high (DX-10, DX-29, DX-16, MU-07…)
+**Статус:** DX-11: `doctor` получил runtime health-gate (Node ≥20, DATA_DIR, config, port, client configs) — 6/6 тестов, 3 мутации RED; интеграция в конец setup отложена до DX-10 (setup-команды пока нет). TS-01 и этап Y закрыты ранее.
+
+### Сессия S-20261109-night (DX-11 — runtime health-gate в doctor)
+
+- `src/cli/health.ts`: `runHealthGate` с инъекцией версии/каталога/конфига/порта/путей клиентов; отсутствие клиентского конфига — warning, отсутствие файла конфигурации — штатные дефолты.
+- `doctor`: секция `health` в JSON, строка `Health:` в тексте, issues с уровнями; живой смоук `doctor --data` даёт `Health: ok`.
+- Проверено: 6/6 тестов, 3 мутации RED; build/tsc чистые.
+- Ограничение: setup (DX-10) пока нет — гейт экспортирован, вызов в конце setup записан follow-up'ом.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1130-dx-11.md`.
 
 ### Сессия S-20261109-night (TS-01 — потолок воркеров, флейки, RSS)
 
