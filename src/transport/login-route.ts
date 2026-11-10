@@ -161,7 +161,10 @@ export function createLoginHandler(options: LoginRouteOptions = {}): LoginHandle
     // The env admin is a bootstrap only; when a store exists it is the primary source of users.
     const envUser = (process.env.MCP_LOGIN_USER ?? '').trim();
     const envPassword = process.env.MCP_LOGIN_PASSWORD ?? '';
-    if (!options.userStore && (!envUser || !envPassword)) {
+    // Fail closed when neither the env bootstrap nor a non-disabled store user exists. A store
+    // created by setup while no user was added must not silently enable an empty login.
+    const storeReady = options.userStore?.listUsers().some((user) => !user.disabled) ?? false;
+    if ((!envUser || !envPassword) && !storeReady) {
       log.warn({ ip, reason: 'login_disabled' }, 'login rejected');
       sendError(res, 503, 'LOGIN_DISABLED', 'Login is not configured (set MCP_LOGIN_USER and MCP_LOGIN_PASSWORD)');
       return;
