@@ -10,7 +10,6 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { reloadFileConfig } from '../config.js';
 
 export type HealthLevel = 'error' | 'warn';
 
@@ -162,7 +161,8 @@ export async function runHealthGate(options: HealthOptions = {}): Promise<Health
   }
   checks.push({ name: 'data-dir', level: 'error', ok: dataOk, detail: dataDetail });
 
-  const config = (options.reloadConfig ?? reloadFileConfig)();
+  const reloadConfig = options.reloadConfig ?? (await import('../config.js')).reloadFileConfig;
+  const config = reloadConfig();
   // No file config is a valid setup (env/defaults are the primary path); only a present-but-broken
   // config is an error.
   const configOk = config.ok || config.source === 'none';
