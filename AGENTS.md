@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, Z-01 закрыты)
-**Текущая ветка:** feat/z-01-skill-package (от origin/master a226782, PR #359 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01/Z-01; дальше — T-01 (пользователи/токены), UI-11/UI-12, AA-04/05/07; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** Z-01: модель скилл-пакета — `SKILL.md`+вложения, sha256, лимиты, безопасные пути, symlink запрещён, `SkillPackageStore`; 12/12 тестов, 5 мутаций RED. Не подключено к SkillManager — записанный следующий инкремент.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, Z-01, CM-03a закрыты)
+**Текущая ветка:** feat/cm-03-server-instructions (от origin/master 0991d53, PR #360 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01/Z-01/CM-03a; CM-03 остаётся pending (CM-03b — живая проба клиентов), дальше — T-01, UI-11/UI-12, AA-04/05; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** CM-03a: instructions из живого реестра, ≤15 строк, wiring main/TCP/HTTP/bridge; 4/4 тестов, 3 мутации RED. CM-03 не закрыт: Claude Code/OpenCode проба зависла в среде — CM-03b.
+
+### Сессия S-20261109-night (CM-03a — server instructions)
+
+- `src/core/server-instructions.ts`: `toolDomains`/`buildServerInstructions`/`setServerInstructions`; домены и числа из живого реестра, ≤15 строк, протокол `tools_list search`→`tool_schema`→`tools_run`, `tools_batch`.
+- Wiring: `defaultRegistration` (после регистрации), TCP/Unix и HTTP per-session из `serverCtx`, bridge — forwarding-текст.
+- Проверено: 4/4, 3 мутации RED (домен выпадает, инструкция не выставляется, >15 строк); tsc/build чистые.
+- Не сделано: живая проба Claude Code/OpenCode — CLI зависает без рабочей сессии; CM-03 pending, добавлен CM-03b.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1700-cm-03a.md`.
 
 ### Сессия S-20261109-night (Z-01 — модель скилл-пакета)
 

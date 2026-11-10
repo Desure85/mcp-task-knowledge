@@ -34,6 +34,7 @@ import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
 import type { ServerContext } from '../register/context.js';
 import { decideToolCall, decideMethodCall, type MethodGateCall } from '../core/auth-gate.js';
+import { buildServerInstructions, setServerInstructions } from '../core/server-instructions.js';
 import type { AuthGateCall, AuthGateDecision } from '../core/auth-gate.js';
 import { childLogger } from '../core/logger.js';
 import { createTlsContext } from './tls.js';
@@ -252,6 +253,12 @@ abstract class StreamTransportAdapter implements TransportAdapter {
     const server = new McpServer(
       { name: this.serverInfo!.name, version: this.serverInfo!.version },
     );
+    if (this.serverCtx) {
+      setServerInstructions(
+        server,
+        buildServerInstructions(this.serverCtx.toolRegistry.list({ limit: 300 }).data),
+      );
+    }
 
     this.sessions.set(id, {
       server,

@@ -15,6 +15,7 @@ import { ProxyPassthrough, passthroughCapabilities } from './passthrough.js';
 import { CircuitBreaker, DEFAULT_CIRCUIT_CONFIG } from '../core/circuit-breaker.js';
 import type { CircuitBreakerConfig } from '../core/circuit-breaker.js';
 import { childLogger } from '../core/logger.js';
+import { setServerInstructions } from '../core/server-instructions.js';
 
 const log = childLogger('proxy:shim');
 
@@ -64,6 +65,11 @@ export class StdioBridge {
     this.server = new Server(
       { name: this.options.name ?? 'mcp-task-knowledge-bridge', version: this.options.version ?? '1.0.0' },
       { capabilities: passthroughCapabilities(client.getServerCapabilities()) },
+    );
+    // CM-03: the bridge has no registry of its own; describe the forwarding protocol.
+    setServerInstructions(
+      this.server,
+      'mcp-task-knowledge thin bridge: tools are forwarded to the HTTP core. Use tools_list {search}, tool_schema {name}, then tools_run {name, params}.',
     );
     this.passthrough = new ProxyPassthrough(client, this.server);
     this.passthrough.setRecovery((err) => this.recover(err));
