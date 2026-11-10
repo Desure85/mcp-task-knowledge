@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01a закрыты)
-**Текущая ветка:** feat/t01a-user-store (от origin/master a8c762d, PR #362 влит)
-**Текущий этап:** бэклог по приоритету; T-01a закрыт, T-01 остаётся pending (T-01b — админ-UI/инструменты и валидатор токенов); CM-03 pending (CM-03b); дальше — UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** T-01a: `UserStore` на SQLite `auth.db`, scrypt+dummy, роли/disabled, токены sha256/revoke/expiry, `/auth/login` через store с env-bootstrap; 8/8 + 11/11 тестов, 4 мутации RED.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01a, T-01b закрыты)
+**Текущая ветка:** feat/t01b-admin-users (от origin/master e36c72d, PR #363 влит)
+**Текущий этап:** бэклог по приоритету; T-01a/T-01b закрыты, T-01 остаётся pending (T-01c — web-админка); CM-03 pending (CM-03b); дальше — UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** T-01b: 8 admin-MCP инструментов, personal-token `TokenValidator` композируется с JWT/static; 5/5 тестов, 3 мутации RED. Raw-токен только при создании; web-UI — T-01c.
+
+### Сессия S-20261109-night (T-01b — админ-MCP и TokenValidator)
+
+- `src/register/users.ts`: list/create users, password, roles, disable, list/create/revoke tokens; admin role на authenticated-транспортах, local stdio доверенный; raw-токен один раз.
+- `src/auth/user-token-validator.ts`: personal-first + fallback; `AppContainer` оборачивает JWT/static/TokenManager.
+- Проверено: 5/5, 3 мутации RED (admin-check off, fallback skipped, token not returned); build/tsc чистые.
+- Не сделано: web-админка — T-01c; T-01 pending.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-2000-t01b.md`.
 
 ### Сессия S-20261109-night (T-01a — UserStore, scrypt, личные токены)
 
