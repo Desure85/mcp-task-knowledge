@@ -1906,7 +1906,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > `session-draft.ts`, сборщик драфтов, `end-session.md`, семь memory-плагинов; инвентаризация
 > и все расхождения (live/ci-agent/repo) — в `docs/plugins/opencode.md`. `git ls-files` содержит
 > `session-draft.ts`; 3/3 тестов, 2 мутации RED; живые копии не перезаписывались — установка описана.
-
+>
 > Примечание (2026-11-10, T-01a done): пользователи/пароли/токены в `DATA_DIR/auth.db` (scrypt,
 > dummy-хеш для неизвестного, токены только sha256, revoke/expiry, bootstrap env-админа); `/auth/login`
 > читает store с env-fallback. 8/8 + 11/11 тестов, 4 мутации RED. T-01 остаётся pending: админ-UI/
