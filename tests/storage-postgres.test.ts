@@ -18,6 +18,7 @@ import { StoreError } from '../src/storage/contracts.js';
 const connectionString = process.env.POSTGRES_URL;
 const describePostgres = connectionString ? describe : describe.skip;
 
+
 describePostgres('Y-06a1: Postgres profile', () => {
   let profile: Awaited<ReturnType<typeof createPostgresProfile>>;
   let blobsDir: string;
@@ -36,6 +37,149 @@ describePostgres('Y-06a1: Postgres profile', () => {
     if (blobsDir) fs.rmSync(blobsDir, { recursive: true, force: true });
   });
 
+async function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('waitFor timeout');
+}
+
+describe('Y-06a2: Postgres search (tsvector + pg_trgm)', () => {
+  it('rebuilds the index and answers candidates through the async path', async () => {
+    await profile.tasks.create({ project: 'search', title: 'postgres migration plan', description: 'vector store notes' });
+    await profile.tasks.create({ project: 'search', title: 'unrelated cooking recipe' });
+    await profile.docs.create({ project: 'search', title: 'postgres knowledge doc', content: 'the pgvector extension is discussed here' });
+    await profile.tasks.create({ project: 'other', title: 'postgres must not leak' });
+
+    profile.search.ensureIndexed('search');
+    await waitFor(() => profile.search.isIndexComplete('search'));
+    expect(profile.search.fillState('search')).toBe('complete');
+    expect(profile.search.dirty()).toBe(false);
+
+    const hits = await profile.search.candidatesAsync!({
+      store: profile.search.taskStoreId(),
+      kind: 'task',
+      project: 'search',
+      query: 'postgres',
+      limit: 10,
+    });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => hit.project === 'search')).toBe(true);
+    expect(hits.every((hit) => hit.score > 0)).toBe(true);
+    expect(hits.some((hit) => hit.id && hit.id.length > 0)).toBe(true);
+
+    const docHits = await profile.search.candidatesAsync!({
+      store: profile.search.docStoreId(),
+      kind: 'doc',
+      project: 'search',
+      query: 'pgvector',
+      limit: 10,
+    });
+    expect(docHits.length).toBe(1);
+
+    const isolated = await profile.search.candidatesAsync!({
+      store: profile.search.taskStoreId(),
+      kind: 'task',
+      project: 'other',
+      query: 'postgres',
+      limit: 10,
+    });
+    expect(isolated.length).toBe(1);
+
+    expect(profile.search.countTasks('search')).toBe(2);
+    expect(profile.search.taskStoreId()).toBe('postgres:tasks');
+    expect(profile.search.docStoreId()).toBe('postgres:docs');
+
+    // Idempotent: a second ensureIndexed keeps the same row set.
+    profile.search.ensureIndexed('search');
+    await waitFor(() => profile.search.isIndexComplete('search'));
+    const again = await profile.search.candidatesAsync!({
+      store: profile.search.taskStoreId(),
+      kind: 'task',
+      project: 'search',
+      query: 'postgres',
+      limit: 10,
+    });
+    expect(again.map((hit) => hit.id).sort()).toEqual(hits.map((hit) => hit.id).sort());
+  });
+
+  it('uses the pg_trgm fallback for a near-miss query', async () => {
+    // The embedded server allows CREATE EXTENSION, so the provider reports trgm=true and the SQL
+    // fallback branch is exercised. 'postgre' does not match the lexeme 'postgres' in tsquery.
+    await profile.tasks.create({ project: 'trgm', title: 'postgres operational runbook' });
+    profile.search.ensureIndexed('trgm');
+    await waitFor(() => profile.search.isIndexComplete('trgm'));
+    const hits = await profile.search.candidatesAsync!({
+      store: profile.search.taskStoreId(),
+      kind: 'task',
+      project: 'trgm',
+      query: 'postgre',
+      limit: 10,
+    });
+    expect(hits.length).toBe(1);
+    expect(hits[0].score).toBeGreaterThan(0);
+  });
+
+  it('maintains the index on create, update and delete', async () => {
+    const created = await profile.tasks.create({ project: 'mut', title: 'zebra unique marker' });
+    await waitFor(async () => {
+      const hits = await profile.search.candidatesAsync!({
+        store: profile.search.taskStoreId(),
+        kind: 'task',
+        project: 'mut',
+        query: 'zebra',
+        limit: 5,
+      });
+      return hits.length === 1;
+    });
+    await waitFor(() => profile.search.countTasks('mut') === 1);
+
+    await profile.tasks.update('mut', created.id, { title: 'renamed antelope marker' });
+    await waitFor(async () => {
+      const container = await profile.search.candidatesAsync!({
+        store: profile.search.taskStoreId(),
+        kind: 'task',
+        project: 'mut',
+        query: 'zebra',
+        limit: 5,
+      });
+      return container.length === 0;
+    });
+    const renamed = await profile.search.candidatesAsync!({
+      store: profile.search.taskStoreId(),
+      kind: 'task',
+      project: 'mut',
+      query: 'antelope',
+      limit: 5,
+    });
+    expect(renamed.map((hit) => hit.id)).toContain(created.id);
+
+    await profile.tasks.deletePermanent('mut', created.id);
+    await waitFor(async () => {
+      const container = await profile.search.candidatesAsync!({
+        store: profile.search.taskStoreId(),
+        kind: 'task',
+        project: 'mut',
+        query: 'antelope',
+        limit: 5,
+      });
+      return container.length === 0;
+    });
+    await waitFor(() => profile.search.countTasks('mut') === 0);
+
+    // Missing project has no rows and no count.
+    expect(profile.search.candidatesAsync?.({ store: 'postgres:tasks', kind: 'task', project: 'missing', query: 'x', limit: 5 })).toBeInstanceOf(Promise);
+    expect(profile.search.countTasks('missing')).toBeUndefined();
+  });
+
+  it('reports stale/unindexed projects honestly', () => {
+    expect(profile.search.fillState('never-indexed')).toBe('idle');
+    expect(profile.search.isIndexComplete('never-indexed')).toBe(false);
+  });
+});
+
   it('publishes an honest manifest and leaves unimplemented capabilities unavailable', async () => {
     expect(profile.manifest.profile).toBe('postgres');
     expect(profile.manifest.collections).toEqual([
@@ -49,9 +193,10 @@ describePostgres('Y-06a1: Postgres profile', () => {
       'locks',
       'blobs',
     ]);
-    expect(profile.manifest.capabilities).toMatchObject({ transactions: true, history: true, fullText: false, vectors: false });
-    expect(profile.search.available()).toBe(false);
-    expect(profile.search.candidates({ store: 'postgres:tasks', kind: 'task', project: 'p', query: 'x', limit: 5 })).toEqual([]);
+    expect(profile.manifest.capabilities).toMatchObject({ transactions: true, history: true, fullText: true, vectors: false });
+    expect(profile.search.available()).toBe(true);
+    // Sync facade cannot query the async driver; the registrar uses candidatesAsync (present).
+    expect(typeof profile.search.candidatesAsync).toBe('function');
     await expect(profile.vectors.query(Float32Array.from([1]), { fingerprint: 'f', limit: 1 })).rejects.toMatchObject({
       code: 'CAPABILITY_UNAVAILABLE',
     });

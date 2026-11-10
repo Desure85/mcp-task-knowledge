@@ -1553,7 +1553,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Размер | Работа | Статус | DoD |
 |----|--------|--------|--------|-----|
 | Y-06a1 | L | Postgres Store-коллекции: задачи/документы/проекты/история/события/замки на JSONB, схема и пул, `STORAGE_PROFILE=postgres` и `POSTGRES_URL`; контрактные тесты против реального PostgreSQL 18.6 | done | `tests/storage-postgres.test.ts` 12/12 на настоящем Postgres; затронутые наборы 97/97; 6 мутаций RED |
-| Y-06a2 | M | Postgres `SearchProvider`: `tsvector` + `pg_trgm` с async-адаптером под синхронный контракт, обновление индекса на мутациях, parity кандидатов | pending | Поиск не меняет ответы инструментов; контрактные тесты на Postgres; мутации RED |
+| Y-06a2 | M | Postgres `SearchProvider`: `tsvector` + `pg_trgm` с async-адаптером под синхронный контракт, обновление индекса на мутациях, parity кандидатов | done | Поиск не меняет ответы инструментов; контрактные тесты на Postgres; мутации RED |
 | Y-06b | L | `VectorProvider` Postgres (pgvector + HNSW после гейта), оптимистичные версии (MU-02), связь с MU-01 | pending | `tests/storage-postgres.test.ts` (часть 2): векторный контракт, конфликт версий → `CONFLICT`, HNSW используется (план запроса) |
 
 #### Y-08 — migrate-storage (закрывает этап Y)
@@ -1810,3 +1810,8 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > (tsvector+pg_trgm) вынесен в Y-06a2 из-за синхронного контракта `SearchProvider`; векторы —
 > Y-06b (pgvector в окружении нет). CI-сервис Postgres не добавлен: токен без scope `workflow` —
 > ограничение записано в решении.
+>
+> Примечание (2026-11-10, Y-06a2): Postgres `SearchProvider` — настоящий поиск на
+> `tsvector`+GIN и `pg_trgm` с async-путём `candidatesAsync` (аддитивное расширение
+> контракта); индекс ведётся на мутациях, `ensureIndexed` пересобирает проект; проверено на
+> реальном PostgreSQL 18.6, 16/16, 126/126 затронутых. Остаток Y-06: b — pgvector/HNSW.

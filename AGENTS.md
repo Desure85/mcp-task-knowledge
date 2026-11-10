@@ -426,9 +426,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-10
 **Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-07 закрыты)
-**Текущая ветка:** feat/y06a-postgres-profile (от origin/master 4828465, PR #343 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07; Y-06 в работе (a1 готов; остались a2 — поиск, b — pgvector), затем Y-08 (migrate-storage)
-**Статус:** `Y-06a1` → done: Postgres-профиль Store-коллекций (JSONB-задачи/документы/проекты, версии документов, история, события write-behind, `pg_advisory_xact_lock`; `STORAGE_PROFILE=postgres` + обязательный `POSTGRES_URL`). Гейт среды снят: контрактные тесты прогнаны против **настоящего PostgreSQL 18.6** через npm `embedded-postgres` (Docker-демон недоступен), 12/12; CI-сервис Postgres не добавлен — токен без scope `workflow`, ограничение записано. `fullText=false` до Y-06a2, `vectors=false` до Y-06b, claims — `CAPABILITY_UNAVAILABLE`. 97/97 затронутых (+1 skip), 6 мутаций RED. **Дальше: Y-06a2** — `SearchProvider` на tsvector+pg_trgm.
+**Текущая ветка:** feat/y06a2-postgres-search (от origin/master 1072248, PR #344 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07; Y-06 в работе (a1/a2 готовы; остался b — pgvector), затем Y-08 (migrate-storage)
+**Статус:** `Y-06a2` → done, **Y-06a закрыт**: Postgres `SearchProvider` — настоящий поиск на `tsvector`+GIN и `pg_trgm` через аддитивный `candidatesAsync`, индекс ведётся на мутациях и пересобирается `ensureIndexed`; проверено на **реальном PostgreSQL 18.6** (16/16, 126/126 затронутых, 6 мутаций RED). Ограничения: синхронный `candidates()` для Postgres — честный пустой список (реальный путь async), `vectors=false` до Y-06b (pgvector в окружении нет), CI-сервис Postgres не добавлен (токен без scope `workflow`). **Дальше: Y-06b** — pgvector/HNSW с гейтом расширения.
+
+### Сессия S-20261109-night (Y-06a2 — Postgres SearchProvider; Y-06a закрыт)
+
+- Контракт: необязательный `SearchProvider.candidatesAsync` (аддитивно); `register/search.ts` helper `candidateHits` предпочитает async-путь, файловый/SQLite — по-прежнему sync.
+- Postgres: `search_index` с generated `tsvector`+GIN и `pg_trgm` fallback (`similarity > 0.15`), score `ts_rank + 0.5*similarity`; `search_state` и in-process `searchStates/taskCounts` для синхронных методов; `ensureIndexed` пересобирает проект, мутации обновляют индекс write-behind (ошибка → dirty, не валит запись); `fullText=true`.
+- Проверено: `tests/storage-postgres.test.ts` 16/16 против реального PostgreSQL 18.6 (включая pg_trgm fallback `postgre→postgres`); затронутые `storage-postgres`/`storage-sqlite`/`storage-wiring`/`storage-contract`/`search-fts`/`search-tasks-warmup` — 126/126; tsc чистый; 6 мутаций RED.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0420-y-06a2.md`.
 
 ### Сессия S-20261109-night (Y-06a1 — Postgres Store-коллекции)
 
