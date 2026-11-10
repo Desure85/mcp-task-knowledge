@@ -18,17 +18,34 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
 import Database from 'better-sqlite3';
+import pg from 'pg';
 import { openSqliteDatabase } from './profiles/sqlite/db.js';
+import { openPostgresDatabase } from './profiles/postgres/db.js';
 import { withFileLock } from '../fs.js';
 import type { KnowledgeDoc, Task } from '../types.js';
 import type { ProjectMetadata } from '../projects.js';
 
-export type MigrationDirection = 'file-to-sqlite' | 'sqlite-to-file';
+export type MigrationDirection =
+  | 'file-to-sqlite'
+  | 'sqlite-to-file'
+  | 'file-to-postgres'
+  | 'postgres-to-file'
+  | 'sqlite-to-postgres'
+  | 'postgres-to-sqlite';
+
+type MigrationSide = 'file' | 'sqlite' | 'postgres';
+
+function sideFrom(direction: MigrationDirection, which: 'source' | 'target'): MigrationSide {
+  const [from, to] = direction.split('-to-') as [MigrationSide, MigrationSide];
+  return which === 'source' ? from : to;
+}
 
 export interface MigrateStorageOptions {
   dataDir: string;
-  /** SQLite database the `sqlite` side of the migration reads/writes. */
+  /** SQLite database for the `sqlite` side; required only when that side is used. */
   databasePath: string;
+  /** libpq URL for the `postgres` side; required only when that side is used. */
+  connectionString?: string;
   direction: MigrationDirection;
   /** Compute the plan and report only; never writes, never backs up. */
   dryRun?: boolean;
@@ -438,20 +455,100 @@ function collectionChecksum<T>(items: T[]): string {
   return sha256(items.map(stableStringify).sort().join('\n'));
 }
 
+async function readPostgresSide(connectionString: string): Promise<MigrationSnapshot> {
+  const pool = new pg.Pool({ connectionString });
+  try {
+    const tasks = (await pool.query('select data from tasks')).rows.map((row) => row.data as Task);
+    const docs = (await pool.query('select data from docs')).rows.map((row) => row.data as KnowledgeDoc);
+    const projects = (await pool.query('select project, data from projects')).rows.map((row) => ({
+      id: row.project as string,
+      data: row.data as ProjectMetadata,
+    }));
+    const versions = (await pool.query('select project, id, version, data from doc_versions')).rows.map((row) => ({
+      project: row.project as string,
+      id: row.id as string,
+      version: Number(row.version),
+      data: row.data as KnowledgeDoc,
+    }));
+    return { tasks, docs, projects, versions, blobRoot: '' };
+  } finally {
+    await pool.end();
+  }
+}
+
+async function writePostgresSide(connectionString: string, snapshot: MigrationSnapshot): Promise<void> {
+  const database = await openPostgresDatabase({ connectionString });
+  try {
+    const client = await database.pool.connect();
+    try {
+      await client.query('begin');
+      for (const task of snapshot.tasks) {
+        await client.query(
+          `insert into tasks(project, id, data) values($1,$2,$3)
+           on conflict(project, id) do update set data = excluded.data`,
+          [task.project, task.id, JSON.stringify(task)],
+        );
+      }
+      for (const doc of snapshot.docs) {
+        await client.query(
+          `insert into docs(project, id, data) values($1,$2,$3)
+           on conflict(project, id) do update set data = excluded.data`,
+          [doc.project, doc.id, JSON.stringify(doc)],
+        );
+      }
+      for (const version of snapshot.versions) {
+        await client.query(
+          `insert into doc_versions(project, id, version, data) values($1,$2,$3,$4)
+           on conflict(project, id, version) do update set data = excluded.data`,
+          [version.project, version.id, version.version, JSON.stringify(version.data)],
+        );
+      }
+      for (const project of snapshot.projects) {
+        await client.query(
+          `insert into projects(project, data) values($1,$2)
+           on conflict(project) do update set data = excluded.data`,
+          [project.id, JSON.stringify(project.data)],
+        );
+      }
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  } finally {
+    await database.close();
+  }
+}
+
+async function readSide(kind: MigrationSide, options: MigrateStorageOptions): Promise<MigrationSnapshot> {
+  if (kind === 'file') return readFileSide(options.dataDir);
+  if (kind === 'sqlite') return readSqliteSide(options.databasePath);
+  if (!options.connectionString) throw new Error('postgres side requires connectionString');
+  return readPostgresSide(options.connectionString);
+}
+
+async function writeSide(kind: MigrationSide, snapshot: MigrationSnapshot, options: MigrateStorageOptions): Promise<void> {
+  if (kind === 'file') return writeFileSide(options.dataDir, snapshot);
+  if (kind === 'sqlite') {
+    writeSqliteSide(options.databasePath, snapshot);
+    return;
+  }
+  if (!options.connectionString) throw new Error('postgres side requires connectionString');
+  await writePostgresSide(options.connectionString, snapshot);
+}
+
 export async function migrateStorage(options: MigrateStorageOptions): Promise<MigrateStorageReport> {
   const startedAt = Date.now();
   const direction = options.direction;
   const dryRun = options.dryRun === true;
   const verifyOnly = options.verifyOnly === true;
   const now = options.now ?? (() => new Date());
-  const source: MigrationSnapshot =
-    direction === 'file-to-sqlite'
-      ? await readFileSide(options.dataDir)
-      : readSqliteSide(options.databasePath);
-  const targetSnapshot: MigrationSnapshot =
-    direction === 'file-to-sqlite'
-      ? readSqliteSide(options.databasePath)
-      : await readFileSide(options.dataDir);
+  const sourceKind = sideFrom(direction, 'source');
+  const targetKind = sideFrom(direction, 'target');
+  const source: MigrationSnapshot = await readSide(sourceKind, options);
+  const targetSnapshot: MigrationSnapshot = await readSide(targetKind, options);
 
   const discrepancies: string[] = [];
   const counts = {
@@ -472,20 +569,25 @@ export async function migrateStorage(options: MigrateStorageOptions): Promise<Mi
     blobs: { source: 0, created: 0, updated: 0, skipped: 0 } as CollectionCounts,
   };
 
-  const blobHashes = await copyBlobs(source.blobRoot, targetSnapshot.blobRoot, counts.blobs, true);
+  const blobHashes =
+    source.blobRoot && targetSnapshot.blobRoot
+      ? await copyBlobs(source.blobRoot, targetSnapshot.blobRoot, counts.blobs, true)
+      : { source: '', target: '' };
+  // Blobs are compared only when both sides keep them locally (Postgres stores no blob rows).
+  const blobsComparable = Boolean(source.blobRoot && targetSnapshot.blobRoot);
   const sourceChecksum = sha256(
     collectionChecksum(source.tasks) +
       collectionChecksum(source.docs) +
       collectionChecksum(source.versions) +
       collectionChecksum(source.projects) +
-      blobHashes.source,
+      (blobsComparable ? blobHashes.source : ''),
   );
   const targetChecksum = sha256(
     collectionChecksum(targetSnapshot.tasks) +
       collectionChecksum(targetSnapshot.docs) +
       collectionChecksum(targetSnapshot.versions) +
       collectionChecksum(targetSnapshot.projects) +
-      blobHashes.target,
+      (blobsComparable ? blobHashes.target : ''),
   );
   const report: MigrateStorageReport = {
     direction,
@@ -496,10 +598,13 @@ export async function migrateStorage(options: MigrateStorageOptions): Promise<Mi
     counts,
     checksums: { source: sourceChecksum, target: targetChecksum, equal: sourceChecksum === targetChecksum },
     discrepancies,
-    switchHint:
-      direction === 'file-to-sqlite'
-        ? 'set STORAGE_PROFILE=sqlite and restart; the file tree is left untouched for rollback'
-        : 'set STORAGE_PROFILE=file and restart; the SQLite database is left untouched for rollback',
+    switchHint: (() => {
+      const profileOf = (kind: MigrationSide) => (kind === 'postgres' ? 'postgres' : kind);
+      const current = profileOf(sourceKind);
+      const next = profileOf(targetKind);
+      return `set STORAGE_PROFILE=${next} and POSTGRES_URL when moving to postgres, then restart; the ` +
+        `${current} copy is left untouched for rollback`;
+    })(),
     durationMs: 0,
   };
   if (dryRun || verifyOnly) {
@@ -509,31 +614,37 @@ export async function migrateStorage(options: MigrateStorageOptions): Promise<Mi
 
   const backupRoot = options.backupDir ?? path.join(options.dataDir, '.backups', `migrate-${now().toISOString().replace(/[:.]/g, '-')}`);
   await fsp.mkdir(backupRoot, { recursive: true });
-  if (direction === 'file-to-sqlite') {
+  if (targetKind === 'sqlite') {
     if (fs.existsSync(options.databasePath)) await fsp.copyFile(options.databasePath, path.join(backupRoot, 'storage.sqlite'));
-    if (fs.existsSync(targetSnapshot.blobRoot)) await fsp.cp(targetSnapshot.blobRoot, path.join(backupRoot, 'blobs'), { recursive: true });
-  } else {
-    for (const [name, sourceDir] of [
+    if (targetSnapshot.blobRoot && fs.existsSync(targetSnapshot.blobRoot)) {
+      await fsp.cp(targetSnapshot.blobRoot, path.join(backupRoot, 'blobs'), { recursive: true });
+    }
+  } else if (targetKind === 'file') {
+    for (const [name, dir] of [
       ['tasks', path.join(options.dataDir, 'tasks')],
       ['knowledge', path.join(options.dataDir, 'knowledge')],
       ['projects', path.join(options.dataDir, 'projects')],
       ['blobs', path.join(options.dataDir, 'blobs')],
     ] as const) {
-      if (fs.existsSync(sourceDir)) await fsp.cp(sourceDir, path.join(backupRoot, name), { recursive: true });
+      if (fs.existsSync(dir)) await fsp.cp(dir, path.join(backupRoot, name), { recursive: true });
     }
+  } else {
+    // Postgres target: JSON snapshot of the current rows is the rollback artefact.
+    const snapshot = await readSide('postgres', options);
+    await fsp.writeFile(path.join(backupRoot, 'postgres-snapshot.json'), JSON.stringify(snapshot), 'utf8');
   }
   report.backupPath = backupRoot;
 
   const apply = async () => {
-    if (direction === 'file-to-sqlite') writeSqliteSide(options.databasePath, source);
-    else await writeFileSide(options.dataDir, source);
-    await copyBlobs(source.blobRoot, targetSnapshot.blobRoot, counts.blobs, false);
+    await writeSide(targetKind, source, options);
+    if (source.blobRoot && targetSnapshot.blobRoot) {
+      await copyBlobs(source.blobRoot, targetSnapshot.blobRoot, counts.blobs, false);
+    }
   };
   if (options.exclusive === false) await apply();
   else await withFileLock(`migrate-storage:${options.dataDir}`, apply);
 
-  const after: MigrationSnapshot =
-    direction === 'file-to-sqlite' ? readSqliteSide(options.databasePath) : await readFileSide(options.dataDir);
+  const after: MigrationSnapshot = await readSide(targetKind, options);
   // The plan-phase discrepancies describe the pre-migration gap; after applying, the report must
   // describe the post-migration state instead of repeating stale findings.
   const postDiscrepancies: string[] = [];
@@ -552,13 +663,13 @@ export async function migrateStorage(options: MigrateStorageOptions): Promise<Mi
     postDiscrepancies,
   );
   report.discrepancies = postDiscrepancies;
-  const afterBlobs = await hashBlobs(targetSnapshot.blobRoot);
+  const afterBlobs = targetSnapshot.blobRoot ? await hashBlobs(targetSnapshot.blobRoot) : '';
   const afterChecksum = sha256(
     collectionChecksum(after.tasks) +
       collectionChecksum(after.docs) +
       collectionChecksum(after.versions) +
       collectionChecksum(after.projects) +
-      afterBlobs,
+      (blobsComparable ? afterBlobs : ''),
   );
   report.checksums.target = afterChecksum;
   report.checksums.equal = afterChecksum === sourceChecksum;

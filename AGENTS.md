@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-06, Y-07 закрыты)
-**Текущая ветка:** feat/y08a-migrate-storage (от origin/master 7e8fe1d, PR #347 влит)
-**Текущий этап:** Y — закрыты Y-02…Y-07; Y-08 в работе (a готова; остался b — Postgres-направление, runbook и 100k)
-**Статус:** `Y-08a` → done: движок `migrateStorage` (file↔SQLite) по фазам ADR — dry-run без записи, снимок цели в `.backups`, дельта под exclusive-lock, проверка контрольных сумм и отчёт с расхождениями; идемпотентность по каноническому sha256, перенос задач/документов/проектов/версий/блобов, нормализация тела документа и сохранение `history` во frontmatter; CLI `scripts/migrate-storage.mjs` + runbook. 4/4 тестов, 71/71 затронутых, 5 мутаций RED. Ограничение записано: замер окна паузы на 100k перенесён в Y-08b. **Дальше: Y-08b** — Postgres как источник/цель, runbook, 100k, закрытие этапа Y.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; подпункты Y-02…Y-08 закрыты)
+**Текущая ветка:** feat/y08b-migrate-postgres (от origin/master d4c6687, PR #348 влит)
+**Текущий этап:** Y — все подпункты Y-02…Y-08 закрыты; **этап НЕ объявлен закрытым**: открыт gate §5 плана (единый контрактный набор на трёх профилях, docs/benchmarks hit@1/medianMs/RSS на 100k, CI-сервисы Postgres/MinIO)
+**Статус:** `Y-08b` → done, Y-08 как пункт закрыт: миграция file↔sqlite↔postgres (6 направлений, транзакционная запись, backup/checksums/verify-only), бенчмарк 100k — окно паузы **42.9 с** при checksums equal, runbook обновлён. 5/5 тестов миграции, 90/90 затронутых. **Честный gate-статус:** три условия плана §5 не выполнены (shared contract suite, benchmarks hit@1/RSS, CI services) — записаны в BACKLOG/CHANGELOG как follow-up; этап Y не закрывается фиктивно.
+
+### Сессия S-20261109-night (Y-08b — миграция в/из Postgres, 100k)
+
+- `migrate.ts`: направления file/sqlite ↔ postgres, `connectionString`, чтение JSONB-снимков, запись одним транзакционным upsert-батчем, `postgres-snapshot.json` как снимок отката; блобы сравниваются только при локальных корнях у обеих сторон.
+- `scripts/migrate-bench.mjs`: 100k SQLite-фикстура + реальный `sqlite→postgres`; локальный PostgreSQL 18.6 — fixture 1.0 с, **pause window 42.9 с**, checksums equal; COPY/батчи — записанный follow-up.
+- Runbook `docs/features/migrate-storage.md`: Postgres-направления, `POSTGRES_URL`, backup/rollback, caveats, бенчмарк.
+- Проверено: `tests/storage-migrate.test.ts` 5/5 (Postgres-кейс skip без `POSTGRES_URL`), затронутые 90/90, tsc чистый.
+- Gate этапа Y: §5.2/§5.3/§5.5 не выполнены — записано; следующий шаг — shared cross-profile contract suite и benchmarks, CI services по возможности scope.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0600-y-08b.md`.
 
 ### Сессия S-20261109-night (Y-08a — migrate-storage file↔SQLite)
 
