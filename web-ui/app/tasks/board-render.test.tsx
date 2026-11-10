@@ -150,6 +150,19 @@ describe('LaneSection', () => {
 });
 
 describe('StatusCell', () => {
+  it('renders critical-path and transitive-dependent labels as text', () => {
+    const html = renderToStaticMarkup(
+      <StatusCell
+        {...makeCellProps({
+          tasks: [makeTask({ onCriticalPath: true, dependentsCount: 2 })],
+        })}
+      />,
+    );
+
+    expect(html).toContain('Critical path');
+    expect(html).toContain('Blocks 2');
+  });
+
   it('marks a forbidden status with the reason and allowed labels', () => {
     const html = renderToStaticMarkup(
       <StatusCell

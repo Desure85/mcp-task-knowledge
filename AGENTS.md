@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38 закрыты)
-**Текущая ветка:** feat/ui-38-dependencies (от origin/master a5a0e75, PR #377 влит)
-**Текущий этап:** бэклог по приоритету; UI-11/12/15/16/36/37/38 закрыты; дальше UI-39, UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-38: статусы зависимостей, isBlocked, Add/Remove, DEPENDENCY_CYCLE, /tasks/dag с фильтрами; 1/1 e2e, full 48/48; 2 мутации RED.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38, UI-39 закрыты)
+**Текущая ветка:** feat/ui-39-graph-metrics (от origin/master 405ddd4, PR #378 влит)
+**Текущий этап:** бэклог по приоритету; UI-11/12/15/16/36/37/38/39 закрыты; дальше UI-17, Z-11/Z-03, AA-04, SC-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-39: graph metrics opt-in, transitive dependents + critical path, метки текстом/иконкой; server 1/1, component 27/27, 2 мутации RED.
+
+### Сессия S-20261109-night (UI-39 — graph metrics)
+
+- `src/register/graph-metrics.ts`: transitive `dependentsCount` + `onCriticalPath`; флаг `includeGraphMetrics` в list/get.
+- UI: `TaskCard`/`TaskQuickView`/page — метки «Critical path»/«Blocks N», тон N≥3, приоритет отдельно.
+- Тест `tests/task-critical-path.test.ts` 1/1 + component 27/27; 2 мутации RED. Ограничения: SQLite dependsOn/DAG gap; O(graph) при включённом флаге.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-1100-ui-39.md`.
 
 ### Сессия S-20261109-night (UI-38 — зависимости и DAG)
 

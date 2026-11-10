@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { storageProfile } from '../core/storage-context.js';
 import { resolveProject } from '../config.js';
+import { computeGraphMetrics, withGraphMetrics } from './graph-metrics.js';
 import {
   DEFAULT_CLAIM_TTL_SEC,
   MAX_TASK_DEPTH,
@@ -68,10 +69,11 @@ export function registerTasksTools(ctx: ServerContext): void {
           .optional()
           .describe("Backlog codes recorded as task tags (case-insensitive), e.g. [\"AC-01\"]"),
         includeArchived: z.boolean().default(false).optional(),
+        includeGraphMetrics: z.boolean().optional().describe('Add onCriticalPath and transitive dependentsCount to each returned task'),
         ...pageArgsSchema,
       },
     },
-    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ids, codes, ...pageArgs }) => {
+    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ids, codes, includeGraphMetrics, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
@@ -98,7 +100,9 @@ export function registerTasksTools(ctx: ServerContext): void {
             .filter((task) => (includeArchived === true || !task.archived) && !task.trashed)
             .sort((a, b) => (a.updatedAt === b.updatedAt ? (a.id < b.id ? -1 : 1) : a.updatedAt < b.updatedAt ? 1 : -1));
           const pickedPage = paginateKeyed(matched, request, (task) => task.updatedAt, (task) => task.id);
-          return okWith(pickedPage.items, pickedPage.meta);
+          if (!includeGraphMetrics) return okWith(pickedPage.items, pickedPage.meta);
+          const all = await taskStore(ctx).list({ project: prj, includeArchived });
+          return okWith(withGraphMetrics(pickedPage.items, computeGraphMetrics(all)), pickedPage.meta);
         }
         const page = await taskStore(ctx).page(prj, {
           limit: request.limit ?? 50,
@@ -113,7 +117,9 @@ export function registerTasksTools(ctx: ServerContext): void {
           countOnly: request.countOnly,
         });
         const result = pageFromStorage(page, request, (t) => t.id);
-        return okWith(result.items, result.meta);
+        if (!includeGraphMetrics) return okWith(result.items, result.meta);
+        const all = await taskStore(ctx).list({ project: prj, includeArchived });
+        return okWith(withGraphMetrics(result.items, computeGraphMetrics(all)), result.meta);
       } catch (e) {
         if (e instanceof PaginationError) return errWith({ message: e.message, code: e.code, hint: e.hint });
         if (e instanceof WorkflowError) return errWith(e.toPayload());
@@ -160,15 +166,21 @@ export function registerTasksTools(ctx: ServerContext): void {
     {
       title: "Get Task",
       description: "Get task by id. Includes the active claim/lease holder when the task is claimed.",
-      inputSchema: { project: z.string().optional(), id: z.string().min(1) },
+      inputSchema: {
+        project: z.string().optional(),
+        id: z.string().min(1),
+        includeGraphMetrics: z.boolean().optional().describe('Add onCriticalPath and transitive dependentsCount'),
+      },
     },
-    async ({ project, id }) => {
+    async ({ project, id, includeGraphMetrics }) => {
       const prj = resolveProject(project);
       const t = await taskStore(ctx).get(prj, id);
       if (!t) {
         return err(`Task not found: ${project}/${id}`);
       }
-      return ok(t);
+      if (!includeGraphMetrics) return ok(t);
+      const all = await taskStore(ctx).list({ project: prj, includeArchived: true });
+      return ok(withGraphMetrics([t], computeGraphMetrics(all))[0]);
     }
   );
 
