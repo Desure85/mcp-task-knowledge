@@ -1839,7 +1839,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > `tests/storage-contract-shared.test.ts` на file/sqlite/postgres, 18/18) и §5.3 (реальные
 > Postgres и MinIO в CI, PR #350). Остался §5.5 — `docs/benchmarks/` с hit@1/medianMs/RSS на
 > 100k для трёх профилей; после него этап Y можно закрывать. Этап пока НЕ закрыт.
-
+>
 > Примечание (2026-11-10, gate §5.5): `docs/benchmarks/` добавлены — 100k задач,
 > hit@1=1.0 на всех трёх профилях; medianMs: file 213.4, sqlite 0.25, postgres 727.8; RSS:
 > 355/265/99 MB. Postgres и file-латентность записаны как follow-up-оптимизации, а не спрятаны.
