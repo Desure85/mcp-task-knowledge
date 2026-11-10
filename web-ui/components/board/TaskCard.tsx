@@ -50,6 +50,7 @@ export function TaskCard({
   return (
     <article
       data-task={task.id}
+      tabIndex={0}
       draggable
       onDragStart={(event) => onDragStart(event, task)}
       onDragEnd={onDragEnd}
@@ -76,11 +77,11 @@ export function TaskCard({
         role="button"
         tabIndex={0}
         className="line-clamp-2 cursor-pointer rounded text-[13px] font-medium leading-snug text-ink transition duration-150 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        onClick={() => onView(task)}
+        onClick={() => onEdit(task)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            onView(task);
+            onEdit(task);
           }
         }}
       >

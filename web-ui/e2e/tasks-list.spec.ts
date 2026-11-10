@@ -75,3 +75,22 @@ test('UI-16: select three tasks and close all three', async ({ page }) => {
     await expect(row).toContainText(/closed|done/i);
   }
 });
+
+
+test('UI-38/36: list row free area opens preview, task name opens editor', async ({ page }) => {
+  const stamp = Date.now().toString(36);
+  const title = `ZZ-row-click-${stamp}`;
+  await page.goto('/tasks', { waitUntil: 'domcontentloaded' });
+  await createTask(page, title, 'medium');
+  await openList(page);
+
+  const row = page.locator('tbody tr', { hasText: title });
+  await row.locator('td').nth(2).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(page.getByText('Edit task', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close editor' }).click();
+});

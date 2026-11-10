@@ -20,6 +20,7 @@ import {
   type Task,
 } from '@/lib/api-client';
 import { PageHeader } from '@/components/PageHeader';
+import { renderMarkdown } from '@/lib/markdown';
 import {
   Badge,
   Button,
@@ -63,6 +64,7 @@ export default function TaskPage() {
   const [children, setChildren] = useState<Task[]>([]);
   const [deps, setDeps] = useState<Awaited<ReturnType<typeof api.tasks.getDeps>> | null>(null);
   const [depQuery, setDepQuery] = useState('');
+  const [descriptionPreview, setDescriptionPreview] = useState(false);
   const [depError, setDepError] = useState<string | null>(null);
   const [rootChain, setRootChain] = useState<Array<{ id: string; title: string; status: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -159,6 +161,7 @@ export default function TaskPage() {
     };
   }, [hydrate, id]);
 
+  const descriptionHtml = useMemo(() => renderMarkdown(description), [description]);
   const statusLabel = useMemo(
     () => new Map(statuses.map((item) => [item.id, item.label])),
     [statuses],
@@ -350,12 +353,20 @@ export default function TaskPage() {
           <CardBody>
             <div className="space-y-3">
               <Input label="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
-              <Textarea
-                label="Description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={6}
-              />
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[12px] font-medium text-ink">Description (Markdown)</span>
+                  <div className="inline-flex gap-1">
+                    <Button type="button" variant={descriptionPreview ? 'ghost' : 'secondary'} size="sm" aria-pressed={!descriptionPreview} onClick={() => setDescriptionPreview(false)}>Edit</Button>
+                    <Button type="button" variant={descriptionPreview ? 'secondary' : 'ghost'} size="sm" aria-pressed={descriptionPreview} onClick={() => setDescriptionPreview(true)}>Preview</Button>
+                  </div>
+                </div>
+                {descriptionPreview ? (
+                  <div className="prose min-h-24 rounded-[var(--radius-control)] border border-line bg-surface-2 p-3" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
+                ) : (
+                  <Textarea label="Description" value={description} onChange={(event) => setDescription(event.target.value)} rows={6} />
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Select label="Priority" value={priority} onChange={(event) => setPriority(event.target.value as Priority)}>
                   <option value="low">Low</option>

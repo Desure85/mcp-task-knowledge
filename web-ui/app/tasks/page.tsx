@@ -1202,7 +1202,16 @@ export default function TasksPage() {
                   {sortedTasks.map((task) => {
                     const status = statuses.find((item) => item.id === task.status);
                     return (
-                      <tr key={task.id} data-task-id={task.id} className="border-t border-line align-top">
+                      <tr
+                      key={task.id}
+                      data-task-id={task.id}
+                      className="cursor-pointer border-t border-line align-top hover:bg-surface-2"
+                      onClick={(event) => {
+                        const target = event.target as HTMLElement;
+                        if (target.closest('button, a, input, select, textarea')) return;
+                        setViewTask(task);
+                      }}
+                    >
                         <td className="px-3 py-2">
                           <input
                             type="checkbox"

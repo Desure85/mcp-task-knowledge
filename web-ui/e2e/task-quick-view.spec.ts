@@ -68,7 +68,8 @@ test('UI-36: card opens a read-only quick view with full details', async ({ page
   }
 
   await page.goto('/tasks', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: title, exact: true }).click();
+  // The name opens the inline editor; the card's free area opens the preview.
+  await page.locator(`[data-task="${parent.id}"]`).click({ position: { x: 6, y: 6 } });
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(description);
@@ -87,9 +88,13 @@ test('UI-36: card opens a read-only quick view with full details', async ({ page
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
-  await expect(page.getByRole('button', { name: title, exact: true })).toBeFocused();
+  await expect(page.locator(`[data-task="${parent.id}"]`)).toBeFocused();
 
   await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(page.getByText('Edit task', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close editor' }).click();
+
+  await page.locator(`[data-task="${parent.id}"]`).click({ position: { x: 6, y: 6 } });
   const reopened = page.getByRole('dialog');
   await expect(reopened).toBeVisible();
   await reopened.getByRole('button', { name: 'Edit' }).click();

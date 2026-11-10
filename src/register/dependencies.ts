@@ -6,6 +6,7 @@ import { defaultStatusId, isDone, loadProjectWorkflow, statusCategory } from '..
 import { PaginationError, paginateRanked, pickFields, scopeOf } from '../utils/pagination.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
 import { projectTask, writeResponseArgs } from './write-response.js';
+import { storageProfile } from '../core/storage-context.js';
 
 export function registerDependencyTools(ctx: ServerContext): void {
   const { server } = ctx;
@@ -90,15 +91,16 @@ export function registerDependencyTools(ctx: ServerContext): void {
     },
     async ({ project, id }) => {
       const prj = resolveProject(project);
-      const { listTasks, getTask, getBlockingTasks, getBlockedByTask, isTaskBlocked } = await import('../storage/tasks.js');
+      const { getBlockingTasks, getBlockedByTask, isTaskBlocked } = await import('../storage/tasks.js');
+      const store = storageProfile(ctx).tasks;
 
-      const task = await getTask(prj, id);
+      const task = await store.get(prj, id);
       if (!task) {
         return err(`Task not found: ${prj}/${id}`);
       }
 
       const workflow = await loadProjectWorkflow(prj);
-      const allTasks = await listTasks({ project: prj, includeArchived: true, includeTrashed: true });
+      const allTasks = await store.list({ project: prj, includeArchived: true, includeTrashed: true });
       const byId = new Map(allTasks.map(t => [t.id, t] as const));
 
       const blocking = getBlockingTasks(task, byId);
