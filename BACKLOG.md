@@ -1859,7 +1859,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > executable-docs на Windows 20/20 красный (bash-блоки — ограничение среды, CI Linux зелёный).
 > RSS без флагов: 1300/1677 МБ ≤ 8 ГБ. Полные зелёные прогоны — CI Linux (bulk-smoke #350–#353),
 > локальный Windows baseline (symlink/unix/TLS/multicast/tar/devcycle) записан в решении.
-
+>
 > Примечание (2026-11-10, DX-11 done): `doctor` получил runtime health-gate — Node ≥20,
 > DATA_DIR exists/writable, config (отсутствие файла = штатные env/дефолты, битый JSON = error),
 > свободный порт для http/MCP_PORT, клиентские конфиги Claude Desktop/Cursor/.mcp.json (warning).
