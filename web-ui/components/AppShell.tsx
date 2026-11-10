@@ -17,14 +17,16 @@ import { api, clearAuthToken, hasAuthToken, resolveToken } from '@/lib/api-clien
 import { AUTH_EXPIRED_EVENT, decodeJwtClaims, isAuthRequiredError, isExpired } from '@/lib/auth';
 import { MobileNav, Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { Button } from './ui';
 
-type GateState = 'checking' | 'ready';
+type GateState = 'checking' | 'ready' | 'error';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === '/login';
   const [gate, setGate] = useState<GateState>('checking');
+  const [probeNonce, setProbeNonce] = useState(0);
 
   const toLogin = useCallback((expired = false) => {
     const here = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/';
@@ -38,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLogin) return;
     let alive = true;
+    setGate('checking');
     (async () => {
       if (hasAuthToken() && isExpired(decodeJwtClaims(resolveToken()))) {
         clearAuthToken();
@@ -54,16 +57,23 @@ export function AppShell({ children }: { children: ReactNode }) {
       } catch (e) {
         if (!alive) return;
         if (isAuthRequiredError(e)) toLogin();
-        else setGate('ready'); // server unreachable etc. — pages show their own errors
+        // UI-12: error wins over empty. A page must not render its empty state
+        // while the API is unreachable — show one shell-level retry instead.
+        else setGate('error');
       }
     })();
     return () => {
       alive = false;
     };
-  }, [isLogin, toLogin]);
+  }, [isLogin, toLogin, probeNonce]);
 
   useEffect(() => {
-    const onExpired = () => toLogin(true);
+    const onExpired = () => {
+      // The shell may already be on its way to /login?next=…; a second API
+      // failure from the topbar must not replace that query with expired-only.
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/login')) return;
+      toLogin(true);
+    };
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, [toLogin]);
@@ -86,6 +96,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mx-auto w-full max-w-[1400px]">
             {gate === 'ready' ? (
               children
+            ) : gate === 'error' ? (
+              <div role="alert" className="mx-auto max-w-xl py-16 text-center">
+                <h2 className="text-[20px] font-semibold text-ink">Server unavailable</h2>
+                <p className="mt-2 text-[13px] text-muted">
+                  The MCP server did not answer. Your data is safe — retry when it is back.
+                </p>
+                <Button className="mt-6" variant="primary" onClick={() => setProbeNonce((value) => value + 1)}>
+                  Retry
+                </Button>
+              </div>
             ) : (
               <p role="status" className="py-24 text-center text-[13px] text-muted">
                 Checking session…
