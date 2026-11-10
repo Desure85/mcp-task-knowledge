@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, CM-03a, T-01, UI-11a, UI-12a закрыты)
-**Текущая ветка:** feat/z04-plugin-security (от origin/master c221b5a, PR #369 влит)
-**Текущий этап:** бэклог по приоритету; Z-04 закрыт; UI-11/UI-12 pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — Z-03, UI-11b/UI-12b, AA-04
-**Статус:** Z-04: external trust, deny-by-default активация, hooks/scripts/mcp/network и лицензия видны; 5/5, 3 мутации RED. Песочницы исполнения нет — записано.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11a, UI-12a закрыты)
+**Текущая ветка:** feat/z12-agent-deploy (от origin/master e47ce19, PR #370 влит)
+**Текущий этап:** бэклог по приоритету; Z-12 закрыт; за ним — Z-11/Z-03 UI, UI-11b/UI-12b Playwright, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** Z-12: preview/apply/rollback деплоя по target, allowlist+symlink+external gates, snapshot; 6/6, 3 мутации RED, api-reference 143. Веб-админки/custom roots/конвертации нет — записано.
+
+### Сессия S-20261109-night (Z-12 — деплой по агентам)
+
+- `src/skills/agent-deploy.ts`: built-in roots universal/claude/opencode, preview (no writes), apply (confirm+token+snapshot), rollback; symlink lstat+realpath, external/delete gates.
+- `src/register/agent-deploy.ts`: `agents_deploy` (dry-run, elicitation, admin-only apply) и `agents_deploy_rollback`; api-reference 143, tools.md 141/143/145.
+- Проверено: 6/6 agent-deploy, 3 мутации RED; build/tsc/docs-coverage чистые.
+- Ограничения: веб-админки нет; custom deploy roots не реализованы; конвертации форматов нет (вопрос открыт).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0300-z-12.md`.
 
 ### Сессия S-20261109-night (Z-04 — безопасность пакетов)
 

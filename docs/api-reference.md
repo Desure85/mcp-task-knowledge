@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **141** — 139 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **143** — 141 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -19,6 +19,8 @@
 | `admin_user_set_password` | Replace a user password (admin only); existing personal tokens are revoked. |
 | `admin_user_set_roles` | Replace a user roles array (admin only). |
 | `admin_users_list` | List users from DATA_DIR/auth.db (admin only; hashes and tokens are never returned). |
+| `agents_deploy` | Preview or apply deployment of skills/prompts into their target agent directories. Preview writes no |
+| `agents_deploy_rollback` | Restore the files captured in a deploy snapshot and remove files it created. |
 | `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
 | `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
 | `cluster_nodes` | List all known cluster nodes with status and heartbeat info. |
@@ -408,6 +410,60 @@ List users from DATA_DIR/auth.db (admin only; hashes and tokens are never return
 {
   "name": "admin_users_list",
   "arguments": {}
+}
+```
+
+## agents_deploy
+
+**Deploy Agent Skills/Prompts**
+
+Preview or apply deployment of skills/prompts into their target agent directories. Preview writes nothing; apply requires confirm (MCP elicitation when not supplied) and snapshots every touched file.
+
+**Параметры:**
+
+- `artifacts`
+- `apply`
+- `confirm`
+- `previewToken`
+- `allowExternal`
+- `allowDelete`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "agents_deploy",
+  "arguments": {
+    "artifacts": "example",
+    "apply": "example",
+    "confirm": true,
+    "previewToken": "example",
+    "allowExternal": "example",
+    "allowDelete": "example"
+  }
+}
+```
+
+## agents_deploy_rollback
+
+**Rollback Agent Deployment**
+
+Restore the files captured in a deploy snapshot and remove files it created.
+
+**Параметры:**
+
+- `snapshotId`
+- `confirm`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "agents_deploy_rollback",
+  "arguments": {
+    "snapshotId": "example",
+    "confirm": true
+  }
 }
 ```
 
