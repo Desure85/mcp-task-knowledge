@@ -426,9 +426,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-10
 **Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-07 закрыты)
-**Текущая ветка:** feat/y06a2-postgres-search (от origin/master 1072248, PR #344 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07; Y-06 в работе (a1/a2 готовы; остался b — pgvector), затем Y-08 (migrate-storage)
-**Статус:** `Y-06a2` → done, **Y-06a закрыт**: Postgres `SearchProvider` — настоящий поиск на `tsvector`+GIN и `pg_trgm` через аддитивный `candidatesAsync`, индекс ведётся на мутациях и пересобирается `ensureIndexed`; проверено на **реальном PostgreSQL 18.6** (16/16, 126/126 затронутых, 6 мутаций RED). Ограничения: синхронный `candidates()` для Postgres — честный пустой список (реальный путь async), `vectors=false` до Y-06b (pgvector в окружении нет), CI-сервис Postgres не добавлен (токен без scope `workflow`). **Дальше: Y-06b** — pgvector/HNSW с гейтом расширения.
+**Текущая ветка:** feat/y06b-postgres-vectors (от origin/master 000dae1, PR #346 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07 (**Y-06 закрыт**); остался Y-08 (migrate-storage) и закрытие этапа
+**Статус:** `Y-06b` → done, **Y-06 закрыт**: Postgres `VectorProvider` — pgvector/HNSW при наличии расширения, иначе точный cosine-фолбэк по JSONB с честными `annAvailable()/annVersion()`; схема v2 (`vector_collections/vector_rows/vector_keys`), `CONFLICT` на смену размерности, индексация через общий `IndexingService`, `capabilities.vectors=true`. Проверено на реальном PostgreSQL 18.6: 18/18, 108/108 затронутых, 6 мутаций RED. Ограничения записаны: HNSW-путь не проверен локально (pgvector нет, CI-сервис без `workflow` scope), MU-02 требует расширения контракта. **Дальше: Y-08a** — migrate-storage file↔sqlite, затем Y-08b (Postgres) и закрытие этапа Y.
+
+### Сессия S-20261109-night (Y-06b — Postgres VectorProvider; Y-06 закрыт)
+
+- Схема v2: `vector_collections` (адрес/размерность/active), `vector_rows` (канонический JSONB-вектор), `vector_keys` (rowid ANN); проброс `pgvector/pgvectorVersion` из `db.ts` (`create extension vector` + `pg_extension`).
+- `vector-store.ts`: HNSW через `vec_<sha1>` + `vector_cosine_ops`, кандидаты `<=>` и точный косинус по каноническим строкам; без расширения — brute-force по JSONB; `annAvailable/annVersion` честные; `CONFLICT` на размерность; delete/clear/stats/collections.
+- Индексация: `PostgresProfileOptions.embeddingProvider/indexingManifestPath/externalPolicy` → `profile.indexing` на общем `IndexingService`; `setup` передаёт ту же фабрику провайдера.
+- Проверено: `tests/storage-postgres.test.ts` 18/18 против реального PostgreSQL 18.6 (fallback, фильтры, размерность, индексация); затронутые 108/108; tsc чистый; 6 мутаций RED.
+- Ограничения: pgvector/HNSW локально не проверен (нет расширения; CI-сервис без `workflow` scope) — записано; MU-02 вынесен отдельным пунктом, а не замаскирован.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0440-y-06b.md`.
 
 ### Сессия S-20261109-night (Y-06a2 — Postgres SearchProvider; Y-06a закрыт)
 

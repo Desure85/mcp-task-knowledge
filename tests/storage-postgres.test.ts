@@ -19,6 +19,7 @@ const connectionString = process.env.POSTGRES_URL;
 const describePostgres = connectionString ? describe : describe.skip;
 
 
+
 describePostgres('Y-06a1: Postgres profile', () => {
   let profile: Awaited<ReturnType<typeof createPostgresProfile>>;
   let blobsDir: string;
@@ -28,7 +29,9 @@ describePostgres('Y-06a1: Postgres profile', () => {
     profile = await createPostgresProfile({ connectionString: connectionString!, blobsDir });
     const { Pool } = await import('pg');
     const pool = new Pool({ connectionString: connectionString! });
-    await pool.query('truncate tasks, docs, doc_versions, projects, events, snapshots, search_index, search_state');
+    await pool.query(
+      'truncate tasks, docs, doc_versions, projects, events, snapshots, search_index, search_state, vector_collections, vector_rows, vector_keys',
+    );
     await pool.end();
   });
 
@@ -180,6 +183,118 @@ describe('Y-06a2: Postgres search (tsvector + pg_trgm)', () => {
   });
 });
 
+function pgVectorRecord(id: string, vector: number[], overrides: Record<string, unknown> = {}) {
+  const fingerprint = 'pg-fake|3|mean||';
+  const collection = 'pg-fake-collection::file-chunking:v1:size=2000:overlap=200::build-text:v1';
+  return {
+    store: 'knowledge',
+    kind: 'doc' as const,
+    project: 'vec',
+    id,
+    fingerprint,
+    collection,
+    collectionMeta: { chunkingVersion: 'file-chunking:v1:size=2000:overlap=200', buildTextVersion: 'build-text:v1' },
+    vector: Float32Array.from(vector),
+    ...overrides,
+  };
+}
+
+function pgFakeEmbeddingProvider() {
+  const calls: string[][] = [];
+  const fingerprint = { modelId: 'pg-fake-vector-model', dimension: 3, pooling: 'mean' as const, queryPrefix: '', docPrefix: '' };
+  return {
+    calls,
+    provider: {
+      fingerprint: () => fingerprint,
+      isReady: () => true,
+      async embedQuery(text: string) {
+        return Float32Array.from([text.length, 1, 0]);
+      },
+      async embedDocuments(texts: string[]) {
+        calls.push([...texts]);
+        return texts.map((text) => Float32Array.from([text.length, 1, 0]));
+      },
+    },
+  };
+}
+
+describe('Y-06b: Postgres vectors', () => {
+  it('stores, queries, filters and clears vectors with an honest ANN flag', async () => {
+    const record = pgVectorRecord('a', [1, 0, 0]);
+    await profile.vectors.upsert([
+      pgVectorRecord('a', [1, 0, 0]),
+      pgVectorRecord('b', [0.7, 0.7, 0]),
+      pgVectorRecord('c', [0, 1, 0]),
+      pgVectorRecord('task', [1, 0, 0], { store: 'tasks', kind: 'task' }),
+      pgVectorRecord('other', [1, 0, 0], { project: 'other' }),
+    ]);
+    const stats = await profile.vectors.stats();
+    expect(stats.total).toBe(5);
+    expect(stats.collections[record.collection]).toBe(5);
+
+    const matches = await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+      fingerprint: record.fingerprint,
+      limit: 10,
+    });
+    expect(matches.map((match) => match.id)).toEqual(['a', 'task', 'other', 'b', 'c']);
+    expect(matches[0].score).toBeCloseTo(1, 5);
+
+    const scoped = await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+      fingerprint: record.fingerprint,
+      project: 'vec',
+      kind: 'doc',
+      limit: 5,
+    });
+    expect(scoped.map((match) => match.id)).toEqual(['a', 'b', 'c']);
+
+    const onlyBest = await profile.vectors.query(Float32Array.from([1, 0, 0]), {
+      fingerprint: record.fingerprint,
+      minScore: 0.9,
+      limit: 10,
+    });
+    expect(onlyBest.map((match) => match.id)).toEqual(['a', 'task', 'other']);
+
+    const collections = await (profile.vectors as unknown as { collections(): Promise<Array<{ id: string; vectors: number; active: boolean }>> }).collections();
+    expect(collections[0]).toMatchObject({ id: record.collection, vectors: 5, active: true });
+
+    await profile.vectors.delete('knowledge', 'doc', ['a']);
+    expect((await profile.vectors.stats()).total).toBe(4);
+    await expect(profile.vectors.upsert([pgVectorRecord('bad', [1, 0])])).rejects.toMatchObject({ code: 'CONFLICT' });
+
+    const store = profile.vectors as unknown as { annAvailable(): boolean; annVersion(): string | null };
+    expect(typeof store.annAvailable()).toBe('boolean');
+    // In this environment pgvector is absent (embedded Postgres ships without it): the fallback is
+    // exact cosine and annAvailable must say so instead of pretending.
+    if (!store.annAvailable()) expect(store.annVersion()).toBeNull();
+
+    await profile.vectors.clear();
+    expect((await profile.vectors.stats()).total).toBe(0);
+  });
+
+  it('indexes Postgres collections through the shared IndexingService', async () => {
+    const { provider, calls } = pgFakeEmbeddingProvider();
+    const manifestPath = path.join(blobsDir, 'pg-index-manifest.json');
+    const indexedProfile = await createPostgresProfile({ connectionString: connectionString!, blobsDir, embeddingProvider: async () => provider, indexingManifestPath: manifestPath });
+    try {
+      expect(indexedProfile.indexing).toBeDefined();
+      await indexedProfile.tasks.create({ project: 'idx', title: 'indexable task', description: 'body text' });
+      await indexedProfile.docs.create({ project: 'idx', title: 'indexable doc', content: 'doc body' });
+      await indexedProfile.indexing!.ensureIndexed('idx');
+      await (indexedProfile.indexing as unknown as { drain(): Promise<void> }).drain();
+      expect((await indexedProfile.vectors.stats()).total).toBe(2);
+      expect(calls.flat()).toHaveLength(2);
+
+      await indexedProfile.indexing!.ensureIndexed('idx');
+      await (indexedProfile.indexing as unknown as { drain(): Promise<void> }).drain();
+      expect(calls.flat()).toHaveLength(2);
+      expect(fs.existsSync(manifestPath)).toBe(true);
+      expect(indexedProfile.indexing!.status('idx')[0]).toMatchObject({ done: 4, skipped: 2 });
+    } finally {
+      indexedProfile.close?.();
+    }
+  });
+});
+
   it('publishes an honest manifest and leaves unimplemented capabilities unavailable', async () => {
     expect(profile.manifest.profile).toBe('postgres');
     expect(profile.manifest.collections).toEqual([
@@ -193,13 +308,12 @@ describe('Y-06a2: Postgres search (tsvector + pg_trgm)', () => {
       'locks',
       'blobs',
     ]);
-    expect(profile.manifest.capabilities).toMatchObject({ transactions: true, history: true, fullText: true, vectors: false });
+    expect(profile.manifest.capabilities).toMatchObject({ transactions: true, history: true, fullText: true, vectors: true });
     expect(profile.search.available()).toBe(true);
     // Sync facade cannot query the async driver; the registrar uses candidatesAsync (present).
     expect(typeof profile.search.candidatesAsync).toBe('function');
-    await expect(profile.vectors.query(Float32Array.from([1]), { fingerprint: 'f', limit: 1 })).rejects.toMatchObject({
-      code: 'CAPABILITY_UNAVAILABLE',
-    });
+    // Y-06b: vectors work with an exact-cosine fallback; ANN depends on the pgvector extension.
+    expect(typeof (await profile.vectors.stats()).total).toBe('number');
     expect(profile.prompts).toBeDefined();
     expect(profile.memory).toBeDefined();
     expect(profile.blobs?.kind).toBe('file');
