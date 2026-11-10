@@ -426,9 +426,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-10
 **Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-07 закрыты)
-**Текущая ветка:** feat/y07b-s3-blob-provider (от origin/master dc1d8be, PR #342 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07; остались Y-06 (Postgres+pgvector) и Y-08 (migrate-storage)
-**Статус:** `Y-07b` → done, **Y-07 закрыт**: S3/MinIO-`BlobProvider` с SigV4 без SDK (canonical request → signing key → Authorization, подписанные `x-amz-content-sha256`/`x-amz-meta-sha256`, lazy bucket, path-style MinIO, prefix, NOT_FOUND/idempotent delete, env-конфиг `BLOB_S3_*`), тот же `runBlobProviderContract` для файлового и S3-бэкендов; MinIO-прогон включается через `BLOB_S3_*`, но CI-сервис не добавлен — токен `gh` без scope `workflow`, ограничение записано; локально без Docker MinIO-часть документированно пропускается, fake-S3 покрывает протокол. 18 тестов + 1 skip локально, 51/51 затронутых, 6 мутаций RED. **Дальше: Y-06a** — профиль Postgres (Store/Search/History/Lock, сервис Postgres в CI).
+**Текущая ветка:** feat/y06a-postgres-profile (от origin/master 4828465, PR #343 влит)
+**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07; Y-06 в работе (a1 готов; остались a2 — поиск, b — pgvector), затем Y-08 (migrate-storage)
+**Статус:** `Y-06a1` → done: Postgres-профиль Store-коллекций (JSONB-задачи/документы/проекты, версии документов, история, события write-behind, `pg_advisory_xact_lock`; `STORAGE_PROFILE=postgres` + обязательный `POSTGRES_URL`). Гейт среды снят: контрактные тесты прогнаны против **настоящего PostgreSQL 18.6** через npm `embedded-postgres` (Docker-демон недоступен), 12/12; CI-сервис Postgres не добавлен — токен без scope `workflow`, ограничение записано. `fullText=false` до Y-06a2, `vectors=false` до Y-06b, claims — `CAPABILITY_UNAVAILABLE`. 97/97 затронутых (+1 skip), 6 мутаций RED. **Дальше: Y-06a2** — `SearchProvider` на tsvector+pg_trgm.
+
+### Сессия S-20261109-night (Y-06a1 — Postgres Store-коллекции)
+
+- `db.ts`: пул + схема (JSONB задачи/доки, doc_versions, projects, events/snapshots, locks, search_index tsvector+GIN, search_state), pg_trgm при наличии прав; зависимости pg/@types/pg точными версиями.
+- `index.ts`: `createPostgresProfile` — TaskStore/DocStore/ProjectStore/History/EventLog(write-behind с flush)/LockProvider(pg_advisory_xact_lock), prompts/memory/blobs — общие файловые реализации; search/vectors — честные заглушки (`fullText=false`, `vectors=false`).
+- `profile-select`/`setup`: `STORAGE_PROFILE=postgres`, обязательный `POSTGRES_URL`, `CONFIG_MISMATCH` с подсказкой; файловый — по умолчанию.
+- Проверено: `tests/storage-postgres.test.ts` 12/12 против реального PostgreSQL 18.6 (embedded-postgres в scratch, не зависимость проекта); затронутые `storage-sqlite`/`storage-wiring`/`storage-contract`/`blob-provider` — 97/97 (+1 skip); tsc чистый; 6 мутаций RED.
+- Среда: CI-сервис Postgres добавить не удалось (нет scope `workflow`) — записано; проверка выполнена на настоящей СУБД локально.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0340-y-06a1.md`; документация `docs/features/storage-profile-postgres.md`.
 
 ### Сессия S-20261109-night (Y-07b — S3/MinIO BlobProvider; Y-07 закрыт)
 

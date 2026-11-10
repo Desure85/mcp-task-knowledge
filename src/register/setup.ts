@@ -11,6 +11,8 @@ import type { VectorSearchAdapter } from "../search/index.js";
 import { createFileProfile } from '../storage/profiles/file/index.js';
 import { createSqliteProfile } from '../storage/profiles/sqlite/index.js';
 import { readStorageProfileKind } from '../storage/profile-select.js';
+import { createPostgresProfile } from '../storage/profiles/postgres/index.js';
+import { StoreError } from '../storage/contracts.js';
 import { DATA_DIR } from '../config.js';
 import { createFileEmbeddingProvider, type EmbeddingAdapterLike } from '../search/embeddings-file.js';
 import {
@@ -463,13 +465,24 @@ export async function createServerContext(): Promise<ServerContext> {
     embeddingProvider: embeddingProviderFactory,
   };
   const storage =
-    storageKind === 'sqlite'
-      ? createSqliteProfile({
-          databasePath: path.join(DATA_DIR, '.index', 'storage.sqlite'),
-          embeddingProvider: embeddingProviderFactory,
-          externalPolicy,
+    storageKind === 'postgres'
+      ? await createPostgresProfile({
+          connectionString: process.env.POSTGRES_URL ?? '',
+          ...(process.env.STORAGE_BLOBS_DIR ? { blobsDir: process.env.STORAGE_BLOBS_DIR } : {}),
+        }).catch((error) => {
+          throw error instanceof StoreError
+            ? error
+            : new StoreError('CONFIG_MISMATCH', `postgres profile failed to open: ${(error as Error).message}`, {
+                hint: 'set POSTGRES_URL to a reachable PostgreSQL connection string',
+              });
         })
-      : createFileProfile(fileStorageOptions);
+      : storageKind === 'sqlite'
+        ? createSqliteProfile({
+            databasePath: path.join(DATA_DIR, '.index', 'storage.sqlite'),
+            embeddingProvider: embeddingProviderFactory,
+            externalPolicy,
+          })
+        : createFileProfile(fileStorageOptions);
   log.info({ storageProfile: storage.manifest.profile }, 'storage profile selected');
 
   const ctx: ServerContext = {

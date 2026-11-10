@@ -11,14 +11,17 @@ import { StoreError } from './contracts.js';
 import { createFileProfile, type FileProfileOptions } from './profiles/file/index.js';
 import { createSqliteProfile } from './profiles/sqlite/index.js';
 
-export type StorageProfileKind = 'file' | 'sqlite';
+// Y-06a: Postgres uses an async factory (createPostgresProfile) because a connection must be
+// established before the profile exists; createStorageProfile stays sync for file/sqlite and
+// refuses postgres with a hint instead of pretending it can build it synchronously.
+export type StorageProfileKind = 'file' | 'sqlite' | 'postgres';
 
 export function readStorageProfileKind(env: NodeJS.ProcessEnv = process.env): StorageProfileKind {
   const raw = (env.STORAGE_PROFILE ?? 'file').trim().toLowerCase();
-  if (raw === 'file' || raw === 'sqlite') return raw;
+  if (raw === 'file' || raw === 'sqlite' || raw === 'postgres') return raw;
   throw new StoreError(
     'CONFIG_MISMATCH',
-    `unknown STORAGE_PROFILE="${raw}"; expected "file" or "sqlite"`,
+    `unknown STORAGE_PROFILE="${raw}"; expected "file", "sqlite" or "postgres"`,
   );
 }
 
@@ -30,6 +33,13 @@ export interface StorageProfileSelection extends FileProfileOptions {
 
 export function createStorageProfile(selection: StorageProfileSelection = {}): StorageProfile {
   const kind = selection.kind ?? readStorageProfileKind();
+  if (kind === 'postgres') {
+    throw new StoreError(
+      'CONFIG_MISMATCH',
+      'postgres profile is created by the async createPostgresProfile (connection must be established first)',
+      { hint: 'call createPostgresProfile({ connectionString }) from setup' },
+    );
+  }
   if (kind === 'sqlite') {
     if (!selection.databasePath) {
       throw new StoreError('CONFIG_MISMATCH', 'sqlite profile requires databasePath');
