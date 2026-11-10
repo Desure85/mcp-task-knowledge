@@ -1865,7 +1865,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > свободный порт для http/MCP_PORT, клиентские конфиги Claude Desktop/Cursor/.mcp.json (warning).
 > 6/6 тестов, 3 мутации RED; интеграция в конец `setup` отложена до DX-10 (setup-команды пока нет) —
 > записано в решении, а не выдано за сделанное.
-
+>
 > Примечание (2026-11-10, DX-16 закрыт): umbrella-пункт закрыт по evidence подпунктов DX-16a/DX-16b
 > (`admin_backup`/`admin_restore`, формат/манифест/sha256, dry-run/applyToken/lock/prune, CLI
 > `scripts/dev-cli.mjs backup|restore`, ADR-008). Нового кода не добавлялось. Локальный Windows-прогон
