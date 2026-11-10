@@ -61,6 +61,10 @@ export default function TaskPage() {
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [dagEdges, setDagEdges] = useState<Array<{ from: string; to: string }>>([]);
   const [children, setChildren] = useState<Task[]>([]);
+  const [deps, setDeps] = useState<Awaited<ReturnType<typeof api.tasks.getDeps>> | null>(null);
+  const [depQuery, setDepQuery] = useState('');
+  const [depError, setDepError] = useState<string | null>(null);
+  const [rootChain, setRootChain] = useState<Array<{ id: string; title: string; status: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -102,7 +106,7 @@ export default function TaskPage() {
         const current = await api.projects.getCurrent();
         if (!alive) return;
         setProject(current.project);
-        const [taskResult, statusResult, transitionResult, typeResult, listResult, dagResult, childrenResult] =
+        const [taskResult, statusResult, transitionResult, typeResult, listResult, dagResult, childrenResult, depsResult] =
           await Promise.allSettled([
             api.tasks.get(current.project, id),
             api.projects.statuses.get(current.project),
@@ -111,6 +115,7 @@ export default function TaskPage() {
             api.tasks.list(current.project),
             api.tasks.dag(current.project),
             api.tasks.getChildren(current.project, id),
+            api.tasks.getDeps(current.project, id),
           ]);
         if (!alive) return;
         if (taskResult.status === 'rejected') {
@@ -126,6 +131,23 @@ export default function TaskPage() {
         if (listResult.status === 'fulfilled') setAllTasks(listResult.value);
         if (dagResult.status === 'fulfilled') setDagEdges(dagResult.value.edges);
         if (childrenResult.status === 'fulfilled') setChildren(childrenResult.value.children);
+        if (depsResult.status === 'fulfilled') {
+          setDeps(depsResult.value);
+          const chain: Array<{ id: string; title: string; status: string }> = [];
+          let cursor = depsResult.value.dependsOn[0];
+          const seen = new Set<string>();
+          while (cursor && !seen.has(cursor.id) && chain.length < 10) {
+            seen.add(cursor.id);
+            chain.push(cursor);
+            try {
+              const next = await api.tasks.getDeps(current.project, cursor.id);
+              cursor = next.dependsOn[0];
+            } catch {
+              break;
+            }
+          }
+          setRootChain(chain);
+        }
       } catch (e) {
         if (alive) setError((e as Error).message);
       } finally {
@@ -156,6 +178,34 @@ export default function TaskPage() {
   );
 
   const subtasks = children;
+
+  const refreshDeps = async () => {
+    if (!project) return;
+    try {
+      setDeps(await api.tasks.getDeps(project, id));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const setDependency = async (next: string[]) => {
+    if (!project) return;
+    setDepError(null);
+    try {
+      const updated = await api.tasks.update(project, id, { dependsOn: next });
+      hydrate(updated);
+      await refreshDeps();
+    } catch (e) {
+      if (e instanceof ToolCallError && e.code === 'DEPENDENCY_CYCLE') {
+        setDepError(`${e.code}: ${e.message}`);
+      } else {
+        setError((e as Error).message);
+      }
+    }
+  };
+
+  const addDependency = (depId: string) => setDependency([...(task?.dependsOn ?? []), depId]);
+  const removeDependency = (depId: string) => setDependency((task?.dependsOn ?? []).filter((value) => value !== depId));
 
   const save = async () => {
     if (!project || !task) return;
@@ -387,30 +437,75 @@ export default function TaskPage() {
           <Card>
             <CardHeader title="Dependencies" />
             <CardBody>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Depends on</p>
-              {(task.dependsOn ?? []).length === 0 ? (
+              <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Dependency state</p>
+              <p className={`mt-1 text-[12px] ${deps?.isBlocked ? 'text-danger' : 'text-muted'}`}>
+                {deps?.isBlocked ? 'Blocked by unmet dependencies' : 'Dependencies satisfied'}
+              </p>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Depends on</p>
+              {rootChain.length > 0 && (
+                <p className="mt-1 text-[11px] text-muted">
+                  Root chain: {rootChain.map((node) => `${node.title} (${statusLabel.get(node.status) ?? node.status})`).join(' → ')}
+                </p>
+              )}
+              {(deps?.dependsOn ?? []).length === 0 ? (
                 <p className="mt-1 text-[12px] text-muted">No dependencies.</p>
               ) : (
                 <ul className="mt-1 space-y-1 text-[12px]">
-                  {(task.dependsOn ?? []).map((depId) => (
-                    <li key={depId}>
-                      <Link href={`/tasks/${depId}`} className="text-accent underline">
-                        {taskTitleById.get(depId) ?? depId}
-                      </Link>
+                  {(deps?.dependsOn ?? []).map((dep) => (
+                    <li key={dep.id} className="flex items-center justify-between gap-2">
+                      <span>
+                        <Link href={`/tasks/${dep.id}`} className="text-accent underline">{dep.title}</Link>
+                        <span className="ml-1 text-muted">({statusLabel.get(dep.status) ?? dep.status})</span>
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => void removeDependency(dep.id)}>
+                        Remove
+                      </Button>
                     </li>
                   ))}
                 </ul>
               )}
+
+              <div className="mt-3">
+                <Input
+                  label="Add dependency"
+                  value={depQuery}
+                  onChange={(event) => setDepQuery(event.target.value)}
+                  placeholder="Search tasks…"
+                />
+                {depQuery.trim().length > 0 && (
+                  <ul className="mt-1 space-y-1 text-[12px]">
+                    {allTasks
+                      .filter(
+                        (item) =>
+                          item.id !== id &&
+                          !(task?.dependsOn ?? []).includes(item.id) &&
+                          item.title.toLowerCase().includes(depQuery.trim().toLowerCase()),
+                      )
+                      .slice(0, 5)
+                      .map((item) => (
+                        <li key={item.id} className="flex items-center justify-between gap-2">
+                          <span>{item.title}</span>
+                          <Button variant="secondary" size="sm" onClick={() => void addDependency(item.id)}>
+                            Add
+                          </Button>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+              {depError && (
+                <p role="alert" className="mt-2 text-[12px] text-danger">{depError}</p>
+              )}
+
               <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Blocks</p>
-              {blocking.length === 0 ? (
+              {(deps?.dependedBy ?? []).length === 0 ? (
                 <p className="mt-1 text-[12px] text-muted">Does not block other tasks.</p>
               ) : (
                 <ul className="mt-1 space-y-1 text-[12px]">
-                  {blocking.map((item) => (
+                  {(deps?.dependedBy ?? []).map((item) => (
                     <li key={item.id}>
-                      <Link href={`/tasks/${item.id}`} className="text-accent underline">
-                        {item.title}
-                      </Link>
+                      <Link href={`/tasks/${item.id}`} className="text-accent underline">{item.title}</Link>
+                      <span className="ml-1 text-muted">({statusLabel.get(item.status) ?? item.status})</span>
                     </li>
                   ))}
                 </ul>
