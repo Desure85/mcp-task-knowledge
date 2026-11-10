@@ -98,6 +98,23 @@ flowchart TD
 | LAN Relay zero-dep discovery | `src/relay/discovery.ts` | UDP multicast вместо mDNS-библиотеки (BM-012) |
 | Type-check тестов | `tsconfig.test.json` | tests/** включены в tsc, моки проверяются satisfies (TD-012, Q-012) |
 
+## Подключаемое хранилище (этап Y)
+
+Инструменты читают данные через контракты `src/storage/contracts.ts` (ADR-009). Профиль задаётся
+`STORAGE_PROFILE`:
+
+- `file` — JSON/Markdown + производные metadata/FTS индексы (поведение по умолчанию не менялось);
+- `sqlite` — одна БД `DATA_DIR/.index/storage.sqlite`: Store/History/Events/Locks, FTS5-поиск,
+  sqlite-vec с точным cosine-фолбэком;
+- `postgres` — `POSTGRES_URL`: JSONB Store/History/Events/Locks, `tsvector`+GIN и `pg_trgm`
+  поиск, pgvector/HNSW при наличии расширения (иначе brute-force cosine).
+
+Все профили проходят один контрактный набор (`tests/storage-contract-shared.test.ts`), а перенос
+данных выполняет `migrate-storage` (file↔sqlite↔postgres, dry-run/идемпотентность/checksums; runbook —
+[`features/migrate-storage.md`](features/migrate-storage.md)). Возможности профиля публикуются в манифесте
+честно (`capabilities`), `doctor` показывает активный профиль и манифест. Профильные benchmark'и
+на 100k — в [`benchmarks/`](benchmarks/README.md).
+
 ## ADR (Architecture Decision Records)
 
 Ключевые решения документированы в [docs/adr/](adr/):
