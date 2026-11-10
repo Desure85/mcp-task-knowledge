@@ -30,6 +30,7 @@ import { readSchemaManifest, CURRENT_SCHEMA } from '../services/schema-version.j
 import type { Task } from '../types.js';
 import { inspectIndex, formatIndexSection, type IndexInspection } from './index-inspect.js';
 import { inspectActiveStorageProfile, type StorageProfileSummary } from './storage-profile-inspect.js';
+import { runHealthGate, type HealthReport } from './health.js';
 import {
   inspectSqliteStorage,
   type SqliteStorageReport,
@@ -58,6 +59,8 @@ export interface DoctorReport {
   sqlite?: SqliteStorageReport;
   /** Gate §5.6: active profile, its manifest and capabilities (honest, incl. errors). */
   storage?: StorageProfileSummary;
+  /** DX-11: runtime health gate (Node, DATA_DIR, config, port, client config). */
+  health?: HealthReport;
   issues: DoctorIssue[];
   errors: number;
   warnings: number;
@@ -544,6 +547,18 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
     }
   }
 
+  let health: HealthReport | undefined;
+  try {
+    health = await runHealthGate({ dataDir: paths.dataDir, env: process.env });
+    for (const check of health.checks) {
+      if (!check.ok) {
+        issues.push({ level: check.level, check: `health-${check.name}`, file: 'doctor', detail: check.detail });
+      }
+    }
+  } catch (error) {
+    issues.push({ level: 'warn', check: 'health', file: 'doctor', detail: (error as Error).message });
+  }
+
   let storage: StorageProfileSummary | undefined;
   try {
     storage = await inspectActiveStorageProfile(paths.dataDir);
@@ -561,6 +576,7 @@ export async function scanDataDir(paths: DoctorPaths, opts: DoctorOptions = {}):
     index,
     sqlite,
     storage,
+    health,
     issues,
     errors: issues.filter((i) => i.level === 'error').length,
     warnings: issues.filter((i) => i.level === 'warn').length,
@@ -576,6 +592,10 @@ export function formatReport(report: DoctorReport): string {
   lines.push(`Scanned: ${report.scanned.json} json, ${report.scanned.md} md`);
   lines.push(`Schema: ${report.schema.found} (supported: ${report.schema.current})`);
   if (report.index) lines.push(...formatIndexSection(report.index));
+  if (report.health) {
+    const h = report.health;
+    lines.push(`Health: ${h.ok ? 'ok' : 'issues'} — ${h.checks.map((check) => `${check.name}=${check.ok ? 'ok' : check.detail}`).join('; ')}`);
+  }
   if (report.storage) {
     const s = report.storage;
     lines.push(`Storage profile: ${s.profile}${s.error ? ` (${s.error})` : ''}`);
