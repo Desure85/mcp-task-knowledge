@@ -305,8 +305,12 @@ export function createS3BlobProvider(options: S3BlobProviderOptions): BlobProvid
       return Number(length);
     },
     async delete(key: string): Promise<boolean> {
+      // S3 DELETE is idempotent: it returns 204 even when the key is absent, so the contract's
+      // "false if there was nothing to delete" requires a HEAD first (MinIO CI run caught this).
+      const head = await send('HEAD', urlFor(objectKey(key)), undefined);
+      if (head.status === 404) return false;
+      if (!head.ok) failure('HEAD', key, head, await head.text().catch(() => ''));
       const response = await send('DELETE', urlFor(objectKey(key)), undefined);
-      if (response.status === 404) return false;
       if (!response.ok && response.status !== 204) failure('DELETE', key, response, await response.text().catch(() => ''));
       return true;
     },
