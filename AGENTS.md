@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-11, DX-16 закрыты)
-**Текущая ветка:** feat/dx-16-umbrella-close (от origin/master 8419b34, PR #355 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-11/DX-16; следующий high — DX-10 (setup)
-**Статус:** DX-16 закрыт как umbrella: DX-16a/DX-16b уже done (tools + CLI + ADR-008), строка отставала от факта. Нового кода нет; Windows-часть DX-16 тестов красная по среде (tar/symlink), CI Linux — гейт.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-11, DX-16, DX-10 закрыты)
+**Текущая ветка:** feat/dx-10-setup (от origin/master 68b896b, PR #356 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16; дальше — DX-29 (зависит от blocked DX-12), MU-07/TK-02/T-01 по зависимостям
+**Статус:** DX-10: `setup` — детект пяти клиентов, `--client X --yes`, идемпотентный merge с бэкапом, stdio self-check (129 tools) в temp-DATA_DIR, health-gate DX-11; 8/8 тестов, 4 мутации RED, live exit 0. Ограничение: self-check dist, не npx-доставка.
+
+### Сессия S-20261109-night (DX-10 — setup-установщик)
+
+- `src/cli/setup.ts`: детект Claude Desktop/Cursor/Windsurf/VS Code/Claude Code; merge в `mcpServers`/`servers` с сохранением чужих записей, бэкапом и атомарной записью; повторный запуск `unchanged`.
+- Self-check: спавн stdio, `initialize`→`initialized`→`tools/list`, live 129 tools; probe в temp-DATA_DIR (нет .server.lock), корректное завершение по EOF; health-gate DX-11 в конце.
+- `index.ts`: диспетчер `setup`; `health.ts`: динамический импорт config, чтобы setup работал без DATA_DIR.
+- Проверено: 8/8 тестов, 4 мутации RED, live `✓ 129 tools` + `Health: ok`, повтор — unchanged; tsc/build чистые.
+- Ограничение: self-check проверяет собранный dist, не npx-доставку; интерактив минимален.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1300-dx-10.md`.
 
 ### Сессия S-20261109-night (DX-16 — закрытие umbrella)
 

@@ -87,10 +87,29 @@ async function maybeRunReindex(): Promise<void> {
   }
 }
 
+async function maybeRunSetup(): Promise<void> {
+  if (process.argv[2] !== 'setup') return;
+  // DX-10: setup runs before DATA_DIR is configured; the module resolves defaults/args itself and
+  // only imports config-dependent code after it has chosen the directory.
+  const { runSetupCli } = await import('./cli/setup.js');
+  try {
+    const result = await runSetupCli(process.argv.slice(3));
+    if (result.text) {
+      if (result.exitCode === 0) process.stdout.write(`${result.text}\n`);
+      else process.stderr.write(`${result.text}\n`);
+    }
+  } catch (err) {
+    process.stderr.write(`setup: crashed: ${(err as Error).message}\n`);
+    process.exit(2);
+  }
+}
+
 if (process.argv[2] === 'doctor') {
   void maybeRunCli();
 } else if (process.argv[2] === 'reindex') {
   void maybeRunReindex();
+} else if (process.argv[2] === 'setup') {
+  void maybeRunSetup();
 } else if (process.argv[2] === 'bridge') {
   void runBridge();
 } else {
