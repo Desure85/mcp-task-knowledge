@@ -42,6 +42,7 @@ import type { ToolMeta } from '../registry/tool-registry.js';
 import { EventBus } from './event-bus.js';
 import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
 import { createServerContext } from '../register/setup.js';
+import { buildServerInstructions, setServerInstructions } from './server-instructions.js';
 import { registerHelpers } from '../register/helpers.js';
 import { registerCatalogTools } from '../register/catalog.js';
 import { registerResources } from '../register/resources.js';
@@ -192,6 +193,8 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerToolsIntrospection(ctx);
   registerLogTools(ctx);
   registerDebugResources(ctx);
+  // CM-03: generated from the live registry after registration, so domain counts are real.
+  setServerInstructions(ctx.server, buildServerInstructions(ctx.toolRegistry.list({ limit: 300 }).data));
 }
 
 // ─── Valid state transitions ──────────────────────────────────────────
