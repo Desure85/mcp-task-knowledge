@@ -1912,7 +1912,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > dummy-хеш для неизвестного, токены только sha256, revoke/expiry, bootstrap env-админа); `/auth/login`
 > читает store с env-fallback. 8/8 + 11/11 тестов, 4 мутации RED. T-01 остаётся pending: админ-UI/
 > MCP-инструменты и подключение токенов к `AuthManager` — T-01b.
-
+>
 > Примечание (2026-11-10, T-01b done): 8 admin-MCP-инструментов (пользователи/роли/пароль/
 > disable/токены), personal-token `TokenValidator` композируется с JWT/static; 5/5 тестов,
 > 3 мутации RED. T-01 остаётся pending: web-админка — T-01c (raw-токен только один раз).
