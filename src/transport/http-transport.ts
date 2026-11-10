@@ -636,11 +636,11 @@ export class HttpTransportAdapter implements TransportAdapter {
       name: this.serverInfo?.name ?? 'mcp-task-knowledge',
       version: this.serverInfo?.version ?? '0.0.0',
     });
-    if (this.serverCtx) {
-      setServerInstructions(
-        sessionServer,
-        buildServerInstructions(this.serverCtx.toolRegistry.list({ limit: 300 }).data),
-      );
+    const registry = this.serverCtx?.toolRegistry as unknown as
+      | { list?: (options: { limit: number }) => { data: Array<{ name: string }> } }
+      | undefined;
+    if (registry?.list) {
+      setServerInstructions(sessionServer, buildServerInstructions(registry.list({ limit: 300 }).data));
     }
     await sessionServer.connect(transport);
 

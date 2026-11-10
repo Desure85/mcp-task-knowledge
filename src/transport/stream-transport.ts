@@ -253,11 +253,11 @@ abstract class StreamTransportAdapter implements TransportAdapter {
     const server = new McpServer(
       { name: this.serverInfo!.name, version: this.serverInfo!.version },
     );
-    if (this.serverCtx) {
-      setServerInstructions(
-        server,
-        buildServerInstructions(this.serverCtx.toolRegistry.list({ limit: 300 }).data),
-      );
+    const registry = this.serverCtx?.toolRegistry as unknown as
+      | { list?: (options: { limit: number }) => { data: Array<{ name: string }> } }
+      | undefined;
+    if (registry?.list) {
+      setServerInstructions(server, buildServerInstructions(registry.list({ limit: 300 }).data));
     }
 
     this.sessions.set(id, {
