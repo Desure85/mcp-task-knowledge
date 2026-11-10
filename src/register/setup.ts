@@ -27,6 +27,7 @@ import { createSecretManager } from '../core/secret-manager.js';
 import type { ServerContext } from './context.js';
 import { ToolRegistry } from '../registry/tool-registry.js';
 import { childLogger } from '../core/logger.js';
+import { ensureBootstrapAdmin, SqliteUserStore } from '../auth/user-store.js';
 import { wrapToolHandler } from '../core/auth-gate.js';
 import type { GateExtra } from '../core/auth-gate.js';
 import { guardUnknownParams, looseInputSchema, readInputShape } from '../core/tool-arguments.js';
@@ -487,12 +488,20 @@ export async function createServerContext(): Promise<ServerContext> {
         : createFileProfile(fileStorageOptions);
   log.info({ storageProfile: storage.manifest.profile }, 'storage profile selected');
 
+  // T-01a: auth.db is opened only when login/auth is configured; env admin is a bootstrap row.
+  let userStore: SqliteUserStore | undefined;
+  if (process.env.JWT_SECRET || process.env.MCP_LOGIN_USER || process.env.MCP_LOGIN_PASSWORD) {
+    userStore = new SqliteUserStore(path.join(DATA_DIR, 'auth.db'));
+    ensureBootstrapAdmin(userStore);
+  }
+
   const ctx: ServerContext = {
     server,
     // Y-02e: one profile per server context (file profile today; STORAGE_PROFILE
     // selects another profile in Y-05/Y-06). Registrators read collections from here
     // instead of importing storage modules (Y-02e2/e3).
     storage,
+    ...(userStore ? { userStore } : {}),
     cfg,
     catalogCfg,
     catalogProvider,

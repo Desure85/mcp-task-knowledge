@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a закрыты)
-**Текущая ветка:** feat/aa-05-opencode-suite (от origin/master ccc2fda, PR #361 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01/AA-05/Z-01/CM-03a; CM-03 pending (CM-03b), дальше — T-01, UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** AA-05: OpenCode-комплект в repo (session-draft, сборщик, end-session, memory-плагины), инвентаризация и все расхождения — `docs/plugins/opencode.md`; 3/3 тестов, 2 мутации RED. Живые копии не перезаписывались.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01a закрыты)
+**Текущая ветка:** feat/t01a-user-store (от origin/master a8c762d, PR #362 влит)
+**Текущий этап:** бэклог по приоритету; T-01a закрыт, T-01 остаётся pending (T-01b — админ-UI/инструменты и валидатор токенов); CM-03 pending (CM-03b); дальше — UI-11/UI-12, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** T-01a: `UserStore` на SQLite `auth.db`, scrypt+dummy, роли/disabled, токены sha256/revoke/expiry, `/auth/login` через store с env-bootstrap; 8/8 + 11/11 тестов, 4 мутации RED.
+
+### Сессия S-20261109-night (T-01a — UserStore, scrypt, личные токены)
+
+- `src/auth/user-store.ts`: интерфейс+SQLite, scrypt N=16384/r8/p1, dummy-хеш для неизвестного, роли/disabled, смена пароля отзывает токены, токены только sha256+prefix, revoke/expiry, `ensureBootstrapAdmin`.
+- `login-route`: `userStore` primary + env fallback; fail-closed env-only сохранён; HTTP-транспорт передаёт store; `setup` открывает `auth.db` только при JWT/LOGIN env.
+- Проверено: 8/8 store, 11/11 login-route, 25/25 transport; 4 мутации RED (revoked/expired/disabled/plaintext).
+- Не сделано: админ-MCP/UI и валидатор личных токенов в `AuthManager` — T-01b; T-01 pending.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1900-t01a.md`.
 
 ### Сессия S-20261109-night (AA-05 — OpenCode suite в репозитории)
 

@@ -22,6 +22,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import * as jose from 'jose';
 import { AuthProtection } from '../core/auth-protection.js';
 import { childLogger } from '../core/logger.js';
+import type { UserStore } from '../auth/user-store.js';
 
 const log = childLogger('transport:login');
 
@@ -46,6 +47,8 @@ export interface LoginRouteOptions {
   maxAttempts?: number;
   /** Failure window / lockout duration in ms. Default: 5 minutes. */
   windowMs?: number;
+  /** T-01: when provided, credentials are checked against users in auth.db instead of env only. */
+  userStore?: UserStore;
 }
 
 /** True for `/auth/login` (with optional trailing slash or query string). */
@@ -107,42 +110,15 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(raw);
 }
 
-interface LoginConfig {
-  username: string;
-  password: string;
-  jwtSecret: string;
-}
-
-/**
- * Resolve credentials lazily. Returns a config, or the error body to send
- * when the endpoint is not configured (fail-closed).
- */
-function readConfig(): { config: LoginConfig } | { error: { message: string } } {
-  const username = (process.env.MCP_LOGIN_USER ?? '').trim();
-  const password = process.env.MCP_LOGIN_PASSWORD ?? '';
-  if (!username || !password) {
-    return {
-      error: { message: 'Login is not configured (set MCP_LOGIN_USER and MCP_LOGIN_PASSWORD)' },
-    };
-  }
-  const jwtSecret = process.env.JWT_SECRET ?? '';
-  if (!jwtSecret) {
-    return {
-      error: { message: 'Login is not configured (set JWT_SECRET)' },
-    };
-  }
-  return { config: { username, password, jwtSecret } };
-}
-
-async function issueToken(config: LoginConfig): Promise<string> {
+async function issueToken(username: string, roles: string[], jwtSecret: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  return await new jose.SignJWT({ roles: [...LOGIN_ROLES] })
+  return await new jose.SignJWT({ roles })
     .setProtectedHeader({ alg: 'HS256' })
-    .setSubject(config.username)
+    .setSubject(username)
     .setJti(randomUUID())
     .setIssuedAt(now)
     .setExpirationTime(now + LOGIN_TOKEN_TTL_SECONDS)
-    .sign(textEncoder.encode(config.jwtSecret));
+    .sign(textEncoder.encode(jwtSecret));
 }
 
 /**
@@ -176,13 +152,23 @@ export function createLoginHandler(options: LoginRouteOptions = {}): LoginHandle
       return;
     }
 
-    const resolved = readConfig();
-    if ('error' in resolved) {
+    const jwtSecret = process.env.JWT_SECRET ?? '';
+    if (!jwtSecret) {
       log.warn({ ip, reason: 'login_disabled' }, 'login rejected');
-      sendError(res, 503, 'LOGIN_DISABLED', resolved.error.message);
+      sendError(res, 503, 'LOGIN_DISABLED', 'Login is not configured (set JWT_SECRET)');
       return;
     }
-    const { config } = resolved;
+    // The env admin is a bootstrap only; when a store exists it is the primary source of users.
+    const envUser = (process.env.MCP_LOGIN_USER ?? '').trim();
+    const envPassword = process.env.MCP_LOGIN_PASSWORD ?? '';
+    // Fail closed when neither the env bootstrap nor a non-disabled store user exists. A store
+    // created by setup while no user was added must not silently enable an empty login.
+    const storeReady = options.userStore?.listUsers().some((user) => !user.disabled) ?? false;
+    if ((!envUser || !envPassword) && !storeReady) {
+      log.warn({ ip, reason: 'login_disabled' }, 'login rejected');
+      sendError(res, 503, 'LOGIN_DISABLED', 'Login is not configured (set MCP_LOGIN_USER and MCP_LOGIN_PASSWORD)');
+      return;
+    }
 
     const verdict = protection.check(ip);
     if (!verdict.allowed) {
@@ -216,12 +202,20 @@ export function createLoginHandler(options: LoginRouteOptions = {}): LoginHandle
       return;
     }
 
-    // Compare both fields (no short-circuit) so timing does not reveal
-    // which one was wrong; the response is a single generic message.
-    const userMatches = safeEqual(suppliedUser, config.username);
-    const passwordMatches = safeEqual(suppliedPassword, config.password);
+    // A store check always runs scrypt (even for an unknown user); the env fallback keeps the
+    // original bootstrap admin working. Both branches return one generic message.
+    let authenticated: { userId: string; roles: string[] } | null = null;
+    if (options.userStore) {
+      const user = options.userStore.authenticate(suppliedUser, suppliedPassword);
+      if (user) authenticated = { userId: user.userId, roles: user.roles };
+    }
+    if (!authenticated && envUser && envPassword) {
+      const userMatches = safeEqual(suppliedUser, envUser);
+      const passwordMatches = safeEqual(suppliedPassword, envPassword);
+      if (userMatches && passwordMatches) authenticated = { userId: envUser, roles: [...LOGIN_ROLES] };
+    }
 
-    if (!userMatches || !passwordMatches) {
+    if (!authenticated) {
       protection.recordFailure(ip);
       log.warn(
         { userId: suppliedUser.slice(0, MAX_LOGGED_USER_LENGTH), ip, reason: 'invalid_credentials' },
@@ -235,19 +229,19 @@ export function createLoginHandler(options: LoginRouteOptions = {}): LoginHandle
 
     let token: string;
     try {
-      token = await issueToken(config);
+      token = await issueToken(authenticated.userId, authenticated.roles, jwtSecret);
     } catch (err) {
       log.error({ err, ip }, 'failed to sign login token');
       sendError(res, 500, 'INTERNAL_ERROR', 'Failed to issue token');
       return;
     }
 
-    log.info({ userId: config.username, ip }, 'login succeeded');
+    log.info({ userId: authenticated.userId, ip }, 'login succeeded');
     sendJson(res, 200, {
       ok: true,
       token,
       expiresIn: LOGIN_TOKEN_TTL_SECONDS,
-      user: { id: config.username, roles: [...LOGIN_ROLES] },
+      user: { id: authenticated.userId, roles: authenticated.roles },
     });
   };
 }
