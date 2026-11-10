@@ -310,7 +310,7 @@ export class HttpTransportAdapter implements TransportAdapter {
     const apiHandler = createOpenAPIHandler(ctx);
     // Username/password login for the browser UI. Sessionless by design:
     // it only issues a JWT, the existing MCP auth gate still guards tools.
-    const loginHandler = createLoginHandler();
+    const loginHandler = createLoginHandler({ userStore: this.serverCtx?.userStore });
     const logoutHandler = createLogoutHandler({ revoke: (jti, exp) => ctx.revokeJwt?.(jti, exp) });
 
     // Create health handlers if a HealthChecker is provided

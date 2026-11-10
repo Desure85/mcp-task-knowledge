@@ -111,6 +111,8 @@ export interface ServerContext {
    * read it lazily per call — fail-closed on http/tcp when absent.
    */
   authManager?: AuthManager;
+  /** T-01a: SQLite auth.db users/tokens; present when login/auth is configured. */
+  userStore?: import('../auth/user-store.js').UserStore;
 
   /**
    * Active transport type ('stdio' | 'http' | 'tcp' | ...). Set by
