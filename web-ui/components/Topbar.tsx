@@ -52,9 +52,9 @@ export function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-[var(--spacing-topbar)] items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur sm:px-6">
       <div className="min-w-0">
-        <h1 className="truncate text-[13px] font-semibold leading-tight tracking-tight text-ink">
+        <div className="truncate text-[13px] font-semibold leading-tight tracking-tight text-ink" aria-hidden="true">
           {meta.title}
-        </h1>
+        </div>
         <p className="truncate text-[11px] leading-tight text-muted">{meta.subtitle}</p>
       </div>
 

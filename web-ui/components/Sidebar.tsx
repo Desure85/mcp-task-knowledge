@@ -115,7 +115,7 @@ export function MobileNav() {
             }`}
           >
             <Icon className={`h-3.5 w-3.5 ${active ? 'text-accent' : 'text-muted'}`} />
-            {item.label}
+            {item.shortLabel ?? item.label}
           </Link>
         );
       })}

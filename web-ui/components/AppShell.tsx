@@ -69,11 +69,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <a
+        href="#main-content"
+        className="sr-only rounded-[var(--radius-control)] bg-accent px-3 py-2 text-[13px] text-on-accent focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+      >
+        Skip to content
+      </a>
       <Sidebar />
       <div className="lg:pl-[var(--spacing-nav)]">
         <Topbar />
         <MobileNav />
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main id="main-content" tabIndex={-1} className="px-4 py-6 outline-none sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-[1400px]">
             {gate === 'ready' ? (
               children
