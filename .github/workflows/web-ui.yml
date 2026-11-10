@@ -38,6 +38,8 @@ jobs:
           MCP_HOST: 127.0.0.1
           MCP_CORS_ORIGIN: '*'
           JWT_SECRET: e2e-webui-secret
+          MCP_LOGIN_USER: admin
+          MCP_LOGIN_PASSWORD: demo
         run: |
           mkdir -p "$DATA_DIR"
           node dist/index.js &
@@ -54,5 +56,11 @@ jobs:
       - name: Build web-ui
         working-directory: web-ui
         run: npm run build
+      - name: Accessibility e2e (Playwright + axe)
+        working-directory: web-ui
+        env:
+          E2E_LOGIN_USER: admin
+          E2E_LOGIN_PASSWORD: demo
+        run: npx playwright test
       - name: Docker build (web-ui image)
         run: docker build -f web-ui/Dockerfile -t mcp-task-knowledge-webui:ci .
