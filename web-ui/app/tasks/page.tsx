@@ -195,7 +195,7 @@ export default function TasksPage() {
     try {
       if (!quiet) setLoading(true);
       const type = serverTypeRef.current;
-      const data = await api.tasks.list(currentProject, type ?? undefined);
+      const data = await api.tasks.list(currentProject, { ...(type ? { type } : {}), includeGraphMetrics: true });
       loadedServerType.current = type;
       setTasks(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -220,7 +220,7 @@ export default function TasksPage() {
         setProject(currentProject);
 
         const [taskResult, statusResult, transitionResult, typeResult] = await Promise.allSettled([
-          api.tasks.list(currentProject),
+          api.tasks.list(currentProject, { includeGraphMetrics: true }),
           api.projects.statuses.get(currentProject),
           api.projects.transitions.get(currentProject),
           api.projects.types.get(currentProject),

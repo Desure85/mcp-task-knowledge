@@ -819,7 +819,7 @@ export const api = {
     // Второй аргумент — либо тип задачи (V-03), либо объект параметров пагинации.
     list: (project?: string, typeOrArgs?: string | Record<string, unknown>) => {
       const extra = typeof typeOrArgs === 'string' ? { type: typeOrArgs } : (typeOrArgs ?? {});
-      return callToolAll<Task>('tasks_list', { project, includeGraphMetrics: true, ...extra });
+      return callToolAll<Task>('tasks_list', { project, ...extra });
     },
     create: (input: { title: string; project?: string; priority?: string; status?: string; type?: string; tags?: string[]; parentId?: string; description?: string; links?: string[] }) =>
       callTool<Task>('tasks_create', input),
