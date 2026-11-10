@@ -17,6 +17,23 @@ jobs:
   bulk-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Gate §5.3 этапа Y: настоящие сервисы для контрактных прогонов.
+    # Postgres — штатный service; MinIO запускается docker run ниже, потому что
+    # GitHub Actions services не умеют передавать команду `server /data` образу minio/minio.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mcp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mcp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       APP_DIR: ${{ github.workspace }}
       DATA_DIR: ${{ github.workspace }}/.data
@@ -63,6 +80,49 @@ jobs:
         run: |
           npm run test:types --silent
           npm test --silent
+
+      # Gate §5.3 (этап Y): тот же контрактный набор, но против реального PostgreSQL.
+      # Последовательно (maxWorkers=1), чтобы storage-postgres и storage-migrate не делили одну БД.
+      - name: Storage contracts against real Postgres
+        env:
+          EMBEDDINGS_MODE: none
+          POSTGRES_URL: postgres://postgres:postgres@127.0.0.1:5432/mcp_test
+        run: |
+          npx vitest run tests/storage-postgres.test.ts tests/storage-migrate.test.ts --maxWorkers=1
+
+      # Gate §5.3 (этап Y): MinIO как настоящий S3-совместимый сервис для blob-контракта.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio server /data
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              echo "MinIO ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO did not start"
+          docker logs minio || true
+          exit 1
+
+      - name: Blob contract against real MinIO
+        env:
+          EMBEDDINGS_MODE: none
+          BLOB_S3_ENDPOINT: http://127.0.0.1:9000
+          BLOB_S3_BUCKET: mcp-test
+          BLOB_S3_ACCESS_KEY: minioadmin
+          BLOB_S3_SECRET_KEY: minioadmin
+          BLOB_S3_REGION: us-east-1
+        run: |
+          npx vitest run tests/blob-provider.test.ts --maxWorkers=1
+
+      - name: Stop MinIO
+        if: always()
+        run: docker rm -f minio || true
 
       - name: Enforce coverage threshold (Q-005)
         env:
