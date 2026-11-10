@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01 закрыты)
-**Текущая ветка:** feat/aa-01-agent-core-adr (от origin/master 20db52a, PR #358 влит)
-**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01; дальше — Z-01 (модель скилл-пакета), T-01 (пользователи/токены), UI-11/UI-12, AA-04/05/07; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** AA-01: ADR-0010 — ядро/клиенты, режимы, владение DATA_DIR, сигналы, Windows-границы, отказ от лидера; 4 `##`-раздела, lint зелёный, кода не менялось.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, Z-01 закрыты)
+**Текущая ветка:** feat/z-01-skill-package (от origin/master a226782, PR #359 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-10/DX-11/DX-16/CM-01/AA-01/Z-01; дальше — T-01 (пользователи/токены), UI-11/UI-12, AA-04/05/07; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** Z-01: модель скилл-пакета — `SKILL.md`+вложения, sha256, лимиты, безопасные пути, symlink запрещён, `SkillPackageStore`; 12/12 тестов, 5 мутаций RED. Не подключено к SkillManager — записанный следующий инкремент.
+
+### Сессия S-20261109-night (Z-01 — модель скилл-пакета)
+
+- `src/skills/skill-package.ts`: read/write skill package, безопасные относительные пути (traversal/absolute/drive/ADS/Windows-reserved), symlink reject, лимиты 1 MiB/файл, 10 MiB/пакет, 200 файлов; sha256/детерминированный порядок; `SkillPackageStore` (staging+rename, list/read/remove, explicit overwrite).
+- Проверено: 12/12, 5 мутаций RED (traversal, per-file и total лимиты, дубликаты, усечённый хэш); tsc/build чистые; wire-формат не менялся.
+- Ограничение: модуль не подключён к SkillManager/MCP-инструментам; symlink-тест на Windows без привилегии пропускается.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1600-z-01.md`.
 
 ### Сессия S-20261109-night (AA-01 — ADR общего ядра)
 

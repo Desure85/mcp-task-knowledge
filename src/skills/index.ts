@@ -19,3 +19,21 @@ export type { SkillExportFormat, ExportResult } from './skill-converters.js';
 
 export { SkillPermissions } from './skill-permissions.js';
 export type { SkillScope, InvocationCaller, InvocationContext, PermissionDecision, PermissionResult } from './skill-permissions.js';
+export {
+  SKILL_FILE_NAME,
+  SKILL_PACKAGE_LIMITS,
+  SkillPackageError,
+  SkillPackageStore,
+  readSkillPackage,
+  writeSkillPackage,
+  normalizeSkillPackagePath,
+  normalizeSkillPackageName,
+  resolveSkillPackagePath,
+} from './skill-package.js';
+export type {
+  SkillPackage,
+  SkillPackageFile,
+  SkillPackageInputFile,
+  SkillPackageOptions,
+  SkillPackageErrorCode,
+} from './skill-package.js';
