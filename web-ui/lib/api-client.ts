@@ -813,6 +813,8 @@ export const api = {
     getSubtree: (project: string, id: string) => callTool<unknown>('tasks_get_subtree', { project, id }),
     bulkUpdate: (project: string, items: Array<{ id: string } & Record<string, unknown>>) =>
       callTool<{ count: number; results: Task[]; failed?: Array<{ id: string; error: Record<string, unknown> }> }>('tasks_bulk_update', { project, items }),
+    bulkClose: (project: string, ids: string[]) =>
+      callTool<{ count: number; results: Task[]; failed?: Array<{ id: string; error: Record<string, unknown> }> }>('tasks_bulk_close', { project, ids }),
     // ВРЕМЕННО: дерево отдаёт корневые узлы страницами (SC-04 сделает это в UI).
     tree: (project?: string, status?: string, type?: string) =>
       callToolAll<unknown>('tasks_tree', { project, status, ...(type ? { type } : {}) }),

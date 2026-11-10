@@ -72,6 +72,11 @@ import {
 } from '@/components/icons';
 
 type Priority = 'low' | 'medium' | 'high';
+type TaskView = 'board' | 'list';
+type TaskSortKey = 'priority' | 'title' | 'status';
+
+const VIEW_STORAGE_KEY = 'mcp.tasksView';
+const PRIORITY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 const INPUT_CLASS =
   'h-9 w-full rounded-[var(--radius-control)] border border-line bg-surface px-3 text-[13px] text-ink placeholder:text-muted transition duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-focus-ring/30';
@@ -140,6 +145,13 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterTag, setFilterTag] = useState<string>('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [view, setView] = useState<TaskView>('board');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<{ key: TaskSortKey; dir: 'asc' | 'desc' }>({
+    key: 'priority',
+    dir: 'desc',
+  });
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [dragging, setDragging] = useState<DraggingCard | null>(null);
   const [hoverCell, setHoverCell] = useState<string | null>(null);
   const [moveNotice, setMoveNotice] = useState<MoveNotice | null>(null);
@@ -615,6 +627,70 @@ export default function TasksPage() {
   });
 
   const filtersActive = Boolean(searchQuery) || filterPriority !== 'all' || Boolean(filterTag);
+
+  // UI-16: board/list is a user preference, not a server concept. Reading it
+  // after mount keeps the server-rendered board and the restored view apart.
+  useEffect(() => {
+    const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (saved === 'board' || saved === 'list') setView(saved);
+  }, []);
+
+  const chooseView = useCallback((next: TaskView) => {
+    setView(next);
+    setSelectedIds(new Set());
+    window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+  }, []);
+
+  const sortedTasks = useMemo(() => {
+    const direction = sort.dir === 'asc' ? 1 : -1;
+    const statusLabel = (id: string) => statuses.find((status) => status.id === id)?.label ?? id;
+    return [...filtered].sort((a, b) => {
+      if (sort.key === 'priority') {
+        return ((PRIORITY_RANK[a.priority] ?? 0) - (PRIORITY_RANK[b.priority] ?? 0)) * direction;
+      }
+      if (sort.key === 'status') return statusLabel(a.status).localeCompare(statusLabel(b.status)) * direction;
+      return a.title.localeCompare(b.title) * direction;
+    });
+  }, [filtered, sort, statuses]);
+
+  const toggleSort = (key: TaskSortKey) => {
+    setSort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
+    );
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allVisibleSelected =
+    sortedTasks.length > 0 && sortedTasks.every((task) => selectedIds.has(task.id));
+
+  const closeSelected = async () => {
+    if (!project || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const ids = [...selectedIds];
+      const result = await api.tasks.bulkClose(project, ids);
+      const updated = new Map(result.results.map((task) => [task.id, task]));
+      setTasks((prev) => prev.map((task) => updated.get(task.id) ?? task));
+      setSelectedIds(new Set());
+      if (result.failed?.length) {
+        setError(`${result.failed.length} task(s) could not be closed`);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const countFor = (statusId: string) => filtered.filter((task) => task.status === statusId).length;
   const skeletonStatuses = statuses.filter((status) => !status.archived).slice(0, 6);
 
@@ -691,6 +767,25 @@ export default function TasksPage() {
         description="Drag cards between columns to change status. Click a title to edit."
         actions={
           <>
+            <div
+              role="group"
+              aria-label="Task view"
+              className="inline-flex rounded-[var(--radius-control)] border border-line bg-surface-2 p-0.5"
+            >
+              {(['board', 'list'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={view === mode}
+                  onClick={() => chooseView(mode)}
+                  className={`h-7 rounded-[calc(var(--radius-control)-2px)] px-2.5 text-[12px] font-medium capitalize transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${
+                    view === mode ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
             <Button type="button" variant="secondary" onClick={() => void toggleDag()}>
               <IconDependencies className="h-4 w-4 text-muted" />
               {showDag ? 'Hide DAG' : 'Dependencies'}
@@ -1033,6 +1128,106 @@ export default function TasksPage() {
               <SkeletonColumn />
             </div>
           ))}
+        </div>
+      ) : view === 'list' ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-3 py-2">
+            <p className="text-[12px] text-muted">
+              <span className="font-medium text-ink">{selectedIds.size}</span> selected
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={selectedIds.size === 0 || bulkBusy}
+              onClick={() => void closeSelected()}
+            >
+              {bulkBusy ? 'Closing…' : 'Close selected'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={selectedIds.size === 0}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </Button>
+            <p className="ml-auto text-[11px] text-muted">Sort by priority reorders the rows.</p>
+          </div>
+
+          {sortedTasks.length === 0 ? (
+            <EmptyState
+              title="No tasks in this view"
+              hint={filtersActive ? 'No task matches the current filters.' : 'Create a task to fill the list.'}
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface">
+              <table className="w-full min-w-[720px] text-left text-[13px]">
+                <thead className="bg-surface-2 text-[11px] uppercase tracking-[0.06em] text-muted">
+                  <tr>
+                    <th className="w-10 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all tasks"
+                        checked={allVisibleSelected}
+                        onChange={() =>
+                          setSelectedIds(
+                            allVisibleSelected ? new Set() : new Set(sortedTasks.map((task) => task.id)),
+                          )
+                        }
+                      />
+                    </th>
+                    <th className="px-3 py-2" aria-sort={sort.key === 'title' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button type="button" onClick={() => toggleSort('title')} className="font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+                        Task {sort.key === 'title' ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2" aria-sort={sort.key === 'status' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button type="button" onClick={() => toggleSort('status')} className="font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+                        Status {sort.key === 'status' ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2" aria-sort={sort.key === 'priority' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button type="button" onClick={() => toggleSort('priority')} className="font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring">
+                        Priority {sort.key === 'priority' ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2">Tags</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTasks.map((task) => {
+                    const status = statuses.find((item) => item.id === task.status);
+                    return (
+                      <tr key={task.id} data-task-id={task.id} className="border-t border-line align-top">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${task.title}`}
+                            checked={selectedIds.has(task.id)}
+                            onChange={() => toggleSelected(task.id)}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingTask({ ...task })}
+                            className="text-left font-medium text-ink hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                          >
+                            {task.title}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-muted">{status?.label ?? task.status}</td>
+                        <td className="px-3 py-2">
+                          <Badge>{task.priority}</Badge>
+                        </td>
+                        <td className="px-3 py-2 text-muted">{(task.tags ?? []).join(', ') || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : visibleColumns.length === 0 ? (
         <EmptyState

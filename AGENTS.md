@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15 закрыты)
-**Текущая ветка:** feat/ui-11b-page-contract (от origin/master 9ee93a2, PR #373 влит)
-**Текущий этап:** бэклог по приоритету; UI-11/UI-12/UI-15 закрыты; за ним — UI-16/UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-11b: 12 маршрутов (h1/nav/screenshot), skip-link focus, Overview; 14/14, full Playwright 41/41. Baselines платформонезависимые, CI Linux.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16 закрыты)
+**Текущая ветка:** feat/ui-16-task-list (от origin/master a330f17, PR #374 влит)
+**Текущий этап:** бэклог по приоритету; UI-11/12/15/16 закрыты; за ним — UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-16: Board/List, сортировка, bulk close; 2/2 e2e, full Playwright 43/43; 2 мутации RED.
+
+### Сессия S-20261109-night (UI-16 — список и bulk close)
+
+- `app/tasks/page.tsx`: Board/List (`mcp.tasksView`), таблица с сортировкой/выбором, `tasks_bulk_close`.
+- `web-ui/lib/api-client.ts`: `tasks.bulkClose`.
+- `e2e/tasks-list.spec.ts`: персист вида + priority sort; 3 задачи закрыты, reload подтверждает. 2/2, full 43/43.
+- Мутации RED: без localStorage; обратный PRIORITY_RANK.
+- Ограничения: чипы TK-01/TK-02 и агентские действия U-01/U-03 не делались; сортировка клиентская.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0700-ui-16.md`.
 
 ### Сессия S-20261109-night (UI-11b — Playwright-контракт; UI-11 закрыт)
 
