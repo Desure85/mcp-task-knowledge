@@ -1877,7 +1877,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > идемпотентно мержит `mcpServers` с бэкапом, делает stdio self-check (`initialize`→`tools/list`,
 > live — 129 tools) и health-gate DX-11. 8/8 тестов, 4 мутации RED. Ограничение: self-check проверяет
 > собранный dist, а не npx-доставку; интерактив минимален.
-
+>
 > Примечание (2026-11-10, CM-01 done): `tests/tools-run-batch-contract.test.ts` фиксирует текущее
 > поведение — порядок = порядку items, default не останавливается на ошибке, `stopOnError`
 > останавливает, `tools_batch` параллелен (барьер + счётчик активных, без sleep), без флага
