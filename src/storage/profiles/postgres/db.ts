@@ -10,7 +10,7 @@
 
 import pg from 'pg';
 
-export const POSTGRES_SCHEMA_VERSION = 1;
+export const POSTGRES_SCHEMA_VERSION = 2;
 
 export interface PostgresDatabaseOptions {
   /** libpq connection string; caller-provided (no config import here). */
@@ -25,6 +25,10 @@ export interface PostgresDatabase {
   pool: pg.Pool;
   /** True when `pg_trgm` was installed/available — used by SearchProvider honestly. */
   trgm: boolean;
+  /** True when the `vector` (pgvector) extension is available — Y-06b ANN path. */
+  pgvector: boolean;
+  /** pgvector version when available (null otherwise), reported instead of guessed. */
+  pgvectorVersion: string | null;
   close(): Promise<void>;
 }
 
@@ -114,6 +118,39 @@ create table if not exists search_state (
   dirty boolean not null default false,
   updated_at timestamptz not null default now()
 );
+
+-- Y-06b: vector collections and canonical vectors. ANN tables are created per collection
+-- (dimension is part of the collection address) only when pgvector is available.
+create table if not exists vector_collections (
+  collection text primary key,
+  fingerprint text not null,
+  chunking_version text not null,
+  build_text_version text not null,
+  dimension integer not null,
+  active boolean not null default false,
+  read_only boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table if not exists vector_rows (
+  collection text not null,
+  store text not null,
+  kind text not null,
+  project text not null,
+  id text not null,
+  fingerprint text not null,
+  embedding jsonb not null,
+  primary key (collection, store, kind, project, id)
+);
+create index if not exists vector_rows_identity on vector_rows(store, kind, project);
+create table if not exists vector_keys (
+  collection text not null,
+  vec_id bigint not null,
+  store text not null,
+  kind text not null,
+  project text not null,
+  id text not null,
+  primary key (collection, store, kind, project, id)
+);
 `;
 
 export async function openPostgresDatabase(options: PostgresDatabaseOptions): Promise<PostgresDatabase> {
@@ -123,6 +160,8 @@ export async function openPostgresDatabase(options: PostgresDatabaseOptions): Pr
     application_name: 'mcp-task-knowledge',
   });
   let trgm = false;
+  let pgvector = false;
+  let pgvectorVersion: string | null = null;
   try {
     await pool.query('select 1');
     if (options.manageExtensions !== false) {
@@ -133,6 +172,20 @@ export async function openPostgresDatabase(options: PostgresDatabaseOptions): Pr
         // Managed databases may forbid CREATE EXTENSION; the search provider degrades honestly.
         trgm = false;
       }
+      try {
+        await pool.query('create extension if not exists vector');
+      } catch {
+        // pgvector is optional: the vector store falls back to exact cosine over jsonb rows.
+      }
+    }
+    try {
+      const installed = await pool.query("select extversion from pg_extension where extname = 'vector'");
+      if (installed.rows[0]) {
+        pgvector = true;
+        pgvectorVersion = String(installed.rows[0].extversion);
+      }
+    } catch {
+      pgvector = false;
     }
     await pool.query(SCHEMA_SQL);
     await pool.query(
@@ -147,6 +200,8 @@ export async function openPostgresDatabase(options: PostgresDatabaseOptions): Pr
   return {
     pool,
     trgm,
+    pgvector,
+    pgvectorVersion,
     close: async () => {
       await pool.end();
     },

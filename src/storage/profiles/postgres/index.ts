@@ -57,6 +57,10 @@ import {
 } from '../../../workflow.js';
 import type { ProjectWorkflow } from '../../../workflow.js';
 import { openPostgresDatabase, type PostgresDatabase } from './db.js';
+import { createPostgresVectorStore } from './vector-store.js';
+import { createFileIndexingService } from '../../../search/indexing-service.js';
+import { createFileChunkingStrategy } from '../../../search/embeddings-file.js';
+import type { EmbeddingProvider } from '../../../search/contracts.js';
 import { buildTextForDoc, buildTextForTask } from '../../../search/index.js';
 import type { SearchIndexFillState, SearchProvider } from '../../contracts.js';
 import { FileMemoryStore, FilePromptStore } from '../file/index.js';
@@ -68,8 +72,21 @@ export interface PostgresProfileOptions {
   maxConnections?: number;
   /** Root for the profile's local `blobs` collection; caller-provided. */
   blobsDir?: string;
-  /** Test hook: skip `create extension pg_trgm` when the role cannot install it. */
+  /** Test hook: skip `create extension` when the role cannot install extensions. */
   manageExtensions?: boolean;
+  /** Y-06b: lazy embedding provider factory; enables the indexing queue when present. */
+  embeddingProvider?: () => Promise<EmbeddingProvider | undefined>;
+  /** Y-06b: manifest of indexed content hashes; defaults next to blobs. */
+  indexingManifestPath?: string;
+  /** Y-04a policy applied before items enter the indexing queue. */
+  externalPolicy?: (item: {
+    store: string;
+    kind: 'task' | 'doc' | 'chunk';
+    project: string;
+    id: string;
+    text: string;
+    trustLevel?: 'system' | 'user' | 'external';
+  }) => { allowed: boolean; reason?: string };
 }
 
 function isoNow(): string {
@@ -143,6 +160,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     manageExtensions: options.manageExtensions,
   });
   const { pool } = database;
+  const vectors = createPostgresVectorStore(database);
 
   // ─── tasks ───────────────────────────────────────────────────────────────
   async function readTask(project: string, id: string): Promise<Task | null> {
@@ -778,7 +796,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
   const profile: StorageProfile = {
     manifest: {
       profile: 'postgres',
-      capabilities: { transactions: true, history: true, fullText: true, vectors: false, efficientListing: true },
+      capabilities: { transactions: true, history: true, fullText: true, vectors: true, efficientListing: true },
       roots: {},
       collections: ['tasks', 'docs', 'projects', 'prompts', 'memory', 'events', 'history', 'locks', 'blobs'],
     },
@@ -787,13 +805,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     project: projectStore,
     prompts,
     search,
-    vectors: {
-      upsert: () => Promise.reject(new StoreError('CAPABILITY_UNAVAILABLE', 'Postgres vectors require pgvector (Y-06b)', { capability: 'vectors' })),
-      delete: () => Promise.reject(new StoreError('CAPABILITY_UNAVAILABLE', 'Postgres vectors require pgvector (Y-06b)', { capability: 'vectors' })),
-      query: () => Promise.reject(new StoreError('CAPABILITY_UNAVAILABLE', 'Postgres vectors require pgvector (Y-06b)', { capability: 'vectors' })),
-      stats: () => Promise.resolve({ collections: {}, total: 0 }),
-      clear: () => Promise.reject(new StoreError('CAPABILITY_UNAVAILABLE', 'Postgres vectors require pgvector (Y-06b)', { capability: 'vectors' })),
-    },
+    vectors,
     blobs,
     memory,
     events,
@@ -803,6 +815,54 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
       void database.close();
     },
   };
+  if (options.embeddingProvider) {
+    const manifestPath =
+      options.indexingManifestPath ??
+      path.join(options.blobsDir ?? process.cwd(), 'postgres-index-manifest.json');
+    profile.indexing = createFileIndexingService({
+      store: vectors,
+      chunker: createFileChunkingStrategy(),
+      provider: options.embeddingProvider,
+      manifestPath,
+      externalPolicy: options.externalPolicy,
+      collect: async (project: string) => {
+        const projectTasks = (await listTasks({ project, includeArchived: true, includeTrashed: true })) as Task[];
+        const projectDocs = await listDocs({ project, includeArchived: true, includeTrashed: true });
+        type CollectItem = {
+          store: string;
+          kind: 'task' | 'doc';
+          project: string;
+          id: string;
+          text: string;
+          trustLevel?: 'system' | 'user' | 'external';
+        };
+        const items: CollectItem[] = projectTasks
+          .filter((task) => !task.archived && !task.trashed)
+          .map((task) => ({
+            store: 'tasks',
+            kind: 'task' as const,
+            project,
+            id: task.id,
+            text: buildTextForTask(task),
+          })) as CollectItem[];
+        for (const meta of projectDocs) {
+          if (meta.archived || meta.trashed) continue;
+          const doc = await readDoc(meta.project, meta.id);
+          if (!doc) continue;
+          items.push({
+            store: 'knowledge',
+            kind: 'doc' as const,
+            project,
+            id: doc.id,
+            text: buildTextForDoc(doc),
+            ...(doc.trustLevel === undefined ? {} : { trustLevel: doc.trustLevel }),
+          });
+        }
+        return items;
+      },
+    });
+  }
+
   return profile;
 }
 

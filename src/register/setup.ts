@@ -468,6 +468,8 @@ export async function createServerContext(): Promise<ServerContext> {
     storageKind === 'postgres'
       ? await createPostgresProfile({
           connectionString: process.env.POSTGRES_URL ?? '',
+          embeddingProvider: embeddingProviderFactory,
+          externalPolicy,
           ...(process.env.STORAGE_BLOBS_DIR ? { blobsDir: process.env.STORAGE_BLOBS_DIR } : {}),
         }).catch((error) => {
           throw error instanceof StoreError
