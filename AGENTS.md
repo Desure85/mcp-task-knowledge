@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y закрыт, TS-01 и DX-11 закрыты)
-**Текущая ветка:** feat/dx-11-doctor-health (от origin/master 1c6897f, PR #354 влит)
-**Текущий этап:** бэклог по приоритету; **Y/TS-01/DX-11 закрыты**; дальше — следующие high (DX-10, DX-29, DX-16, MU-07…)
-**Статус:** DX-11: `doctor` получил runtime health-gate (Node ≥20, DATA_DIR, config, port, client configs) — 6/6 тестов, 3 мутации RED; интеграция в конец setup отложена до DX-10 (setup-команды пока нет). TS-01 и этап Y закрыты ранее.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-11, DX-16 закрыты)
+**Текущая ветка:** feat/dx-16-umbrella-close (от origin/master 8419b34, PR #355 влит)
+**Текущий этап:** бэклог по приоритету; закрыты Y/TS-01/DX-11/DX-16; следующий high — DX-10 (setup)
+**Статус:** DX-16 закрыт как umbrella: DX-16a/DX-16b уже done (tools + CLI + ADR-008), строка отставала от факта. Нового кода нет; Windows-часть DX-16 тестов красная по среде (tar/symlink), CI Linux — гейт.
+
+### Сессия S-20261109-night (DX-16 — закрытие umbrella)
+
+- Umbrella DX-16 закрыт по evidence DX-16a/b: `admin_backup`/`admin_restore`, формат/манифест/sha256, dry-run/applyToken/lock/prune, CLI `backup|restore`.
+- Нового кода нет; локально 31/50 DX-16 тестов зелёные, 19 красных на Windows (GNU tar `--transform`, symlink-привилегии) — записано как ограничение среды, решающий гейт — CI Linux.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-1200-dx-16-close.md`.
 
 ### Сессия S-20261109-night (DX-11 — runtime health-gate в doctor)
 

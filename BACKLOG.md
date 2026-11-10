@@ -907,7 +907,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| DX-16 | `admin_backup`/`admin_restore` — tar.gz DATA_DIR | high | pending | [ADR-008](docs/adr/0008-admin-backup-restore.md) | Tool + CLI-обёртка, переносимый tar.gz архив DATA_DIR по ADR-008. Формулировка «dev-cli export умеет 80%» неверна: команда не копирует файлы и работает с пустым временным DATA_DIR (проверено 2026-11-06), обёртка пишется с нуля. Ответ на «где мой бэкап» и «как переехать на другую машину». Реализация делится на DX-16a и DX-16b |
+| DX-16 | `admin_backup`/`admin_restore` — tar.gz DATA_DIR | high | done | [ADR-008](docs/adr/0008-admin-backup-restore.md) | Tool + CLI-обёртка, переносимый tar.gz архив DATA_DIR по ADR-008. Формулировка «dev-cli export умеет 80%» неверна: команда не копирует файлы и работает с пустым временным DATA_DIR (проверено 2026-11-06), обёртка пишется с нуля. Ответ на «где мой бэкап» и «как переехать на другую машину». Реализация делится на DX-16a и DX-16b |
 | DX-16a | `admin_backup` + формат архива DATA_DIR | high | done | DX-16 | По ADR-008: свой writer tar.gz на node:zlib без новых зависимостей, манифест с formatVersion/sha256/profile/schemaVersion, исключение секретов и кешей, флаг include-secrets, атомарная запись через .partial. CLI backup поверх той же функции, DATA_DIR из env. DoD: round-trip backup→reader даёт побайтное равенство (restore — DX-16b); в архиве нет .jwt-revoked.json и auth.db без флага; повреждённый архив даёт BACKUP_ARCHIVE_INVALID; запись ../ даёт BACKUP_PATH_ESCAPE; симлинк даёт BACKUP_SYMLINK_REJECTED; revert-check каждого теста. Реализовано: src/services/backup-archive.ts, src/register/backup.ts, scripts/dev-cli.mjs backup; тесты tests/dx16-backup-archive.test.ts (21 тест, revert-check 21/21 RED); [ADR-008](docs/adr/0008-admin-backup-restore.md) с «Поправкой» про archiveBytes |
 | DX-16b | `admin_restore` + ужесточение существующего restoreBackup | high | done | DX-16, DX-16a | По ADR-008 и дефектам Д1-Д5 (file:line в ADR): не доверять entry.from из манифеста (resolveUnder), отвергать симлинки, не перезаписывать .jwt-revoked.json, restore как замена в пределах scope с prune, dry-run по умолчанию + confirm + автоснапшот pre-restore, .restore.lock между процессами. DoD: restore не пишет вне DATA_DIR; отзыв токена после бэкапа не исчезает; документ, созданный после бэкапа, удаляется при prune; R12: knowledge_list до и после restore совпадает Реализовано: src/services/data-backup.ts (restoreArchive, acquireRestoreLock, ужесточённый restoreBackup), src/services/backup-archive.ts (исключения .server.lock/.restore.lock/.restore-tmp), src/register/backup.ts (admin_restore), scripts/dev-cli.mjs restore (export удалён); тесты tests/dx16b-admin-restore.test.ts (27) и tests/dx16b-cli-restore.test.ts (2), revert-check 25/25 RED→GREEN, включая M2 (неверный/устаревший applyToken) и M2b (повторная сверка плана под lock). R12: после restore побайтное равенство data-файлов проверено inventory-сравнением в round-trip тесте (живой tools/list knowledge_list отдельно не дёргался). Проба Д1-Д6 на 902d1e3: все шесть воспроизведены. Решение: docs/dev-cycle/decisions/2026-11-07-0117-dx-16b.md. R12-долг: живой knowledge_list до/после — за контролёром. |
 | DX-17 | `doctor --data` — скан целостности DATA_DIR | medium | done | DX-11 | Все `*.json`/`*.md`: битый JSON, missing required fields, knowledge-сироты без проекта. Read-only отчёт + `--fix` для тривиального |
@@ -1620,7 +1620,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **96** | **7** | **302** | **22** | **1** |
+| **Итого** | **428** | **95** | **7** | **303** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -1865,3 +1865,9 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > свободный порт для http/MCP_PORT, клиентские конфиги Claude Desktop/Cursor/.mcp.json (warning).
 > 6/6 тестов, 3 мутации RED; интеграция в конец `setup` отложена до DX-10 (setup-команды пока нет) —
 > записано в решении, а не выдано за сделанное.
+>
+> Примечание (2026-11-10, DX-16 закрыт): umbrella-пункт закрыт по evidence подпунктов DX-16a/DX-16b
+> (`admin_backup`/`admin_restore`, формат/манифест/sha256, dry-run/applyToken/lock/prune, CLI
+> `scripts/dev-cli.mjs backup|restore`, ADR-008). Нового кода не добавлялось. Локальный Windows-прогон
+> DX-16 частично красный из-за системного tar без GNU `--transform` и symlink-привилегий — это
+> записанный класс среды, решающий гейт — CI Linux.
