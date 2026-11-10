@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-07 закрыты)
-**Текущая ветка:** feat/y06b-postgres-vectors (от origin/master 000dae1, PR #346 влит)
-**Текущий этап:** Y — закрыты Y-02, Y-03, Y-04, Y-05, Y-07 (**Y-06 закрыт**); остался Y-08 (migrate-storage) и закрытие этапа
-**Статус:** `Y-06b` → done, **Y-06 закрыт**: Postgres `VectorProvider` — pgvector/HNSW при наличии расширения, иначе точный cosine-фолбэк по JSONB с честными `annAvailable()/annVersion()`; схема v2 (`vector_collections/vector_rows/vector_keys`), `CONFLICT` на смену размерности, индексация через общий `IndexingService`, `capabilities.vectors=true`. Проверено на реальном PostgreSQL 18.6: 18/18, 108/108 затронутых, 6 мутаций RED. Ограничения записаны: HNSW-путь не проверен локально (pgvector нет, CI-сервис без `workflow` scope), MU-02 требует расширения контракта. **Дальше: Y-08a** — migrate-storage file↔sqlite, затем Y-08b (Postgres) и закрытие этапа Y.
+**Session ID:** S-20261109-night (ночная сессия по бэклогу; Y-02, Y-03, Y-04, Y-05, Y-06, Y-07 закрыты)
+**Текущая ветка:** feat/y08a-migrate-storage (от origin/master 7e8fe1d, PR #347 влит)
+**Текущий этап:** Y — закрыты Y-02…Y-07; Y-08 в работе (a готова; остался b — Postgres-направление, runbook и 100k)
+**Статус:** `Y-08a` → done: движок `migrateStorage` (file↔SQLite) по фазам ADR — dry-run без записи, снимок цели в `.backups`, дельта под exclusive-lock, проверка контрольных сумм и отчёт с расхождениями; идемпотентность по каноническому sha256, перенос задач/документов/проектов/версий/блобов, нормализация тела документа и сохранение `history` во frontmatter; CLI `scripts/migrate-storage.mjs` + runbook. 4/4 тестов, 71/71 затронутых, 5 мутаций RED. Ограничение записано: замер окна паузы на 100k перенесён в Y-08b. **Дальше: Y-08b** — Postgres как источник/цель, runbook, 100k, закрытие этапа Y.
+
+### Сессия S-20261109-night (Y-08a — migrate-storage file↔SQLite)
+
+- `src/storage/migrate.ts`: фазы план → снимок цели (`.backups/migrate-*`) → дельта (`withFileLock`) → проверка (checksums по коллекциям+блобам, пост-состояние) → отчёт; `dryRun`/`verifyOnly` без записи.
+- Идемпотентность по каноническому JSON (created/updated/skipped); перенос задач/документов/проектов/версий/блобов; нормализация тела документа и сохранение `history` в frontmatter для round-trip; события/замки и промпты/память — осознанно вне переноса (записано).
+- CLI `scripts/migrate-storage.mjs`; runbook `docs/features/migrate-storage.md`.
+- Проверено: `tests/storage-migrate.test.ts` 4/4 (dry-run, перенос+идемпотентность, update+verify-only порча, обратный перенос); затронутые `storage-sqlite`/`storage-contract`/`storage-wiring` — 71/71; tsc чистый; 5 мутаций RED.
+- Ограничение: 100k пауза не замерена — перенесено в Y-08b; межпроцессный lock сервера — Y-08b.
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-10-0510-y-08a.md`.
 
 ### Сессия S-20261109-night (Y-06b — Postgres VectorProvider; Y-06 закрыт)
 
