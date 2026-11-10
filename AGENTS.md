@@ -424,11 +424,20 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-11-10
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, CM-03a, T-01, UI-11a, UI-12a закрыты)
-**Текущая ветка:** feat/ui-12a-states (от origin/master b92246c, PR #366 влит)
-**Текущий этап:** бэклог по приоритету; UI-11/UI-12 остаются pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — UI-11b/UI-12b, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-12a: loading/not-found/error + expired-баннер на /login, 5/5 states-contract + 22/22 guards, 3 мутации RED. Playwright abort — UI-12b.
+**Дата последнего обновления:** 2026-11-11
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-10, CM-03a, T-01, UI-11a, UI-12a закрыты)
+**Текущая ветка:** feat/z10-agent-targets (от origin/master 375f378, PR #367 влит)
+**Текущий этап:** бэклог по приоритету; Z-10 закрыт; UI-11/UI-12 pending (UI-11b/UI-12b — Playwright); CM-03 pending (CM-03b); дальше — UI-11b/UI-12b, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** Z-10: target у промптов/скиллов + реестр project_agents_get/set, 5/5, 3 мутации RED, api-reference 141 tools. Skill deployment per target — Z-12.
+
+### Сессия S-20261109-night (Z-10 — target и реестр агентов)
+
+- `src/agents.ts`: built-ins universal/claude/opencode, нормализация, реестр в .project.json, moveTo/moves с перезаписью prompt metadata, `AGENT_TARGET_IN_USE`.
+- `prompts_list`/`prompts_search`: скалярный `target`, universal виден всем; list объединяет каталог и исходники.
+- `Skill.target` + frontmatter; `schemas/prompt.schema.json`; `docs/api-reference.md` 141, tools.md 139/141/143.
+- Проверено: 5/5 prompt-targets, 3 мутации RED; build/tsc/docs-coverage чистые.
+- Ограничения: move скиллов и UI — Z-12/дальше; list читает исходники (доп. get).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0000-z-10.md`.
 
 ### Сессия S-20261109-night (UI-12a — route states)
 

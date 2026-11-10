@@ -7,6 +7,8 @@ import { currentSessionId } from '../core/request-context.js';
 import { scheduleProjectIndex } from '../search/warmup.js';
 import { STATUS_ID_RE, TYPE_ID_RE, WorkflowError } from '../workflow.js';
 import { getProjectStatuses, getProjectTransitions, getProjectTypes, setProjectStatuses, setProjectTransitions, setProjectTypes } from '../workflow-service.js';
+import { AgentTargetError, getProjectAgents, setProjectAgents } from '../agents.js';
+import { storageProfile } from '../core/storage-context.js';
 
 // PH-004: per-session current project. When the caller has a live session
 // (http/tcp), project_set_current writes into session metadata instead of the
@@ -279,6 +281,45 @@ export function registerProjectTools(ctx: ServerContext): void {
         return ok(await setProjectTypes(prj, input));
       } catch (e) {
         if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
+      }
+    }
+  );
+
+  // project_agents_get — agent targets for prompts/skills (Z-10)
+  ctx.server.registerTool(
+    "project_agents_get",
+    {
+      title: "Get Project Agent Targets",
+      description: "Get the project agent-target registry. Built-ins universal, claude and opencode are always present.",
+      inputSchema: { project: z.string().optional().describe('Project ID (defaults to current)') },
+    },
+    async ({ project }) => {
+      const prj = resolveProject(project);
+      return ok(await getProjectAgents(prj));
+    }
+  );
+
+  // project_agents_set — replace the registry; used targets need moveTo/moves
+  ctx.server.registerTool(
+    "project_agents_set",
+    {
+      title: "Set Project Agent Targets",
+      description:
+        "Replace the project agent-target registry. A target still used by prompts cannot be removed without moveTo or moves.",
+      inputSchema: {
+        project: z.string().optional().describe('Project ID (defaults to current)'),
+        agents: z.array(z.string().min(1)).min(1),
+        moveTo: z.string().optional().describe('Move prompts from every removed target to this target'),
+        moves: z.record(z.string()).optional().describe('Per-target move targets, e.g. {"custom":"claude"}'),
+      },
+    },
+    async ({ project, ...input }) => {
+      const prj = resolveProject(project);
+      try {
+        return ok(await setProjectAgents(prj, input, storageProfile(ctx).prompts));
+      } catch (e) {
+        if (e instanceof AgentTargetError) return errWith(e.toPayload());
         throw e;
       }
     }

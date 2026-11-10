@@ -13,6 +13,7 @@ import { hybridSearch } from '../search/index.js';
 import { storageProfile } from '../core/storage-context.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { normalizeAgentTarget } from '../agents.js';
 
 
 function taskStore(ctx: ServerContext) {
@@ -25,6 +26,18 @@ function docStore(ctx: ServerContext) {
 
 function promptStore(ctx: ServerContext) {
   return storageProfile(ctx).prompts;
+}
+
+/** Latest source record per prompt id (Z-10 target and fallback metadata). */
+async function promptSourceMeta(ctx: ServerContext, project: string): Promise<Map<string, Record<string, any>>> {
+  const store = promptStore(ctx);
+  const sources = await store.list(project);
+  const out = new Map<string, Record<string, any>>();
+  for (const id of new Set(sources.map((source) => source.id))) {
+    const record = await store.get(project, id);
+    if (record) out.set(id, record.data as Record<string, any>);
+  }
+  return out;
 }
 
 export function registerPromptsTools(ctx: ServerContext) {
@@ -365,24 +378,40 @@ export function registerPromptsTools(ctx: ServerContext) {
     {
       title: "Prompts List",
       description: "List prompts from prompts catalog with optional filters",
-      inputSchema: { project: z.string().optional(), latest: z.boolean().optional(), kind: z.string().optional(), status: z.string().optional(), domain: z.string().optional(), tag: z.array(z.string()).optional(), ...pageArgsSchema },
+      inputSchema: { project: z.string().optional(), latest: z.boolean().optional(), kind: z.string().optional(), status: z.string().optional(), domain: z.string().optional(), tag: z.array(z.string()).optional(), target: z.string().optional(), ...pageArgsSchema },
     },
-    async ({ project, _latest, kind, status, domain, tag, ...pageArgs }: { project?: string; _latest?: boolean; kind?: string; status?: string; domain?: string; tag?: string[] } & Record<string, any>) => {
+    async ({ project, _latest, kind, status, domain, tag, target, ...pageArgs }: { project?: string; _latest?: boolean; kind?: string; status?: string; domain?: string; tag?: string[]; target?: string } & Record<string, any>) => {
       const prj = resolveProject(project);
       try {
         const request = toPageRequest(pageArgs);
         const catalog: any = await promptStore(ctx).catalog(prj);
+        const sourceMeta = await promptSourceMeta(ctx, prj);
         const items: any[] = [];
         const tagSet = tag && tag.length ? new Set(tag) : undefined;
-        for (const [key, meta] of Object.entries<any>(catalog?.items || {})) {
-          const rec = { id: key, version: meta.version || meta.buildVersion || 'latest', kind: meta.kind || meta.type || 'prompt', status: meta.status || undefined, domain: meta.domain || undefined, tags: Array.isArray(meta.tags) ? meta.tags : [], file: meta.path || undefined };
+        const wantedTarget = target ? normalizeAgentTarget(target) : undefined;
+        const keys = Array.from(new Set([...Object.keys(catalog?.items || {}), ...sourceMeta.keys()]));
+        for (const key of keys) {
+          const meta = catalog?.items?.[key] || {};
+          const data = sourceMeta.get(key);
+          const md = (data?.metadata ?? {}) as Record<string, any>;
+          const rec = {
+            id: key,
+            version: meta.version || meta.buildVersion || data?.version || 'latest',
+            kind: meta.kind || md.kind || data?.type || 'prompt',
+            status: meta.status || md.status || undefined,
+            domain: meta.domain || md.domain || undefined,
+            tags: Array.from(new Set([...(Array.isArray(meta.tags) ? meta.tags : []), ...(Array.isArray(md.tags) ? md.tags : [])])),
+            target: normalizeAgentTarget(md.target ?? meta.target),
+            file: meta.path || undefined,
+          };
           if (kind && rec.kind !== kind) continue;
           if (status && rec.status !== status) continue;
           if (domain && rec.domain !== domain) continue;
           if (tagSet && !(rec.tags || []).some((t: string) => tagSet.has(t))) continue;
+          if (wantedTarget && rec.target !== wantedTarget && rec.target !== 'universal') continue;
           items.push(rec);
         }
-        const paged = paginateRanked(items, request, scopeOf(prj, kind, status, domain, (tag || []).join(',')));
+        const paged = paginateRanked(items, request, scopeOf(prj, kind, status, domain, [...(tag || []), ...(target ? [target] : [])].join(',')));
         // `data` keeps its previous shape ({generatedAt, items}) so existing clients do not break;
         // pagination metadata rides alongside as siblings.
         return okWith(
@@ -454,20 +483,33 @@ export function registerPromptsTools(ctx: ServerContext) {
     {
       title: "Prompts Search (hybrid)",
       description: "Semantic/lexical search across prompt builds and markdown",
-      inputSchema: { project: z.string().optional(), query: z.string().min(1), limit: z.number().int().min(1).max(100).optional(), tags: z.array(z.string()).optional(), kinds: z.array(z.string()).optional() },
+      inputSchema: { project: z.string().optional(), query: z.string().min(1), limit: z.number().int().min(1).max(100).optional(), tags: z.array(z.string()).optional(), kinds: z.array(z.string()).optional(), target: z.string().optional() },
     },
-    async ({ project, query, limit, tags, kinds }: { project?: string; query: string; limit?: number; tags?: string[]; kinds?: string[] }) => {
+    async ({ project, query, limit, tags, kinds, target }: { project?: string; query: string; limit?: number; tags?: string[]; kinds?: string[]; target?: string }) => {
       const prj = resolveProject(project);
       const catalog: any = await promptStore(ctx).catalog(prj);
-      const items: any[] = await promptStore(ctx).buildItems(prj);
+      const sourceMeta = await promptSourceMeta(ctx, prj);
+      let items: any[] = await promptStore(ctx).buildItems(prj);
+      if (items.length === 0) {
+        items = Array.from(sourceMeta.entries()).map(([key, data]) => {
+          const md = (data?.metadata ?? {}) as Record<string, any>;
+          const text = [md.title, md.description, data?.template].filter((part) => typeof part === 'string' && part.length > 0).join('\n');
+          return { id: key, text, item: { key, kind: md.kind || data?.type || 'prompt', tags: Array.isArray(md.tags) ? md.tags : [], title: md.title || key } };
+        });
+      }
       const tagSet = tags && tags.length ? new Set(tags) : undefined;
       const kindSet = kinds && kinds.length ? new Set(kinds) : undefined;
+      const wantedTarget = target ? normalizeAgentTarget(target) : undefined;
       const filtered = items.filter((it) => {
         const meta = catalog?.items?.[it.item.key] || {};
         const allTags: string[] = Array.from(new Set([...(it.item.tags || []), ...(meta.tags || [])]));
         const kind = it.item.kind || meta.kind || meta.type || 'prompt';
         if (tagSet && !allTags.some((t) => tagSet.has(t))) return false;
         if (kindSet && !kindSet.has(kind)) return false;
+        if (wantedTarget) {
+          const recordTarget = normalizeAgentTarget((sourceMeta.get(it.item.key)?.metadata as any)?.target ?? meta.target);
+          if (recordTarget !== wantedTarget && recordTarget !== 'universal') return false;
+        }
         return true;
       });
       const va = await ctx.ensureVectorAdapter();
@@ -477,7 +519,8 @@ export function registerPromptsTools(ctx: ServerContext) {
         const kind = r.item.kind || meta.kind || meta.type || 'prompt';
         const title = r.item.title || meta.title || r.item.key;
         const tagsOut: string[] = Array.from(new Set([...(r.item.tags || []), ...(meta.tags || [])]));
-        return { key: r.item.key, kind, title, score: r.score, tags: tagsOut, path: r.item.path };
+        const recordTarget = normalizeAgentTarget((sourceMeta.get(r.item.key)?.metadata as any)?.target ?? meta.target);
+        return { key: r.item.key, kind, title, score: r.score, tags: tagsOut, target: recordTarget, path: r.item.path };
       });
       return ok(mapped);
     }

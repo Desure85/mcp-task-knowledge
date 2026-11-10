@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **139** — 137 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **141** — 139 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -82,6 +82,8 @@
 | `memory_temporal_stats` | Get statistics about the temporal knowledge graph — total facts, valid/invalidated counts, categorie |
 | `obsidian_export_project` | Export knowledge, tasks, and prompts to Obsidian vault (merge or replace). Use with caution in repla |
 | `obsidian_import_project` | Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy deletes existing content  |
+| `project_agents_get` | Get the project agent-target registry. Built-ins universal, claude and opencode are always present. |
+| `project_agents_set` | Replace the project agent-target registry. A target still used by prompts cannot be removed without  |
 | `project_create` | Create a new project with optional description. Creates task and knowledge directories automatically |
 | `project_delete` | Delete a project and all its data. Requires force=true if project has tasks or knowledge entries. |
 | `project_get_current` | Return the name of the current project context (session-scoped on multi-client transports) |
@@ -2112,6 +2114,54 @@ Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy delet
 }
 ```
 
+## project_agents_get
+
+**Get Project Agent Targets**
+
+Get the project agent-target registry. Built-ins universal, claude and opencode are always present.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_agents_get",
+  "arguments": {
+    "project": "mcp"
+  }
+}
+```
+
+## project_agents_set
+
+**Set Project Agent Targets**
+
+Replace the project agent-target registry. A target still used by prompts cannot be removed without moveTo or moves.
+
+**Параметры:**
+
+- `project`
+- `agents`
+- `moveTo`
+- `moves`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_agents_set",
+  "arguments": {
+    "project": "mcp",
+    "agents": "example",
+    "moveTo": "example",
+    "moves": "example"
+  }
+}
+```
+
 ## project_create
 
 **Create Project**
@@ -2741,6 +2791,7 @@ List prompts from prompts catalog with optional filters
 - `status`
 - `domain`
 - `tag`
+- `target`
 - `limit`
 - `cursor`
 - `countOnly`
@@ -2759,6 +2810,7 @@ List prompts from prompts catalog with optional filters
     "status": "pending",
     "domain": "example",
     "tag": "example",
+    "target": "example",
     "limit": 10,
     "cursor": "example",
     "countOnly": "example",
@@ -2806,6 +2858,7 @@ Semantic/lexical search across prompt builds and markdown
 - `limit`
 - `tags`
 - `kinds`
+- `target`
 
 **Пример вызова:**
 
@@ -2819,7 +2872,8 @@ Semantic/lexical search across prompt builds and markdown
     "tags": [
       "example"
     ],
-    "kinds": "example"
+    "kinds": "example",
+    "target": "example"
   }
 }
 ```
