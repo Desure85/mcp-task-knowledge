@@ -9,6 +9,7 @@ import { createDoc, readDoc, updateDoc } from '../src/storage/knowledge.js';
 import { createProject } from '../src/projects.js';
 import { DATA_DIR } from '../src/config.js';
 import { createSqliteProfile } from '../src/storage/profiles/sqlite/index.js';
+import { createPostgresProfile } from '../src/storage/profiles/postgres/index.js';
 
 const dataDir = DATA_DIR;
 const databasePath = path.join(dataDir, '.index', 'migration-test.sqlite');
@@ -128,4 +129,74 @@ describe('Y-08a: migrate-storage file ↔ SQLite', () => {
     expect((await listDocVersions('alpha', doc.id)).length).toBeGreaterThanOrEqual(1);
     expect(await fsp.readFile(path.join(dataDir, 'blobs', 'attachments-a.txt'), 'utf8')).toBe('blob payload');
   });
+});
+
+
+const postgresUrl = process.env.POSTGRES_URL;
+const describePostgres = postgresUrl ? describe : describe.skip;
+
+describePostgres('Y-08b: migrate-storage SQLite ↔ Postgres (requires POSTGRES_URL)', () => {
+  it(
+    'migrates sqlite→postgres and postgres→sqlite with equal checksums',
+    async () => {
+      await fixture();
+      const postgresDatabasePath = path.join(dataDir, '.index', 'pg-source.sqlite');
+      await migrateStorage({ dataDir, databasePath: postgresDatabasePath, direction: 'file-to-sqlite' });
+
+      const pgProfile = await createPostgresProfile({ connectionString: postgresUrl! });
+      const { default: pg } = await import('pg');
+      const pool = new pg.Pool({ connectionString: postgresUrl! });
+      await pool.query('truncate tasks, docs, doc_versions, projects');
+      await pool.end();
+
+      const toPostgres = await migrateStorage({
+        dataDir,
+        databasePath: postgresDatabasePath,
+        connectionString: postgresUrl!,
+        direction: 'sqlite-to-postgres',
+      });
+      expect(toPostgres.checksums.equal).toBe(true);
+      expect(toPostgres.discrepancies).toEqual([]);
+      expect(toPostgres.counts.tasks).toMatchObject({ created: 2, skipped: 0 });
+
+      try {
+        const tasks = await pgProfile.tasks.list({ project: 'alpha', includeArchived: true, includeTrashed: true });
+        expect(tasks.map((task) => task.title).sort()).toEqual(['archived task', 'migrated task']);
+        const docs = await pgProfile.docs.list({ project: 'alpha' });
+        expect(docs).toHaveLength(1);
+      } finally {
+        pgProfile.close?.();
+      }
+
+      // Idempotent postgres rerun.
+      const again = await migrateStorage({
+        dataDir,
+        databasePath: postgresDatabasePath,
+        connectionString: postgresUrl!,
+        direction: 'sqlite-to-postgres',
+      });
+      expect(again.counts.tasks).toMatchObject({ created: 0, updated: 0, skipped: 2 });
+      expect(again.checksums.equal).toBe(true);
+
+      // Back from Postgres into a fresh SQLite database.
+      const backPath = path.join(dataDir, '.index', 'pg-roundtrip.sqlite');
+      await fsp.rm(backPath, { force: true });
+      const back = await migrateStorage({
+        dataDir,
+        databasePath: backPath,
+        connectionString: postgresUrl!,
+        direction: 'postgres-to-sqlite',
+      });
+      expect(back.checksums.equal).toBe(true);
+      expect(back.discrepancies).toEqual([]);
+      const sqliteProfile = createSqliteProfile({ databasePath: backPath });
+      try {
+        expect(await sqliteProfile.tasks.list({ project: 'alpha', includeArchived: true, includeTrashed: true })).toHaveLength(2);
+        expect(await sqliteProfile.docs.list({ project: 'alpha' })).toHaveLength(1);
+      } finally {
+        sqliteProfile.close?.();
+      }
+    },
+    120_000,
+  );
 });
