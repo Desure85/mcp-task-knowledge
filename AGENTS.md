@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16 закрыты)
-**Текущая ветка:** feat/ui-16-task-list (от origin/master a330f17, PR #374 влит)
-**Текущий этап:** бэклог по приоритету; UI-11/12/15/16 закрыты; за ним — UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-16: Board/List, сортировка, bulk close; 2/2 e2e, full Playwright 43/43; 2 мутации RED.
+**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-37 закрыты)
+**Текущая ветка:** feat/ui-37-task-page (от origin/master d12c577, PR #375 влит)
+**Текущий этап:** бэклог по приоритету; UI-11/12/15/16/37 закрыты; дальше UI-36/UI-38/UI-39 и UI-17, Z-11/Z-03, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** UI-37: /tasks/[id], переходы с allowed/hint, claim/renew, archive/trash, 404; 3/3 e2e, full 46/46; 2 мутации RED.
+
+### Сессия S-20261109-night (UI-37 — полная страница задачи)
+
+- `app/tasks/[id]/page.tsx`: прямой URL/reload, правка полей, V-02 ошибка с кодом/hint, claim/renew/release, destructive Dialog archive/trash, 404.
+- `api-client`: claim/renew/release, bulkArchive/Trash/Restore, getChildren `{parent,children}`, ToolCallError.allowed.
+- `e2e/task-detail.spec.ts`: 3/3; full 46/46; 2 мутации RED (notFound off, trash dialog off). Скриншоты `docs/ui/screens/ui-37`.
+- Ограничения: task history вне wire; SQLite-профиль не читает transition-граф в loadProjectWorkflow (pre-existing; file/CI зелёный); DAG ≤200.
+- Tracking fix: UI-11b/UI-12b → done (были влиты #374/#373).
+- Решение и откат: `docs/dev-cycle/decisions/2026-11-11-0800-ui-37.md`.
 
 ### Сессия S-20261109-night (UI-16 — список и bulk close)
 
