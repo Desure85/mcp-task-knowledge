@@ -15,7 +15,7 @@ import { spawnServer } from './harness.js';
 // init validates presence only, no network call happens at registration time.
 const FAMILIES: Array<{ flag: string; tools: string[]; extraEnv?: Record<string, string> }> = [
   { flag: 'GITHUB_CONNECTOR_ENABLED', tools: ['github_repo_info', 'github_issue_list', 'github_issue_get', 'github_pr_list'], extraEnv: { GITHUB_TOKEN: 'q014-dummy' } },
-  { flag: 'JIRA_CONNECTOR_ENABLED', tools: ['jira_project_list', 'jira_issue_list', 'jira_issue_get'], extraEnv: { JIRA_TOKEN: 'q014-dummy', JIRA_HOST: 'jira.example.test' } },
+  { flag: 'JIRA_CONNECTOR_ENABLED', tools: ['jira_project_list', 'jira_issue_list', 'jira_issue_get'], extraEnv: { JIRA_TOKEN: 'q014-dummy', JIRA_HOST: 'https://jira.example.test' } },
   { flag: 'SLACK_CONNECTOR_ENABLED', tools: ['slack_channels', 'slack_post', 'slack_search'], extraEnv: { SLACK_BOT_TOKEN: 'xoxb-q014-dummy' } },
   { flag: 'GDRIVE_CONNECTOR_ENABLED', tools: ['gdrive_list_files', 'gdrive_get_file', 'gdrive_sync_folder'] },
   { flag: 'GMAIL_CONNECTOR_ENABLED', tools: ['gmail_list_messages', 'gmail_get_message', 'gmail_sync_to_kb'] },
