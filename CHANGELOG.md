@@ -8,6 +8,8 @@
 
 ### Added
 
+- UI-17 attention overview: the home page replaced the duplicated navigation-card grid with **Blocked tasks**, **Claimed tasks**, **Stale documents** (90 days) and **Recent activity** widgets, each with an empty state; KNOWLEDGE total and unique tags come from the same `dashboard_stats` payload. Also fixed `dashboard_stats`/`dashboard_activity` on the SQLite profile — they read the file store directly and returned zeros; both now use `storageProfile(ctx)`. E2E creates a blocked task, a task and a tagged document and verifies the widgets plus the metrics line. Deadline widget is intentionally absent until TK-01 adds a deadline field
+
 - UI-31 influence: the task page shows `Influence` — transitive blockers and impacted tasks from `tasks_dag` edges with a `tasks_get_deps` fallback, plus `onCriticalPath`/`dependentsCount` graph metrics; the document reader shows **Dependent documents** via `knowledge_list{ parentId }`. E2E builds A → B → C and asserts B lists A as blocker and C as impacted, then opens a child document from its parent. Limits: DAG page is bounded, SQLite has no DAG edges (direct fallback), documents are one level deep
 
 - Knowledge tree lazy loading and new-tab login: `knowledge_list` accepts `rootsOnly` (file/SQLite/Postgres), the UI loads only roots and requests `parentId` children when a branch expands (`TreeView` `hasChildren`/`loadingIds`/`onExpand`), and `openTaskEditor` leaves a 60-second one-shot `mcp.auth.handoff` that the new tab consumes into its own sessionStorage. E2E asserts the request shape and a fresh tab opened without a pre-seeded token stays signed in; unit tests cover handoff consume/expiry. Limits: roots are read page-by-page, leaves still show a chevron, a blocked popup leaves the token until TTL

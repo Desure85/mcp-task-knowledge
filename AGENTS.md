@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/ui-31-influence (от master c521544)
-**Текущий этап:** UI-31 закрыт; далее Z-03, UI-17, Z-11; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** Influence (blockers/impact/critical path) на задаче, Dependent documents в reader; e2e 1/1 + docs, tsc.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/ui-17-overview-attention (от master 46e904c)
+**Текущий этап:** UI-17 закрыт; далее Z-03, Z-11; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** Overview attention (blocked/claimed/stale/activity), общий dashboard_stats, SQLite-профиль dashboard исправлен; e2e 1/1.
+
+### Сессия S-20261109-night (UI-17 — Overview внимания)
+
+- `OverviewAttention`: blocked/claimed/stale/activity, пустые состояния; сетка NAV_SECTIONS удалена.
+- `dashboard_stats`/`dashboard_activity` переведены на `storageProfile(ctx)`; SQLite больше не отдаёт нули.
+- `e2e/overview-attention.spec.ts` 1/1; RED до фикса профиля (0 documents / no activity).
+- Ограничение: виджет сроков не сделан — deadline нет (TK-01); activity 8 записей, stale 90 дней.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-2100-ui-17.md`.
 
 ### Сессия S-20261109-night (UI-31 — блокировки и влияние)
 
