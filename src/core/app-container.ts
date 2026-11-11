@@ -554,6 +554,9 @@ export class AppContainer {
         },
         connectorSecrets,
       );
+      for (const component of connectorRegistry.availabilityComponents()) {
+        this.healthChecker.register(component.name, async () => component);
+      }
       this.ctx.connectorRegistry = connectorRegistry;
       if (connectorResult.initialized.length > 0) {
         this.log.info({ connectors: connectorResult.initialized }, 'connectors initialized');

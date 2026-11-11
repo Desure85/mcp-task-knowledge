@@ -9,12 +9,15 @@
 import { childLogger } from '../core/logger.js';
 import type { SecretManager } from '../core/secret-manager.js';
 import type { Connector, ConnectorContext, ConnectorHealth, ConnectorRegistration } from './types.js';
+import { getServiceAvailabilityRegistry, type ServiceAvailability } from '../core/graceful-degradation.js';
+import type { ComponentHealth } from '../health/types.js';
 
 const log = childLogger('connectors');
 
 export class ConnectorRegistry {
   private readonly registrations = new Map<string, ConnectorRegistration>();
   private readonly instances = new Map<string, Connector>();
+  private readonly availability = new Map<string, ServiceAvailability>();
 
   /** Register a connector factory. */
   register(reg: ConnectorRegistration): void {
@@ -68,7 +71,23 @@ export class ConnectorRegistry {
 
       try {
         const connector = reg.factory(config);
-        const ctx: ConnectorContext = { config, registerTool, ...(secrets ? { secrets } : {}) };
+        const service = getServiceAvailabilityRegistry().get(`connector:${id}`, { label: `connector ${id}` });
+        this.availability.set(id, service);
+        const guardedRegister: ConnectorContext['registerTool'] = (name, schema, handler) =>
+          registerTool(name, schema, async (input) => {
+            if (!service.canExecute()) {
+              throw new Error(`connector ${id} is unavailable (circuit open)`);
+            }
+            try {
+              const result = await handler(input);
+              service.recordSuccess();
+              return result;
+            } catch (error) {
+              service.recordFailure();
+              throw error;
+            }
+          });
+        const ctx: ConnectorContext = { config, registerTool: guardedRegister, ...(secrets ? { secrets } : {}) };
         await connector.init(ctx);
         this.instances.set(id, connector);
         initialized.push(id);
@@ -80,6 +99,11 @@ export class ConnectorRegistry {
     }
 
     return { initialized, skipped, errors };
+  }
+
+  /** Availability trackers for initialized connectors (TR-34 health wiring). */
+  availabilityComponents(): ComponentHealth[] {
+    return [...this.availability.values()].map((service) => service.toComponentHealth());
   }
 
   /** Health check for all active connectors. */

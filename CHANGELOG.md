@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-34 connector circuit breaker: every connector tool registered through `ConnectorRegistry.initAll` is wrapped in a per-connector `ServiceAvailability` (`connector:<id>`); failures open the circuit, calls fast-fail with "connector <id> is unavailable (circuit open)" without touching the network, successes recover it in half-open, and `availabilityComponents()` registers `connector:<id>` health in `HealthChecker` so `/readyz` reflects an open circuit. Tests cover open/fast-fail/health/half-open recovery and no-open-on-success; mutation removing the fast-fail guard goes RED. Limits: one circuit per connector (not per endpoint/tenant), fixed default timings, skipped/failed-init connectors get no health component
+
 - DX-29 closed by evidence: the one-time setup link is end-to-end implemented (`SetupLinkStore`, `POST /admin/setup-links`, `GET /.well-known/mcp-setup/<otp>`, `admin_setup_link`, `/access` form). Live probe: create → first GET 200 with markdown, second GET 410; `tests/setup-link.test.ts` is 10/10. No new code; tracking only. Limits: OAuth DCR was not evaluated, the store is in-memory, no UI e2e for generation, and the npx snippet is not installed in a clean environment
 
 - TR-20 WS ticket redemption rate limit: `WsTicketStore.redeem(ticket, remoteAddress)` enforces a per-IP budget (`redeemRateLimit`; HTTP uses 30 attempts/60 s), returns `rate_limited` without consuming the ticket, and `RealtimeServer` now forwards `req.socket.remoteAddress`. Other IPs and existing no-remote callers are unaffected. Tests: 14/14 including same-IP exhaustion, another-IP pass and window reset; revert-check removing the guard goes RED. Limits: in-memory per instance, shared IP behind an untrusted proxy, valid reconnects count too
