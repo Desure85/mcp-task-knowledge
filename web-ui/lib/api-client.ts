@@ -669,6 +669,7 @@ export interface SessionListData {
   available: boolean;
   sessionsEnabled?: boolean;
   rateLimitingEnabled?: boolean;
+  selfSessionId?: string | null;
   total: number;
   sessions: SessionEntry[];
 }
@@ -1104,6 +1105,7 @@ export const api = {
   // System / ops surface (PH-015)
   system: {
     sessionList: () => callTool<SessionListData>('session_list', {}),
+    sessionKill: (sessionId: string) => callTool<{ closed: boolean; sessionId: string }>('session_kill', { sessionId }),
     sessionInfo: (sessionId: string) => callTool<unknown>('session_info', { sessionId }),
     embeddingsStatus: () => callTool<EmbeddingsStatus>('embeddings_status', {}),
     embeddingsTryInit: () => callTool<unknown>('embeddings_try_init', {}),
