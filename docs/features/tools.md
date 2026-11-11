@@ -476,4 +476,10 @@ Resources are read-only data endpoints (not tools):
 | `knowledge://project/<id>` | Knowledge docs for project |
 | `tasks://project/<id>` | Tasks for project |
 
-## Total: 141 tools by default (143 with catalog; 145 when catalog writes are enabled) + 6 resources
+`resources/subscribe` is implemented per server/session: subscribe to a
+`tasks://`, `knowledge://` or `project://` URI, then a successful mutating tool
+call notifies `notifications/resources/updated` for matching subscriptions.
+`resources/unsubscribe` stops it. The capability is advertised as
+`resources.subscribe: true`.
+
+## Total: 154 tools by default (156 with catalog; 158 when catalog writes are enabled) + resources

@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RegisteredTool, RegisteredResource, RegisteredResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { loadConfig, loadCatalogConfig, isToolsEnabled, isToolResourcesEnabled, isToolResourcesExecEnabled } from "../config.js";
 import type { ServerConfig, CatalogConfig } from "../config.js";
 import { createServiceCatalogProvider } from "../catalog/provider.js";
@@ -68,9 +69,12 @@ export async function createServerContext(): Promise<ServerContext> {
   // every surface whose handlers are registered, so the advertised value is
   // true for prompts too — these flags document emission intent, not the
   // final wire value.
+  // SPEC-06: resources/subscribe is implemented below; a successful mutating
+  // tool call notifies subscribed resources. The SDK advertises listChanged
+  // based on handler registration, so these flags document emission intent.
   const TOOL_RES_ENABLED_CAPS = isToolResourcesEnabled();
   const SERVER_CAPS = {
-    resources: { subscribe: false, listChanged: TOOL_RES_ENABLED_CAPS },
+    resources: { subscribe: true, listChanged: TOOL_RES_ENABLED_CAPS },
     tools: { listChanged: true },
     prompts: { listChanged: false },
     completion: {},
@@ -191,6 +195,48 @@ export async function createServerContext(): Promise<ServerContext> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawServer = server as any;
+  // SPEC-06: per-server subscription set. HTTP/stdio transports each construct
+  // their own McpServer, so a set here is session-scoped by construction.
+  const resourceSubscriptions = new Set<string>();
+  const WRITE_TOOL = /(?:^|_)(create|update|close|delete|archive|trash|restore|move|claim|renew|release|transition|set|add|remove|promote|write|import|start|complete)(?:_|$)|_bulk_/;
+  const RESOURCE_PREFIXES: Array<[string, string]> = [
+    ['tasks_', 'tasks://'],
+    ['knowledge_', 'knowledge://'],
+    ['project_', 'project://'],
+  ];
+
+  async function notifyToolMutation(name: string): Promise<void> {
+    if (!WRITE_TOOL.test(name) || resourceSubscriptions.size === 0) return;
+    const low = rawServer?.server as { sendResourceUpdated?: (params: { uri: string }) => Promise<unknown> } | undefined;
+    if (typeof low?.sendResourceUpdated !== 'function') return;
+    for (const [toolPrefix, uriPrefix] of RESOURCE_PREFIXES) {
+      if (!name.startsWith(toolPrefix)) continue;
+      for (const uri of [...resourceSubscriptions]) {
+        if (!uri.startsWith(uriPrefix)) continue;
+        try {
+          await low.sendResourceUpdated({ uri });
+        } catch {
+          // Client disconnected mid-call; the subscription will be dropped with its transport.
+        }
+      }
+    }
+  }
+
+  const lowServer = rawServer?.server as
+    | { setRequestHandler?: (schema: unknown, handler: (request: { params?: { uri?: string } }) => Promise<unknown>) => void }
+    | undefined;
+  if (typeof lowServer?.setRequestHandler === 'function') {
+    lowServer.setRequestHandler(SubscribeRequestSchema, async (request) => {
+      const uri = request.params?.uri;
+      if (typeof uri === 'string' && uri.length > 0) resourceSubscriptions.add(uri);
+      return {};
+    });
+    lowServer.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
+      const uri = request.params?.uri;
+      if (typeof uri === 'string') resourceSubscriptions.delete(uri);
+      return {};
+    });
+  }
 
   // SEC-003: lazy gate resolution. The holder is populated with the live
   // ServerContext before this function returns; AuthManager itself is
@@ -267,7 +313,7 @@ export async function createServerContext(): Promise<ServerContext> {
     }
 
     if (typeof baseServer.registerCapabilities === 'function') {
-      (baseServer.registerCapabilities as (caps: Record<string, unknown>) => void)({ resources: { list: true, read: true } });
+      (baseServer.registerCapabilities as (caps: Record<string, unknown>) => void)({ resources: { list: true, read: true, subscribe: true } });
     }
   }
 
@@ -325,6 +371,11 @@ export async function createServerContext(): Promise<ServerContext> {
         ? guardUnknownParams(name, Object.keys(shape), handler as (args: unknown, extra?: unknown) => unknown)
         : handler;
       const gated = gateHandler(name, guarded);
+      const notifiedGated = async (args: unknown, extra?: unknown) => {
+        const result = await (gated as (a: unknown, e?: unknown) => Promise<unknown>)(args, extra);
+        await notifyToolMutation(name);
+        return result;
+      };
       const sdkDef = shape ? { ...def, inputSchema: looseInputSchema(shape) } : def;
       if (toolRegistry.has(name)) {
         const msg = `[tools] duplicate tool registration detected: "${name}"`;
@@ -337,7 +388,7 @@ export async function createServerContext(): Promise<ServerContext> {
               title: def?.title as string | undefined,
               description: def?.description as string | undefined,
               inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-              handler: gated as ToolMetaHandler,
+              handler: notifiedGated as ToolMetaHandler,
             });
             if (TOOL_RES_ENABLED) registerToolAsResource(name);
           } catch {}
@@ -352,7 +403,7 @@ export async function createServerContext(): Promise<ServerContext> {
             title: def?.title as string | undefined,
             description: def?.description as string | undefined,
             inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-            handler: gated as ToolMetaHandler,
+            handler: notifiedGated as ToolMetaHandler,
           });
           if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
@@ -360,7 +411,7 @@ export async function createServerContext(): Promise<ServerContext> {
       }
 
       try {
-        const res = orig.call(server, name, sdkDef, gated);
+        const res = orig.call(server, name, sdkDef, notifiedGated);
         toolNames.add(name);
         if (res) registeredToolHandles.set(name, res as RegisteredTool);
         try {
@@ -368,7 +419,7 @@ export async function createServerContext(): Promise<ServerContext> {
             title: def?.title as string | undefined,
             description: def?.description as string | undefined,
             inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-            handler: gated as ToolMetaHandler,
+            handler: notifiedGated as ToolMetaHandler,
           });
           if (TOOL_RES_ENABLED) registerToolAsResource(name);
         } catch {}
@@ -383,7 +434,7 @@ export async function createServerContext(): Promise<ServerContext> {
               title: def?.title as string | undefined,
               description: def?.description as string | undefined,
               inputSchema: def?.inputSchema as Record<string, unknown> | undefined,
-              handler: gated as ToolMetaHandler,
+              handler: notifiedGated as ToolMetaHandler,
             });
           } catch {}
           return;
