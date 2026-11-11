@@ -11,6 +11,7 @@ process.env.EMBEDDINGS_MODE = 'none';
 
 let tasks: typeof import('../src/storage/tasks.js');
 let knowledge: typeof import('../src/storage/knowledge.js');
+let dashboard: typeof import('../src/register/dashboard.js');
 
 async function rmrf(p: string) {
   try { await fsp.rm(p, { recursive: true, force: true }); } catch {}
@@ -27,6 +28,7 @@ beforeAll(async () => {
   await fsp.mkdir(process.env.OBSIDIAN_VAULT_ROOT!, { recursive: true });
   tasks = await import('../src/storage/tasks.js');
   knowledge = await import('../src/storage/knowledge.js');
+  dashboard = await import('../src/register/dashboard.js');
 });
 
 afterAll(async () => {
@@ -192,5 +194,36 @@ describe('dashboard_project_summary logic', () => {
 
     expect(stats[prjA]).toBe(5);
     expect(stats[prjB]).toBe(3);
+  });
+});
+
+describe('TR-04f dashboard_stats date filtering', () => {
+  it('filters tasks/docs by since/until and an empty range returns zero', async () => {
+    const prj = uniqProj('daterange');
+    await tasks.createTask({ project: prj, title: 'Recent task', priority: 'high' });
+    await knowledge.createDoc({ project: prj, title: 'Recent doc', content: 'body', type: 'api' });
+
+    const handlers = new Map<string, (args: Record<string, unknown>) => Promise<unknown>>();
+    dashboard.registerDashboardTools({
+      server: {
+        registerTool: (name: string, _def: unknown, handler: (args: Record<string, unknown>) => Promise<unknown>) => {
+          handlers.set(name, handler);
+        },
+      },
+    } as never);
+    const call = async (args: Record<string, unknown>) => {
+      const result = (await handlers.get('dashboard_stats')!(args)) as { content?: Array<{ text?: string }> };
+      return JSON.parse(result.content?.[0]?.text ?? '{}') as { ok: boolean; data: any };
+    };
+
+    const all = await call({ project: prj, since: '2000-01-01' });
+    expect(all.ok).toBe(true);
+    expect(all.data.tasks.total).toBe(1);
+    expect(all.data.knowledge.total).toBe(1);
+
+    const empty = await call({ project: prj, until: '2000-01-01' });
+    expect(empty.ok).toBe(true);
+    expect(empty.data.tasks.total).toBe(0);
+    expect(empty.data.knowledge.total).toBe(0);
   });
 });
