@@ -28,6 +28,23 @@ failures instead of an empty successful page. `webcrawler_crawl_site` keeps the 
 envelope for a completed crawl but adds `failed` and `errors[]`; only successful pages increment
 `crawled`, so callers can distinguish an empty page from an unreachable site.
 
+### Minimal credentials / scopes (TR-32)
+
+| Connector | Credential | Minimal access |
+|-----------|------------|----------------|
+| GitHub | `GITHUB_TOKEN` | `repo` (or fine-grained: Issues/Pull requests read + Metadata read) |
+| Jira | `JIRA_TOKEN` + `JIRA_EMAIL` + `JIRA_HOST` | issue/project read; `JIRA_HOST` must be `https://` |
+| YouTrack | `YOUTRACK_TOKEN` + `YOUTRACK_URL` | issue read |
+| Slack | `SLACK_BOT_TOKEN` | `channels:read`, `chat:write`, `search:read` |
+| Google Drive | OAuth2 access token | `drive.readonly` |
+| Gmail | OAuth2 access token | `gmail.readonly` |
+| Notion | `NOTION_TOKEN` | read content |
+| OneDrive | OAuth2 access token | `Files.Read` |
+| Linear | `LINEAR_API_KEY` | issues read |
+
+Tokens are read from connector config, SecretManager, or env (in that order); logger redaction
+covers `token`, `apiKey`, `authorization`, `password`, `secret` and their nested fields.
+
 ## Connector Framework
 
 <!-- doc-test: skip -->

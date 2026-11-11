@@ -36,11 +36,30 @@ function resolveFormat(): 'json' | 'pretty' {
 
 let _root: Logger | undefined;
 
+// TR-32: defense-in-depth before LoggingMiddleware. Pino wildcard paths cover
+// top-level and nested secret fields without leaking their values.
+export const LOG_REDACT_PATHS = [
+  'token', 'apiKey', 'authorization', 'password', 'secret',
+  '*.token', '*.apiKey', '*.authorization', '*.password', '*.secret',
+  'req.headers.authorization', 'headers.authorization',
+] as const;
+
 /**
  * Create (or return cached) root logger.
  * Idempotent — safe to call from any module.
  */
-export function createLogger(): Logger {
+export function createLogger(destination?: DestinationStream): Logger {
+  if (destination) {
+    return pino(
+      {
+        name: 'mcp-task-knowledge',
+        level: 'info',
+        timestamp: pino.stdTimeFunctions.isoTime,
+        redact: { paths: [...LOG_REDACT_PATHS], censor: '[REDACTED]' },
+      },
+      destination,
+    );
+  }
   if (_root) return _root;
 
   const level = resolveLevel();
@@ -70,6 +89,7 @@ export function createLogger(): Logger {
       name: 'mcp-task-knowledge',
       level,
       timestamp: pino.stdTimeFunctions.isoTime,
+      redact: { paths: [...LOG_REDACT_PATHS], censor: '[REDACTED]' },
       // Base bindings available to all log lines
       base: {
         pid: process.pid,

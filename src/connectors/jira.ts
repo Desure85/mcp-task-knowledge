@@ -46,6 +46,15 @@ export function createJiraConnector(config: Record<string, unknown>): Connector 
     async init(ctx: ConnectorContext) {
       token = (await resolveCredential(ctx, 'token', 'JIRA_TOKEN')) ?? cfg.token ?? '';
       if (!token || !host) throw new Error('JIRA_TOKEN and JIRA_HOST required');
+      let parsedHost: URL;
+      try {
+        parsedHost = new URL(host);
+      } catch {
+        throw new Error('JIRA_HOST must be an absolute https URL');
+      }
+      if (parsedHost.protocol !== 'https:') {
+        throw new Error('JIRA_HOST must use https (Basic auth would leak over plaintext)');
+      }
 
       const reg = (
         name: string,
