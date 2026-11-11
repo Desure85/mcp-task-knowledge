@@ -184,20 +184,18 @@ export function registerBulkTools(ctx: ServerContext): void {
     async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
       const created = [] as any[];
-      const failed: Array<{ index: number; error: Record<string, unknown> }> = [];
-      for (const [index, it] of items.entries()) {
-        try {
-          created.push(await taskStore(ctx).create({ project: prj, ...it }));
-        } catch (e) {
-          failed.push({
-            index,
-            error: e instanceof WorkflowError
-              ? e.toPayload()
-              : { code: 'CREATE_FAILED', message: (e as Error)?.message || String(e) },
-          });
+      try {
+        for (const it of items) {
+          const t = await taskStore(ctx).create({ project: prj, ...it });
+          created.push(t);
         }
+      } catch (e) {
+        if (e instanceof WorkflowError) return errWith(e.toPayload());
+        throw e;
       }
-      return ok({ count: created.length, created: created.map((task) => projectTask(task, { fields, compact })), failed });
+      // AC-03: the only hand-built envelope in the codebase — go through `ok()` so it carries
+      // `meta.ms` like every other response.
+      return ok({ count: created.length, created: created.map((task) => projectTask(task, { fields, compact })) });
     }
   );
 

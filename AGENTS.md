@@ -433,9 +433,9 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 ### Сессия S-20261109-night (TR-37 — bulk per-item)
 
 - `runBulkResults`: missing/throw изолированы, batch продолжается.
-- `knowledge_bulk_update` + archive/trash/restore, tasks archive/trash/restore — `failed`; tasks create не теряет созданное.
+- `knowledge_bulk_update` + archive/trash/restore, tasks archive/trash/restore — `failed`; tasks create оставлен атомарным (V-03).
 - `tests/bulk-per-item.test.ts` 3/3; RED: missing id исчезал.
-- Ограничения: failed = `{id,error}`, не полная обёртка; create без rollback.
+- Ограничения: failed = `{id,error}`, не полная обёртка; create атомарный (V-03).
 - Решение/откат: `docs/dev-cycle/decisions/2026-11-11-2340-tr-37.md`.
 
 ### Сессия S-20261109-night (TR-33 — fetch timeouts)
