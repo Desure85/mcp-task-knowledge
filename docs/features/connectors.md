@@ -16,6 +16,12 @@ Integration hub for external services. Each connector registers MCP tools with a
 | Linear | `linear_list_issues`, `linear_get_issue`, `linear_sync_to_kb` | ✅ Real (Linear GraphQL) |
 | Web Crawler | `webcrawler_fetch_page`, `webcrawler_crawl_site` | ✅ Working |
 
+All connectors return the same error envelope (TR-36):
+`{ ok: false, error: { message } }` for HTTP, network, API-level and validation failures.
+GitHub/Jira/Slack used to throw, which reached MCP clients as protocol `isError`; their tool
+handlers are now wrapped by `src/connectors/errors.ts`. Successful responses keep their
+`{ ok: true, data }` shape.
+
 Web Crawler error semantics (TR-35): `webcrawler_fetch_page` returns
 `{ ok: false, error: { message: "HTTP 404 Not Found" | "ECONNREFUSED" } }` for HTTP/network
 failures instead of an empty successful page. `webcrawler_crawl_site` keeps the `ok: true`

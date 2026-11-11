@@ -8,6 +8,7 @@
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
 import { connectorSignal } from './fetch-timeout.js';
+import { connectorError } from './errors.js';
 import { resolveCredential } from './credentials.js';
 
 const GITHUB_API = 'https://api.github.com';
@@ -46,7 +47,23 @@ export function createGitHubConnector(config: Record<string, unknown>): Connecto
       token = (await resolveCredential(ctx, 'token', 'GITHUB_TOKEN')) ?? cfg.token ?? '';
       if (!token) throw new Error('GITHUB_TOKEN required');
 
-      ctx.registerTool('github_issue_list', {
+      const reg = (
+        name: string,
+        schema: Parameters<ConnectorContext['registerTool']>[1],
+        handler: Parameters<ConnectorContext['registerTool']>[2],
+      ) =>
+        ctx.registerTool(name, schema, (async (input) => {
+          try {
+            try {
+            return await handler(input);
+          } catch (error) {
+            return connectorError(error);
+          }
+          } catch (error) {
+            return connectorError(error);
+          }
+        }) as Parameters<ConnectorContext['registerTool']>[2]);
+      reg('github_issue_list', {
         title: 'GitHub Issues',
         description: 'List issues in the configured repository',
         inputSchema: {
@@ -61,7 +78,7 @@ export function createGitHubConnector(config: Record<string, unknown>): Connecto
         return { ok: true, data: { count: data.length, issues: data.map((i) => ({ number: i.number, title: i.title, state: i.state, url: i.html_url })) } };
       });
 
-      ctx.registerTool('github_issue_get', {
+      reg('github_issue_get', {
         title: 'GitHub Issue Detail',
         description: 'Get a single issue with body and comments count',
         inputSchema: { number: { type: 'number' } },
@@ -71,7 +88,7 @@ export function createGitHubConnector(config: Record<string, unknown>): Connecto
         return { ok: true, data: { number: issue.number, title: issue.title, state: issue.state, body: issue.body, url: issue.html_url, labels: issue.labels, createdAt: issue.created_at } };
       });
 
-      ctx.registerTool('github_pr_list', {
+      reg('github_pr_list', {
         title: 'GitHub PRs',
         description: 'List pull requests in the configured repository',
         inputSchema: {
@@ -86,7 +103,7 @@ export function createGitHubConnector(config: Record<string, unknown>): Connecto
         return { ok: true, data: { count: data.length, prs: data.map((p) => ({ number: p.number, title: p.title, state: p.state, url: p.html_url, author: p.user?.login })) } };
       });
 
-      ctx.registerTool('github_repo_info', {
+      reg('github_repo_info', {
         title: 'GitHub Repo Info',
         description: 'Get repository metadata (stars, forks, description)',
         inputSchema: {},
