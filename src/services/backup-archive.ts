@@ -35,7 +35,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip, createGzip } from 'node:zlib';
 import { ensureDir, readJson } from '../fs.js';
-import { CURRENT_SCHEMA, getPackageVersion } from './schema-version.js';
+import { CURRENT_SCHEMA } from './schema-version.js';
+import { getPackageVersion } from '../utils/package-version.js';
 import { SERVER_LOCK_FILENAME } from '../storage-lock.js';
 
 // ── format constants ────────────────────────────────────────────────
