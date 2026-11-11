@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-20, TR-33, TR-37, TR-38, U-03, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** chore/dx-29-close-setup-link (от master 55749f3)
-**Текущий этап:** DX-29 закрыт по evidence; blocked — MU-07/TK-02/T-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** setup-link live 200→410, 10/10; кода не менялось.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-20, TR-33, TR-34, TR-37, TR-38, U-03, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/tr-34-connector-circuit-breaker (от master c990097)
+**Текущий этап:** TR-34 закрыт; blocked — MU-07/TK-02/T-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** connector:<id> circuit + health; 2/2, мутация RED.
+
+### Сессия S-20261109-night (TR-34 — circuit breaker коннекторов)
+
+- `initAll` оборачивает connector tools в `ServiceAvailability`; fast-fail circuit open.
+- `availabilityComponents()` → `HealthChecker` connector:<id>.
+- `tests/connector-circuit-breaker.test.ts` 2/2; мутация guard RED.
+- Ограничения: один circuit на коннектор, фиксированные тайминги, skip-init без health.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1430-tr-34.md`.
 
 ### Сессия S-20261109-night (DX-29 — закрытие)
 
