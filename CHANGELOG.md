@@ -8,6 +8,8 @@
 
 ### Added
 
+- SPEC-07 progressToken gating: `createProgressSender(ctx, token)` is a no-op unless the client supplied `_meta.progressToken`; notifications include that token in params. `progressTokenFromExtra` extracts string/number tokens. Tests 7/7; mutation removing the gate goes RED. Limit: no production tool handler calls the helper yet, so no live progress notifications
+
 - TR-32 security: `logger.ts` now uses pino `redact` for token/apiKey/authorization/password/secret (top-level and nested), and the Jira connector refuses non-https/non-absolute `JIRA_HOST` because Basic auth over plaintext leaks credentials. `connectors.md` documents minimal scopes. Tests 4/4; mutation removing redaction goes RED. Limits: message strings are not masked, Jira host is checked at init only, localhost over HTTP is rejected too
 
 - TR-36 connector errors: `src/connectors/errors.ts` and a small registration wrapper now make GitHub, Jira and Slack return the same `{ok:false,error:{message}}` envelope as the other connectors instead of throwing protocol `isError`. Success envelopes are unchanged; tests 4/4 (GitHub 429, Jira 401, Slack API + validation, success); mutation removing the wrapper goes RED. Limits: only those three connectors, messages are unstructured, health stays `ConnectorHealth`
