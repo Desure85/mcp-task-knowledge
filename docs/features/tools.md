@@ -282,6 +282,7 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `briefing` | Session-start context in one call: current project, open tasks by priority, recent docs, blockers |
 | `dashboard_stats` | Project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
 | `dashboard_activity` | Chronological activity feed of recent task and knowledge changes |
+| `changes_since` | Delta feed of tasks/knowledge/memory changes since a timestamp (`nextSince` for polling) |
 | `dashboard_trends` | Task creation and completion trends over time (daily or weekly buckets) |
 | `dashboard_project_summary` | Cross-project summary: task and knowledge counts plus top metrics per project |
 
