@@ -5,6 +5,7 @@ import { resolveProject } from '../config.js';
 import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
+import { projectDoc, writeResponseArgs } from './write-response.js';
 
 /** Y-02e2: documents come from the context profile, not from a module import. */
 function docStore(ctx: ServerContext) {
@@ -95,15 +96,16 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional(),
         id: z.string().min(1),
+        ...writeResponseArgs,
       },
     },
-    async ({ project, id }) => {
+    async ({ project, id, fields, compact }) => {
       const prj = resolveProject(project);
       const d = await docStore(ctx).read(prj, id);
       if (!d) {
         return err(`Doc not found: ${project}/${id}`);
       }
-      return ok(d);
+      return ok(projectDoc(d, { fields, compact }));
     }
   );
 }

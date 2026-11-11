@@ -1054,6 +1054,8 @@ Read a knowledge document by id
 
 - `project`
 - `id`
+- `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -1062,7 +1064,9 @@ Read a knowledge document by id
   "name": "knowledge_get",
   "arguments": {
     "project": "mcp",
-    "id": "00000000-0000-0000-0000-000000000000"
+    "id": "00000000-0000-0000-0000-000000000000",
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -1193,6 +1197,7 @@ List knowledge document metadata with cursor pagination and field selection. Ret
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -1210,7 +1215,8 @@ List knowledge document metadata with cursor pagination and field selection. Ret
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -1230,6 +1236,7 @@ List knowledge documents as a hierarchical tree (by parentId)
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -1243,7 +1250,8 @@ List knowledge documents as a hierarchical tree (by parentId)
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -1642,6 +1650,7 @@ List extracted memory facts from the knowledge base. Filters by type=memory_fact
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -1656,7 +1665,8 @@ List extracted memory facts from the knowledge base. Filters by type=memory_fact
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -1672,6 +1682,7 @@ Full-text search across extracted memory facts. Uses existing search_knowledge u
 - `project`
 - `query`
 - `limit`
+- `compact`
 
 **Пример вызова:**
 
@@ -1681,7 +1692,8 @@ Full-text search across extracted memory facts. Uses existing search_knowledge u
   "arguments": {
     "project": "mcp",
     "query": "example",
-    "limit": 10
+    "limit": 10,
+    "compact": "example"
   }
 }
 ```
@@ -3137,6 +3149,7 @@ List prompts from prompts catalog with optional filters
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3155,7 +3168,8 @@ List prompts from prompts catalog with optional filters
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3281,6 +3295,7 @@ BM25 (and optional vector) search over knowledge docs
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3296,7 +3311,8 @@ BM25 (and optional vector) search over knowledge docs
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3316,6 +3332,7 @@ BM25 (and optional vector) search over tasks
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 - `type`
 
 **Пример вызова:**
@@ -3331,6 +3348,7 @@ BM25 (and optional vector) search over tasks
     "countOnly": "example",
     "maxBytes": "example",
     "fields": "example",
+    "compact": "example",
     "type": "note"
   }
 }
@@ -3768,6 +3786,7 @@ Get the dependency DAG for a project: topological sort, critical path and edge l
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3783,7 +3802,8 @@ Get the dependency DAG for a project: topological sort, critical path and edge l
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3799,6 +3819,8 @@ Get task by id. Includes the active claim/lease holder when the task is claimed.
 - `project`
 - `id`
 - `includeGraphMetrics`
+- `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3808,7 +3830,9 @@ Get task by id. Includes the active claim/lease holder when the task is claimed.
   "arguments": {
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
-    "includeGraphMetrics": "example"
+    "includeGraphMetrics": "example",
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3828,6 +3852,7 @@ Get direct children of a task (one level deep, not recursive).
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3841,7 +3866,8 @@ Get direct children of a task (one level deep, not recursive).
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -3920,6 +3946,7 @@ List tasks with optional filters, cursor pagination and field selection. Returns
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -3946,7 +3973,8 @@ List tasks with optional filters, cursor pagination and field selection. Returns
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```
@@ -4048,6 +4076,7 @@ List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT node
 - `countOnly`
 - `maxBytes`
 - `fields`
+- `compact`
 
 **Пример вызова:**
 
@@ -4064,7 +4093,8 @@ List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT node
     "cursor": "example",
     "countOnly": "example",
     "maxBytes": "example",
-    "fields": "example"
+    "fields": "example",
+    "compact": "example"
   }
 }
 ```

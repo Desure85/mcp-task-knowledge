@@ -218,17 +218,18 @@ export function registerTasksTools(ctx: ServerContext): void {
         project: z.string().optional(),
         id: z.string().min(1),
         includeGraphMetrics: z.boolean().optional().describe('Add onCriticalPath and transitive dependentsCount'),
+        ...writeResponseArgs,
       },
     },
-    async ({ project, id, includeGraphMetrics }) => {
+    async ({ project, id, includeGraphMetrics, fields, compact }) => {
       const prj = resolveProject(project);
       const t = await taskStore(ctx).get(prj, id);
       if (!t) {
         return err(`Task not found: ${project}/${id}`);
       }
-      if (!includeGraphMetrics) return ok(t);
+      if (!includeGraphMetrics) return ok(projectTask(t, { fields, compact }));
       const all = await taskStore(ctx).list({ project: prj, includeArchived: true });
-      return ok(withGraphMetrics([t], computeGraphMetrics(all))[0]);
+      return ok(projectTask(withGraphMetrics([t], computeGraphMetrics(all))[0], { fields, compact }));
     }
   );
 

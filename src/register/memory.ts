@@ -47,6 +47,7 @@ import {
 import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, toPageRequest } from './page-args.js';
+import { compactRecord } from '../utils/pagination.js';
 import { join } from 'node:path';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -516,9 +517,10 @@ export function registerMemoryTools(ctx: ServerContext): void {
         project: z.string().optional(),
         query: z.string().min(1).describe("Search query"),
         limit: z.number().int().min(1).max(50).default(10).optional(),
+        compact: z.boolean().optional().describe('Omit content and empty fields from results'),
       },
     },
-    async ({ project, query, limit }) => {
+    async ({ project, query, limit, compact }) => {
       const prj = resolveProject(project);
       const metas = await storageProfile(ctx).docs.list({ project: prj });
       const factMetas = metas.filter((m) => m.type === 'memory_fact');
@@ -531,7 +533,8 @@ export function registerMemoryTools(ctx: ServerContext): void {
       for (const meta of matches) {
         const doc = await storageProfile(ctx).docs.read(prj, meta.id);
         if (doc) {
-          results.push({ id: doc.id, title: doc.title, content: doc.content, tags: doc.tags, score: 1.0 });
+          const row = { id: doc.id, title: doc.title, content: doc.content, tags: doc.tags, score: 1.0 };
+          results.push(compact ? compactRecord(row) : row);
         }
       }
       return ok({ count: results.length, results });
