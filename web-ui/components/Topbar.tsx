@@ -82,14 +82,16 @@ export function Topbar() {
           </select>
         </label>
 
-        <RealtimeIndicator />
+        <div className="hidden sm:block">
+          <RealtimeIndicator />
+        </div>
 
         <ThemeSwitcher />
 
         <Link
           href="/access"
           title={hasToken ? 'Signed in — manage access and tokens' : 'No API token set'}
-          className="inline-flex items-center gap-1 rounded-full border border-line bg-surface h-7 px-2 text-[11px] text-muted hover:bg-surface-2"
+          className="hidden sm:inline-flex items-center gap-1 rounded-full border border-line bg-surface h-7 px-2 text-[11px] text-muted hover:bg-surface-2"
         >
           <IconLock className="h-3 w-3" />
           {hasToken ? 'Auth' : 'No auth'}
@@ -101,7 +103,7 @@ export function Topbar() {
               await api.auth.logout();
               router.replace('/login');
             }}
-            className="inline-flex h-7 items-center rounded-full border border-line bg-surface px-2 text-[11px] font-medium text-muted hover:bg-surface-2"
+            className="hidden sm:inline-flex h-7 items-center rounded-full border border-line bg-surface px-2 text-[11px] font-medium text-muted hover:bg-surface-2"
           >
             Sign out
           </button>

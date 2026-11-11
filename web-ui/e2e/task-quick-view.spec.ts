@@ -85,6 +85,9 @@ test('UI-36: card opens a read-only quick view with full details', async ({ page
   await page.screenshot({ path: path.resolve('..', 'docs/ui/screens/ui-36/quick-view-1440.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.resolve('..', 'docs/ui/screens/ui-36/quick-view-390.png'), fullPage: true });
+  // UI-20: restore the desktop viewport before continuing to interact with the board;
+  // at 390 the sticky mobile chrome covers the card's top-left click point.
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   // Related tasks stay inside the preview instead of navigating away.
   await dialog.getByRole('button', { name: `UI36-child-${stamp}`, exact: true }).first().click();

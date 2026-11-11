@@ -374,6 +374,17 @@ export function GraphCanvas({
                 onPointerLeave={() => setHoveredNodeId(null)}
                 className="cursor-pointer"
               >
+                {/* UI-20: 44px touch target on mobile without enlarging the visible node. */}
+                <rect
+                  className="graph-hit"
+                  x={node.x - 22}
+                  y={node.y - 22}
+                  width={44}
+                  height={44}
+                  fill="transparent"
+                  pointerEvents="all"
+                  aria-hidden="true"
+                />
                 <circle
                   cx={node.x}
                   cy={node.y}

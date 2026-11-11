@@ -37,6 +37,112 @@
   --spacing-row: 32px;
   --spacing-topbar: 48px;
   --spacing-nav: 236px;
+  --spacing-mobile-nav: 56px;
+}
+
+.graph-hit {
+  display: none;
+}
+
+/* UI-20: touch targets and page chrome on phones/tablets. The design system is
+   intentionally dense on desktop; below lg every interactive control gets a
+   44px target and the page header keeps its primary action visible. */
+@media (max-width: 1023px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  main a[href]:not(.sr-only),
+  button:not([disabled]),
+  input:not([type="hidden"]):not(.sr-only),
+  select,
+  textarea,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitemradio"],
+  summary {
+    min-height: 44px;
+  }
+
+  main a[href]:not(.sr-only),
+  input:not([type="hidden"]):not(.sr-only),
+  select,
+  textarea {
+    min-width: 44px;
+  }
+
+  main a[href]:not(.sr-only) {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  button,
+  [role="button"],
+  [role="menuitemradio"] {
+    min-width: 44px;
+  }
+
+  main table {
+    max-width: 100%;
+  }
+
+  /* UI-20: the task list table becomes one card per row on phones. */
+  table[data-mobile-cards] {
+    display: block;
+    min-width: 0 !important;
+    width: 100%;
+    border: 0;
+  }
+
+  table[data-mobile-cards] thead {
+    display: none;
+  }
+
+  table[data-mobile-cards] tbody {
+    display: block;
+  }
+
+  table[data-mobile-cards] tr {
+    display: block;
+    margin: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: var(--surface);
+    padding: 6px 0;
+  }
+
+  table[data-mobile-cards] td {
+    display: block;
+    width: auto;
+    padding: 4px 10px;
+    border: 0;
+  }
+
+  table[data-mobile-cards] td:first-child {
+    display: inline-block;
+    width: auto;
+  }
+
+  table[data-mobile-cards] td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  main pre,
+  main img,
+  main svg,
+  main video {
+    max-width: 100%;
+  }
+
+  .graph-hit {
+    display: block;
+  }
 }
 
 /* ── Indigo (Workbench) — default palette ─────────────────────────── */
