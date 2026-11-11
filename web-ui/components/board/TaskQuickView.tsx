@@ -171,7 +171,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit,
                 <ul className="mt-1 space-y-1">
                   {(deps?.dependsOn ?? []).map((dep) => (
                     <li key={dep.id}>
-                      <button type="button" onClick={() => onOpenRelated(dep.id)} className="text-left text-accent underline">{dep.title}</button>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-left text-[12px] text-accent underline hover:bg-transparent hover:text-accent" onClick={() => onOpenRelated(dep.id)}>{dep.title}</Button>
                       <span className="ml-1 text-muted">({statusOf(dep.status)})</span>
                     </li>
                   ))}
@@ -187,7 +187,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit,
                 <ul className="mt-1 space-y-1">
                   {(deps?.dependedBy ?? []).map((dep) => (
                     <li key={dep.id}>
-                      <button type="button" onClick={() => onOpenRelated(dep.id)} className="text-left text-accent underline">{dep.title}</button>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-left text-[12px] text-accent underline hover:bg-transparent hover:text-accent" onClick={() => onOpenRelated(dep.id)}>{dep.title}</Button>
                       <span className="ml-1 text-muted">({statusOf(dep.status)})</span>
                     </li>
                   ))}
@@ -203,7 +203,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit,
                 <ul className="mt-1 space-y-1">
                   {children.map((child) => (
                     <li key={child.id}>
-                      <button type="button" onClick={() => onOpenRelated(child.id)} className="text-left text-accent underline">{child.title}</button>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-left text-[12px] text-accent underline hover:bg-transparent hover:text-accent" onClick={() => onOpenRelated(child.id)}>{child.title}</Button>
                     </li>
                   ))}
                 </ul>
