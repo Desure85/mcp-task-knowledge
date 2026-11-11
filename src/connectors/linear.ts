@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
@@ -62,6 +63,7 @@ export class LinearConnector implements Connector {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ query, variables }),
+      signal: connectorSignal(),
     } as RequestInit);
     if (!res.ok) throw new Error(`Linear API ${res.status}: ${await res.text()}`);
     const data = await res.json() as { data?: T; errors?: Array<{ message?: string }> };

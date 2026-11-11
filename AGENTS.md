@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/z-11-agent-target (от master c2e8197)
-**Текущий этап:** Z-11 закрыт; Z-03 ждёт серверного package read/write API; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** target-бейдж/фильтр/редактор промптов, реестр агентов; e2e 1/1, guards 17/17.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/tr-33-connector-timeouts (от master 4e9e0c3)
+**Текущий этап:** TR-33 закрыт; Z-03 ждёт серверного package read/write API; blocked — DX-29/MU-07/TK-02/T-02, AA-04
+**Статус:** единый fetch timeout во всех коннекторах; контракт 2/2, мутация RED.
+
+### Сессия S-20261109-night (TR-33 — fetch timeouts)
+
+- `fetch-timeout.ts`: `connectorSignal`, 10s default, `CONNECTOR_TIMEOUT_MS`.
+- github/jira/slack + gdrive/gmail/onedrive/notion/linear передают signal.
+- `tests/connector-timeouts.test.ts` 2/2, new-connectors 21/21; мутация github RED.
+- Ограничения: один deadline, env без кеша, без connect/read разделения.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-2300-tr-33.md`.
 
 ### Сессия S-20261109-night (Z-11 — агенты в промптах)
 

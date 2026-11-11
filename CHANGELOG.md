@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-33 connector fetch timeouts: a shared `connectorSignal()` (`AbortSignal.timeout`, default 10 s, `CONNECTOR_TIMEOUT_MS` override) is now passed by github, jira, slack, gdrive, gmail, notion, onedrive and linear, so a stalled remote can no longer pin a tool call for the undici headers timeout. A hermetic contract test verifies the default/env parsing and every connector file; removing the signal from one connector is RED. Limits: one deadline per request, no separate connect/read budget
+
 - Z-11 agent targeting in prompts: the catalog now sends the single **Agent target** filter to `prompts_list`, shows an `agent: <id>` badge on cards/details, and edits `metadata.target` in the create and edit forms; the new `/projects/settings/agents` page lists built-in/custom targets and saves the project registry through `project_agents_*`. E2E verifies the server-side target request, badge and registry save. Limits: built-ins cannot be removed, moveTo/moves is not exposed, and the registry is a separate page rather than a settings tab
 
 - UI-17 attention overview: the home page replaced the duplicated navigation-card grid with **Blocked tasks**, **Claimed tasks**, **Stale documents** (90 days) and **Recent activity** widgets, each with an empty state; KNOWLEDGE total and unique tags come from the same `dashboard_stats` payload. Also fixed `dashboard_stats`/`dashboard_activity` on the SQLite profile — they read the file store directly and returned zeros; both now use `storageProfile(ctx)`. E2E creates a blocked task, a task and a tagged document and verifies the widgets plus the metrics line. Deadline widget is intentionally absent until TK-01 adds a deadline field

@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
@@ -76,6 +77,7 @@ export class NotionConnector implements Connector {
         'Content-Type': 'application/json',
       },
       body: init?.body,
+      signal: connectorSignal(),
     } as RequestInit);
   }
 
