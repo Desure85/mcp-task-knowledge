@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-25, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/ui-25-tree (от master b9bc08a)
-**Текущий этап:** UI-25 закрыт; дальше UI-30/Z-03 (разблокированы деревом), UI-17, Z-11, AA-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** TreeView + дерево задач (раскрытие/прогресс/Add subtask/Parent) + Knowledge Tree/breadcrumbs/parent select; 3 unit + 2 e2e, мутация RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-25, UI-30, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/ui-30-entity-card (от master c638236)
+**Текущий этап:** UI-30 закрыт; дальше UI-31 (на той же карточке), Z-03, UI-17, Z-11; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** entity-панель Related work + graph?entity/deep links + Open in graph; e2e 1/1, регрессии 3/3, tsc/guards.
+
+### Сессия S-20261109-night (UI-30 — карточка узла)
+
+- `NodePanel`: Related work через `search_tasks`/`search_knowledge` (8+8), ссылки на задачи/документы.
+- `/graph?entity=`: точный label или самый длинный входящий; `/knowledge?doc=`; Open in graph из задачи и документа.
+- `e2e/entity-card.spec.ts` 1/1; регрессии quick-view/task-tree/knowledge-tree; мутация substring RED.
+- Ограничения: BM25-связи, 8 результатов, только entity, неоднозначный title, текущий проект.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1800-ui-30.md`.
 
 ### Сессия S-20261109-night (UI-25 — деревья)
 

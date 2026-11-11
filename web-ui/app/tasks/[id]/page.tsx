@@ -331,6 +331,7 @@ export default function TaskPage() {
         actions={
           <>
             <Link href="/tasks" className="inline-flex h-9 items-center rounded-[var(--radius-control)] border border-line bg-surface px-3 text-[13px] font-medium text-ink hover:bg-surface-2">Back to tasks</Link>
+            <Link href={`/graph?entity=${encodeURIComponent(task.title)}`} className="inline-flex h-9 items-center rounded-[var(--radius-control)] border border-line bg-surface px-3 text-[13px] font-medium text-ink hover:bg-surface-2">Open in graph</Link>
             <Button variant="secondary" onClick={() => setDestructive('archive')}>
               Archive
             </Button>

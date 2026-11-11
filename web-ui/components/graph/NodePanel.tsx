@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   entityMentions,
   entityNodeId,
@@ -9,7 +10,7 @@ import {
   truncateLabel,
   type GraphNode,
 } from '@/lib/graph-model';
-import type { TemporalFact } from '@/lib/api-client';
+import { api, type KnowledgeListItem, type Task, type TemporalFact } from '@/lib/api-client';
 import { Badge, Button } from '@/components/ui';
 
 const LIST_BUTTON =
@@ -66,6 +67,35 @@ export function NodePanel({
     () => (entity ? oftenAppearsWith(facts, entity, 6) : []),
     [facts, entity],
   );
+  const [relatedTasks, setRelatedTasks] = useState<Task[]>([]);
+  const [relatedDocs, setRelatedDocs] = useState<KnowledgeListItem[]>([]);
+  const [relatedWorkLoading, setRelatedWorkLoading] = useState(false);
+
+  useEffect(() => {
+    if (!entity) {
+      setRelatedTasks([]);
+      setRelatedDocs([]);
+      return;
+    }
+    let cancelled = false;
+    setRelatedWorkLoading(true);
+    Promise.allSettled([
+      api.search.tasks(entity, undefined, 8),
+      api.search.knowledge(entity, undefined, 8),
+    ])
+      .then(([taskResult, docResult]) => {
+        if (cancelled) return;
+        setRelatedTasks(taskResult.status === 'fulfilled' ? taskResult.value.map((hit) => hit.item as Task) : []);
+        setRelatedDocs(docResult.status === 'fulfilled' ? docResult.value.map((hit) => hit.item as KnowledgeListItem) : []);
+      })
+      .finally(() => {
+        if (!cancelled) setRelatedWorkLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entity]);
+
   const links = useMemo(
     () => (fact ? replacedLinks(facts, fact.id) : { replaces: [], replacedBy: null }),
     [facts, fact],
@@ -176,6 +206,46 @@ export function NodePanel({
                     </span>
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1 border-t border-line pt-3">
+            <h4 className={SECTION_TITLE}>Related work</h4>
+            {relatedWorkLoading ? (
+              <p className="text-[12px] text-muted">Searching tasks and documents…</p>
+            ) : relatedTasks.length === 0 && relatedDocs.length === 0 ? (
+              <p className="text-[12px] text-muted">No tasks or documents mention this entity yet.</p>
+            ) : (
+              <div className="space-y-2 text-[12px]">
+                {relatedTasks.length > 0 && (
+                  <div>
+                    <p className="text-[11px] text-muted">Tasks</p>
+                    <ul className="space-y-0.5">
+                      {relatedTasks.map((task) => (
+                        <li key={task.id}>
+                          <Link href={`/tasks/${task.id}`} className="text-ink underline-offset-2 hover:text-accent hover:underline">
+                            {task.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {relatedDocs.length > 0 && (
+                  <div>
+                    <p className="text-[11px] text-muted">Documents</p>
+                    <ul className="space-y-0.5">
+                      {relatedDocs.map((doc) => (
+                        <li key={doc.id}>
+                          <Link href={`/knowledge?doc=${doc.id}`} className="text-ink underline-offset-2 hover:text-accent hover:underline">
+                            {doc.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>

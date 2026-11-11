@@ -8,7 +8,8 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, type TemporalFact } from '@/lib/api-client';
 import { buildGraph, type GraphMode } from '@/lib/graph-model';
 import { layoutGraph } from '@/lib/graph-layout';
@@ -69,6 +70,9 @@ export default function GraphPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState<Set<string>>(new Set());
   const palette = useGraphPalette();
+  const searchParams = useSearchParams();
+  const requestedEntity = searchParams.get('entity');
+  const appliedEntity = useRef<string | null>(null);
 
   const loadGraph = useCallback(async () => {
     try {
@@ -115,6 +119,21 @@ export default function GraphPage() {
       }),
     [graph, layout],
   );
+
+  useEffect(() => {
+    if (!requestedEntity || appliedEntity.current === requestedEntity || graph.nodes.length === 0) return;
+    const wanted = requestedEntity.trim().toLowerCase();
+    const entityNodes = graph.nodes.filter((node) => node.type === 'entity');
+    const match =
+      entityNodes.find((node) => node.label.trim().toLowerCase() === wanted) ??
+      entityNodes
+        .filter((node) => wanted.includes(node.label.trim().toLowerCase()))
+        .sort((a, b) => b.label.length - a.label.length)[0];
+    if (match) {
+      setSelectedId(match.id);
+      appliedEntity.current = requestedEntity;
+    }
+  }, [requestedEntity, graph.nodes]);
 
   const selectedNode = useMemo(
     () => (selectedId ? (graph.nodes.find((node) => node.id === selectedId) ?? null) : null),
