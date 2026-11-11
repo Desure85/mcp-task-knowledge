@@ -159,6 +159,7 @@ export interface DocPageOptions {
   tag?: string;
   type?: string;
   parentId?: string;
+  rootsOnly?: boolean;
   includeArchived?: boolean;
   includeTrashed?: boolean;
   countOnly?: boolean;
@@ -178,6 +179,7 @@ function docPasses(meta: KnowledgeDocMeta, opts: DocPageOptions): boolean {
   if (opts.tag && !(meta.tags || []).includes(opts.tag)) return false;
   if (opts.type && meta.type !== opts.type) return false;
   if (opts.parentId && meta.parentId !== opts.parentId) return false;
+  if (opts.rootsOnly && meta.parentId) return false;
   return true;
 }
 
@@ -220,7 +222,7 @@ function startIndexAfterCursor(
  */
 async function tryIndexedDocsPage(project: string, opts: DocPageOptions): Promise<DocPage | null> {
   const index = getActiveMetadataIndex();
-  if (!index) return null;
+  if (!index || opts.rootsOnly) return null;
 
   const cursor = opts.cursor ? decodeKeyCursor(opts.cursor) : null;
   const after = cursor ? { mtimeMs: Number(cursor.k), id: cursor.id } : undefined;
@@ -301,7 +303,7 @@ export async function listDocsPage(project: string, opts: DocPageOptions): Promi
   noteFilePageRead();
 
   const entries = await listDocEntries(project);
-  const hasContentFilter = Boolean(opts.tag || opts.type || opts.parentId);
+  const hasContentFilter = Boolean(opts.tag || opts.type || opts.parentId || opts.rootsOnly);
   const entriesStart = startIndexAfterCursor(entries, opts.cursor);
 
   if (opts.countOnly || hasContentFilter) {

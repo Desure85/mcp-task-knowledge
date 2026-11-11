@@ -355,6 +355,7 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
     if (filter.tag && !(doc.tags ?? []).includes(filter.tag)) return false;
     if ('type' in filter && filter.type && doc.type !== filter.type) return false;
     if ('parentId' in filter && filter.parentId !== undefined && doc.parentId !== filter.parentId) return false;
+  if ('rootsOnly' in filter && filter.rootsOnly && doc.parentId) return false;
     if (!filter.includeArchived && doc.archived) return false;
     if (!filter.includeTrashed && doc.trashed) return false;
     return true;

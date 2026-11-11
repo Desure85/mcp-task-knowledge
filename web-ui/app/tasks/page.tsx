@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 import type { CSSProperties } from 'react';
 import {
   api,
+  prepareCrossTabAuth,
   ToolCallError,
   type DagData,
   type ProjectStatus,
@@ -584,6 +585,7 @@ export default function TasksPage() {
   }
 
   function openTaskEditor(task: Task) {
+    prepareCrossTabAuth();
     window.open(`/tasks/${task.id}`, '_blank', 'noopener,noreferrer');
   }
 

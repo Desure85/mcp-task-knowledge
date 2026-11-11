@@ -24,11 +24,12 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
         tag: z.string().optional(),
         type: z.string().optional().describe("Document type (component, api, adr, ...)"),
         parentId: z.string().optional().describe("Only direct children of this document"),
+        rootsOnly: z.boolean().optional().describe('Only documents without a parent (tree roots)'),
         includeArchived: z.boolean().default(false).optional(),
         ...pageArgsSchema,
       },
     },
-    async ({ project, tag, type, parentId, includeArchived, ...pageArgs }) => {
+    async ({ project, tag, type, parentId, rootsOnly, includeArchived, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         const request = toPageRequest(pageArgs);
@@ -38,6 +39,7 @@ export function registerKnowledgeTools(ctx: ServerContext): void {
           tag,
           type,
           parentId,
+          rootsOnly,
           includeArchived,
           countOnly: request.countOnly,
         });

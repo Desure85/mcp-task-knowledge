@@ -45,6 +45,7 @@ import {
   setAuthToken,
   clearAuthToken,
   hasAuthToken,
+  prepareCrossTabAuth,
 } from './api-client';
 
 function okResult(data: unknown) {
@@ -202,6 +203,27 @@ describe('auth token', () => {
     await expect(api.tasks.list()).rejects.toThrow('task not found');
     expect(store.get('mcp.auth.token')).toBe('good-jwt');
     expect(dispatched).toEqual([]);
+  });
+
+  it('a new tab consumes the short-lived cross-tab handoff', async () => {
+    setAuthToken('handoff-jwt');
+    prepareCrossTabAuth();
+    expect(localStore.has('mcp.auth.handoff')).toBe(true);
+
+    // Simulate a freshly opened tab: per-tab sessionStorage is empty, localStorage is shared.
+    store.clear();
+    okAll();
+    await api.tasks.list();
+    const auth = mocks.calls.find((c) => c.name === 'mcp.authenticate');
+    expect((auth?.arguments as { token: string }).token).toBe('handoff-jwt');
+    expect(store.get('mcp.auth.token')).toBe('handoff-jwt');
+    expect(localStore.has('mcp.auth.handoff')).toBe(false);
+  });
+
+  it('ignores an expired cross-tab handoff', async () => {
+    localStore.set('mcp.auth.handoff', JSON.stringify({ token: 'old', expiresAt: Date.now() - 1 }));
+    expect(hasAuthToken()).toBe(false);
+    expect(localStore.has('mcp.auth.handoff')).toBe(false);
   });
 
   it('a token from login wins over NEXT_PUBLIC_MCP_TOKEN', async () => {
