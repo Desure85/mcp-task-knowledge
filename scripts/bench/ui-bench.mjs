@@ -78,6 +78,9 @@ async function loadChromium(playwrightDir) {
 
 const INIT_SCRIPT = `
   window.__longTasks = [];
+  window.__mutations = [];
+  const __obs = new MutationObserver(() => { window.__mutations.push(performance.now()); if (window.__mutations.length > 2000) window.__mutations.shift(); });
+  addEventListener('DOMContentLoaded', () => __obs.observe(document.documentElement, { subtree: true, childList: true, characterData: true }));
   window.__ltTotal = 0;
   try {
     new PerformanceObserver((list) => {
@@ -135,7 +138,7 @@ async function main() {
     for (const name of args.pages) {
       const mcp = [];
       const onResponse = async (r) => {
-        if (r.request().method() !== 'POST' || !r.url().includes('/api/mcp')) return;
+        if (r.request().method() !== 'POST' || !/\/mcp(?:\?|$)/.test(new URL(r.url()).pathname + (new URL(r.url()).search || ''))) return;
         const startedAt = Date.now();
         const ct = (r.headers()['content-type'] || '').toLowerCase();
         if (ct.includes('text/event-stream')) {
@@ -198,6 +201,8 @@ async function main() {
             bodyTextLength: document.body.innerText.length,
             title: document.title,
             bodyTextHead: document.body.innerText.slice(0, 220).replace(/\s+/g, ' '),
+            lastMutationMs: window.__mutations?.length ? Math.round(window.__mutations[window.__mutations.length - 1]) : null,
+            mutationCount: window.__mutations?.length ?? null,
           };
         })
         .catch(() => ({ domNodes: null, cards: null, longTasks: null, longTaskTotalMs: null }));
@@ -207,7 +212,11 @@ async function main() {
       const bytes = mcpFetches.reduce((s, m) => s + m.bytes, 0);
       result.pages[name] = {
         dataLoadedMs,
-        domSettledMs,
+        // Count-polling is a coarse stability heuristic (it only sees element-count
+        // changes and must observe 3 s of quiet). The MutationObserver timestamp is the
+        // actual last DOM change and is the number SC-04 gates on.
+        domSettledMs: metrics.lastMutationMs ?? lastChangeMs,
+        pollSettledMs: domSettledMs,
         firstMcpMs,
         timedOut,
         navError,

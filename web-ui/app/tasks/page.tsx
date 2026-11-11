@@ -136,6 +136,10 @@ export default function TasksPage() {
   const [lanePrefs, setLanePrefs] = useState<LanePrefs>(EMPTY_LANE_PREFS);
   const [types, setTypes] = useState<ProjectType[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [totalTasks, setTotalTasks] = useState(0);
+  const [typeTotals, setTypeTotals] = useState<Record<string, number>>({});
+  const [statusPages, setStatusPages] = useState<Record<string, { offset: number; hasMore: boolean; total: number }>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -190,19 +194,96 @@ export default function TasksPage() {
 
   useEffect(() => () => clearLiveStatus(), []);
 
-  const loadTasks = useCallback(async (currentProject: string, quiet = false) => {
+  const loadTasks = useCallback(
+    async (currentProject: string, quiet = false) => {
+      try {
+        if (!quiet) setLoading(true);
+        const type = serverTypeRef.current;
+        const filters = {
+          ...(type ? { type } : {}),
+          ...(filterPriority !== 'all' ? { priority: filterPriority } : {}),
+          ...(filterTag ? { tag: filterTag } : {}),
+        };
+
+        if (searchQuery.trim()) {
+          const results = await api.search.tasks(searchQuery.trim(), currentProject, 100, type ?? undefined);
+          setTasks(results.map((result) => result.item as Task));
+          setStatusPages({});
+          setTotalTasks(results.length);
+          return;
+        }
+
+        const board = await api.tasks.board(currentProject, { limit: 25, ...filters });
+        const byStatus = new Map(board.columns.map((column) => [column.status, column]));
+        setTasks(board.columns.flatMap((column) => column.items));
+        setStatusPages(
+          Object.fromEntries(
+            statuses
+              .filter((status) => !status.archived)
+              .map((status) => {
+                const column = byStatus.get(status.id);
+                return [
+                  status.id,
+                  {
+                    offset: column?.nextOffset ?? column?.total ?? 0,
+                    hasMore: column?.nextOffset !== null && column?.nextOffset !== undefined,
+                    total: column?.total ?? 0,
+                  },
+                ];
+              }),
+          ),
+        );
+        setTotalTasks(board.total);
+        setTypeTotals(board.typeCounts);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        if (!quiet) setLoading(false);
+      }
+    },
+    [statuses, filterPriority, filterTag, searchQuery],
+  );
+
+  async function loadMore() {
+    if (!project || loadingMore) return;
+    setLoadingMore(true);
     try {
-      if (!quiet) setLoading(true);
       const type = serverTypeRef.current;
-      const data = await api.tasks.list(currentProject, { ...(type ? { type } : {}), includeGraphMetrics: true });
-      loadedServerType.current = type;
-      setTasks(Array.isArray(data) ? data : []);
+      const offsets = Object.fromEntries(
+        Object.entries(statusPages)
+          .filter(([, page]) => page.hasMore)
+          .map(([id, page]) => [id, page.offset]),
+      );
+      const board = await api.tasks.board(project, {
+        limit: 25,
+        offsets,
+        ...(type ? { type } : {}),
+        ...(filterPriority !== 'all' ? { priority: filterPriority } : {}),
+        ...(filterTag ? { tag: filterTag } : {}),
+      });
+      setTasks((prev) => {
+        const seen = new Set(prev.map((task) => task.id));
+        return [...prev, ...board.columns.flatMap((column) => column.items).filter((task) => !seen.has(task.id))];
+      });
+      setStatusPages((prev) => {
+        const next = { ...prev };
+        for (const column of board.columns) {
+          next[column.status] = {
+            offset: column.nextOffset ?? column.total,
+            hasMore: column.nextOffset !== null,
+            total: column.total,
+          };
+        }
+        return next;
+      });
+      setTotalTasks(board.total);
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      if (!quiet) setLoading(false);
+      setLoadingMore(false);
     }
-  }, []);
+  }
+
 
   // Load the project first, then tasks/statuses/transitions/types for it.
   // Failures degrade instead of blanking the page: statuses failing keeps the
@@ -218,20 +299,12 @@ export default function TasksPage() {
         if (!alive) return;
         setProject(currentProject);
 
-        const [taskResult, statusResult, transitionResult, typeResult] = await Promise.allSettled([
-          api.tasks.list(currentProject, { includeGraphMetrics: true }),
+        const [statusResult, transitionResult, typeResult] = await Promise.allSettled([
           api.projects.statuses.get(currentProject),
           api.projects.transitions.get(currentProject),
           api.projects.types.get(currentProject),
         ]);
         if (!alive) return;
-
-        if (taskResult.status === 'fulfilled') {
-          loadedServerType.current = null;
-          setTasks(Array.isArray(taskResult.value) ? taskResult.value : []);
-        } else {
-          setError((taskResult.reason as Error).message);
-        }
 
         if (statusResult.status === 'fulfilled') {
           setStatuses(statusResult.value.statuses);
@@ -289,13 +362,11 @@ export default function TasksPage() {
   const serverType = resolvedTypes.length === 1 ? resolvedTypes[0] : null;
   serverTypeRef.current = serverType;
 
-  // A single selected type is filtered server-side; broader selections load all
-  // tasks once and are split into lanes in memory.
   useEffect(() => {
-    if (!project || loading) return;
-    if (loadedServerType.current === serverType) return;
+    if (!project || statuses.length === 0 || loading) return;
     void loadTasks(project, true);
-  }, [project, serverType, loading, loadTasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, statuses, loading, filterPriority, filterTag, searchQuery, serverType]);
 
   const unknownStatuses = useMemo<ProjectStatus[]>(() => {
     const known = new Set(statuses.map((status) => status.id));
@@ -681,7 +752,8 @@ export default function TasksPage() {
     }
   };
 
-  const countFor = (statusId: string) => filtered.filter((task) => task.status === statusId).length;
+  const countFor = (statusId: string) =>
+    statusPages[statusId]?.total ?? filtered.filter((task) => task.status === statusId).length;
   const skeletonStatuses = statuses.filter((status) => !status.archived).slice(0, 6);
 
   const lanes = useMemo(
@@ -863,6 +935,14 @@ export default function TasksPage() {
         </div>
       )}
 
+      {!filtersActive && Object.values(statusPages).some((page) => page.hasMore) && (
+        <div className="flex justify-center">
+          <Button type="button" variant="secondary" onClick={() => void loadMore()} disabled={loadingMore}>
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </Button>
+        </div>
+      )}
+
       {showDag && dag && (
         <div className="rounded-[var(--radius-card)] border border-line bg-surface">
           <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-3">
@@ -972,7 +1052,7 @@ export default function TasksPage() {
         {!loading && (
           <p className="px-1 text-[11px] text-muted sm:shrink-0">
             Showing <span className="font-medium text-ink">{filtered.length}</span> of{' '}
-            {tasks.length} tasks
+            {totalTasks} tasks
           </p>
         )}
       </div>

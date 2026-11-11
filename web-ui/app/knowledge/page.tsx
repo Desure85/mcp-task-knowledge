@@ -83,6 +83,10 @@ function Alert({
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState<KnowledgeListItem[]>([]);
+  const [totalDocs, setTotalDocs] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,14 +122,45 @@ export default function KnowledgePage() {
   const loadDocs = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.knowledge.list();
-      setDocs(normalizeKnowledgeItems(data));
+      const page = await api.knowledge.page(undefined, {
+        limit: 60,
+        ...(filterTag ? { tag: filterTag } : {}),
+        ...(filterType ? { type: filterType } : {}),
+      });
+      setDocs(normalizeKnowledgeItems(page.data));
+      setTotalDocs(page.total);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterTag, filterType]);
+
+  async function loadMoreDocs() {
+    if (loadingMore || !hasMore || !nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.knowledge.page(undefined, {
+        limit: 60,
+        cursor: nextCursor,
+        ...(filterTag ? { tag: filterTag } : {}),
+        ...(filterType ? { type: filterType } : {}),
+      });
+      setDocs((prev) => {
+        const seen = new Set(prev.map((doc) => doc.id));
+        return [...prev, ...normalizeKnowledgeItems(page.data).filter((doc) => !seen.has(doc.id))];
+      });
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+      setTotalDocs(page.total);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     void loadDocs();
@@ -630,7 +665,13 @@ export default function KnowledgePage() {
             </div>
             {baseDocs.length > 0 && (
               <p className="mt-4 text-[12px] text-muted">
-                Showing {filtered.length} of {baseDocs.length} {searchActive ? 'search results' : 'documents'}
+                Showing {filtered.length} of {searchActive ? baseDocs.length : totalDocs}{' '}
+                {searchActive ? 'search results' : 'documents'}
+                {!searchActive && hasMore && (
+                  <Button type="button" variant="secondary" size="sm" className="ml-3" onClick={() => void loadMoreDocs()} disabled={loadingMore}>
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </Button>
+                )}
               </p>
             )}
           </>

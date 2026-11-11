@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38, UI-39 закрыты; UX-hotfix)
-**Текущая ветка:** fix/task-open-editor-new-tab (от master 2b764d4)
-**Текущий этап:** после мержа UX-правки — следующий пункт бэклога (UI-17/Z-11/Z-03/AA-04/SC-04)
-**Статус:** встроенный редактор дашборда удалён; имя/Edit открывают полную страницу в новой вкладке; 2 e2e сценария зелёные на SQLite.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/sc-04-server-pagination (от master 1ebe8ca)
+**Текущий этап:** SC-04 закрыт; дальше UI-17, Z-11/Z-03 (ждут UI-25), AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** доска — один `tasks_list groupByStatus` (25/статус, total/typeCounts/offsets), знания — cursor-страницы; 10k bench 4 738/1 308 ms и 838/696 ms; 2 e2e сценария и server-тест зелёные.
+
+### Сессия S-20261109-night (SC-04 — серверная пагинация)
+
+- `tasks_list`: `groupByStatus`/`offsets`, точные `total`/`typeCounts`; доска делает один вызов + Load more.
+- `knowledge_list`: `api.knowledge.page` 60, серверные tag/type, Load more; поиск серверный.
+- `ui-bench.mjs`: MutationObserver как `domSettledMs`, `pollSettledMs` сохранён; детектор `/mcp`.
+- 10k: tasks 346 351→4 738 DOM, 1 308 ms; knowledge 85 869→838, 696 ms; tests-board 1/1, e2e 4/4 на 10k.
+- Ограничения: bounded pagination, не windowing; общий Load more; facet/поиск capped.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1500-sc-04.md`.
 
 ### Сессия S-20261109-night (task name → full editor in new tab)
 
