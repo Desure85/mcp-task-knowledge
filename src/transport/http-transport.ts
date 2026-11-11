@@ -431,6 +431,16 @@ export class HttpTransportAdapter implements TransportAdapter {
           }));
           return;
         }
+        // TR-38: draining rejects only NEW sessions; existing sessions continue below.
+        if (this.healthChecker?.isDraining) {
+          res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '5' });
+          res.end(JSON.stringify({
+            jsonrpc: '2.0',
+            error: { code: -32000, message: 'Server is draining: no new sessions' },
+            id: null,
+          }));
+          return;
+        }
         // New session: dedicated transport + lightweight lifecycle server.
         // AUD-14: remote is passed per-request (was a shared FIFO queue —
         // parallel initialize POSTs could attribute the wrong remote IP to

@@ -32,6 +32,7 @@ import { ReadBuffer, serializeMessage } from '@modelcontextprotocol/sdk/shared/s
 import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types.js';
 import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
+import type { HealthChecker } from '../health/index.js';
 import type { ServerContext } from '../register/context.js';
 import { decideToolCall, decideMethodCall, type MethodGateCall } from '../core/auth-gate.js';
 import { buildServerInstructions, setServerInstructions } from '../core/server-instructions.js';
@@ -160,6 +161,8 @@ abstract class StreamTransportAdapter implements TransportAdapter {
 
   abstract readonly type: string;
 
+  constructor(protected readonly healthChecker?: HealthChecker) {}
+
   /** Create the net.Server and start listening. Returns the server. */
   protected abstract listen(): Promise<net.Server>;
 
@@ -234,6 +237,16 @@ abstract class StreamTransportAdapter implements TransportAdapter {
   }
 
   private async handleConnection(socket: net.Socket): Promise<void> {
+    // TR-38: drain mode rejects new connections; established sessions continue.
+    if (this.healthChecker?.isDraining) {
+      socket.write(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Server is draining: no new sessions' },
+        id: null,
+      }) + '\n');
+      socket.end();
+      return;
+    }
     const id = `sess-${++this.nextId}`;
     const remote = socket.remoteAddress
       ? `${socket.remoteAddress}:${socket.remotePort}`
@@ -491,8 +504,9 @@ export class TcpTransportAdapter extends StreamTransportAdapter {
   constructor(
     port?: number,
     host?: string,
+    healthChecker?: HealthChecker,
   ) {
-    super();
+    super(healthChecker);
     this.port = port ?? parseInt(process.env.MCP_TCP_PORT || '3002', 10);
     this.host = host ?? (process.env.MCP_TCP_HOST || '0.0.0.0');
   }
@@ -525,8 +539,9 @@ export class UnixTransportAdapter extends StreamTransportAdapter {
 
   constructor(
     socketPath?: string,
+    healthChecker?: HealthChecker,
   ) {
-    super();
+    super(healthChecker);
     this.socketPath = socketPath ?? (process.env.MCP_UNIX_PATH || '/tmp/mcp-task-knowledge.sock');
   }
 
@@ -618,7 +633,7 @@ export class TcpTransportFactory implements TransportFactory {
       ? opts.host
       : String(opts.host || process.env.MCP_TCP_HOST || '0.0.0.0');
 
-    return new TcpTransportAdapter(port, host);
+    return new TcpTransportAdapter(port, host, opts.healthChecker as HealthChecker | undefined);
   }
 }
 
@@ -631,6 +646,6 @@ export class UnixTransportFactory implements TransportFactory {
       ? opts.path
       : process.env.MCP_UNIX_PATH || '/tmp/mcp-task-knowledge.sock';
 
-    return new UnixTransportAdapter(socketPath);
+    return new UnixTransportAdapter(socketPath, opts.healthChecker as HealthChecker | undefined);
   }
 }

@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, TR-37, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/z-03-package-browser (от master 32a0af2)
-**Текущий этап:** Z-03 закрыт; blocked — DX-29/MU-07/TK-02/T-02, AA-04
-**Статус:** package_* API + /packages дерево/редактор/переключатели; e2e 1/1, api-reference 148.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, TR-37, TR-38, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/tr-38-drain-admission (от master c75bf24)
+**Текущий этап:** TR-38 закрыт; blocked — DX-29/MU-07/TK-02/T-02, AA-04
+**Статус:** drain-гейт на HTTP initialize и TCP handleConnection; 2/2, мутация RED.
+
+### Сессия S-20261109-night (TR-38 — drain admission)
+
+- HTTP: новый initialize при draining → 503/Retry-After, существующие сессии идут раньше проверки.
+- TCP/Unix: HealthChecker в StreamTransportAdapter, отказ в handleConnection до McpServer.
+- `tests/transport-drain.test.ts` 2/2; мутация HTTP-гейта RED.
+- Ограничения: без long-lived SSE e2e; TCP-ветка unit-level; WS не гейтится.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1135-tr-38.md`.
 
 ### Сессия S-20261109-night (Z-03 — package browser)
 
