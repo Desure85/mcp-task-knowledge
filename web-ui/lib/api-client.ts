@@ -614,6 +614,19 @@ export interface MemoryFactHit {
   score: number;
 }
 
+export interface MemoryVerifyResult {
+  project: string;
+  repo: string;
+  scanned: number;
+  counts: Record<'verified' | 'pending-merge' | 'stale' | 'no-anchor', number>;
+  items: Array<{
+    id: string;
+    title: string;
+    status: 'verified' | 'pending-merge' | 'stale' | 'no-anchor';
+    anchors: Array<{ kind: string; file?: string; from?: number; to?: number; className?: string; method?: string }>;
+  }>;
+}
+
 export interface StaticFactEntry {
   key: string;
   value: string;
@@ -1045,6 +1058,8 @@ export const api = {
       callTool<{ count: number; facts: MemoryFactMeta[] }>('memory_facts_list', { ...(args ?? {}) }),
     factsSearch: (query: string, args?: { project?: string; limit?: number }) =>
       callTool<{ count: number; results: MemoryFactHit[] }>('memory_facts_search', { query, ...(args ?? {}) }),
+    verify: (args?: { project?: string; repo?: string; limit?: number; status?: 'verified' | 'stale' | 'no-anchor' }) =>
+      callTool<MemoryVerifyResult>('memory_verify', { ...(args ?? {}) }),
     temporalQuery: (args?: { atTime?: string; entity?: string; category?: string; tag?: string; includeInvalidated?: boolean; limit?: number }) =>
       callTool<{ count: number; facts: TemporalFact[] }>('memory_temporal_query', { ...(args ?? {}) }),
     temporalHistory: (factId: string) =>
