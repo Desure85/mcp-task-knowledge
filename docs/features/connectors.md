@@ -16,6 +16,12 @@ Integration hub for external services. Each connector registers MCP tools with a
 | Linear | `linear_list_issues`, `linear_get_issue`, `linear_sync_to_kb` | ✅ Real (Linear GraphQL) |
 | Web Crawler | `webcrawler_fetch_page`, `webcrawler_crawl_site` | ✅ Working |
 
+Web Crawler error semantics (TR-35): `webcrawler_fetch_page` returns
+`{ ok: false, error: { message: "HTTP 404 Not Found" | "ECONNREFUSED" } }` for HTTP/network
+failures instead of an empty successful page. `webcrawler_crawl_site` keeps the `ok: true`
+envelope for a completed crawl but adds `failed` and `errors[]`; only successful pages increment
+`crawled`, so callers can distinguish an empty page from an unreachable site.
+
 ## Connector Framework
 
 <!-- doc-test: skip -->
