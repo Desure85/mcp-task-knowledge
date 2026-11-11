@@ -65,7 +65,6 @@ export interface ProjectMetadata {
   members?: ProjectMembers;
 }
 
-const PROJECT_META_FILE = '.project.json';
 
 export async function listProjects(getCurrent: () => string): Promise<{ current: string; default: string; count: number; projects: ProjectInfo[] }> {
   const fs = await import('node:fs/promises');
