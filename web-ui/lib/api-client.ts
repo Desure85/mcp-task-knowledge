@@ -932,6 +932,16 @@ export const api = {
       }>('tasks_get_deps', { project, id }),
   },
 
+  agents: {
+    list: (project?: string) => callTool<{ project: string; agents: Array<{ id: string; builtin: boolean }>; defaults: boolean }>('project_agents_get', { project }),
+    set: (agents: string[], project?: string, options?: { moveTo?: string; moves?: Record<string, string> }) =>
+      callTool<{ project: string; agents: Array<{ id: string; builtin: boolean }>; defaults: boolean; moved: Array<{ id: string; from: string; to: string }> }>('project_agents_set', {
+        project,
+        agents,
+        ...(options ?? {}),
+      }),
+  },
+
   // Knowledge (single create/update are bulk-only server-side)
   knowledge: {
     // ВРЕМЕННО: долистывает все страницы (SC-04 заменит на серверную пагинацию в UI).
@@ -1038,8 +1048,8 @@ export const api = {
 
   // Prompts (PH-015: shared client, catalog-aware)
   prompts: {
-    list: (args?: { project?: string; kind?: string; status?: string; domain?: string; tag?: string[] }) =>
-      callTool<{ total: number; items: Array<{ id: string; version: string; kind: string; status?: string; domain?: string; tags: string[]; file?: string }> }>(
+    list: (args?: { project?: string; kind?: string; status?: string; domain?: string; tag?: string[]; target?: string }) =>
+      callTool<{ total: number; items: Array<{ id: string; version: string; kind: string; status?: string; domain?: string; tags: string[]; target?: string; file?: string }> }>(
         // prompts_list пагинирован (дефолт 50); каталог небольшой, явный максимум
         // сохраняет прежнее «весь список» без отдельного цикла (SC-04 решит иначе).
         'prompts_list', { limit: 500, ...(args ?? {}) }),
@@ -1082,3 +1092,4 @@ export const api = {
       callTool<DashboardActivity>('dashboard_activity', { ...(args ?? {}) }),
   },
 };
+

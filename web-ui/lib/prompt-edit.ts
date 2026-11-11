@@ -7,6 +7,7 @@ export interface PromptDraft {
   domain: string;
   kind: string;
   tags: string;
+  target: string;
   template: string;
 }
 
@@ -23,6 +24,7 @@ export function promptToDraft(prompt: PromptRecord): PromptDraft {
     domain: typeof meta.domain === 'string' ? meta.domain : '',
     kind: typeof meta.kind === 'string' ? meta.kind : 'prompt',
     tags: Array.isArray(meta.tags) ? meta.tags.join(', ') : '',
+    target: typeof meta.target === 'string' ? meta.target : 'universal',
     template: typeof prompt.template === 'string' ? prompt.template : '',
   };
 }
@@ -49,6 +51,7 @@ export function buildPromptPatch(prompt: PromptRecord, draft: PromptDraft): Reco
   setMeta('status', draft.status, typeof current.status === 'string' ? current.status : '');
   setMeta('domain', draft.domain.trim(), typeof current.domain === 'string' ? current.domain : '');
   setMeta('kind', draft.kind.trim(), typeof current.kind === 'string' ? current.kind : 'prompt');
+  setMeta('target', draft.target.trim() || 'universal', typeof current.target === 'string' ? current.target : 'universal');
 
   const currentTags = Array.isArray(current.tags) ? current.tags : [];
   const nextTags = splitTags(draft.tags);
@@ -77,3 +80,5 @@ export function validatePromptDraft(draft: PromptDraft): string | null {
   if (draft.kind !== 'workflow' && !draft.template.trim()) return 'Template is required for a non-workflow prompt.';
   return null;
 }
+
+
