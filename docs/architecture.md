@@ -1,6 +1,11 @@
 # Architecture
 
 > Mermaid-диаграммы ключевых компонентов (D-005). Обновлять при изменении архитектуры.
+>
+> **Last verified:** 2026-11-12 against `src/core/app-container.ts`, `src/register/context.ts`,
+> `src/core/tool-executor.ts`, `src/transport/*`, `src/storage/profiles/*`. The diagram still
+> intentionally omits per-request details (auth-gate, SecurityStack, project ACL) to stay readable;
+> those are documented in `docs/features/security.md` and the ADRs.
 
 ## Компоненты и поток данных
 

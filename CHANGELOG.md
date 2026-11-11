@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-28: contributor DX now includes `.github/PULL_REQUEST_TEMPLATE.md`, bug/feature issue templates, a Node 24 devcontainer, and a `docs/architecture.md` Last verified note listing the modules checked against the diagram
+
 - TR-21 auth protection: `AuthManager.getClientKey` is now public, `SecurityStackCall.clientKey` is used by both the pre-call gate and `recordAuthOutcome`, and auth-gate passes the IP-derived key. Failed logins and later tool calls from the same IP now share one lockout budget instead of writing session-keyed noise. Tests 3/3; fallback to sessionId preserved; mutation switching back to sessionId goes RED
 
 - SPEC-07 progressToken gating: `createProgressSender(ctx, token)` is a no-op unless the client supplied `_meta.progressToken`; notifications include that token in params. `progressTokenFromExtra` extracts string/number tokens. Tests 7/7; mutation removing the gate goes RED. Limit: no production tool handler calls the helper yet, so no live progress notifications

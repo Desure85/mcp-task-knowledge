@@ -1,0 +1,13 @@
+{
+  "name": "mcp-task-knowledge dev",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "postCreateCommand": "npm ci && npm run build",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "vitest.explorer"]
+    }
+  },
+  "remoteEnv": {
+    "EMBEDDINGS_MODE": "none"
+  }
+}
