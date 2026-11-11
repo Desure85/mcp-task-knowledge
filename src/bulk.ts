@@ -79,3 +79,25 @@ export async function knowledgeBulkUpdate(
   }
   return { ok: true, data: { count: results.length, results } };
 }
+
+
+/**
+ * TR-37: map ids to per-item results without aborting the batch.
+ * A null result is NOT_FOUND; a thrown error is isolated to its item.
+ */
+export async function runBulkResults<T>(
+  ids: string[],
+  op: (id: string) => Promise<T | null>,
+  notFoundPrefix = 'Not found:',
+): Promise<Array<BulkResult<T>>> {
+  const results: Array<BulkResult<T>> = [];
+  for (const id of ids) {
+    try {
+      const data = await op(id);
+      results.push(data ? { id, ok: true, data } : { id, ok: false, error: { message: notFoundPrefix + ' ' + id } });
+    } catch (e) {
+      results.push({ id, ok: false, error: { message: (e as Error)?.message || String(e) } });
+    }
+  }
+  return results;
+}

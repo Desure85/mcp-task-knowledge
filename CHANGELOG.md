@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-37 bulk per-item errors: a shared `runBulkResults` isolates missing ids and thrown errors; `knowledge_bulk_update` now reports `failed` instead of silently dropping a missing document, knowledge/task archive/trash/restore report missing ids, and `tasks_bulk_create` keeps already-created tasks when one item throws. Existing `results` shapes are preserved; the new failure list is additive. Tests cover update/archive and the helper. Limits: failed remains `{id,error}`, not a full per-item wrapper; create does not roll back earlier items
+
 - TR-33 connector fetch timeouts: a shared `connectorSignal()` (`AbortSignal.timeout`, default 10 s, `CONNECTOR_TIMEOUT_MS` override) is now passed by github, jira, slack, gdrive, gmail, notion, onedrive and linear, so a stalled remote can no longer pin a tool call for the undici headers timeout. A hermetic contract test verifies the default/env parsing and every connector file; removing the signal from one connector is RED. Limits: one deadline per request, no separate connect/read budget
 
 - Z-11 agent targeting in prompts: the catalog now sends the single **Agent target** filter to `prompts_list`, shows an `agent: <id>` badge on cards/details, and edits `metadata.target` in the create and edit forms; the new `/projects/settings/agents` page lists built-in/custom targets and saves the project registry through `project_agents_*`. E2E verifies the server-side target request, badge and registry save. Limits: built-ins cannot be removed, moveTo/moves is not exposed, and the registry is a separate page rather than a settings tab

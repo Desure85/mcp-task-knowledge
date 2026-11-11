@@ -9,6 +9,7 @@ import { WorkflowError } from '../workflow.js';
 import { createDataBackup, isBackupRequired, type BackupScope } from '../services/data-backup.js';
 import { elicitConfirm } from '../core/elicitation.js';
 import { projectDoc, projectTask, writeResponseArgs } from './write-response.js';
+import { runBulkResults } from '../bulk.js';
 
 /** Y-02e2: bulk tools go through the same context profile as the single-record tools. */
 function taskStore(ctx: ServerContext) {
@@ -145,13 +146,14 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
-      const results: any[] = [];
-      for (const it of items) {
-        const { id, ...patch } = it as any;
-        const d = await docStore(ctx).update(prj, id, patch as any);
-        if (d) results.push(projectDoc(d, { fields, compact }));
-      }
-      return ok({ count: results.length, results });
+      const patches = new Map(items.map((it) => [it.id, it]));
+      const perItem = await runBulkResults(items.map((it) => it.id), (id) => {
+        const { id: _id, ...patch } = patches.get(id) as any;
+        return docStore(ctx).update(prj, id, patch as any);
+      }, 'Doc not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => projectDoc(item.data as any, { fields, compact }));
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -182,18 +184,20 @@ export function registerBulkTools(ctx: ServerContext): void {
     async ({ project, items, fields, compact }) => {
       const prj = resolveProject(project);
       const created = [] as any[];
-      try {
-        for (const it of items) {
-          const t = await taskStore(ctx).create({ project: prj, ...it });
-          created.push(t);
+      const failed: Array<{ index: number; error: Record<string, unknown> }> = [];
+      for (const [index, it] of items.entries()) {
+        try {
+          created.push(await taskStore(ctx).create({ project: prj, ...it }));
+        } catch (e) {
+          failed.push({
+            index,
+            error: e instanceof WorkflowError
+              ? e.toPayload()
+              : { code: 'CREATE_FAILED', message: (e as Error)?.message || String(e) },
+          });
         }
-      } catch (e) {
-        if (e instanceof WorkflowError) return errWith(e.toPayload());
-        throw e;
       }
-      // AC-03: the only hand-built envelope in the codebase — go through `ok()` so it carries
-      // `meta.ms` like every other response.
-      return ok({ count: created.length, created: created.map((task) => projectTask(task, { fields, compact })) });
+      return ok({ count: created.length, created: created.map((task) => projectTask(task, { fields, compact })), failed });
     }
   );
 
@@ -206,12 +210,10 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
-      const results = [] as any[];
-      for (const id of ids) {
-        const t = await taskStore(ctx).archive(prj, id);
-        if (t) results.push(t);
-      }
-      return ok({ count: results.length, results });
+      const perItem = await runBulkResults(ids, (id) => taskStore(ctx).archive(prj, id), 'Task not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => item.data);
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -224,12 +226,10 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
-      const results = [] as any[];
-      for (const id of ids) {
-        const t = await taskStore(ctx).trash(prj, id);
-        if (t) results.push(t);
-      }
-      return ok({ count: results.length, results });
+      const perItem = await runBulkResults(ids, (id) => taskStore(ctx).trash(prj, id), 'Task not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => item.data);
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -242,12 +242,10 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
-      const results = [] as any[];
-      for (const id of ids) {
-        const t = await taskStore(ctx).restore(prj, id);
-        if (t) results.push(t);
-      }
-      return ok({ count: results.length, results });
+      const perItem = await runBulkResults(ids, (id) => taskStore(ctx).restore(prj, id), 'Task not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => item.data);
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -379,12 +377,10 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
-      const results = [] as any[];
-      for (const id of ids) {
-        const d = await docStore(ctx).archive(prj, id);
-        if (d) results.push(d);
-      }
-      return ok({ count: results.length, results });
+      const perItem = await runBulkResults(ids, (id) => docStore(ctx).archive(prj, id), 'Doc not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => item.data);
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -397,12 +393,10 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
-      const results = [] as any[];
-      for (const id of ids) {
-        const d = await docStore(ctx).trash(prj, id);
-        if (d) results.push(d);
-      }
-      return ok({ count: results.length, results });
+      const perItem = await runBulkResults(ids, (id) => docStore(ctx).trash(prj, id), 'Doc not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => item.data);
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
@@ -415,12 +409,10 @@ export function registerBulkTools(ctx: ServerContext): void {
     },
     async ({ project, ids }) => {
       const prj = resolveProject(project);
-      const results = [] as any[];
-      for (const id of ids) {
-        const d = await docStore(ctx).restore(prj, id);
-        if (d) results.push(d);
-      }
-      return ok({ count: results.length, results });
+      const perItem = await runBulkResults(ids, (id) => docStore(ctx).restore(prj, id), 'Doc not found:');
+      const results = perItem.filter((item) => item.ok).map((item) => item.data);
+      const failed = perItem.filter((item) => !item.ok).map((item) => ({ id: item.id, error: item.error ?? {} }));
+      return ok({ count: results.length, results, failed });
     }
   );
 
