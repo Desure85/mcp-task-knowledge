@@ -1,0 +1,57 @@
+{
+  "ok": true,
+  "sizes": {
+    "200": {
+      "nodes": 200,
+      "edges": 293,
+      "htmlBytes": 42180,
+      "generateMs": 1,
+      "settleMs": 1808,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 543,
+      "svgNodes": 503,
+      "svgCircles": 200,
+      "svgLines": 293,
+      "longTasks": 1,
+      "longTaskTotalMs": 94,
+      "longTaskMaxMs": 94,
+      "heapMb": 10
+    },
+    "1000": {
+      "nodes": 1000,
+      "edges": 1474,
+      "htmlBytes": 161423,
+      "generateMs": 1,
+      "settleMs": 1837,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 723,
+      "svgNodes": 683,
+      "svgCircles": 300,
+      "svgLines": 374,
+      "longTasks": 1,
+      "longTaskTotalMs": 139,
+      "longTaskMaxMs": 139,
+      "heapMb": 10
+    },
+    "5000": {
+      "nodes": 5000,
+      "edges": 7379,
+      "htmlBytes": 777101,
+      "generateMs": 7,
+      "settleMs": 1922,
+      "timedOut": false,
+      "error": null,
+      "domNodes": 766,
+      "svgNodes": 726,
+      "svgCircles": 300,
+      "svgLines": 417,
+      "longTasks": 1,
+      "longTaskTotalMs": 207,
+      "longTaskMaxMs": 207,
+      "heapMb": 10
+    }
+  },
+  "startedAt": "2026-11-11T15:50:44.424Z"
+}

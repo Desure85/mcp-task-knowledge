@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, INT-007, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-06, SPEC-09, U-02, U-03, U-04, U-05, U-06, UI-11, UI-12, UI-15, UI-16, UI-17, UI-18, UI-19, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/ui-19-system-admin (от master 48a7c35)
-**Текущий этап:** UI-19 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** session_kill + system admin; e2e 1/1, unit 18/18.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, INT-007, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-06, SPEC-09, U-02, U-03, U-04, U-05, U-06, UI-11, UI-12, UI-15, UI-16, UI-17, UI-18, UI-19, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04, SC-05 закрыты; UX-hotfix)
+**Текущая ветка:** feat/sc-05-graph-lod (от master 94139a6)
+**Текущий этап:** SC-05 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** graph LOD; 5000 = 207 ms Long Tasks, timedOut false.
+
+### Сессия S-20261109-night (SC-05 — graph LOD)
+
+- `graph-viz.ts`: cap 300, static 4-ring layout >30, labels top-18 + collision, clusters/depth.
+- Бенчмарк 5000: 207 ms long tasks, timedOut=false; screenshots 200/1000 + JSON.
+- `tests/graph-viz.spec.ts` 25/25; мутация cap RED. Ограничения: synthetic, node-count cap.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1853-sc-05.md`.
 
 ### Сессия S-20261109-night (UI-19 — System admin)
 
