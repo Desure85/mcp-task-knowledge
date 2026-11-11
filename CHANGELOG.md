@@ -8,6 +8,8 @@
 
 ### Added
 
+- SPEC-07 progressToken gating: `createProgressSender(ctx, token)` is now a no-op unless the client supplied `_meta.progressToken`; notifications include that token in params. `progressTokenFromExtra` extracts string/number tokens. Tests 7/7; mutation removing the gate goes RED. Limit: no production tool handler calls the helper yet, so no live progress notifications
+
 - TR-36 connector errors: `src/connectors/errors.ts` and a small registration wrapper now make GitHub, Jira and Slack return the same `{ok:false,error:{message}}` envelope as the other connectors instead of throwing protocol `isError`. Success envelopes are unchanged; tests 4/4 (GitHub 429, Jira 401, Slack API + validation, success); mutation removing the wrapper goes RED. Limits: only those three connectors, messages are unstructured, health stays `ConnectorHealth`
 
 - TR-35 web-crawler: `webcrawler_fetch_page` now returns `{ok:false,error:{message}}` for HTTP errors/network failures instead of an empty successful page, while `webcrawler_crawl_site` reports `failed` and `errors[]` and counts only successful pages in `crawled`. Tests 3/3 (404, network, success); mutation of the non-ok branch goes RED. Limits: all-failed crawl still has `ok:true` with failed count (batch contract), no extra error-list cap
