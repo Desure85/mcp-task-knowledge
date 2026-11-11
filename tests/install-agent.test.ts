@@ -126,6 +126,16 @@ describe('AA-07 install-agent', () => {
     expect(out).toContain('dry-run (no writes)');
   });
 
+  it('does not let an XDG dir outside --home escape the target root', () => {
+    const outside = path.join(home, '..', `xdg-${path.basename(home)}`);
+    const result = runInstallAgent(['--client', 'opencode', '--home', home, '--dry-run'], {
+      cwd: REPO,
+      env: { ...process.env, XDG_CONFIG_HOME: outside, XDG_DATA_HOME: outside },
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.actions.every((action) => action.target.startsWith(home + path.sep))).toBe(true);
+  });
+
   it('rejects a missing or unknown client', () => {
     expect(runInstallAgent(['--home', home], { cwd: REPO }).exitCode).toBe(2);
     expect(runInstallAgent(['--client', 'emacs', '--home', home], { cwd: REPO }).exitCode).toBe(2);

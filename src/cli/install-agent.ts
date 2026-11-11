@@ -107,10 +107,15 @@ function parseArgs(args: string[]): { client?: AgentClient; home?: string; bundl
 }
 
 function roots(home: string, env: NodeJS.ProcessEnv): Record<TargetRoot, string> {
+  const insideHome = (candidate: string | undefined): string | null => {
+    if (!candidate) return null;
+    const resolved = path.resolve(candidate);
+    return resolved === home || resolved.startsWith(home + path.sep) ? resolved : null;
+  };
   return {
-    opencode: path.join(env.XDG_CONFIG_HOME ?? path.join(home, '.config'), 'opencode'),
+    opencode: path.join(insideHome(env.XDG_CONFIG_HOME) ?? path.join(home, '.config'), 'opencode'),
     claude: path.join(home, '.claude'),
-    share: path.join(env.XDG_DATA_HOME ?? path.join(home, '.local', 'share'), 'mcp-task-knowledge'),
+    share: path.join(insideHome(env.XDG_DATA_HOME) ?? path.join(home, '.local', 'share'), 'mcp-task-knowledge'),
   };
 }
 
