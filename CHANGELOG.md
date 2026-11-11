@@ -8,6 +8,8 @@
 
 ### Added
 
+- U-02 `changes_since`: a new delta feed returns tasks, knowledge docs and temporal memory facts changed at/after `since`, each tagged `created/updated/closed/archived/trashed/recorded/invalidated`, newest first, with `nextSince` for polling. Sources are the existing `updatedAt` task/doc stores and temporal graph `recordedAt/validTo`; `includeDeleted` hides archived/trashed by default; `types`/ `project`/ `limit` filter the feed. Tests 5/5; comparator mutation goes RED; API reference 153. Limits: no hard-delete tombstones, ms-resolution timestamps can collide, temporal query capped at 1000, nextSince is a time heuristic not a cursor
+
 - INT-007 YouTrack connector (read-only): new `src/connectors/youtrack.ts` registers `youtrack_issue_list`, `youtrack_issue_get` and `youtrack_project_list` against YouTrack REST (`Bearer` token, `YOUTRACK_URL`/`YOUTRACK_TOKEN`, TR-33 timeout). The query language is passed through, project gets a `project:` prefix, `State/Priority/Assignee/Type` are flattened from custom fields, and issue detail includes comments. Health is a real `/api/users/me` probe. Tests 5/5 incl. mapping, 401/network, missing token; mutation removing the State mapping goes RED. Limits: read-only, no pagination beyond `$top`, no live YouTrack in sandbox
 
 - TR-04d memory-lifecycle e2e asserts data, not just `ok`: temporal query must return the added fact with its statement, history must be non-empty, and the current-slice query after `invalidate` must not contain the fact. Mutation K9 (`memory_temporal_query → facts: []`) now goes RED; 3/3. Limits: four assertions out of ~30 calls, facts list stays shape-only (extraction project), local Node 22 hit a better-sqlite module mismatch and fell back to file scans

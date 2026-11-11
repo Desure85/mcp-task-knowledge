@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **152** — 150 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **153** — 151 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -22,6 +22,7 @@
 | `agents_deploy` | Preview or apply deployment of skills/prompts into their target agent directories. Preview writes no |
 | `agents_deploy_rollback` | Restore the files captured in a deploy snapshot and remove files it created. |
 | `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
+| `changes_since` | Delta feed: tasks, knowledge docs and temporal memory facts changed at/after a timestamp. Returns {i |
 | `cluster_assign` | Assign a session to a cluster node (sticky affinity) and return the target node ID plus routing head |
 | `cluster_nodes` | List all known cluster nodes with status and heartbeat info. |
 | `cluster_status` | Cluster membership overview: self node ID, total/active node counts, session affinity and shard coun |
@@ -497,6 +498,35 @@ Get session-start context in one call: current project, open tasks sorted by pri
     "project": "mcp",
     "maxTasks": "example",
     "maxDocs": "example"
+  }
+}
+```
+
+## changes_since
+
+**Changes Since**
+
+Delta feed: tasks, knowledge docs and temporal memory facts changed at/after a timestamp. Returns {items:[{kind,id,title,change,updatedAt}], nextSince}; newest first.
+
+**Параметры:**
+
+- `since`
+- `project`
+- `types`
+- `includeDeleted`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "changes_since",
+  "arguments": {
+    "since": "example",
+    "project": "mcp",
+    "types": "example",
+    "includeDeleted": "example",
+    "limit": 10
   }
 }
 ```
