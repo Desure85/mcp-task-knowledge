@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, resolveMcpApiUrl, resolveToken, type AdminToken, type AdminUser, type SetupLink } from '@/lib/api-client';
 import { decodeJwtClaims, formatRemaining } from '@/lib/auth';
+import { checkSetupConnection, redeemSetupLink, type SetupCheck, type SetupSnippet } from '@/lib/setup-flow';
 import { PageHeader } from '@/components/PageHeader';
 import { Button, Card, Input } from '@/components/ui';
 
@@ -86,6 +87,13 @@ export default function AccessPage() {
   const [tokenExpiry, setTokenExpiry] = useState('');
   const [rawToken, setRawToken] = useState<string | null>(null);
   const [adminBusy, setAdminBusy] = useState(false);
+  const [snippet, setSnippet] = useState<SetupSnippet | null>(null);
+  const [snippetOtp, setSnippetOtp] = useState<string | null>(null);
+  const [snippetBusy, setSnippetBusy] = useState(false);
+  const [snippetError, setSnippetError] = useState<string | null>(null);
+  const [consumed, setConsumed] = useState<string[]>([]);
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<SetupCheck | null>(null);
 
   async function refreshUsers(): Promise<void> {
     try {
@@ -153,6 +161,33 @@ export default function AccessPage() {
     router.replace('/login');
   }
 
+  async function prepareSnippet(link: SetupLink): Promise<void> {
+    setSnippetBusy(true);
+    setSnippetError(null);
+    setCheckResult(null);
+    try {
+      const next = await redeemSetupLink(link.url);
+      setSnippet(next);
+      setSnippetOtp(link.otp);
+      setConsumed((prev) => (prev.includes(link.otp) ? prev : [...prev, link.otp]));
+    } catch (err) {
+      setSnippetError((err as Error).message);
+    } finally {
+      setSnippetBusy(false);
+    }
+  }
+
+  async function checkConnection(): Promise<void> {
+    if (!snippet) return;
+    setChecking(true);
+    setCheckResult(null);
+    try {
+      setCheckResult(await checkSetupConnection(snippet.token));
+    } finally {
+      setChecking(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -216,21 +251,29 @@ export default function AccessPage() {
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-[14px] font-semibold text-ink">Create agent setup link</h3>
-        <p className="mt-1 text-[12px] text-muted">
-          The link works once and expires. It reveals the server URL and a token limited to the role and project
-          below.
+        <h3 className="text-[14px] font-semibold text-ink">1. Создайте одноразовую ссылку</h3>
+        <ol className="mt-2 space-y-1 text-[12px] text-muted">
+          <li>1. Создайте ссылку для агента.</li>
+          <li>2. Откройте готовый конфиг (ссылка сработает один раз).</li>
+          <li>3. Скопируйте сниппет в клиент агента.</li>
+          <li>4. Нажмите «Проверить подключение».</li>
+          <li>5. Передайте конфиг агенту.</li>
+        </ol>
+        <p className="mt-2 text-[12px] text-muted">
+          Ссылка действует один раз. При открытии она показывает URL сервера и токен, ограниченный ролью и
+          проектом ниже.
         </p>
         <form onSubmit={onGenerate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input label="Project" value={project} onChange={(e) => setProject(e.target.value)} />
           <Input label="Role" value={role} onChange={(e) => setRole(e.target.value)} />
           <Input
-            label="Link lifetime (minutes, 1–60)"
+            label="Ссылка действует (минут)"
             type="number"
             min={1}
             max={60}
             value={ttlMin}
             onChange={(e) => setTtlMin(Number(e.target.value) || 15)}
+            hint="Одноразовая ссылка: от 1 до 60 минут. После получения конфига она больше не сработает."
           />
           <Input
             label="Public server URL"
@@ -241,7 +284,7 @@ export default function AccessPage() {
           />
           <div className="sm:col-span-2">
             <Button type="submit" variant="primary" loading={busy} disabled={busy}>
-              {busy ? 'Creating…' : 'Create link'}
+              {busy ? 'Создаём…' : 'Создать ссылку'}
             </Button>
           </div>
         </form>
@@ -252,22 +295,78 @@ export default function AccessPage() {
           </p>
         )}
 
+        {snippetError && (
+          <p role="alert" className="mt-4 rounded-[var(--radius-control)] border border-danger/40 bg-surface-2 px-3 py-2 text-[12px] text-danger">
+            {snippetError}
+          </p>
+        )}
+
         {links.length > 0 && (
           <ul className="mt-5 space-y-3">
-            {links.map((l) => (
-              <li key={l.otp} className="rounded-[var(--radius-control)] border border-line bg-surface-2 p-3">
-                <code className="block break-all text-[12px] text-ink">{l.url}</code>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
-                  <CopyButton text={l.url} label="Copy link" />
-                  <span>project: {l.project}</span>
-                  <span>role: {l.role}</span>
-                  <span>expires {formatRemaining(Math.floor(new Date(l.expiresAt).getTime() / 1000), now)} from now</span>
-                </div>
-              </li>
-            ))}
+            {links.map((l) => {
+              const isUsed = consumed.includes(l.otp);
+              return (
+                <li key={l.otp} className="rounded-[var(--radius-control)] border border-line bg-surface-2 p-3">
+                  <code className="block break-all text-[12px] text-ink">{l.url}</code>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-muted">
+                    {!isUsed && <CopyButton text={l.url} label="Copy link" />}
+                    {isUsed && <span>Ссылка использована для конфига</span>}
+                    <span>project: {l.project}</span>
+                    <span>role: {l.role}</span>
+                    <span>expires {formatRemaining(Math.floor(new Date(l.expiresAt).getTime() / 1000), now)} from now</span>
+                  </div>
+                  {!isUsed && (
+                    <div className="mt-2">
+                      <Button type="button" variant="secondary" size="sm" loading={snippetBusy} onClick={() => void prepareSnippet(l)}>
+                        2. Получить конфиг
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
+
+      {snippet && (
+        <Card className="p-5">
+          <h3 className="text-[14px] font-semibold text-ink">2–4. Конфиг агента</h3>
+          <p className="mt-1 text-[12px] text-muted">
+            Сниппет из ссылки {snippetOtp?.slice(0, 8)}… уже содержит URL и токен. Скопируйте его в конфиг
+            клиента; токен показывается только здесь.
+          </p>
+          <pre className="mt-3 max-h-72 overflow-auto rounded-[var(--radius-control)] bg-surface-2 p-3 text-[11px] text-ink">
+            <code>{snippet.configText}</code>
+          </pre>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <CopyButton text={snippet.configText} label="Copy config" />
+            <span className="text-[12px] text-muted">server: {snippet.url ?? snippet.serverName}</span>
+          </div>
+
+          <div className="mt-5 border-t border-line pt-4">
+            <h4 className="text-[13px] font-semibold text-ink">5. Проверьте подключение</h4>
+            <p className="mt-1 text-[12px] text-muted">
+              Отправим настоящий MCP <code>initialize</code> с этим токеном. Это не меняет проект.
+            </p>
+            <div className="mt-3">
+              <Button type="button" variant="primary" size="sm" loading={checking} onClick={() => void checkConnection()}>
+                Проверить подключение
+              </Button>
+            </div>
+            {checkResult?.ok && (
+              <p role="status" className="mt-3 rounded-[var(--radius-control)] border border-success/40 bg-surface-2 px-3 py-2 text-[12px] text-success">
+                Подключение работает{checkResult.server ? ` — ${checkResult.server}` : ''}.
+              </p>
+            )}
+            {checkResult && !checkResult.ok && (
+              <p role="alert" className="mt-3 rounded-[var(--radius-control)] border border-danger/40 bg-surface-2 px-3 py-2 text-[12px] text-danger">
+                Не удалось проверить подключение: {checkResult.error ?? 'неизвестная ошибка'}.
+              </p>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-5">
         <h3 className="text-[14px] font-semibold text-ink">Users</h3>
