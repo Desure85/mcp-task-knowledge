@@ -40,11 +40,6 @@
   --spacing-mobile-nav: 56px;
 }
 
-.graph-hit {
-  display: none;
-}
-
-/* UI-40: both modes are previewed side by side in the palette picker. */
 .color-token-preview-light,
 .color-token-preview-dark {
   display: inline-flex;
@@ -161,10 +156,6 @@
   main svg,
   main video {
     max-width: 100%;
-  }
-
-  .graph-hit {
-    display: block;
   }
 }
 
