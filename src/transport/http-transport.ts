@@ -26,6 +26,7 @@ import type { HealthChecker } from '../health/index.js';
 
 import { decideMethodCall, extractHttpCall, deniedJsonRpcBody } from '../core/auth-gate.js';
 import { buildSetupMarkdown } from '../core/setup-link.js';
+import { checkProjectToolCall } from '../core/project-access.js';
 import { getCurrentProject } from '../config.js';
 import { WsTicketStore } from '../core/ws-ticket.js';
 import { createWsTicketHandler, isWsTicketPath } from './ws-ticket-route.js';
@@ -474,7 +475,20 @@ export class HttpTransportAdapter implements TransportAdapter {
       const ticketStore = auth?.isAuthRequired() ? this.wsTickets : undefined;
       // DX-22: ws (~36ms) only needed when realtime is enabled on http transport.
       const { getRealtimeServer } = await import('./realtime.js');
-      getRealtimeServer().attach(this.httpServer, '/ws', { ticketStore });
+      getRealtimeServer().attach(this.httpServer, '/ws', {
+        ticketStore,
+        canAccessProject: (project: string, userId?: string) => {
+          const auth = this.serverCtx?.authManager;
+          const open = !auth || !auth.isAuthRequired();
+          return checkProjectToolCall({
+            toolName: 'knowledge_list',
+            input: { project },
+            userId,
+            globalRoles: open ? ['admin'] : [],
+            open,
+          }).allowed;
+        },
+      });
       log.info('Realtime WS: /ws');
     }
 

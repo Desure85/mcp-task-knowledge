@@ -51,6 +51,8 @@ export interface RealtimeAttachOptions {
    * connections are accepted (open realtime, backwards-compatible).
    */
   ticketStore?: WsTicketStore;
+  /** T-02: reject a WS project scope the caller cannot read. */
+  canAccessProject?: (project: string, userId?: string) => boolean;
 }
 
 export class RealtimeServer extends EventEmitter {
@@ -72,7 +74,7 @@ export class RealtimeServer extends EventEmitter {
       const ticketStore = opts?.ticketStore;
 
       if (!ticketStore) {
-        this.handleConnection(ws, url);
+        this.handleConnection(ws, url, undefined, opts);
         return;
       }
 
@@ -83,7 +85,7 @@ export class RealtimeServer extends EventEmitter {
         ws.close(4001, 'unauthorized');
         return;
       }
-      this.handleConnection(ws, url, result.userId);
+      this.handleConnection(ws, url, result.userId, opts);
     });
 
     this.heartbeatInterval = setInterval(() => {
@@ -101,12 +103,16 @@ export class RealtimeServer extends EventEmitter {
     }, this.heartbeatMs);
   }
 
-  private handleConnection(ws: WebSocket, url: URL, authenticatedUserId?: string): void {
+  private handleConnection(ws: WebSocket, url: URL, authenticatedUserId?: string, opts?: RealtimeAttachOptions): void {
     const clientId = `client_${createHash('sha256').update(Date.now() + Math.random().toString()).digest('hex').substring(0, 12)}`;
     const project = url.searchParams.get('project') ?? undefined;
     // Authenticated connections take identity from the ticket, never from a
     // client-supplied query param (spoofable); open mode keeps the old behaviour.
     const userId = authenticatedUserId ?? url.searchParams.get('userId') ?? undefined;
+    if (project && opts?.canAccessProject && !opts.canAccessProject(project, userId)) {
+      ws.close(4003, 'project access denied');
+      return;
+    }
 
     const info: ClientInfo = {
       id: clientId,

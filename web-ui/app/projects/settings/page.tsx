@@ -59,7 +59,7 @@ import {
   type TypesDraft,
 } from '@/lib/project-settings';
 import { PageHeader } from '@/components/PageHeader';
-import { Badge, Button, Card, CardBody, CardHeader, Dialog, EmptyState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CardBody, CardHeader, Dialog, EmptyState, Input, Select, Skeleton } from '@/components/ui';
 import { IconAlert, IconProjects } from '@/components/icons';
 import { StatusesTab } from '@/components/settings/StatusesTab';
 import { TransitionsTab } from '@/components/settings/TransitionsTab';
@@ -115,6 +115,11 @@ export default function ProjectSettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [members, setMembers] = useState<Record<string, 'viewer' | 'editor' | 'admin'>>({});
+  const [memberUser, setMemberUser] = useState('');
+  const [memberRole, setMemberRole] = useState<'viewer' | 'editor' | 'admin'>('viewer');
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
   const [movePrompt, setMovePrompt] = useState<MovePrompt | null>(null);
 
   /** Load (or reload) the three resources and reset their drafts. */
@@ -136,6 +141,12 @@ export default function ProjectSettingsPage() {
         types: typesDraftFrom(types),
       };
       setProject(statuses.project || projectId);
+      try {
+        const loaded = await api.projects.members.list(statuses.project || projectId);
+        setMembers(loaded.members ?? {});
+      } catch {
+        setMembers({});
+      }
       setBaseline(next);
       setStatusDraft(next.statuses);
       setTransitionDraft(next.transitions);
@@ -542,6 +553,90 @@ function movedSummary(
           />
         )}
       </div>
+
+      {project && !loading && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[13px] font-semibold text-ink">Members</span>
+              <span className="text-[11px] text-muted">viewer can read, editor can write, admin manages the project</span>
+            </div>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {memberError && <p role="alert" className="text-[12px] text-danger">{memberError}</p>}
+            {Object.keys(members).length === 0 ? (
+              <p className="text-[12px] text-muted">No explicit members. This project is legacy/public; add a member to turn project ACL on.</p>
+            ) : (
+              <ul className="divide-y divide-line rounded-[var(--radius-card)] border border-line">
+                {Object.entries(members).sort(([a], [b]) => a.localeCompare(b)).map(([userId, role]) => (
+                  <li key={userId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[12px]">
+                    <span className="font-mono text-ink">{userId}</span>
+                    <span className="flex items-center gap-2">
+                      <Badge tone={role === 'admin' ? 'done' : role === 'editor' ? 'doing' : 'neutral'}>{role}</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          setMemberBusy(true);
+                          setMemberError(null);
+                          try {
+                            const res = await api.projects.members.remove(project, userId);
+                            setMembers((res.members ?? {}) as Record<string, 'viewer' | 'editor' | 'admin'>);
+                          } catch (error) {
+                            setMemberError(describeToolError(error));
+                          } finally {
+                            setMemberBusy(false);
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex flex-wrap items-end gap-2">
+              <Input
+                label="User id"
+                value={memberUser}
+                onChange={(event) => setMemberUser(event.target.value)}
+                placeholder="username"
+                className="w-44"
+              />
+              <Select
+                label="Role"
+                value={memberRole}
+                onChange={(event) => setMemberRole(event.target.value as 'viewer' | 'editor' | 'admin')}
+                className="w-32"
+              >
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="admin">admin</option>
+              </Select>
+              <Button
+                variant="secondary"
+                disabled={memberBusy || !memberUser.trim()}
+                onClick={async () => {
+                  setMemberBusy(true);
+                  setMemberError(null);
+                  try {
+                    const res = await api.projects.members.set(project, memberUser.trim(), memberRole);
+                    setMembers((res.members ?? {}) as Record<string, 'viewer' | 'editor' | 'admin'>);
+                    setMemberUser('');
+                  } catch (error) {
+                    setMemberError(describeToolError(error));
+                  } finally {
+                    setMemberBusy(false);
+                  }
+                }}
+              >
+                Add or update
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       <MoveTasksDialog
         open={movePrompt !== null}

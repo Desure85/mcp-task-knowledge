@@ -378,6 +378,13 @@ export class AuthManager {
   /**
    * Extract roles from session metadata.
    */
+  /** Per-session current project (PH-004) for project ACL decisions. */
+  getSessionCurrentProject(sessionId: string): string | undefined {
+    if (!this.sessionManager) return undefined;
+    const value = this.sessionManager.get(sessionId)?.metadata?.currentProject;
+    return typeof value === 'string' && value.trim() ? value : undefined;
+  }
+
   getRoles(sessionId: string): string[] {
     if (!this.sessionManager) return [];
     const session = this.sessionManager.get(sessionId);
