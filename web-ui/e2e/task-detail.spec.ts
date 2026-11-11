@@ -119,6 +119,12 @@ test('UI-37: direct URL, full description, forbidden transition and claim lease'
   await expect(page.locator('main h1')).toHaveText(title);
   await expect(page.getByRole('textbox', { name: 'Description' })).toHaveValue(description);
 
+  await page.getByRole('button', { name: 'Preview' }).click();
+  await expect(page.locator('.prose').first()).toContainText(`Line one ${stamp}`);
+  await expect(page.getByRole('textbox', { name: 'Description' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Description' })).toHaveValue(description);
+
   await page.getByRole('combobox', { name: 'Status' }).selectOption(forbiddenStatus);
   await page.getByRole('button', { name: 'Save changes' }).click();
   const transitionAlert = page.getByText(/Transition rejected by the server/);

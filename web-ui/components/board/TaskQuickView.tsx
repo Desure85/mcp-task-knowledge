@@ -18,6 +18,7 @@ import {
   type Task,
 } from '@/lib/api-client';
 import { Badge, Button, Dialog, Skeleton } from '@/components/ui';
+import { renderMarkdown } from '@/lib/markdown';
 
 export interface TaskQuickViewProps {
   task: Task;
@@ -61,7 +62,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
         setChildren(childResult.children);
         setDeps(depResult);
         const chain: Array<{ id: string; title: string; status: string }> = [];
-        let cursor = depResult.dependsOn[0];
+        let cursor = depResult?.dependsOn[0];
         const seen = new Set<string>();
         while (cursor && !seen.has(cursor.id) && chain.length < 10) {
           seen.add(cursor.id);
@@ -121,9 +122,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
         <div className="space-y-4 text-[13px]">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Description</p>
-            <p className="mt-1 whitespace-pre-wrap leading-relaxed text-ink">
-              {value.description?.trim() || 'No description.'}
-            </p>
+            <div className="prose mt-1 leading-relaxed text-ink" dangerouslySetInnerHTML={{ __html: renderMarkdown(value.description?.trim() || 'No description.') }} />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

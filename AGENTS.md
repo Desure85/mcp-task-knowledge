@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (бэклог: Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38, UI-39 закрыты)
-**Текущая ветка:** feat/ui-39-graph-metrics (от origin/master 405ddd4, PR #378 влит)
-**Текущий этап:** бэклог по приоритету; UI-11/12/15/16/36/37/38/39 закрыты; дальше UI-17, Z-11/Z-03, AA-04, SC-04; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** UI-39: graph metrics opt-in, transitive dependents + critical path, метки текстом/иконкой; server 1/1, component 27/27, 2 мутации RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38, UI-39 закрыты; UX-hotfix)
+**Текущая ветка:** fix/task-ux-hotfix (от master 28b8698)
+**Текущий этап:** hotfix по прямому запросу владельца; после мержа — следующий пункт бэклога (UI-17/Z-11/Z-03/AA-04/SC-04)
+**Статус:** клики имя→редактор/фон→превью, профильный getDeps (SQLite), Markdown Edit/Preview; quick view и list-row сценарии зелёные на SQLite.
+
+### Сессия S-20261109-night (task UX hotfix)
+
+- `TaskCard`/list row: имя → inline editor, свободная область → preview; article focusable.
+- `tasks_get_deps`: `storageProfile(ctx).tasks`; quick view getDeps не фатален.
+- Description: Markdown Edit/Preview; quick view рендерит Markdown через `lib/markdown`.
+- Проверено: quick-view 1/1, list-row 1/1 на SQLite-демо; Markdown-preview в task-detail; tsc. SQLite transition/claim gap остаётся.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1200-task-ux-hotfix.md`.
 
 ### Сессия S-20261109-night (UI-39 — graph metrics)
 
