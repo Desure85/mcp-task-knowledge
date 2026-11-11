@@ -27,6 +27,7 @@ export interface TaskQuickViewProps {
   types: ProjectType[];
   onClose: () => void;
   onEdit: () => void;
+  onOpenRelated: (taskId: string) => void;
 }
 
 function format(value: string | undefined): string {
@@ -35,7 +36,7 @@ function format(value: string | undefined): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export function TaskQuickView({ task, project, statuses, types, onClose, onEdit }: TaskQuickViewProps) {
+export function TaskQuickView({ task, project, statuses, types, onClose, onEdit, onOpenRelated }: TaskQuickViewProps) {
   const [details, setDetails] = useState<Task | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [children, setChildren] = useState<Task[]>([]);
@@ -170,7 +171,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
                 <ul className="mt-1 space-y-1">
                   {(deps?.dependsOn ?? []).map((dep) => (
                     <li key={dep.id}>
-                      <Link href={`/tasks/${dep.id}`} className="text-accent underline">{dep.title}</Link>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-left text-[12px] text-accent underline hover:bg-transparent hover:text-accent" onClick={() => onOpenRelated(dep.id)}>{dep.title}</Button>
                       <span className="ml-1 text-muted">({statusOf(dep.status)})</span>
                     </li>
                   ))}
@@ -186,7 +187,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
                 <ul className="mt-1 space-y-1">
                   {(deps?.dependedBy ?? []).map((dep) => (
                     <li key={dep.id}>
-                      <Link href={`/tasks/${dep.id}`} className="text-accent underline">{dep.title}</Link>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-left text-[12px] text-accent underline hover:bg-transparent hover:text-accent" onClick={() => onOpenRelated(dep.id)}>{dep.title}</Button>
                       <span className="ml-1 text-muted">({statusOf(dep.status)})</span>
                     </li>
                   ))}
@@ -202,7 +203,7 @@ export function TaskQuickView({ task, project, statuses, types, onClose, onEdit 
                 <ul className="mt-1 space-y-1">
                   {children.map((child) => (
                     <li key={child.id}>
-                      <Link href={`/tasks/${child.id}`} className="text-accent underline">{child.title}</Link>
+                      <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-left text-[12px] text-accent underline hover:bg-transparent hover:text-accent" onClick={() => onOpenRelated(child.id)}>{child.title}</Button>
                     </li>
                   ))}
                 </ul>

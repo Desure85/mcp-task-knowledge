@@ -569,6 +569,15 @@ export default function TasksPage() {
     }
   }
 
+  async function openRelatedTask(taskId: string) {
+    if (!project) return;
+    try {
+      setViewTask(await api.tasks.get(project, taskId, { includeGraphMetrics: true }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   function openTaskEditor(task: Task) {
     window.open(`/tasks/${task.id}`, '_blank', 'noopener,noreferrer');
   }
@@ -1393,6 +1402,7 @@ export default function TasksPage() {
           types={types}
           onClose={() => setViewTask(null)}
           onEdit={() => openTaskEditor(viewTask)}
+          onOpenRelated={(taskId) => void openRelatedTask(taskId)}
         />
       )}
     </div>
