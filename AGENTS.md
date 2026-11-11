@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-04f, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** test/tr-04f-dashboard-date-range (от master 1a3ac6f)
-**Текущий этап:** TR-04f закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** dashboard date-range через handler; 10/10, мутация K11 RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** fix/tr-04h-validate-schemas (от master bcf8b0d)
+**Текущий этап:** TR-04h закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** реальный validate-schemas в тесте; 15/15, мутация N1 RED.
+
+### Сессия S-20261109-night (TR-04h — validate-schemas)
+
+- `scripts/validate-schemas.mjs`: fixed `_obj` → `obj`; valid feedback row no longer false-invalid.
+- `tests/schema-validation.test.ts`: spawn real script, rc 0 valid / rc 2 invalid; 15/15.
+- Мутация N1 RED; подпункт TR-04h не входит в «Итого» (340/58).
+- Ограничения: проверена feedback-ветка, legacy/mcp paths нет.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1611-tr-04h.md`.
 
 ### Сессия S-20261109-night (TR-04f — dashboard date range)
 

@@ -11,6 +11,8 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
@@ -149,5 +151,42 @@ describe('Q-007: cross-schema consistency', () => {
     };
     expect(validate({ ...base, parentId: 'parent-1' })).toBe(true);
     expect(validate({ ...base, parentId: null })).toBe(true);
+  });
+});
+describe('TR-04h: validate-schemas script is exercised, not mirrored', () => {
+  it('exits 0 for a valid feedback JSONL row and 2 for an invalid one', () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-schema-'));
+    const experiments = path.join(dataDir, 'prompts', 'mcp', 'experiments');
+    fs.mkdirSync(experiments, { recursive: true });
+    const feedback = path.join(experiments, 'events.jsonl');
+    const env = { ...process.env, DATA_DIR: dataDir, CURRENT_PROJECT: 'mcp' };
+    const run = () =>
+      execFileSync(process.execPath, [path.join(process.cwd(), 'scripts', 'validate-schemas.mjs')], {
+        cwd: process.cwd(),
+        env,
+        encoding: 'utf8',
+      });
+
+    try {
+      fs.writeFileSync(
+        feedback,
+        JSON.stringify({ id: 'e1', promptId: 'p1', ts: '2026-01-01T00:00:00.000Z' }) + '\n',
+      );
+      expect(run()).toContain('Validation passed');
+
+      fs.writeFileSync(feedback, JSON.stringify({ id: 'e1', ts: 'not-a-date' }) + '\n');
+      let failed = false;
+      try {
+        run();
+      } catch (error) {
+        failed = true;
+        const status = (error as { status?: number }).status;
+        expect(status).toBe(2);
+        expect(String((error as { stderr?: string }).stderr)).toContain('Validation failed');
+      }
+      expect(failed).toBe(true);
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
   });
 });
