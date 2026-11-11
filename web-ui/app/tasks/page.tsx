@@ -147,6 +147,9 @@ export default function TasksPage() {
   const [newPriority, setNewPriority] = useState<Priority>('medium');
   const [newType, setNewType] = useState(DEFAULT_TASK_TYPE);
   const [newTags, setNewTags] = useState('');
+  const [newParentId, setNewParentId] = useState('');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [childrenByParent, setChildrenByParent] = useState<Record<string, Task[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterTag, setFilterTag] = useState<string>('');
@@ -502,12 +505,14 @@ export default function TasksPage() {
         priority: newPriority,
         type: newType,
         tags,
+        ...(newParentId ? { parentId: newParentId } : {}),
       });
       publish('task.created', created as unknown as Record<string, unknown>);
       setNewTitle('');
       setNewTags('');
       setNewPriority('medium');
       setNewType(DEFAULT_TASK_TYPE);
+      setNewParentId('');
       setShowCreate(false);
       if (project) await loadTasks(project, true);
     } catch (e) {
@@ -723,6 +728,57 @@ export default function TasksPage() {
     });
   }, [filtered, sort, statuses]);
 
+  const childTasks = (id: string) =>
+    childrenByParent[id] ?? tasks.filter((task) => task.parentId === id);
+
+  async function toggleExpanded(task: Task) {
+    if (expandedIds.has(task.id)) {
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(task.id);
+        return next;
+      });
+      return;
+    }
+    setExpandedIds((prev) => new Set(prev).add(task.id));
+    if (!childrenByParent[task.id] && project) {
+      try {
+        const result = await api.tasks.getChildren(project, task.id);
+        setChildrenByParent((prev) => ({ ...prev, [task.id]: result.children }));
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    }
+  }
+
+  function addSubtask(task: Task) {
+    setNewParentId(task.id);
+    setShowCreate(true);
+  }
+
+  const listRows = useMemo(() => {
+    const allLoaded = new Map(tasks.map((task) => [task.id, task]));
+    for (const children of Object.values(childrenByParent)) {
+      for (const child of children) allLoaded.set(child.id, child);
+    }
+    const rows: Array<{ task: Task; depth: number; children: Task[] }> = [];
+    const seen = new Set<string>();
+    const walk = (task: Task, depth: number) => {
+      if (seen.has(task.id)) return;
+      seen.add(task.id);
+      const children = childTasks(task.id);
+      rows.push({ task, depth, children });
+      if (expandedIds.has(task.id)) {
+        for (const child of children) walk(child, depth + 1);
+      }
+    };
+    for (const task of sortedTasks) {
+      if (task.parentId && allLoaded.has(task.parentId)) continue;
+      walk(task, 0);
+    }
+    return rows;
+  }, [sortedTasks, childrenByParent, expandedIds, tasks]);
+
   const toggleSort = (key: TaskSortKey) => {
     setSort((prev) =>
       prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
@@ -937,6 +993,17 @@ export default function TasksPage() {
               className={`${INPUT_CLASS} sm:flex-1`}
               aria-label="Tags"
             />
+            <select
+              value={newParentId}
+              onChange={(e) => setNewParentId(e.target.value)}
+              className={SELECT_CLASS}
+              aria-label="Parent task"
+            >
+              <option value="">No parent</option>
+              {tasks.map((task) => (
+                <option key={task.id} value={task.id}>{task.title}</option>
+              ))}
+            </select>
             <Button type="button" variant="primary" onClick={() => void createTask()}>
               Create
             </Button>
@@ -1198,8 +1265,11 @@ export default function TasksPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedTasks.map((task) => {
+                  {listRows.map(({ task, depth, children }) => {
                     const status = statuses.find((item) => item.id === task.status);
+                    const done = children.filter(
+                      (child) => child.status === closeStatus || statuses.find((s) => s.id === child.status)?.category === 'done',
+                    ).length;
                     return (
                       <tr
                       key={task.id}
@@ -1220,13 +1290,40 @@ export default function TasksPage() {
                           />
                         </td>
                         <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => openTaskEditor(task)}
-                            className="text-left font-medium text-ink hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-                          >
-                            {task.title}
-                          </button>
+                          <div className="flex items-start gap-1" style={{ paddingLeft: depth * 16 }}>
+                            <button
+                              type="button"
+                              aria-label={`${expandedIds.has(task.id) ? 'Collapse' : 'Expand'} ${task.title}`}
+                              aria-expanded={expandedIds.has(task.id)}
+                              onClick={() => void toggleExpanded(task)}
+                              className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded text-muted hover:bg-surface-2 hover:text-ink"
+                            >
+                              <IconChevronRight className={`h-3.5 w-3.5 transition ${expandedIds.has(task.id) ? 'rotate-90' : ''}`} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openTaskEditor(task)}
+                              className="text-left font-medium text-ink hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            >
+                              {task.title}
+                            </button>
+                            {children.length > 0 && (
+                              <span className="ml-1 whitespace-nowrap text-[11px] text-muted">
+                                {done}/{children.length}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex gap-2" style={{ paddingLeft: depth * 16 + 20 }}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-0 text-[11px] text-accent"
+                              onClick={() => addSubtask(task)}
+                            >
+                              Add subtask
+                            </Button>
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-muted">{status?.label ?? task.status}</td>
                         <td className="px-3 py-2">

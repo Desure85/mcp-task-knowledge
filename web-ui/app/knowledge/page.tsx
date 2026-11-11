@@ -21,8 +21,51 @@ import { normalizeKnowledgeItems } from '@/lib/knowledge';
 import { useRealtime, applyKnowledgeEvent } from '@/lib/realtime';
 import { buildToc, renderMarkdown, stripLeadingH1, type TocEntry } from '@/lib/markdown';
 import { PageHeader } from '@/components/PageHeader';
+import { TreeView } from '@/components/ui/TreeView';
+import type { TreeNode } from '@/lib/tree';
 import { Badge, Button, Card, CardBody, Dialog, EmptyState, Input, Select, Skeleton, Textarea } from '@/components/ui';
 import { IconAlert, IconInbox, IconSearch } from '@/components/icons';
+
+type KnowledgeTreeItem = KnowledgeListItem & { children?: KnowledgeTreeItem[] };
+
+function toTreeNodes(items: KnowledgeTreeItem[]): TreeNode[] {
+  return items.map((item) => ({
+    id: item.id,
+    label: item.title,
+    hint: item.type ?? undefined,
+    children: toTreeNodes(item.children ?? []),
+  }));
+}
+
+function findTreeDoc(items: KnowledgeTreeItem[], id: string): KnowledgeListItem | null {
+  for (const item of items) {
+    if (item.id === id) return item;
+    const nested = findTreeDoc(item.children ?? [], id);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function docPath(items: KnowledgeTreeItem[], id: string): KnowledgeListItem[] {
+  const flat: KnowledgeTreeItem[] = [];
+  const walk = (nodes: KnowledgeTreeItem[]) => {
+    for (const node of nodes) {
+      flat.push(node);
+      walk(node.children ?? []);
+    }
+  };
+  walk(items);
+  const byId = new Map(flat.map((item) => [item.id, item]));
+  const path: KnowledgeListItem[] = [];
+  let cursor = byId.get(id);
+  const seen = new Set<string>();
+  while (cursor && !seen.has(cursor.id)) {
+    seen.add(cursor.id);
+    path.unshift(cursor);
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+  }
+  return path;
+}
 
 type View = 'list' | 'read' | 'edit';
 
@@ -83,6 +126,10 @@ function Alert({
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState<KnowledgeListItem[]>([]);
+  const [treeDocs, setTreeDocs] = useState<Array<KnowledgeListItem & { children?: unknown[] }>>([]);
+  const [treeMode, setTreeMode] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [editParentId, setEditParentId] = useState('');
   const [totalDocs, setTotalDocs] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -95,6 +142,7 @@ export default function KnowledgePage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchNonce, setSearchNonce] = useState(0);
   const [filterTag, setFilterTag] = useState('');
+  const [knowledgeMode, setKnowledgeMode] = useState<'list' | 'tree'>('list');
   const [filterType, setFilterType] = useState('');
   const [view, setView] = useState<View>('list');
   const [selectedDoc, setSelectedDoc] = useState<KnowledgeDoc | null>(null);
@@ -118,6 +166,18 @@ export default function KnowledgePage() {
       setDocs((prev) => applyKnowledgeEvent(prev, event));
     },
   });
+
+  const loadTree = useCallback(async () => {
+    setTreeLoading(true);
+    try {
+      const result = await api.knowledge.tree();
+      setTreeDocs(Array.isArray(result) ? (result as Array<KnowledgeListItem & { children?: unknown[] }>) : []);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTreeLoading(false);
+    }
+  }, []);
 
   const loadDocs = useCallback(async () => {
     try {
@@ -166,6 +226,10 @@ export default function KnowledgePage() {
     void loadDocs();
   }, [loadDocs]);
 
+  useEffect(() => {
+    if (knowledgeMode === 'tree' && treeDocs.length === 0) void loadTree();
+  }, [knowledgeMode, treeDocs.length, loadTree]);
+
   // F-02: search runs on the server (`search_knowledge`), never over the
   // list payload — list items carry no `content` to lowercase.
   useEffect(() => {
@@ -207,6 +271,11 @@ export default function KnowledgePage() {
   const allTypes = useMemo(
     () => Array.from(new Set(docs.map((d) => d.type).filter(Boolean) as string[])).sort(),
     [docs],
+  );
+
+  const breadcrumb = useMemo(
+    () => (selectedDoc ? docPath(treeDocs as KnowledgeTreeItem[], selectedDoc.id) : []),
+    [selectedDoc, treeDocs],
   );
 
   const searchActive = searchQuery.trim().length > 0;
@@ -253,6 +322,7 @@ export default function KnowledgePage() {
     setEditContent('content' in doc && typeof doc.content === 'string' ? doc.content : '');
     setEditTags((doc.tags ?? []).join(', '));
     setEditType(doc.type ?? 'note');
+    setEditParentId(doc.parentId ?? '');
   }
 
   async function openDocument(item: KnowledgeListItem) {
@@ -285,6 +355,7 @@ export default function KnowledgePage() {
     setEditContent('');
     setEditTags('');
     setEditType('note');
+    setEditParentId('');
   }
 
   function startEdit() {
@@ -323,6 +394,7 @@ export default function KnowledgePage() {
           content: editContent,
           tags,
           type: editType,
+          parentId: editParentId || null,
         }]);
         for (const doc of res.results ?? []) {
           publish('knowledge.updated', doc as unknown as Record<string, unknown>);
@@ -345,9 +417,14 @@ export default function KnowledgePage() {
         }
         const created = res.created?.[0];
         if (created) {
-          setSelectedDoc(created);
+          const withParent = editParentId
+            ? (await api.knowledge.bulkUpdate(created.project ?? PROJECT_FALLBACK, [
+                { id: created.id, parentId: editParentId },
+              ])).results?.[0] ?? created
+            : created;
+          setSelectedDoc(withParent);
           setPendingDoc(null);
-          fillEditor(created);
+          fillEditor(withParent);
           setView('read');
         } else {
           closeDocument();
@@ -449,6 +526,14 @@ export default function KnowledgePage() {
               placeholder="ui, audit"
             />
           </div>
+          <Select label="Parent document" value={editParentId} onChange={(e) => setEditParentId(e.target.value)}>
+            <option value="">No parent</option>
+            {docs
+              .filter((doc) => doc.id !== selectedDoc?.id)
+              .map((doc) => (
+                <option key={doc.id} value={doc.id}>{doc.title}</option>
+              ))}
+          </Select>
 
           <div className={showPreview ? 'grid gap-4 xl:grid-cols-2' : ''}>
             <Textarea
@@ -523,6 +608,23 @@ export default function KnowledgePage() {
           <div ref={readerRef} className="mt-3 grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
             <article className="min-w-0">
               <header className="border-b border-line pb-4">
+                {breadcrumb.length > 1 && (
+                  <nav aria-label="Breadcrumb" className="mb-2 flex flex-wrap items-center gap-1 text-[12px] text-muted">
+                    {breadcrumb.slice(0, -1).map((item) => (
+                      <span key={item.id} className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void openDocument(item)}
+                          className="hover:text-accent hover:underline"
+                        >
+                          {item.title}
+                        </button>
+                        <span aria-hidden="true">/</span>
+                      </span>
+                    ))}
+                    <span className="text-ink">{breadcrumb[breadcrumb.length - 1].title}</span>
+                  </nav>
+                )}
                 <h2 className="text-[24px] font-semibold leading-tight tracking-[-0.015em] text-ink sm:text-[30px]">
                   {title}
                 </h2>
@@ -620,7 +722,32 @@ export default function KnowledgePage() {
         </Select>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex items-center gap-2" role="group" aria-label="Knowledge view">
+        <Button type="button" size="sm" variant={knowledgeMode === 'list' ? 'primary' : 'secondary'} aria-pressed={knowledgeMode === 'list'} onClick={() => setKnowledgeMode('list')}>List</Button>
+        <Button type="button" size="sm" variant={knowledgeMode === 'tree' ? 'primary' : 'secondary'} aria-pressed={knowledgeMode === 'tree'} onClick={() => setKnowledgeMode('tree')}>Tree</Button>
+      </div>
+
+      {knowledgeMode === 'tree' && !searchActive && (
+        <Card className="mt-4">
+          <CardBody>
+            {treeLoading ? <Skeleton className="h-40 w-full" /> : treeDocs.length === 0 ? (
+              <EmptyState compact title="No documents to tree" hint="Create a document to start the hierarchy." icon={IconInbox} />
+            ) : (
+              <TreeView
+                nodes={toTreeNodes(treeDocs as KnowledgeTreeItem[])}
+                ariaLabel="Knowledge document tree"
+                selectedId={selectedDoc?.id ?? null}
+                onSelect={(node) => {
+                  const doc = findTreeDoc(treeDocs as KnowledgeTreeItem[], node.id);
+                  if (doc) void openDocument(doc);
+                }}
+              />
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      <div className={`mt-4 ${knowledgeMode === 'tree' && !searchActive ? 'hidden' : ''}`}>
         {loading ? (
           <div className="grid gap-3 md:grid-cols-2">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -649,7 +776,17 @@ export default function KnowledgePage() {
                     className="flex h-full w-full flex-col items-start gap-2 p-4 text-left"
                   >
                     <span className="flex w-full items-start justify-between gap-2">
-                      <span className="min-w-0 text-[14px] font-semibold text-ink">{doc.title}</span>
+                      <span className="min-w-0 text-[14px] font-semibold text-ink">
+                        {docPath(docs as KnowledgeTreeItem[], doc.id).length > 1 && (
+                          <span className="mb-1 block text-[11px] font-normal text-muted">
+                            {docPath(docs as KnowledgeTreeItem[], doc.id)
+                              .slice(0, -1)
+                              .map((item) => item.title)
+                              .join(' / ')}{' / '}
+                          </span>
+                        )}
+                        {doc.title}
+                      </span>
                       {doc.type && <Badge>{doc.type}</Badge>}
                     </span>
                     {(doc.tags?.length ?? 0) > 0 && (
