@@ -2,7 +2,7 @@
  * new-connectors.spec.ts — Tests for NEXT-011 connectors.
  */
 
-import { describe, it, expect} from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { GDriveConnector } from '../src/connectors/gdrive.js';
 import { GmailConnector } from '../src/connectors/gmail.js';
 import { NotionConnector } from '../src/connectors/notion.js';
@@ -10,6 +10,14 @@ import { OneDriveConnector } from '../src/connectors/onedrive.js';
 import { LinearConnector } from '../src/connectors/linear.js';
 import { WebCrawlerConnector } from '../src/connectors/web-crawler.js';
 import type { ConnectorContext } from '../src/connectors/types.js';
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, text: async () => '' })));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function createMockCtx(): ConnectorContext & { tools: Array<{ name: string }> } {
   const tools: Array<{ name: string }> = [];
@@ -47,7 +55,7 @@ describe('GDriveConnector', () => {
 
   it('health returns healthy with credentials', async () => {
     const c = new GDriveConnector();
-    await c.init({ ...createMockCtx(), config: { apiKey: 'test' } });
+    await c.init({ ...createMockCtx(), config: { accessToken: 'test' } });
     const h = await c.health();
     expect(h.healthy).toBe(true);
   });
