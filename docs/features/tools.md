@@ -283,6 +283,7 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `dashboard_stats` | Project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
 | `dashboard_activity` | Chronological activity feed of recent task and knowledge changes |
 | `changes_since` | Delta feed of tasks/knowledge/memory changes since a timestamp (`nextSince` for polling) |
+| `graph_neighbors` | Neighbors of a task/document/entity with the reason (dependency, parent/child, mention) |
 | `dashboard_trends` | Task creation and completion trends over time (daily or weekly buckets) |
 | `dashboard_project_summary` | Cross-project summary: task and knowledge counts plus top metrics per project |
 

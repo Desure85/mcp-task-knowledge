@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, INT-007, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-02, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/u-02-changes-since (от master ca00528)
-**Текущий этап:** U-02 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** changes_since delta feed; 5/5, мутация RED; API 153.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, INT-007, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-02, U-03, U-05, U-06, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/u-06-graph-neighbors (от master ce11f07)
+**Текущий этап:** U-06 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** graph_neighbors direct edges; 3/3, мутация RED; API 154.
+
+### Сессия S-20261109-night (U-06 — graph_neighbors)
+
+- `src/register/graph-neighbors.ts`: task deps/blocks/parent/child, doc parent/child, memory mentions.
+- `limit`/fields; unknown id empty; temporal errors не скрывают task/doc.
+- `tests/graph-neighbors.test.ts` 3/3; docs 6/6 (154); мутация direction RED.
+- Ограничения: direct only, project-scoped, temporal ≤1000, короткие метки только exact.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1714-u-06.md`.
 
 ### Сессия S-20261109-night (U-02 — changes_since)
 

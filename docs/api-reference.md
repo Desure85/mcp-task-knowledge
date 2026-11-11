@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **153** — 151 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **154** — 152 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -34,6 +34,7 @@
 | `embeddings_status` | Show current embeddings configuration and mode |
 | `embeddings_try_init` | Force lazy initialization of vector adapter and return diagnostics |
 | `graph_export_mermaid` | Build a Mermaid graph from tasks and knowledge (nodes + parent edges) |
+| `graph_neighbors` | Return neighbors of a task/document/entity with the reason for each edge: task dependency, parent/ch |
 | `graph_visualize` | Render the entity-graph as a self-contained interactive HTML page (SVG + JS, zero dependencies). See |
 | `knowledge_bulk_archive` | Archive many knowledge docs |
 | `knowledge_bulk_create` | Create many knowledge docs at once (optionally hierarchical via parentId) |
@@ -736,6 +737,33 @@ Build a Mermaid graph from tasks and knowledge (nodes + parent edges)
   "arguments": {
     "project": "mcp",
     "includeArchived": false
+  }
+}
+```
+
+## graph_neighbors
+
+**Graph Neighbors**
+
+Return neighbors of a task/document/entity with the reason for each edge: task dependency, parent/child, or memory-fact mention. Existing stores only; no new graph format.
+
+**Параметры:**
+
+- `id`
+- `project`
+- `limit`
+- `fields`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "graph_neighbors",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "project": "mcp",
+    "limit": 10,
+    "fields": "example"
   }
 }
 ```

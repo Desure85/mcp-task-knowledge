@@ -1195,7 +1195,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | U-03 | Evidence при закрытии задачи | medium | done | — | У задачи `evidence?: {commitSha?, ciUrl?, checkOutput?, note?, at, byUserId?, bySessionId?}`; `tasks_close` принимает `evidence` и валидирует: sha `^[0-9a-f]{7,40}$`, `ciUrl` только https, `checkOutput` ≤ 4 КБ. Настройка проекта `requireEvidence` — в `DATA_DIR/projects/<id>.json` (`readProjectMetadata`/`updateProjectMeta`, src/projects.ts; сейчас пишет только `description` — расширить схему). При включённой настройке закрытие без evidence → `{ok:false, code:'EVIDENCE_REQUIRED', hint:'pass commitSha, ciUrl or checkOutput'}`; evidence видно в `tasks_get` и (после MU-03) в истории. DoD: `npm test -- tests/task-evidence.test.ts` |
 | U-04 | Экономия токенов в ответах | medium | pending | — | Частично реализовано в SC-01 (ветка `feat/list-pagination`): `fields`, `maxBytes`+`nextCursor`/`truncated`, курсор и стабильные коды ошибок уже есть на всех list/search-инструментах; остаётся `compact: true` и распространение на `memory_facts_*`-ответы. (1) `fields: string[]` на read-инструментах (`tasks_list`/`tasks_get`/`knowledge_list`/`knowledge_get`/`memory_facts_*`) — единый пост-фильтр, а не правка каждого обработчика; (2) `compact: true` — выкинуть null/пустые массивы и длинные текстовые поля, если не запрошены явно; (3) жёсткий `maxBytes` с `{items, nextCursor, truncated}` и стабильным порядком `(updatedAt desc, id)`, курсор — opaque base64; (4) ошибки `{ok:false, error:{code, message, hint, retryable}}` с кодами из `ErrorCategory`/`ToolError` (src/core/error-handler.ts) — сейчас `err()` (src/utils/respond.ts) отдаёт только message. Контракт BREAKING, клиентов нет. DoD: `npm test -- tests/response-economy.test.ts` |
 | U-05 | Инструмент `memory_verify` (не только CLI) | medium | done | KE-04 | Проверка актуальности факта по анкорам до того, как на него опереться. Логика уже есть в `scripts/verify-memory.mjs` (`npm run memory:verify`, package.json): статусы verified/pending-merge/stale/no-anchor, strong/weak анкоры, git-индекс, бюджеты `--limit`/`--budget-ms`. Вынести чистую часть в модуль (напр. `src/memory/verify.ts`) и переиспользовать скриптом и инструментом, чтобы вердикты не разъезжались. Вход `{factIds?, project?, budgetMs?, write?}`; выход по факту `{status, anchors:[{path,line,reason}], checkedAt}`; `write` обновляет теги только по явному запросу. DoD: `npm test -- tests/memory-verify-tool.test.ts` + паритет с `npm run memory:verify -- --limit 5` на одном `DATA_DIR` |
-| U-06 | graph_neighbors: что связано с X и почему | medium | pending | U-04 | MCP-инструмент для агентов: одним вызовом вернуть соседей узла и причину связи (task dependency, document parentId, entity mention), с limit и fields по U-04. Без картинки и без нового серверного формата; использовать существующие связи и граф. DoD: `npm test -- tests/graph-neighbors.test.ts`; на проекте с задачей-блокером и документом-ребёнком ответ содержит оба типа связи и стабильный порядок. |
+| U-06 | graph_neighbors: что связано с X и почему | medium | done | U-04 | MCP-инструмент для агентов: одним вызовом вернуть соседей узла и причину связи (task dependency, document parentId, entity mention), с limit и fields по U-04. Без картинки и без нового серверного формата; использовать существующие связи и граф. DoD: `npm test -- tests/graph-neighbors.test.ts`; на проекте с задачей-блокером и документом-ребёнком ответ содержит оба типа связи и стабильный порядок. |
 
 ## Этап V — Workflow и доски задач (2026-10-30)
 
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **56** | **7** | **342** | **22** | **1** |
+| **Итого** | **428** | **55** | **7** | **343** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2093,3 +2093,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, U-02 закрыт): changes_since по task/doc updatedAt и temporal recordedAt/validTo;
 > 5/5, мутация RED; API 153.
+>
+> Примечание (2026-11-11, U-06 закрыт): graph_neighbors для задач/доков/памяти с причиной связи;
+> 3/3, мутация RED; API 154.
