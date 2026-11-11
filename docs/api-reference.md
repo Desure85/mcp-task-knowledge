@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **148** — 146 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **151** — 149 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -96,6 +96,9 @@
 | `project_get_current` | Return the name of the current project context (session-scoped on multi-client transports) |
 | `project_info` | Get detailed information about a project: task stats by status/priority, knowledge stats by type, re |
 | `project_list` | List all available projects with task and knowledge counts, descriptions, and creation dates. |
+| `project_members_list` | List project members and their roles (viewer/editor/admin). Legacy projects without members return a |
+| `project_members_remove` | Remove one project member. Removing the last member makes the project legacy/public again. |
+| `project_members_set` | Add or update one project member role. Requires a project admin (global admin bypasses). |
 | `project_purge` | Enumerate and permanently delete ALL tasks and/or knowledge in the project. Requires confirm=true un |
 | `project_set_current` | Change the current project context used when project is omitted (per-session on http/tcp, global on  |
 | `project_statuses_get` | Get the project status set, close status and allowed initial statuses. New projects use the default  |
@@ -2439,6 +2442,75 @@ List all available projects with task and knowledge counts, descriptions, and cr
 }
 ```
 
+## project_members_list
+
+**List Project Members**
+
+List project members and their roles (viewer/editor/admin). Legacy projects without members return an empty map.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_members_list",
+  "arguments": {
+    "project": "mcp"
+  }
+}
+```
+
+## project_members_remove
+
+**Remove Project Member**
+
+Remove one project member. Removing the last member makes the project legacy/public again.
+
+**Параметры:**
+
+- `project`
+- `userId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_members_remove",
+  "arguments": {
+    "project": "mcp",
+    "userId": "example"
+  }
+}
+```
+
+## project_members_set
+
+**Set Project Member**
+
+Add or update one project member role. Requires a project admin (global admin bypasses).
+
+**Параметры:**
+
+- `project`
+- `userId`
+- `role`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_members_set",
+  "arguments": {
+    "project": "mcp",
+    "userId": "example",
+    "role": "example"
+  }
+}
+```
+
 ## project_purge
 
 **Project Purge (Destructive)**
@@ -2659,6 +2731,7 @@ Update project metadata (description).
 
 - `project`
 - `description`
+- `requireEvidence`
 
 **Пример вызова:**
 
@@ -2667,7 +2740,8 @@ Update project metadata (description).
   "name": "project_update",
   "arguments": {
     "project": "mcp",
-    "description": "Example Description"
+    "description": "Example Description",
+    "requireEvidence": "example"
   }
 }
 ```
@@ -3528,6 +3602,7 @@ Close a task by moving it to the project's close status. Optionally cascade the 
 - `project`
 - `id`
 - `cascade`
+- `evidence`
 
 **Пример вызова:**
 
@@ -3537,7 +3612,8 @@ Close a task by moving it to the project's close status. Optionally cascade the 
   "arguments": {
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
-    "cascade": "example"
+    "cascade": "example",
+    "evidence": "example"
   }
 }
 ```

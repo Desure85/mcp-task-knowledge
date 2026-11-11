@@ -1009,6 +1009,25 @@ export const api = {
         callTool<ProjectTransitionsData>('project_transitions_set', { project, transitions }),
     },
 
+    members: {
+      list: (project?: string) =>
+        callTool<{ project: string; members: Record<string, 'viewer' | 'editor' | 'admin'> }>(
+          'project_members_list',
+          { project },
+        ),
+      set: (project: string, userId: string, role: 'viewer' | 'editor' | 'admin') =>
+        callTool<{ project: string; members: Record<string, string> }>('project_members_set', {
+          project,
+          userId,
+          role,
+        }),
+      remove: (project: string, userId: string) =>
+        callTool<{ project: string; members: Record<string, string> }>('project_members_remove', {
+          project,
+          userId,
+        }),
+    },
+
     types: {
       get: (project?: string) => callTool<ProjectTypesData>('project_types_get', { project }),
       set: (

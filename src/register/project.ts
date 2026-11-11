@@ -1,7 +1,8 @@
 import { z } from "zod/v3";
 import type { ServerContext } from './context.js';
 import { loadConfig, resolveProject, getCurrentProject, setCurrentProject } from '../config.js';
-import { listProjects, getProjectDetail, createProject, deleteProject, updateProjectMeta, PROJECT_ID_RE } from '../projects.js';
+import { listProjects, getProjectDetail, createProject, deleteProject, readProjectMetadata, updateProjectMeta, PROJECT_ID_RE, type ProjectRole } from '../projects.js';
+import { filterVisibleProjects, readProjectMembersSync } from '../core/project-access.js';
 import { ok, err, errWith } from '../utils/respond.js';
 import { currentSessionId } from '../core/request-context.js';
 import { scheduleProjectIndex } from '../search/warmup.js';
@@ -21,7 +22,61 @@ function sessionCurrentProject(ctx: ServerContext): string | undefined {
   return typeof cur === 'string' && cur.trim().length > 0 ? cur : undefined;
 }
 
+
 export function registerProjectTools(ctx: ServerContext): void {
+  // T-02: project membership management (viewer/editor/admin).
+  ctx.server.registerTool(
+    "project_members_list",
+    {
+      title: "List Project Members",
+      description: "List project members and their roles (viewer/editor/admin). Legacy projects without members return an empty map.",
+      inputSchema: { project: z.string().optional() },
+    },
+    async ({ project }: { project?: string }) => {
+      const prj = resolveProject(project);
+      return ok({ project: prj, members: readProjectMembersSync(prj) ?? {} });
+    }
+  );
+
+  ctx.server.registerTool(
+    "project_members_set",
+    {
+      title: "Set Project Member",
+      description: "Add or update one project member role. Requires a project admin (global admin bypasses).",
+      inputSchema: {
+        project: z.string().optional(),
+        userId: z.string().min(1),
+        role: z.enum(['viewer', 'editor', 'admin']),
+      },
+    },
+    async ({ project, userId, role }: { project?: string; userId: string; role: ProjectRole }) => {
+      const prj = resolveProject(project);
+      const meta = await readProjectMetadata(prj);
+      if (!meta) return err(`Project not found: ${prj}`);
+      const members = { ...(meta.members ?? {}), [userId]: role };
+      const updated = await updateProjectMeta(prj, { members });
+      return ok({ project: prj, members: updated?.members ?? members });
+    }
+  );
+
+  ctx.server.registerTool(
+    "project_members_remove",
+    {
+      title: "Remove Project Member",
+      description: "Remove one project member. Removing the last member makes the project legacy/public again.",
+      inputSchema: { project: z.string().optional(), userId: z.string().min(1) },
+    },
+    async ({ project, userId }: { project?: string; userId: string }) => {
+      const prj = resolveProject(project);
+      const meta = await readProjectMetadata(prj);
+      if (!meta) return err(`Project not found: ${prj}`);
+      const members = { ...(meta.members ?? {}) };
+      delete members[userId];
+      const updated = await updateProjectMeta(prj, { members });
+      return ok({ project: prj, members: updated?.members ?? members });
+    }
+  );
+
   // project_list — list all projects with task/knowledge counts
   ctx.server.registerTool(
     "project_list",
@@ -32,7 +87,19 @@ export function registerProjectTools(ctx: ServerContext): void {
     },
     async () => {
       const out = await listProjects(() => sessionCurrentProject(ctx) ?? getCurrentProject());
-      return ok(out);
+      const auth = ctx.authManager;
+      const sid = currentSessionId();
+      const open = !auth || !auth.isAuthRequired();
+      const roles = auth && sid ? auth.getRoles(sid) : [];
+      const userId = auth && sid ? auth.getUserId(sid) : undefined;
+      const visible = filterVisibleProjects(out.projects, { userId, globalRoles: roles, open });
+      const currentVisible = visible.some((project) => project.id === out.current);
+      return ok({
+        ...out,
+        current: currentVisible ? out.current : (visible[0]?.id ?? out.current),
+        count: visible.length,
+        projects: visible,
+      });
     }
   );
 

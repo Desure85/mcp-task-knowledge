@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-20, TR-33, TR-34, TR-37, TR-38, U-03, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/tr-34-connector-circuit-breaker (от master c990097)
-**Текущий этап:** TR-34 закрыт; blocked — MU-07/TK-02/T-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** connector:<id> circuit + health; 2/2, мутация RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-20, TR-33, TR-34, TR-37, TR-38, U-03, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/t-02-project-acl (от master 1bbc169)
+**Текущий этап:** T-02 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** project_members + project-acl gate; 4/4, мутация RED; API 151.
+
+### Сессия S-20261109-night (T-02 — проектные роли и ACL)
+
+- `ProjectMetadata.members`, `project-access.ts`, стадия `project-acl` в SecurityStack.
+- `project_list` фильтрует, `/ws` reject foreign project, UI Members card, 3 MCP tools.
+- `tests/project-acl.test.ts` 4/4; docs coverage 6/6; web tsc/guards 12/12; мутация RED.
+- Ограничения: legacy без members публичен; user id не FK; нет UI e2e; memory/system вне T-02.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1455-t-02.md`.
 
 ### Сессия S-20261109-night (TR-34 — circuit breaker коннекторов)
 

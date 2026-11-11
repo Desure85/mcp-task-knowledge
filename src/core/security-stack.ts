@@ -38,6 +38,7 @@ import {
 } from './input-sanitizer.js';
 import type { AuthManager } from './auth.js';
 import { childLogger } from './logger.js';
+import { checkProjectToolCall } from './project-access.js';
 import type { TrustLevel } from '../types.js';
 import {
   EgressScanner,
@@ -58,6 +59,8 @@ export interface SecurityStackOptions {
   sanitizer?: SanitizerConfig;
   /** AuthManager — used to resolve caller roles for ACL. */
   authManager?: AuthManager;
+  /** T-02 project membership gate; default on (legacy projects without members stay open). */
+  projectAccess?: boolean;
   /**
    * Egress scanner mode (TR-14). Presence enables output-side injection
    * screening on tool results: 'warn' annotates, 'redact' rewrites matches,
@@ -77,7 +80,8 @@ export type SecurityStage =
   | 'auth-protection'
   | 'rate-limit'
   | 'sanitizer'
-  | 'acl';
+  | 'acl'
+  | 'project-acl';
 
 export type SecurityDecision =
   | { allowed: true; sanitizedInput?: unknown }
@@ -227,6 +231,27 @@ export class SecurityStack {
           stage: 'acl',
           reason: `access denied by ACL: ${verdict.reason}`,
         };
+      }
+    }
+
+    // 4b. T-02 project membership — per-project viewer/editor/admin.
+    if (this.opts.projectAccess !== false) {
+      const auth = this.opts.authManager;
+      const sessionId = call.sessionId;
+      const open = !auth || !auth.isAuthRequired();
+      const roles = auth && sessionId ? auth.getRoles(sessionId) : [];
+      const userId = auth && sessionId ? auth.getUserId(sessionId) : undefined;
+      const sessionProject = auth?.getSessionCurrentProject?.(sessionId ?? '');
+      const verdict = checkProjectToolCall({
+        toolName: call.toolName,
+        input: call.input,
+        userId,
+        globalRoles: roles,
+        open,
+        currentProject: sessionProject,
+      });
+      if (!verdict.allowed) {
+        return { allowed: false, stage: 'project-acl', reason: verdict.reason };
       }
     }
 

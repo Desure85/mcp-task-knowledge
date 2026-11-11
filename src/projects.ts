@@ -1,3 +1,5 @@
+import fsSync from 'node:fs';
+import pathSync from 'node:path';
 import { DEFAULT_PROJECT, TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from './config.js';
 import { resolveUnder, PathValidationError, withFileLock } from './fs.js';
 import { indexProjectDelete } from './storage/metadata-index.js';
@@ -44,6 +46,9 @@ export type ProjectDetail = ProjectInfo & {
   metadata?: ProjectMetadata;
 };
 
+export type ProjectRole = 'viewer' | 'editor' | 'admin';
+export type ProjectMembers = Record<string, ProjectRole>;
+
 export interface ProjectMetadata {
   description?: string;
   createdAt: string;
@@ -56,6 +61,8 @@ export interface ProjectMetadata {
   agents?: string[];
   /** U-03: closing a task requires evidence. */
   requireEvidence?: boolean;
+  /** T-02: user id → project role. Absent = legacy/public project. */
+  members?: ProjectMembers;
 }
 
 const PROJECT_META_FILE = '.project.json';
@@ -278,6 +285,7 @@ export type ProjectMetaUpdates = {
   initialStatuses?: string[] | null;
   agents?: string[] | null;
   requireEvidence?: boolean;
+  members?: ProjectMembers;
 };
 
 export async function updateProjectMeta(
@@ -319,6 +327,9 @@ export async function updateProjectMeta(
     if (updates.requireEvidence !== undefined) {
       meta.requireEvidence = updates.requireEvidence;
     }
+    if (updates.members !== undefined) {
+      meta.members = updates.members;
+    }
     await writeProjectMetadata(projectId, meta);
     return meta;
   });
@@ -359,6 +370,19 @@ export async function readProjectMetadata(projectId: string): Promise<ProjectMet
   try {
     const raw = await fs.readFile(metaPath, 'utf-8');
     return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * T-02 synchronous membership read for the security gate. Metadata is a small
+ * JSON file; project ACL checks happen on every tool call and cannot await.
+ */
+export function readProjectMetadataSync(projectId: string): ProjectMetadata | null {
+  const metaPath = resolveUnder(pathSync.join(DATA_DIR, 'projects'), `${projectId}.json`);
+  try {
+    return JSON.parse(fsSync.readFileSync(metaPath, 'utf-8')) as ProjectMetadata;
   } catch {
     return null;
   }

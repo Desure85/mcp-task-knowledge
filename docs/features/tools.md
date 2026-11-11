@@ -231,6 +231,9 @@ SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 | `project_list` | List all projects |
 | `project_create` | Create a project |
 | `project_update` | Update project settings |
+| `project_members_list` | List project members and their viewer/editor/admin roles |
+| `project_members_set` | Add or update one project member role (project admin) |
+| `project_members_remove` | Remove one project member (project admin) |
 | `project_delete` | Delete a project |
 | `project_get_current` | Get current project |
 | `project_set_current` | Set current project |
