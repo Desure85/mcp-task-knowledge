@@ -52,8 +52,8 @@ describe('SPEC-04: listChanged capability flags', () => {
       // TOOL_RES_ENABLED defaults to true → tool:// wrappers change at runtime.
       // (registerCapabilities merges list/read flags — match the subset.)
       expect(caps!.resources).toMatchObject({ listChanged: true });
-      // resources/subscribe is not implemented — the flag must not be truthy.
-      expect((caps!.resources as Record<string, unknown>).subscribe).toBeFalsy();
+      // SPEC-06 implements resources/subscribe, so the capability is advertised.
+      expect((caps!.resources as Record<string, unknown>).subscribe).toBe(true);
       // The SDK force-sets prompts.listChanged=true when prompt handlers
       // register, overriding SERVER_CAPS — advertised true although prompts
       // are a startup snapshot (SPEC-03) and no list_changed is ever emitted.
