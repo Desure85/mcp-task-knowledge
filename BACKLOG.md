@@ -892,7 +892,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-10 | `mcp-task-knowledge setup` — интерактивный установщик | high | done | AUD-01, AUD-03 | Бинарь в `dist/` (работает из npx): детект клиентов по конфиг-путям (Claude Desktop, Cursor, Windsurf, VS Code, Claude Code), вопросы (транспорт/DATA_DIR/auth), идемпотентный merge в `mcpServers` с бэкапом, финал — self-check: спавн stdio → `tools/list` → «✓ 114 tools» + cheatsheet. Флаг `--client X --yes` для CI |
 | DX-11 | `mcp-task-knowledge doctor` — диагностика | high | done | — | Node ≥20, DATA_DIR существует/writable, конфиг валиден, порт свободен, клиентский конфиг ссылается на живой бинарь. Это же health-gate в конце setup |
 | DX-26 | CLI surface polish | low | pending | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
-| DX-29 | Setup-link: одноразовая ссылка самонастройки агента | high | pending | AUD-07, AUD-05, DX-12 | Web UI: «Сгенерировать ссылку» → scope (project, role, TTL токена). Backend: `POST /admin/setup-links` → `{url, expiresAt}`; `GET /.well-known/mcp-setup/<otp>` → one-time reveal markdown-док для агента: server URL, transport, выданный scoped JWT, инструкции самонастройки (агент знает формат своего клиента), capabilities, default project. Security: TTL ссылки ~15мин, one-time reveal, rate-limit redemption, audit-log на create+redeem, токен scoped (project+role+exp). Stdio-вариант: doc отдаёт npx-snippet + env. Дублировать как MCP-tool `admin_setup_link` для админов без Web UI. Спековая альтернатива — OAuth DCR, оценить при дизайне |
+| DX-29 | Setup-link: одноразовая ссылка самонастройки агента | high | done | AUD-07, AUD-05, DX-12 | Web UI: «Сгенерировать ссылку» → scope (project, role, TTL токена). Backend: `POST /admin/setup-links` → `{url, expiresAt}`; `GET /.well-known/mcp-setup/<otp>` → one-time reveal markdown-док для агента: server URL, transport, выданный scoped JWT, инструкции самонастройки (агент знает формат своего клиента), capabilities, default project. Security: TTL ссылки ~15мин, one-time reveal, rate-limit redemption, audit-log на create+redeem, токен scoped (project+role+exp). Stdio-вариант: doc отдаёт npx-snippet + env. Дублировать как MCP-tool `admin_setup_link` для админов без Web UI. Спековая альтернатива — OAuth DCR, оценить при дизайне |
 
 ### Фаза 2 — Первые 5 минут после подключения
 
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **64** | **7** | **334** | **22** | **1** |
+| **Итого** | **428** | **63** | **7** | **335** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2060,3 +2060,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, TR-20 закрыт): redeem тикета получает remote IP и бюджет
 > 30/60s; `rate_limited` не сжигает тикет. 14/14, мутация RED.
+>
+> Примечание (2026-11-11, DX-29 закрыт): setup-link сквозной путь проверен live — create → 200 markdown,
+> повтор → 410; 10/10 тестов. Кода не менялось.

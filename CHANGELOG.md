@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-29 closed by evidence: the one-time setup link is end-to-end implemented (`SetupLinkStore`, `POST /admin/setup-links`, `GET /.well-known/mcp-setup/<otp>`, `admin_setup_link`, `/access` form). Live probe: create → first GET 200 with markdown, second GET 410; `tests/setup-link.test.ts` is 10/10. No new code; tracking only. Limits: OAuth DCR was not evaluated, the store is in-memory, no UI e2e for generation, and the npx snippet is not installed in a clean environment
+
 - TR-20 WS ticket redemption rate limit: `WsTicketStore.redeem(ticket, remoteAddress)` enforces a per-IP budget (`redeemRateLimit`; HTTP uses 30 attempts/60 s), returns `rate_limited` without consuming the ticket, and `RealtimeServer` now forwards `req.socket.remoteAddress`. Other IPs and existing no-remote callers are unaffected. Tests: 14/14 including same-IP exhaustion, another-IP pass and window reset; revert-check removing the guard goes RED. Limits: in-memory per instance, shared IP behind an untrusted proxy, valid reconnects count too
 
 - U-03 task closure evidence: `tasks_close` accepts optional `evidence` (`commitSha` 7-40 lowercase hex, https-only `ciUrl`, `checkOutput`/note up to 4096 chars, server-set `at`/`bySessionId`), visible through `tasks_get`; a project can opt into `requireEvidence` via `project_update`, in which case closing without evidence returns `EVIDENCE_REQUIRED` and malformed evidence returns `EVIDENCE_INVALID`. Existing clients keep working because the field is optional. Tests cover the required path, malformed sha/http URL/oversized output, stored evidence, and the off switch. Limits: 4096 chars not bytes; cascade evidence applies to the root only; no audit history (MU-03)
