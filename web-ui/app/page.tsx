@@ -7,6 +7,7 @@
 
 import { PageHeader } from '@/components/PageHeader';
 import { HomeStats } from '@/components/HomeStats';
+import { KnowledgeHealth } from '@/components/KnowledgeHealth';
 import { OverviewAttention } from '@/components/OverviewAttention';
 
 export default function Home() {
@@ -18,6 +19,7 @@ export default function Home() {
       />
 
       <HomeStats />
+      <KnowledgeHealth />
       <OverviewAttention />
     </div>
   );
