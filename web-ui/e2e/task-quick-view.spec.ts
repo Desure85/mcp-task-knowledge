@@ -86,11 +86,15 @@ test('UI-36: card opens a read-only quick view with full details', async ({ page
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.resolve('..', 'docs/ui/screens/ui-36/quick-view-390.png'), fullPage: true });
 
+  // Related tasks stay inside the preview instead of navigating away.
+  await dialog.getByRole('button', { name: `UI36-child-${stamp}`, exact: true }).first().click();
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(dialog.getByRole('heading', { name: `UI36-child-${stamp}`, exact: true })).toBeVisible();
+
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
   await expect(page.locator(`[data-task="${parent.id}"]`)).toBeFocused();
 
-  await page.getByRole('button', { name: title, exact: true }).click();
   const [editorPage] = await Promise.all([
     context.waitForEvent('page'),
     page.getByRole('button', { name: title, exact: true }).click(),
