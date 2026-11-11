@@ -40,6 +40,10 @@
   --spacing-mobile-nav: 56px;
 }
 
+.graph-hit {
+  display: none;
+}
+
 /* UI-20: touch targets and page chrome on phones/tablets. The design system is
    intentionally dense on desktop; below lg every interactive control gets a
    44px target and the page header keeps its primary action visible. */
@@ -134,6 +138,10 @@
   main svg,
   main video {
     max-width: 100%;
+  }
+
+  .graph-hit {
+    display: block;
   }
 }
 
