@@ -205,3 +205,18 @@ describe('graphStats', () => {
     expect(stats.avgDegree).toBe(2);
   });
 });
+
+describe('SC-05 large-graph LOD contract', () => {
+  it('caps the initial view and ships cluster/depth controls', () => {
+    const html = generateGraphHTML(sampleGraph);
+    expect(html).toContain('MAX_NODES = 300');
+    expect(html).toContain('id="cluster"');
+    expect(html).toContain('Cluster: type');
+    expect(html).toContain('Cluster: tag');
+    expect(html).toContain('id="depth"');
+    expect(html).toContain('Neighborhood: 1');
+    expect(html).toContain('Neighborhood: 2');
+    expect(html).toContain("'Showing ' + nodes.length + ' of ' + ALL_NODES.length");
+    expect(html).toContain('labelIds');
+  });
+});
