@@ -31,6 +31,21 @@ export interface TaskClaim {
   expiresAt: string; // ISO — lease deadline; expired claims do not block
 }
 
+export interface TaskEvidence {
+  /** U-03: commit associated with the closure. */
+  commitSha?: string;
+  /** U-03: CI run URL (https only). */
+  ciUrl?: string;
+  /** U-03: captured check output, <= 4 KiB. */
+  checkOutput?: string;
+  /** U-03: free-form note. */
+  note?: string;
+  /** Server-assigned timestamp. */
+  at: string;
+  byUserId?: string;
+  bySessionId?: string;
+}
+
 export interface Task {
   id: string;
   project: string; // namespace/key for project
@@ -48,6 +63,8 @@ export interface Task {
   parentId?: string;
   // Dependency graph: task IDs this task depends on (all must be completed before this can start)
   dependsOn?: string[];
+  /** U-03: closure evidence; visible through tasks_get. */
+  evidence?: TaskEvidence;
   /** U-01: active lease holder; absent/expired = free to claim. */
   claim?: TaskClaim;
   // Soft-delete lifecycle

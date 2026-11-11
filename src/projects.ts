@@ -54,6 +54,8 @@ export interface ProjectMetadata {
   closeStatus?: string;
   initialStatuses?: string[];
   agents?: string[];
+  /** U-03: closing a task requires evidence. */
+  requireEvidence?: boolean;
 }
 
 const PROJECT_META_FILE = '.project.json';
@@ -275,6 +277,7 @@ export type ProjectMetaUpdates = {
   closeStatus?: string | null;
   initialStatuses?: string[] | null;
   agents?: string[] | null;
+  requireEvidence?: boolean;
 };
 
 export async function updateProjectMeta(
@@ -312,6 +315,9 @@ export async function updateProjectMeta(
     if (updates.agents !== undefined) {
       if (updates.agents === null) delete meta.agents;
       else meta.agents = updates.agents;
+    }
+    if (updates.requireEvidence !== undefined) {
+      meta.requireEvidence = updates.requireEvidence;
     }
     await writeProjectMetadata(projectId, meta);
     return meta;

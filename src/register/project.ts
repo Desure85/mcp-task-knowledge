@@ -167,15 +167,16 @@ export function registerProjectTools(ctx: ServerContext): void {
       inputSchema: {
         project: z.string().optional().describe('Project ID (defaults to current)'),
         description: z.string().optional().describe('New project description'),
+        requireEvidence: z.boolean().optional().describe('U-03: require evidence when closing tasks'),
       },
     },
-    async ({ project, description }) => {
-      if (!description) {
+    async ({ project, description, requireEvidence }) => {
+      if (description === undefined && requireEvidence === undefined) {
         return err('At least one field to update is required (e.g., description)');
       }
 
       const prj = resolveProject(project);
-      const meta = await updateProjectMeta(prj, { description });
+      const meta = await updateProjectMeta(prj, { description, requireEvidence });
 
       if (!meta) {
         return err(`Project not found: ${prj}`);

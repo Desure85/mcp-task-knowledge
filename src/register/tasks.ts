@@ -17,6 +17,7 @@ import { projectTask, writeResponseArgs } from './write-response.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
 import { WorkflowError, assertStatusAllowed, assertTypeAllowed, loadProjectTypes, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
+import { readProjectMetadata } from '../projects.js';
 
 /**
  * Y-02e2: storage comes from the context. A context without a profile is a wiring bug — say so
@@ -44,6 +45,17 @@ function resolveClaimActor(
     ttlSec: args.ttlSec,
   };
 }
+
+const taskEvidenceSchema = z
+  .object({
+    commitSha: z.string().regex(/^[0-9a-f]{7,40}$/).optional(),
+    ciUrl: z.string().url().refine((url) => url.startsWith('https://'), 'ciUrl must use https').optional(),
+    checkOutput: z.string().max(4096).optional(),
+    note: z.string().max(4096).optional(),
+  })
+  .refine((value) => Boolean(value.commitSha || value.ciUrl || value.checkOutput), {
+    message: 'pass commitSha, ciUrl or checkOutput',
+  });
 
 export function registerTasksTools(ctx: ServerContext): void {
   ctx.server.registerTool(
@@ -544,11 +556,37 @@ export function registerTasksTools(ctx: ServerContext): void {
         project: z.string().optional(),
         id: z.string().min(1),
         cascade: z.boolean().default(false).optional().describe("If true, also close all descendant tasks"),
+        evidence: taskEvidenceSchema.optional(),
       },
     },
-    async ({ project, id, cascade }) => {
+    async ({ project, id, cascade, evidence }) => {
       const prj = resolveProject(project);
+      if (evidence) {
+        const parsed = taskEvidenceSchema.safeParse(evidence);
+        if (!parsed.success) {
+          return errWith({
+            code: 'EVIDENCE_INVALID',
+            message: parsed.error.issues[0]?.message ?? 'invalid evidence',
+            hint: 'pass commitSha, ciUrl or checkOutput',
+          });
+        }
+      }
+      const meta = await readProjectMetadata(prj);
+      if (meta?.requireEvidence && !evidence) {
+        return errWith({
+          code: 'EVIDENCE_REQUIRED',
+          message: 'Closing this project requires evidence',
+          hint: 'pass commitSha, ciUrl or checkOutput',
+        });
+      }
+      const evidenceRecord = evidence
+        ? { ...evidence, at: new Date().toISOString(), bySessionId: currentSessionId() ?? undefined }
+        : undefined;
       try {
+        if (evidenceRecord) {
+          const updated = await taskStore(ctx).update(prj, id, { evidence: evidenceRecord });
+          if (!updated) return err(`Task not found: ${project}/${id}`);
+        }
         const result = await taskStore(ctx).closeWithCascade(prj, id, cascade || false);
         if (!result.root) {
           return err(`Task not found: ${project}/${id}`);
