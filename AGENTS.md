@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/tr-33-connector-timeouts (от master 4e9e0c3)
-**Текущий этап:** TR-33 закрыт; Z-03 ждёт серверного package read/write API; blocked — DX-29/MU-07/TK-02/T-02, AA-04
-**Статус:** единый fetch timeout во всех коннекторах; контракт 2/2, мутация RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, TR-37, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/tr-37-bulk-per-item (от master 554a374)
+**Текущий этап:** TR-37 закрыт; Z-03 ждёт серверного package read/write API; blocked — DX-29/MU-07/TK-02/T-02, AA-04
+**Статус:** per-item failed/изоляция в bulk, 3/3 теста, RED до фикса.
+
+### Сессия S-20261109-night (TR-37 — bulk per-item)
+
+- `runBulkResults`: missing/throw изолированы, batch продолжается.
+- `knowledge_bulk_update` + archive/trash/restore, tasks archive/trash/restore — `failed`; tasks create оставлен атомарным (V-03).
+- `tests/bulk-per-item.test.ts` 3/3; RED: missing id исчезал.
+- Ограничения: failed = `{id,error}`, не полная обёртка; create атомарный (V-03).
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-2340-tr-37.md`.
 
 ### Сессия S-20261109-night (TR-33 — fetch timeouts)
 

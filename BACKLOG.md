@@ -1061,7 +1061,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-34 | Connectors → circuit breaker | medium | pending | TR-08 | Коннекторы обходят ServiceAvailability/CircuitBreaker — downed API получает полный TCP/TLS latency на каждый вызов. Зарегистрировать per-connector tracker в getServiceAvailabilityRegistry, recordFailure в catch-ветках, health() → toComponentHealth() |
 | TR-35 | web-crawler: не схлопывать ошибки в {ok:true, empty} | low | pending | TR-08 | web-crawler.ts:66-77 — catch возвращает {ok:true, title:'', content:'', links:[]} — caller не отличит «пустая страница» от «fetch failed/timeout». Вернуть {ok:false,error} или добавить поле `error` в success-ответ |
 | TR-36 | Единый error envelope для github/jira/slack | low | pending | TR-08 | github.ts:26, jira.ts:28, slack.ts:27-30 — throw → protocol isError, тогда как gdrive/gmail/notion/onedrive/linear возвращают {ok:false,error:{message}}. Унифицировать в ErrEnvelope |
-| TR-37 | Bulk tools: per-item errors + exception isolation | medium | pending | TR-08 | bulk.ts — updateTask/updateDoc возвращают null на missing id → молча пропускаются (count<results.length без объяснения). Исключение mid-loop (dependency cycle, tasks.ts:183) аборти́т весь batch и теряет уже сделанные результаты. Добавить per-item {ok,error} как в tasks_bulk_delete_permanent dryRun (bulk.ts:243-256) + try/catch per item |
+| TR-37 | Bulk tools: per-item errors + exception isolation | medium | done | TR-08 | bulk.ts — updateTask/updateDoc возвращают null на missing id → молча пропускаются (count<results.length без объяснения). Исключение mid-loop (dependency cycle, tasks.ts:183) аборти́т весь batch и теряет уже сделанные результаты. Добавить per-item {ok,error} как в tasks_bulk_delete_permanent dryRun (bulk.ts:243-256) + try/catch per item |
 | TR-38 | Drain enforcement: session admission consults isDraining | medium | pending | TR-08 | checker.ts:88-91 — startDraining только флипает флаг; transport layer не реджектит новые сессии по isDraining. Контракт чисто observational (readyz 503). Wire draining → session admission в http/tcp транспортах |
 
 ---
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **70** | **7** | **328** | **22** | **1** |
+| **Итого** | **428** | **69** | **7** | **329** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2039,3 +2039,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, TR-33 закрыт): `connectorSignal` (`AbortSignal.timeout`, 10s,
 > `CONNECTOR_TIMEOUT_MS`) подключён во все 8 коннекторов; контрактный тест 2/2, мутация RED.
+>
+> Примечание (2026-11-11, TR-37 закрыт): `runBulkResults` изолирует missing/throw по item;
+> knowledge_bulk_update/archive/trash/restore и tasks archive/trash/restore получили `failed`;
+> tasks_bulk_create больше не теряет созданные записи. Тест 3/3, RED до фикса.
