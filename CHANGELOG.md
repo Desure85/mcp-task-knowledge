@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-38 drain admission: while `HealthChecker.isDraining()`, Streamable HTTP rejects a NEW session initialize with `503` and `Retry-After: 5` (JSON-RPC `-32000`), and TCP/Unix `handleConnection` writes a draining error and closes before creating an `McpServer`; requests carrying an existing `mcp-session-id` keep flowing. Tests cover HTTP 503/recovery and the TCP admission branch; revert-check removes the HTTP guard → RED. Limits: no long-lived SSE e2e, TCP branch is unit-level, WS upgrade is not gated
+
 - Z-03 package browser: new `package_*` MCP tools list/read/create skill and plugin packages, edit a skill text file and toggle a plugin component in `plugin.json` (`disabledComponents`, files are not deleted); the `/packages` page renders the package list, a nested `TreeView`, a text editor and component enable/disable controls, and the sidebar lists it. API reference regenerated to 148 tools. E2E creates skill+plugin fixtures over MCP, edits a file and disables the skills component. Limits: plugin files are read-only in the UI; package roots are DATA_DIR/skill-packages and DATA_DIR/plugins; no ZIP import
 
 - TR-37 bulk per-item errors: a shared `runBulkResults` isolates missing ids and thrown errors; `knowledge_bulk_update` now reports `failed` instead of silently dropping a missing document, knowledge/task archive/trash/restore report missing ids. Existing `results` shapes are preserved; the new failure list is additive. Tests cover update/archive and the helper. Limits: failed remains `{id,error}`, not a full per-item wrapper; tasks_bulk_create stays atomic for the V-03 type-race contract
