@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 
 const SLACK_API = 'https://slack.com/api';
@@ -18,6 +19,7 @@ export interface SlackConfig {
 
 async function slackFetch(path: string, token: string, body?: Record<string, unknown>): Promise<unknown> {
   const res = await fetch(`${SLACK_API}${path}`, {
+    signal: connectorSignal(),
     method: body ? 'POST' : 'GET',
     headers: {
       Authorization: `Bearer ${token}`,

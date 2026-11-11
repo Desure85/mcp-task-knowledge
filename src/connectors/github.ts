@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 
 const GITHUB_API = 'https://api.github.com';
@@ -19,6 +20,7 @@ export interface GitHubConfig {
 
 async function githubFetch(path: string, token: string): Promise<unknown> {
   const res = await fetch(`${GITHUB_API}${path}`, {
+    signal: connectorSignal(),
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',

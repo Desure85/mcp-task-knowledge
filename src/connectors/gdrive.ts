@@ -8,6 +8,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
 
@@ -49,7 +50,8 @@ export class GDriveConnector implements Connector {
 
   private doFetch(input: string, init?: Record<string, unknown>): Promise<Response> {
     const f = this.fetchFn ?? globalThis.fetch;
-    return f(input, init as RequestInit);
+    const requestInit = { ...(init ?? {}), signal: (init?.signal as AbortSignal | undefined) ?? connectorSignal() };
+    return f(input, requestInit as RequestInit);
   }
 
   private async driveFetch(path: string): Promise<Response> {

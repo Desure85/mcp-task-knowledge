@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 
 export interface JiraConfig {
@@ -24,7 +25,7 @@ async function jiraFetch(path: string, host: string, token: string, email?: stri
   if (email) {
     headers.Authorization = `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
   }
-  const res = await fetch(`${host}${path}`, { headers });
+  const res = await fetch(`${host}${path}`, { headers, signal: connectorSignal() });
   if (!res.ok) throw new Error(`Jira API ${res.status}: ${await res.text()}`);
   return res.json();
 }
