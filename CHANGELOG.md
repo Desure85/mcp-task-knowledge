@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-20 WS ticket redemption rate limit: `WsTicketStore.redeem(ticket, remoteAddress)` enforces a per-IP budget (`redeemRateLimit`; HTTP uses 30 attempts/60 s), returns `rate_limited` without consuming the ticket, and `RealtimeServer` now forwards `req.socket.remoteAddress`. Other IPs and existing no-remote callers are unaffected. Tests: 14/14 including same-IP exhaustion, another-IP pass and window reset; revert-check removing the guard goes RED. Limits: in-memory per instance, shared IP behind an untrusted proxy, valid reconnects count too
+
 - U-03 task closure evidence: `tasks_close` accepts optional `evidence` (`commitSha` 7-40 lowercase hex, https-only `ciUrl`, `checkOutput`/note up to 4096 chars, server-set `at`/`bySessionId`), visible through `tasks_get`; a project can opt into `requireEvidence` via `project_update`, in which case closing without evidence returns `EVIDENCE_REQUIRED` and malformed evidence returns `EVIDENCE_INVALID`. Existing clients keep working because the field is optional. Tests cover the required path, malformed sha/http URL/oversized output, stored evidence, and the off switch. Limits: 4096 chars not bytes; cascade evidence applies to the root only; no audit history (MU-03)
 
 - DX-14 closed by evidence: seven workflow prompt seeds (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`, `code_review`, `bug_triage`) are written into an empty prompt library by `seedPromptsIfEmpty` during `AppContainer.init()`; `prompts_seed.spec.ts` is 8/8 and a live stdio `prompts_list` on an empty DATA_DIR returned all 7. No new code; tracking only. Limits: seeds only fill a fully empty library, are version 1.0.0 snapshots, and do not overwrite user prompts

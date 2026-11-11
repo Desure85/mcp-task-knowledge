@@ -230,4 +230,24 @@ describe('POST /auth/ws-ticket + WS upgrade (live)', () => {
     });
     expect(res).toBe(405);
   });
+
+  it('TR-20: limits redemption attempts per remote address', () => {
+    let nowMs = 1_000;
+    const store = new WsTicketStore({
+      now: () => nowMs,
+      redeemRateLimit: { maxAttempts: 2, windowMs: 1_000 },
+    });
+    const first = store.issue({ userId: 'u1' }).ticket;
+    const second = store.issue({ userId: 'u1' }).ticket;
+    const third = store.issue({ userId: 'u1' }).ticket;
+
+    expect(store.redeem(first, '10.0.0.1')).toEqual({ ok: true, userId: 'u1' });
+    expect(store.redeem(second, '10.0.0.1')).toEqual({ ok: true, userId: 'u1' });
+    expect(store.redeem(third, '10.0.0.1')).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(store.redeem(third, '10.0.0.2')).toEqual({ ok: true, userId: 'u1' });
+
+    nowMs += 1_001;
+    const later = store.issue({ userId: 'u1' }).ticket;
+    expect(store.redeem(later, '10.0.0.1')).toEqual({ ok: true, userId: 'u1' });
+  });
 });
