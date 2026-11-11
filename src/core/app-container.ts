@@ -44,6 +44,7 @@ import type { ServerStartedEvent, ServerStoppedEvent } from './event-bus.js';
 import { createServerContext } from '../register/setup.js';
 import { registerUsersTools } from '../register/users.js';
 import { registerAgentDeployTools } from '../register/agent-deploy.js';
+import { registerProfileTools } from '../register/profile.js';
 import { buildServerInstructions, setServerInstructions } from './server-instructions.js';
 import { composeTokenValidators, createUserTokenValidator } from '../auth/user-token-validator.js';
 import { registerHelpers } from '../register/helpers.js';
@@ -200,6 +201,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerAuthTools(ctx);
   registerUsersTools(ctx);
   registerAgentDeployTools(ctx);
+  registerProfileTools(ctx);
   registerAliases(ctx);
   registerToolsIntrospection(ctx);
   registerLogTools(ctx);

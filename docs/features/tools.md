@@ -276,6 +276,8 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `session_info` | Get current session info (rate limit, TTL, idle timeout) |
 | `session_list` | List active sessions |
 | `session_kill` | Admin: terminate another live session (cannot target self) |
+| `profile_get` | Read the signed-in user’s server-side preferences and updatedAt |
+| `profile_set` | Write preferences with last-write-wins updatedAt; older writes return a conflict |
 
 ## Dashboard & Briefing (5 tools)
 
@@ -483,4 +485,4 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 `resources/unsubscribe` stops it. The capability is advertised as
 `resources.subscribe: true`.
 
-## Total: 155 tools by default (157 with catalog; 159 when catalog writes are enabled) + resources
+## Total: 157 tools by default (159 with catalog; 161 when catalog writes are enabled) + resources
