@@ -774,17 +774,25 @@ describe('JwtValidator — AuthManager integration', () => {
 // ─── JWKS cache ───────────────────────────────────────────────────────
 
 describe('JwtValidator — JWKS cache', () => {
-  it('should invalidate cache', () => {
+  it('wires jwksCacheTtl to the resolver (default 300000) and resets it', () => {
     const validator = new JwtValidator({ jwksUri: 'https://example.com/jwks' });
-    // Should not throw
+    expect((validator as any).jwksCacheTtl).toBe(300_000);
+    const first = (validator as any).getJwksResolver();
+    expect(first).toBeDefined();
+
     validator.invalidateCache();
+    const second = (validator as any).getJwksResolver();
+    expect(second).not.toBe(first);
+
+    const custom = new JwtValidator({ jwksUri: 'https://example.com/other', jwksCacheTtl: 1234 });
+    expect((custom as any).jwksCacheTtl).toBe(1234);
+    expect((custom as any).getJwksResolver()).toBeDefined();
   });
 
-  it('should create new resolver after invalidation', () => {
+  it('validates that invalidateCache is safe before a resolver exists', () => {
     const validator = new JwtValidator({ jwksUri: 'https://example.com/jwks' });
-    validator.invalidateCache();
-    // Private field — just ensure no error
-    expect(true).toBe(true);
+    expect(() => validator.invalidateCache()).not.toThrow();
+    expect((validator as any).jwksResolver).toBeUndefined();
   });
 });
 

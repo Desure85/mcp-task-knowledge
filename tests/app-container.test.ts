@@ -58,6 +58,22 @@ describe('AppContainer — state transitions', () => {
     expect(app.state).toBe('stopped');
   });
 
+  it('stop survives a rejecting transport close (non-fatal branch)', async () => {
+    const app = new AppContainer({ handleSignals: false });
+    app._setState('running');
+    const close = vi.fn().mockRejectedValue(new Error('close boom'));
+    (app as any).adapter = { type: 'stdio', closed: false, connect: vi.fn(), close };
+    const warn = vi.spyOn((app as any).log, 'warn');
+
+    await expect(app.stop()).resolves.toBeUndefined();
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'transport close error (non-fatal)',
+    );
+    expect(app.state).toBe('stopped');
+  });
+
   it('stop is idempotent from stopped state', async () => {
     const app = new AppContainer({ handleSignals: false });
     app._setState('stopped');

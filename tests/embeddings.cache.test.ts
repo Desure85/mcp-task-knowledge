@@ -57,27 +57,31 @@ describe('EmbeddingsCache', () => {
     expect(got2?.length).toBe(4);
   });
 
-  it('evicts least-recently-used entries when memory limit is exceeded', async () => {
+  it('evicts least-recently-used entries and keeps touched/newest entries', async () => {
+    process.env.EMBEDDINGS_PERSIST = 'false';
     const { EmbeddingsCache } = await importFresh<any>('../src/search/emb_cache.js');
-    // With 1 MB limit and vectors ~16 bytes each, we can still force eviction by many inserts
-    const cache = new EmbeddingsCache(128); // each vec ~512 bytes
+    // Constructor floors maxBytes at 8 MiB; 4096-dim vectors are 16 KiB each,
+    // so ~540 inserts force memory eviction deterministically.
+    const cache = new EmbeddingsCache(4096);
 
-    const makeVec = (seed: number) => new Float32Array(new Array(128).fill(0).map((_, i) => (i === seed % 128 ? 1 : 0)));
+    const makeVec = (seed: number) => {
+      const vec = new Float32Array(4096);
+      vec[seed % 4096] = 1;
+      return vec;
+    };
 
-    const ids: string[] = [];
-    for (let i = 0; i < 5000; i++) {
-      const id = 'id' + i;
-      ids.push(id);
-      await cache.set(id, cache.textHash('t' + i), makeVec(i));
+    for (let i = 0; i < 200; i++) {
+      await cache.set('id' + i, cache.textHash('t' + i), makeVec(i));
+    }
+    // Touch id0: it must survive the later eviction, while untouched id1 is the LRU victim.
+    expect(await cache.get('id0', cache.textHash('t0'))).toBeDefined();
+    for (let i = 200; i < 540; i++) {
+      await cache.set('id' + i, cache.textHash('t' + i), makeVec(i));
     }
 
-    // Oldest should likely be gone; recent ones should exist in memory or persist
-    const oldest = await cache.get('id0', cache.textHash('t0'));
-    const newest = await cache.get('id4999', cache.textHash('t4999'));
-    // We don't assert strict undefined for oldest due to possible disk hit, but newest should exist
-    expect(newest).toBeDefined();
-    // 5000 sequential disk-persisted writes are slow on constrained I/O
-    // (containers, network filesystems) — CI runners finish well under this.
+    expect(await cache.get('id0', cache.textHash('t0'))).toBeDefined();
+    expect(await cache.get('id1', cache.textHash('t1'))).toBeUndefined();
+    expect(await cache.get('id539', cache.textHash('t539'))).toBeDefined();
   }, 120000);
 
   it('persists to disk when enabled and can read back after new instance', async () => {
