@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-04h validate-schemas is now exercised, not mirrored: `scripts/validate-schemas.mjs` had `let _obj` followed by `obj = JSON.parse`, so every valid feedback JSONL row was misreported as invalid (rc 2). The variable is declared, and `tests/schema-validation.test.ts` spawns the real script twice against a temp DATA_DIR: a valid row passes (rc 0), an invalid `ts` fails (rc 2, "Validation failed"). Mutation restoring `_obj` goes RED; 15/15. Limits: feedback branch is the one exercised, legacy/mcp paths and other sections are not
+
 - TR-04f dashboard date-range coverage: `tests/dashboard.test.ts` now registers the real `dashboard_stats` handler and asserts `since` includes current tasks/docs while `until:'2000-01-01'` returns zero; mutation `filterByDateRange → []` (K11) goes RED. 10/10. Limits: file profile only, timezone boundaries not exercised, `dashboard_activity` has no date filter
 
 - SPEC-09 protocol-version conformance e2e: `tests/protocol-version-e2e.test.ts` spawns the real `dist/index.js` and sends raw stdio `initialize`, asserting `result.protocolVersion` for a supported version, `LATEST_PROTOCOL_VERSION`, and an unknown version (must negotiate to latest), plus `serverInfo.name`. Assertion mutation goes RED. Limits: requires fresh dist, stdio only (HTTP initialize untested), no `initialized` notification needed for negotiation
