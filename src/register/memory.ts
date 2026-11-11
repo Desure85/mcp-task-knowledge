@@ -19,6 +19,9 @@
  */
 
 import { z } from "zod/v3";
+import fsSync from 'node:fs';
+import pathSync from 'node:path';
+import { execFileSync } from 'node:child_process';
 import type { ServerContext } from './context.js';
 import { DATA_DIR, resolveProject } from '../config.js';
 import { storageProfile } from '../core/storage-context.js';
@@ -28,6 +31,7 @@ import { ProfileManager } from '../memory/user-profile.js';
 import { ContextAssembler, type SearchFn } from '../memory/context-assembly.js';
 import { EntityRetriever } from '../memory/entity-retrieval.js';
 import { MemoryEvolver } from '../memory/evolution.js';
+import { anchorsOf, loadRepoIndex, verifyAnchors, type VerifyStatus } from '../memory/verify.js';
 import { ConflictResolver } from '../memory/conflict-resolver.js';
 import { ForgettingManager } from '../memory/forgetting.js';
 import { ScopeMatcher, buildScopeTags, type ScopedItem, type MemoryScopeFilter } from '../memory/scoping.js';
@@ -1428,6 +1432,88 @@ export function registerMemoryTools(ctx: ServerContext): void {
       }
       mgr.cancel(jobId);
       return ok({ jobId, cancelled: true, status: 'cancelled' as const });
+    }
+  );
+
+  // ─── memory_verify (U-05) ────────────────────────────────────────
+  ctx.server.registerTool(
+    "memory_verify",
+    {
+      title: "Verify Memory Facts",
+      description:
+        "Check whether memory facts still point at live files/symbols in a checkout. " +
+        "Same anchor rules as npm run memory:verify; read-only (no tag writes). " +
+        "Statuses: verified / stale / no-anchor; symbol-only facts without lookup support are reported honestly.",
+      inputSchema: {
+        project: z.string().optional(),
+        repo: z.string().optional().describe("Checkout to verify against (default: process.cwd())"),
+        limit: z.number().int().min(1).max(200).default(50).optional(),
+        status: z.enum(['verified', 'stale', 'no-anchor']).optional().describe('Only return facts with this status'),
+      },
+    },
+    async ({ project, repo, limit, status }) => {
+      const prj = resolveProject(project);
+      const root = repo ?? process.cwd();
+      let index;
+      try {
+        index = loadRepoIndex(root);
+      } catch (e) {
+        return errWith({
+          message: `cannot read git index at ${root}: ${(e as Error).message}`,
+          code: 'REPO_INVALID',
+          hint: 'Pass repo=<path to a git checkout>',
+        });
+      }
+      // Cache symbol lookups per request; git grep is the expensive part.
+      const symbolCache = new Map<string, boolean>();
+      const symbolExists = (className: string, method: string): boolean => {
+        const key = `${className}::${method}`;
+        const cached = symbolCache.get(key);
+        if (cached !== undefined) return cached;
+        let found = false;
+        try {
+          const classFiles = execFileSync(
+            'git',
+            ['grep', '-l', '-E', `(class|interface|trait)[[:space:]]+${className}\\b`, '--', '*.php'],
+            { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+          ).split('\n').filter(Boolean);
+          found = classFiles.some((file) => {
+            try {
+              return new RegExp(`function\\s+${method}\\b`).test(fsSync.readFileSync(pathSync.join(root, file), 'utf8'));
+            } catch {
+              return false;
+            }
+          });
+        } catch {
+          found = false;
+        }
+        symbolCache.set(key, found);
+        return found;
+      };
+      const docs = await storageProfile(ctx).docs.list({ project: prj });
+      const facts = docs.filter((doc) => doc.type === 'memory_fact').slice(0, limit ?? 50);
+      const items: Array<{
+        id: string;
+        title: string;
+        status: VerifyStatus;
+        anchors: ReturnType<typeof verifyAnchors>['anchors'];
+      }> = [];
+      const counts: Record<VerifyStatus, number> = { verified: 0, 'pending-merge': 0, stale: 0, 'no-anchor': 0 };
+      for (const meta of facts) {
+        const doc = await storageProfile(ctx).docs.read(prj, meta.id);
+        const text = `${meta.title}\n${doc?.content ?? ''}`;
+        const result = verifyAnchors(anchorsOf(text, index.repoTops), { ...index, symbolExists });
+        counts[result.status] += 1;
+        if (status && result.status !== status) continue;
+        items.push({ id: meta.id, title: meta.title, status: result.status, anchors: result.anchors });
+      }
+      return ok({
+        project: prj,
+        repo: root,
+        scanned: facts.length,
+        counts,
+        items,
+      });
     }
   );
 }

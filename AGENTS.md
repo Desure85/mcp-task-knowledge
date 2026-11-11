@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-20, TR-33, TR-34, TR-37, TR-38, U-03, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/t-02-project-acl (от master 1bbc169)
-**Текущий этап:** T-02 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** project_members + project-acl gate; 4/4, мутация RED; API 151.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-20, TR-33, TR-34, TR-37, TR-38, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/u-05-memory-verify (от master f5206ab)
+**Текущий этап:** U-05 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** memory_verify read-only; 4/4, мутация RED; API 152.
+
+### Сессия S-20261109-night (U-05 — memory_verify)
+
+- `src/memory/verify.ts`: anchors/suffix/line/symbol + `loadRepoIndex`.
+- `memory_verify`: memory_fact docs, verified/stale/no-anchor, read-only; `REPO_INVALID`.
+- `tests/memory-verify.test.ts` 4/4; docs coverage 6/6 (152); мутация RED.
+- Ограничения: pending-merge только CLI, PHP-символы, семантика вручную, read-only.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1510-u-05.md`.
 
 ### Сессия S-20261109-night (T-02 — проектные роли и ACL)
 

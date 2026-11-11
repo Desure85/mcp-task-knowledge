@@ -158,6 +158,7 @@ See [Agent Memory](agent-memory.md) for full reference.
 | `memory_async_cancel` | Cancel a pending or processing async job |
 | `memory_facts_list` | List extracted memory facts |
 | `memory_facts_search` | Search memory facts by keyword |
+| `memory_verify` | Check memory-fact anchors against a git checkout (verified/stale/no-anchor) |
 | `memory_temporal_add` | Add fact to temporal graph |
 | `memory_temporal_query` | Query facts at point in time |
 | `memory_temporal_invalidate` | Invalidate a fact (marks old, doesn't delete) |

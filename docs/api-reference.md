@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **151** — 149 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **152** — 150 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -82,6 +82,7 @@
 | `memory_temporal_invalidate` | Mark a fact as no longer valid (without deleting it). Sets validTo to now and records the invalidati |
 | `memory_temporal_query` | Query the temporal knowledge graph. Supports point-in-time queries ('what was true on 2026-06-01?'), |
 | `memory_temporal_stats` | Get statistics about the temporal knowledge graph — total facts, valid/invalidated counts, categorie |
+| `memory_verify` | Check whether memory facts still point at live files/symbols in a checkout. Same anchor rules as npm |
 | `obsidian_export_project` | Export knowledge, tasks, and prompts to Obsidian vault (merge or replace). Use with caution in repla |
 | `obsidian_import_project` | Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy deletes existing content  |
 | `package_create` | Create a skill package from relative files. Fails if the package already exists. |
@@ -2029,6 +2030,33 @@ Get statistics about the temporal knowledge graph — total facts, valid/invalid
 {
   "name": "memory_temporal_stats",
   "arguments": {}
+}
+```
+
+## memory_verify
+
+**Verify Memory Facts**
+
+Check whether memory facts still point at live files/symbols in a checkout. Same anchor rules as npm run memory:verify; read-only (no tag writes). Statuses: verified / stale / no-anchor; symbol-only facts without lookup support are reported honestly.
+
+**Параметры:**
+
+- `project`
+- `repo`
+- `limit`
+- `status`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "memory_verify",
+  "arguments": {
+    "project": "mcp",
+    "repo": "example",
+    "limit": 10,
+    "status": "pending"
+  }
 }
 ```
 
