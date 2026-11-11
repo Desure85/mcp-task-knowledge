@@ -8,6 +8,8 @@
 
 ### Added
 
+- SPEC-09 protocol-version conformance e2e: `tests/protocol-version-e2e.test.ts` spawns the real `dist/index.js` and sends raw stdio `initialize`, asserting `result.protocolVersion` for a supported version, `LATEST_PROTOCOL_VERSION`, and an unknown version (must negotiate to latest), plus `serverInfo.name`. Assertion mutation goes RED. Limits: requires fresh dist, stdio only (HTTP initialize untested), no `initialized` notification needed for negotiation
+
 - TR-31 real OAuth health probes: `gdrive`, `gmail`, `notion`, `onedrive` and `linear` no longer report `healthy:true` just because a token string exists. `probeConnector` performs the cheapest authenticated read (Drive `/about`, Gmail `/users/me/profile`, Notion `/users/me`, Graph `/me/drive`, Linear GraphQL `{ viewer { id } }`) with the TR-33 timeout; 401/network failures are unhealthy and never throw. Tests cover URLs/headers, revoked token, network failure and apiKey-only GDrive; mutation disabling `res.ok` goes RED. Limits: probe on every health call (no cache), refresh-token flow not exercised, error body truncated
 
 - U-05 `memory_verify`: a read-only MCP tool verifies memory-fact anchors against an explicit git checkout (`repo` must be the repository root), reusing the KE-04 anchor model (`src/memory/verify.ts`): path/suffix/line ranges and `Class::method` symbols → `verified`/`stale`/`no-anchor`, with counts and optional status filter. It never writes `state:*` tags and does not compute `pending-merge` (CLI still does). Tests 4/4 incl. repo-root rejection and memory_fact-only scanning; mutation removing the verified branch goes RED. Limits: semantic truth manual, PHP-only symbols, read-only
