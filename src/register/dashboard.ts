@@ -5,6 +5,8 @@ import { resolveProject } from '../config.js';
 import { ok } from '../utils/respond.js';
 import { isDone, loadProjectWorkflow, statusCategory } from '../workflow.js';
 
+import { storageProfile } from '../core/storage-context.js';
+
 export function registerDashboardTools(ctx: ServerContext): void {
   const { server } = ctx;
 
@@ -23,12 +25,9 @@ export function registerDashboardTools(ctx: ServerContext): void {
     },
     async ({ project, since, until }) => {
       const prj = resolveProject(project);
-      const { listTasks } = await import('../storage/tasks.js');
-      const { listDocs } = await import('../storage/knowledge.js');
-
       const [tasks, docs] = await Promise.all([
-        listTasks({ project: prj, includeArchived: true, includeTrashed: true }),
-        listDocs({ project: prj, includeArchived: true, includeTrashed: true }),
+        storageProfile(ctx).tasks.list({ project: prj, includeArchived: true, includeTrashed: true }),
+        storageProfile(ctx).docs.list({ project: prj, includeArchived: true, includeTrashed: true }),
       ]);
       const workflow = await loadProjectWorkflow(prj);
 
@@ -169,17 +168,14 @@ export function registerDashboardTools(ctx: ServerContext): void {
     },
     async ({ project, limit = 20, type = 'all' }) => {
       const prj = resolveProject(project);
-      const { listTasks } = await import('../storage/tasks.js');
-      const { listDocs } = await import('../storage/knowledge.js');
-
       const cappedLimit = Math.min(Math.max(limit, 1), 100);
 
       const fetchTasks = type !== 'knowledge';
       const fetchDocs = type !== 'tasks';
 
       const [tasks, docs] = await Promise.all([
-        fetchTasks ? listTasks({ project: prj, includeArchived: false, includeTrashed: false }) : [],
-        fetchDocs ? listDocs({ project: prj, includeArchived: false, includeTrashed: false }) : [],
+        fetchTasks ? storageProfile(ctx).tasks.list({ project: prj, includeArchived: false, includeTrashed: false }) : [],
+        fetchDocs ? storageProfile(ctx).docs.list({ project: prj, includeArchived: false, includeTrashed: false }) : [],
       ]);
       const workflow = await loadProjectWorkflow(prj);
 
