@@ -1047,7 +1047,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | done | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
 | TR-21 | AuthProtection дублирует ключи: sessionId в SecurityStack + IP в AuthManager | low | pending | AUD-13 | Два инстанса пишут разные ключи — не баг, но шум; унифицировать на IP-keyed |
 | TR-22 | better-sqlite3 dead-code: FtsMemorySearch+MigrationFramework — 0 call sites в runtime | low | blocked | Проработка (design): завайрить FTS5 в query_memory или удалить модуль и зависимость | `src/behavioral/fts-search.ts`, `src/db/migration-framework.ts` экспортируются, но не подключены к register/tools (0 импортов). BM-013/BM-014 помечены completed, но фича не доходит до рантайма. Решить: wire FTS5 к `query_memory`/`memory_search` (ценность реальна) ИЛИ удалить модуль (убрать dep better-sqlite3, поможет single-binary DX-20) |
-| TR-23 | `PROJECT_META_FILE` мёртвая константа — src/projects.ts:50 | low | pending | — | `.project.json` нигде не читается/пишется — реальный путь метаданных `DATA_DIR/projects/<id>.json`. Удалить константу + проверить ссылки. Найдено DX-17 |
+| TR-23 | `PROJECT_META_FILE` мёртвая константа — src/projects.ts:50 | low | done | — | `.project.json` нигде не читается/пишется — реальный путь метаданных `DATA_DIR/projects/<id>.json`. Удалить константу + проверить ссылки. Найдено DX-17 |
 | TR-24 | `getPackageVersion()` продублирована в register/setup.ts и services/schema-version.ts | low | pending | — | 10 строк: npm_package_version → package.json → '0.0.0'. Вынести в shared util при следующем касании. Найдено DX-18 |
 | TR-25 | `knowledge_bulk_delete_permanent` без confirm-гейта — асимметрия с `tasks_bulk_delete_permanent`/`project_purge` | medium | done | DX-19 | Закрыто вместе с TR-12: добавлен `confirm: z.boolean().optional()` + elicitation-флоу в src/register/bulk.ts; e2e в tests/e2e-full/elicitation.test.ts + обновлён knowledge-lifecycle.test.ts |
 | TR-26 | Wire SecretManager в ConnectorContext — убить прямые process.env чтения кредов | high | done | TR-03 | Все 8 коннекторов читают `process.env.*_TOKEN/API_KEY` напрямую (github.ts:33, jira.ts:33, slack.ts:36, gdrive.ts:63, gmail.ts:76, notion.ts:88, onedrive.ts:60, linear.ts:73). SecretManager (AES-GCM file/docker/vault) существует но 0 call sites — мёртвый код. Прокинуть `ctx.secrets.get()` |
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **42** | **7** | **356** | **22** | **1** |
+| **Итого** | **428** | **41** | **7** | **357** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2140,3 +2140,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, AA-07 закрыт): bundle 11 компонентов, install-agent dry-run/idempotent/
 > backup/rollback/sha; 8/8 + setup-link 10/10; живая загрузка плагинов не проверена.
+>
+> Примечание (2026-11-11, TR-23 закрыт): PROJECT_META_FILE удалена, ссылок нет; build+projects 4/4.

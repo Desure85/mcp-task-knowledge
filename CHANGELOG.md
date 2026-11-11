@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-23: removed the unused `PROJECT_META_FILE` constant from `src/projects.ts`; the real project metadata path is `DATA_DIR/projects/<id>.json`. grep finds no references, tsc clean, projects/ACL 4/4. No behavioral change
+
 - AA-07 agent bundle: `bundle.json` (11 hashed components: OpenCode plugins, consolidation command, draft collector, proxy shim; OpenCode/Claude targets) plus `install-agent` in `dist/index.js`. The Node-only installer verifies every sha256 before writing, rejects traversal, writes the MCP entry into `opencode.json`/`.claude.json`, backs up existing files, is idempotent (`no changes`), supports `--dry-run` and byte-exact `--rollback`. Setup-link markdown gains a Bundle section that still installs nothing without an explicit agent command; `package.json` publishes `bundle.json`/plugins; a Windows CI job runs bundle check + installer/setup tests. Tests 8/8 installer, 10/10 setup link; mutation hash guard RED. Limits: live OpenCode/Claude plugin load and tracker draft search not exercised; npx fetches the tarball; JSONC configs untouched; non-transactional writes
 
 - CM-03 server instructions: the generated `initialize.instructions` is verified through a real MCP `Client` (6 lines, 155 tools/25 domains, live registry counts) and a hardcoded-domain mutation goes RED. CM-03 closes on the protocol contract; `docs/features/server-instructions.md` records the clean-home CLI probes (claude not logged in; opencode no MCP configured) and CM-03b remains blocked rather than claiming model visibility
