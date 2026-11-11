@@ -90,7 +90,7 @@ async function expectTouchTargets(page: Page): Promise<void> {
       .slice(0, 8)
       .map((el) => {
         const rect = el.getBoundingClientRect();
-        return `${el.tagName.toLowerCase()} "${(el.textContent ?? el.getAttribute('aria-label') ?? '').trim().slice(0, 30)}" ${Math.round(rect.width)}x${Math.round(rect.height)}`;
+        return `${el.tagName.toLowerCase()} "${(el.textContent ?? el.getAttribute('aria-label') ?? '').trim().slice(0, 30)}" ${Math.round(rect.width)}x${Math.round(rect.height)} ${el.outerHTML.slice(0, 180)}`;
       });
   });
   expect(small, `tap targets below 44px: ${small.join('; ')}`).toEqual([]);
