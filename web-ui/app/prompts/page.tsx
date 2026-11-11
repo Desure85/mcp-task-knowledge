@@ -22,6 +22,7 @@ interface PromptItem {
   status?: string;
   domain?: string;
   tags: string[];
+  target?: string;
   file?: string;
 }
 
@@ -64,6 +65,8 @@ export default function PromptsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [targetFilter, setTargetFilter] = useState('');
+  const [agents, setAgents] = useState<Array<{ id: string; builtin: boolean }>>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [tab, setTab] = useState<Tab>('prompts');
   const [detail, setDetail] = useState<PromptGetData | null>(null);
@@ -83,6 +86,7 @@ export default function PromptsPage() {
   const [newDomain, setNewDomain] = useState('');
   const [newTemplate, setNewTemplate] = useState('');
   const [newTags, setNewTags] = useState('');
+  const [newTarget, setNewTarget] = useState('universal');
 
   // experiments tab
   const [promptKey, setPromptKey] = useState('');
@@ -207,7 +211,7 @@ export default function PromptsPage() {
   const loadPrompts = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.prompts.list({ status: statusFilter || undefined });
+      const data = await api.prompts.list({ status: statusFilter || undefined, target: targetFilter || undefined });
       setItems(data?.items ?? []);
       setTotal(data?.total ?? 0);
     } catch (e) {
@@ -215,9 +219,13 @@ export default function PromptsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, targetFilter]);
 
   useEffect(() => { void loadPrompts(); }, [loadPrompts]);
+
+  useEffect(() => {
+    api.agents.list().then((data) => setAgents(data.agents)).catch(() => setAgents([]));
+  }, []);
 
   async function createPrompt() {
     const id = newId.trim();
@@ -232,7 +240,7 @@ export default function PromptsPage() {
         type: 'prompt',
         id,
         version: '1.0.0',
-        metadata: { title: newTitle.trim(), domain: newDomain.trim(), status: 'draft', kind: 'prompt', tags },
+        metadata: { title: newTitle.trim(), domain: newDomain.trim(), status: 'draft', kind: 'prompt', tags, target: newTarget },
         template: newTemplate,
         variables: [],
       }]);
@@ -336,6 +344,7 @@ export default function PromptsPage() {
                       <Badge>{typeof meta.kind === 'string' ? meta.kind : 'prompt'}</Badge>
                       {typeof meta.status === 'string' && <Badge tone={STATUS_TONE[meta.status] ?? 'neutral'}>{meta.status}</Badge>}
                       {typeof meta.domain === 'string' && <Badge>{meta.domain}</Badge>}
+                      {typeof meta.target === 'string' && <Badge>agent: {meta.target}</Badge>}
                       {Array.isArray(meta.tags) && meta.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}
                     </div>
                   </div>
@@ -412,6 +421,11 @@ export default function PromptsPage() {
                   <Input label="Domain" value={draft.domain} onChange={(e) => setDraft({ ...draft, domain: e.target.value })} />
                   <Select label="Kind" value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
                     {kindOptions.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
+                  </Select>
+                  <Select label="Agent target" value={draft.target} onChange={(e) => setDraft({ ...draft, target: e.target.value })}>
+                    {Array.from(new Set(['universal', ...agents.map((agent) => agent.id), draft.target].filter(Boolean))).map((target) => (
+                      <option key={target} value={target}>{target}</option>
+                    ))}
                   </Select>
                   <Input
                     label="Tags"
@@ -507,6 +521,11 @@ export default function PromptsPage() {
                 onChange={(e) => setNewDomain(e.target.value)}
                 placeholder="code-review"
               />
+              <Select label="Agent target" value={newTarget} onChange={(e) => setNewTarget(e.target.value)}>
+                {Array.from(new Set(['universal', ...agents.map((agent) => agent.id)])).map((target) => (
+                  <option key={target} value={target}>{target}</option>
+                ))}
+              </Select>
               <Input
                 label="Tags"
                 hint="Comma-separated"
@@ -561,7 +580,7 @@ export default function PromptsPage() {
           tabIndex={0}
           className="mt-4"
         >
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_160px]">
             <Input
               label="Search prompts"
               type="search"
@@ -580,6 +599,10 @@ export default function PromptsPage() {
               <option value="published">published</option>
               <option value="deprecated">deprecated</option>
             </Select>
+            <Select label="Agent target" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
+              <option value="">Any agent</option>
+              {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.id}</option>)}
+            </Select>
           </div>
 
           {loading ? (
@@ -592,7 +615,7 @@ export default function PromptsPage() {
             <div className="mt-4">
               <EmptyState
                 title="No prompts found"
-                hint={searchQuery || statusFilter ? 'Try another search or status.' : 'Create the first prompt to start the catalog.'}
+                hint={searchQuery || statusFilter || targetFilter ? 'Try another search, status or agent.' : 'Create the first prompt to start the catalog.'}
                 icon={IconPrompts}
                 action={(searchQuery || statusFilter)
                   ? <Button size="sm" onClick={() => { setSearchQuery(''); setStatusFilter(''); }}>Clear filters</Button>
@@ -618,6 +641,7 @@ export default function PromptsPage() {
                         <Badge>{p.kind}</Badge>
                         {p.status && <Badge tone={STATUS_TONE[p.status] ?? 'neutral'}>{p.status}</Badge>}
                         {p.domain && <Badge>{p.domain}</Badge>}
+                        {p.target && <Badge>agent: {p.target}</Badge>}
                         {(p.tags ?? []).map((tag) => <Badge key={tag}>{tag}</Badge>)}
                       </div>
                       {p.file && <p className="truncate font-mono text-[11px] text-muted">{p.file}</p>}
@@ -693,3 +717,4 @@ export default function PromptsPage() {
     </div>
   );
 }
+

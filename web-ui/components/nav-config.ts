@@ -62,6 +62,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/projects', label: 'Projects', description: 'Multi-project isolation, current-project scope', icon: IconProjects },
       { href: '/projects/settings', label: 'Settings', description: 'Project statuses, transitions and task types', icon: IconSettings },
+      { href: '/projects/settings/agents', label: 'Agents', description: 'Prompt target registry for this project', icon: IconSettings },
       { href: '/system', label: 'System', description: 'Live sessions, embeddings status, tools catalog', icon: IconSystem },
       { href: '/access', label: 'Access', description: 'Your session, agent setup links and tokens', icon: IconLock },
     ],
@@ -81,6 +82,7 @@ const PAGE_META: Record<string, PageMeta> = {
   '/memory': { title: 'Memory', subtitle: 'Facts, profiles and layers' },
   '/projects': { title: 'Projects', subtitle: 'Isolation and current scope' },
   '/projects/settings': { title: 'Project settings', subtitle: 'Statuses, transitions and task types' },
+  '/projects/settings/agents': { title: 'Agents', subtitle: 'Prompt target registry' },
   '/system': { title: 'System', subtitle: 'Sessions, embeddings and tools' },
   '/access': { title: 'Access', subtitle: 'Session, setup links and tokens' },
   '/themes': { title: 'Themes', subtitle: 'Palettes and custom colour themes' },

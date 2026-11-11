@@ -425,10 +425,19 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/ui-17-overview-attention (от master 46e904c)
-**Текущий этап:** UI-17 закрыт; далее Z-03, Z-11; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** Overview attention (blocked/claimed/stale/activity), общий dashboard_stats, SQLite-профиль dashboard исправлен; e2e 1/1.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/z-11-agent-target (от master c2e8197)
+**Текущий этап:** Z-11 закрыт; Z-03 ждёт серверного package read/write API; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** target-бейдж/фильтр/редактор промптов, реестр агентов; e2e 1/1, guards 17/17.
+
+### Сессия S-20261109-night (Z-11 — агенты в промптах)
+
+- `PromptDraft.target`, серверный фильтр `prompts_list.target`, бейджи и селекты target.
+- `api.agents` + `/projects/settings/agents`: built-in/custom, Save registry, nav.
+- `e2e/prompt-agent-target.spec.ts` 1/1; prompt-edit/design guards 17/17.
+- Ограничения: built-in не удаляются, moveTo/moves нет, registry — отдельная страница.
+- Z-03 не начат: Z-01/02 не подключены к MCP read/write пакетов.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-2200-z-11.md`.
 
 ### Сессия S-20261109-night (UI-17 — Overview внимания)
 
