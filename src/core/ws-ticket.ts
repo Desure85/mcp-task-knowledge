@@ -22,7 +22,7 @@ import { randomBytes } from 'node:crypto';
 export const DEFAULT_WS_TICKET_TTL_MS = 30_000;
 export const DEFAULT_WS_TICKET_MAX = 10_000;
 
-export type WsTicketFailure = 'missing' | 'unknown' | 'expired' | 'revoked' | 'token_expired';
+export type WsTicketFailure = 'missing' | 'unknown' | 'expired' | 'revoked' | 'token_expired' | 'rate_limited';
 
 export interface WsTicketIssueInput {
   /** Authenticated subject (JWT `sub`). */
@@ -49,6 +49,8 @@ export interface WsTicketStoreOptions {
   now?: () => number;
   /** Revocation probe for the ticket's jti (JwtValidator-backed deployments). */
   isRevoked?: (jti: string) => boolean;
+  /** TR-20: per-IP redemption budget to slow ticket brute force. */
+  redeemRateLimit?: { maxAttempts: number; windowMs: number };
 }
 
 export class WsTicketStore {
@@ -56,6 +58,8 @@ export class WsTicketStore {
   private readonly maxTickets: number;
   private readonly now: () => number;
   private readonly isRevoked?: (jti: string) => boolean;
+  private readonly redeemRateLimit?: { maxAttempts: number; windowMs: number };
+  private readonly redeemAttempts = new Map<string, { count: number; resetAt: number }>();
   private readonly tickets = new Map<string, TicketRecord>();
 
   constructor(options: WsTicketStoreOptions = {}) {
@@ -63,6 +67,7 @@ export class WsTicketStore {
     this.maxTickets = Math.max(1, options.maxTickets ?? DEFAULT_WS_TICKET_MAX);
     this.now = options.now ?? Date.now;
     this.isRevoked = options.isRevoked;
+    this.redeemRateLimit = options.redeemRateLimit;
   }
 
   get size(): number {
@@ -86,8 +91,15 @@ export class WsTicketStore {
     return { ticket, expiresInSec: Math.ceil(this.ttlMs / 1000) };
   }
 
-  /** Redeem exactly once. Every attempt burns the ticket, including failures. */
-  redeem(ticket: string | null | undefined): WsTicketRedeemResult {
+  /**
+   * Redeem exactly once. Every attempt burns the ticket, including failures.
+   * TR-20: when a remote address is supplied and a redeem budget is configured,
+   * attempts are limited per IP (rate_limited does not consume a ticket).
+   */
+  redeem(ticket: string | null | undefined, remoteAddress?: string): WsTicketRedeemResult {
+    if (remoteAddress && !this.allowRedeemAttempt(remoteAddress)) {
+      return { ok: false, reason: 'rate_limited' };
+    }
     if (!ticket) return { ok: false, reason: 'missing' };
     const record = this.tickets.get(ticket);
     if (!record) return { ok: false, reason: 'unknown' };
@@ -100,6 +112,20 @@ export class WsTicketStore {
       return { ok: false, reason: 'token_expired' };
     }
     return { ok: true, userId: record.userId, ...(record.jti ? { jti: record.jti } : {}) };
+  }
+
+  private allowRedeemAttempt(remoteAddress: string): boolean {
+    const limit = this.redeemRateLimit;
+    if (!limit || limit.maxAttempts <= 0) return true;
+    const nowMs = this.now();
+    const current = this.redeemAttempts.get(remoteAddress);
+    if (!current || current.resetAt <= nowMs) {
+      this.redeemAttempts.set(remoteAddress, { count: 1, resetAt: nowMs + limit.windowMs });
+      return true;
+    }
+    if (current.count >= limit.maxAttempts) return false;
+    current.count++;
+    return true;
   }
 
   /** Drop expired records; returns how many were removed. */

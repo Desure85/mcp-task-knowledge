@@ -1044,7 +1044,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-04i | `tests/transport-wire-snapshots.test.ts` тестирует SDK, не наш слой | low | pending | TR-04 | Нет импорта `src/`: проверяются `serializeMessage` и `deserializeMessage` из `@modelcontextprotocol/sdk`. DoD: тест переведён на наш wire-слой либо помечен как контракт зависимости и исключён из покрытия проекта. |
 | TR-18 | tests/security-stack.test.ts:197,209 — `lockoutMs` → `maxLockoutMs` (pre-existing tsc error) | low | done | AUD-10 | AuthProtectionOptions нет `lockoutMs`. Закрыто 26fbe9d |
 | TR-19 | Битые `_X` импорты в 4+ тест-файлах (event-bus, tool-executor, async-ops, multimodal) | medium | done | AUD-10 | tsconfig.test.json красный — экспорты удалены при рефакторинге, импорты остались. Закрыто 26fbe9d (17 test:types ошибок → 0) |
-| TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | pending | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
+| TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | done | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
 | TR-21 | AuthProtection дублирует ключи: sessionId в SecurityStack + IP в AuthManager | low | pending | AUD-13 | Два инстанса пишут разные ключи — не баг, но шум; унифицировать на IP-keyed |
 | TR-22 | better-sqlite3 dead-code: FtsMemorySearch+MigrationFramework — 0 call sites в runtime | low | blocked | Проработка (design): завайрить FTS5 в query_memory или удалить модуль и зависимость | `src/behavioral/fts-search.ts`, `src/db/migration-framework.ts` экспортируются, но не подключены к register/tools (0 импортов). BM-013/BM-014 помечены completed, но фича не доходит до рантайма. Решить: wire FTS5 к `query_memory`/`memory_search` (ценность реальна) ИЛИ удалить модуль (убрать dep better-sqlite3, поможет single-binary DX-20) |
 | TR-23 | `PROJECT_META_FILE` мёртвая константа — src/projects.ts:50 | low | pending | — | `.project.json` нигде не читается/пишется — реальный путь метаданных `DATA_DIR/projects/<id>.json`. Удалить константу + проверить ссылки. Найдено DX-17 |
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **65** | **7** | **333** | **22** | **1** |
+| **Итого** | **428** | **64** | **7** | **334** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2057,3 +2057,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, U-03 закрыт): `tasks_close` принимает evidence (sha 7-40 hex,
 > https ciUrl, checkOutput ≤4096 симв.), `requireEvidence` в .project.json; 3/3, мутация RED.
+>
+> Примечание (2026-11-11, TR-20 закрыт): redeem тикета получает remote IP и бюджет
+> 30/60s; `rate_limited` не сжигает тикет. 14/14, мутация RED.

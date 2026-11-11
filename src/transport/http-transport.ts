@@ -270,6 +270,7 @@ export class HttpTransportAdapter implements TransportAdapter {
     // UI-22: single-use tickets for WS auth (JWT stays in the Authorization header).
     this.wsTickets = new WsTicketStore({
       isRevoked: (jti) => this.serverCtx?.isJwtRevoked?.(jti) ?? false,
+      redeemRateLimit: { maxAttempts: 30, windowMs: 60_000 },
     });
     const wsTicketHandler = createWsTicketHandler({
       getAuth: () => this.serverCtx?.authManager,

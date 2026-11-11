@@ -76,7 +76,7 @@ export class RealtimeServer extends EventEmitter {
         return;
       }
 
-      const result = ticketStore.redeem(url.searchParams.get('ticket'));
+      const result = ticketStore.redeem(url.searchParams.get('ticket'), req.socket.remoteAddress);
       if (!result.ok) {
         // Never log the ticket or the query string — reason and remote only.
         log.warn({ reason: result.reason, remote: req.socket.remoteAddress }, 'ws handshake rejected');
