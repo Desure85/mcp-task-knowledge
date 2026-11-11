@@ -25,27 +25,9 @@ import path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import { pathExists, writeJson, readJson } from '../fs.js';
 import { childLogger } from '../core/logger.js';
+import { getPackageVersion } from '../utils/package-version.js';
 
 const log = childLogger('schema-version');
-
-/**
- * Resolve the running package version for the manifest's `updatedBy` field.
- * Same lookup order as register/setup.ts: npm_package_version env →
- * package.json two levels above this module → '0.0.0'.
- */
-export async function getPackageVersion(): Promise<string> {
-  const vEnv = process.env.npm_package_version;
-  if (vEnv && typeof vEnv === 'string') return vEnv;
-  try {
-    const hereDir = path.dirname(new URL(import.meta.url).pathname);
-    const repoRoot = path.resolve(hereDir, '..', '..');
-    const raw = await fsp.readFile(path.join(repoRoot, 'package.json'), 'utf8');
-    const v = (JSON.parse(raw) as { version?: unknown }).version;
-    return typeof v === 'string' ? v : '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
 
 /** Current on-disk schema version this build understands. */
 export const CURRENT_SCHEMA = 1;

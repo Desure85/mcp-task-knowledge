@@ -1,5 +1,4 @@
 import path from 'node:path';
-import fs from 'node:fs/promises';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RegisteredTool, RegisteredResource, RegisteredResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -32,6 +31,7 @@ import { ensureBootstrapAdmin, SqliteUserStore } from '../auth/user-store.js';
 import { wrapToolHandler } from '../core/auth-gate.js';
 import type { GateExtra } from '../core/auth-gate.js';
 import { guardUnknownParams, looseInputSchema, readInputShape } from '../core/tool-arguments.js';
+import { getPackageVersion } from '../utils/package-version.js';
 
 const log = childLogger('setup');
 
@@ -41,18 +41,6 @@ export async function createServerContext(): Promise<ServerContext> {
   // repo root in prod builds. One level gave dist/, silently breaking
   // package.json version lookup and the prompts.mjs reindex chain (Q-014 e2e).
   const REPO_ROOT = path.resolve(HERE_DIR, '..', '..');
-
-  async function getPackageVersion(): Promise<string> {
-    const vEnv = process.env.npm_package_version;
-    if (vEnv && typeof vEnv === 'string') return vEnv;
-    try {
-      const raw = await fs.readFile(path.join(REPO_ROOT, 'package.json'), 'utf8');
-      const v = JSON.parse(raw)?.version;
-      return typeof v === 'string' ? v : '0.0.0';
-    } catch {
-      return '0.0.0';
-    }
-  }
 
   const version = await getPackageVersion();
   // MCP spec-compliant capability flags. Server handles:
