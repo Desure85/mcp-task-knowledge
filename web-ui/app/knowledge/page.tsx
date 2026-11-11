@@ -16,6 +16,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, type KnowledgeDoc, type KnowledgeListItem } from '@/lib/api-client';
 import { normalizeKnowledgeItems } from '@/lib/knowledge';
 import { useRealtime, applyKnowledgeEvent } from '@/lib/realtime';
@@ -159,6 +161,7 @@ export default function KnowledgePage() {
   const [trashing, setTrashing] = useState(false);
   const [activeHeading, setActiveHeading] = useState('');
   const readerRef = useRef<HTMLDivElement>(null);
+  const docParam = useSearchParams().get('doc');
 
   const { publish } = useRealtime({
     eventTypes: ['knowledge.created', 'knowledge.updated', 'knowledge.deleted'],
@@ -225,6 +228,28 @@ export default function KnowledgePage() {
   useEffect(() => {
     void loadDocs();
   }, [loadDocs]);
+
+  useEffect(() => {
+    if (!docParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const current = await api.projects.getCurrent();
+        const full = await api.knowledge.get(current.project, docParam);
+        if (cancelled) return;
+        setView('read');
+        setSelectedDoc(full);
+        setPendingDoc(full);
+        fillEditor(full);
+      } catch (e) {
+        if (!cancelled) setDocError((e as Error).message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docParam]);
 
   useEffect(() => {
     if (knowledgeMode === 'tree' && treeDocs.length === 0) void loadTree();
@@ -641,6 +666,7 @@ export default function KnowledgePage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => void exportDoc()} disabled={!selectedDoc}>Export</Button>
                   <Button size="sm" variant="primary" onClick={startEdit} disabled={!selectedDoc}>Edit</Button>
+                  {doc?.title && <Link href={`/graph?entity=${encodeURIComponent(doc.title)}`} className="inline-flex h-8 items-center rounded-[var(--radius-control)] border border-line bg-surface px-3 text-[12px] font-medium text-ink hover:bg-surface-2">Open in graph</Link>}
                   <Button size="sm" variant="danger" onClick={() => { if (doc) setTrashTarget(doc); }} disabled={!selectedDoc}>
                     Trash
                   </Button>
