@@ -146,7 +146,6 @@ export default function TasksPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterTag, setFilterTag] = useState<string>('');
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewTask, setViewTask] = useState<Task | null>(null);
   const router = useRouter();
   const [view, setView] = useState<TaskView>('board');
@@ -499,21 +498,8 @@ export default function TasksPage() {
     }
   }
 
-  async function saveEdit() {
-    if (!editingTask || !project) return;
-    try {
-      const updated = await api.tasks.update(project, editingTask.id, {
-        title: editingTask.title,
-        priority: editingTask.priority,
-        type: editingTask.type ?? DEFAULT_TASK_TYPE,
-        tags: editingTask.tags,
-      });
-      publish('task.updated', updated as unknown as Record<string, unknown>);
-      setEditingTask(null);
-      await loadTasks(project, true);
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  function openTaskEditor(task: Task) {
+    window.open(`/tasks/${task.id}`, '_blank', 'noopener,noreferrer');
   }
 
   async function toggleDag() {
@@ -877,82 +863,6 @@ export default function TasksPage() {
         </div>
       )}
 
-      {editingTask && (
-        <div className="rounded-[var(--radius-card)] border border-accent bg-surface p-4 ring-1 ring-focus-ring/30">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
-              Edit task
-            </p>
-            <button
-              type="button"
-              onClick={() => setEditingTask(null)}
-              aria-label="Close editor"
-              className={GHOST_ICON_BUTTON}
-            >
-              <IconClose className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <input
-            type="text"
-            value={editingTask.title}
-            onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
-            className={INPUT_CLASS}
-            aria-label="Task title"
-          />
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <div className="inline-flex items-center gap-1.5">
-              <label htmlFor="edit-task-type" className="text-[11px] text-muted">
-                Type
-              </label>
-              <select
-                id="edit-task-type"
-                value={editingTask.type ?? DEFAULT_TASK_TYPE}
-                onChange={(e) => setEditingTask({ ...editingTask, type: e.target.value })}
-                className={SELECT_CLASS}
-                aria-label="Type"
-              >
-                {types.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <select
-              value={editingTask.priority}
-              onChange={(e) =>
-                setEditingTask({ ...editingTask, priority: e.target.value as Priority })
-              }
-              className={SELECT_CLASS}
-              aria-label="Priority"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-            <input
-              type="text"
-              value={(editingTask.tags ?? []).join(', ')}
-              onChange={(e) =>
-                setEditingTask({
-                  ...editingTask,
-                  tags: e.target.value
-                    .split(',')
-                    .map((t) => t.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="tags"
-              className={`${INPUT_CLASS} sm:flex-1`}
-              aria-label="Tags"
-            />
-            <Button type="button" variant="primary" onClick={() => void saveEdit()}>
-              Save
-            </Button>
-          </div>
-        </div>
-      )}
-
       {showDag && dag && (
         <div className="rounded-[var(--radius-card)] border border-line bg-surface">
           <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-3">
@@ -1223,7 +1133,7 @@ export default function TasksPage() {
                         <td className="px-3 py-2">
                           <button
                             type="button"
-                            onClick={() => setEditingTask({ ...task })}
+                            onClick={() => openTaskEditor(task)}
                             className="text-left font-medium text-ink hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                           >
                             {task.title}
@@ -1349,7 +1259,7 @@ export default function TasksPage() {
                         handleCellDrop(event, lane.id, lane.label, column.id, droppable)
                       }
                       onMove={(task, to) => void moveTask(task, to, droppable)}
-                      onEdit={(task) => setEditingTask({ ...task })}
+                      onEdit={(task) => openTaskEditor(task)}
             onView={(task) => setViewTask(task)}
                       onClose={(task) => void closeTask(task.id)}
                       closeStatusId={closeStatus}
@@ -1402,7 +1312,7 @@ export default function TasksPage() {
           statuses={statuses}
           types={types}
           onClose={() => setViewTask(null)}
-          onEdit={() => router.push(`/tasks/${viewTask.id}`)}
+          onEdit={() => openTaskEditor(viewTask)}
         />
       )}
     </div>

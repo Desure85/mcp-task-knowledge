@@ -41,7 +41,7 @@ test.beforeEach(async ({ context }) => {
   await context.addInitScript((value) => sessionStorage.setItem('mcp.auth.token', value), token);
 });
 
-test('UI-36: card opens a read-only quick view with full details', async ({ page }) => {
+test('UI-36: card opens a read-only quick view with full details', async ({ page, context }) => {
   const stamp = Date.now().toString(36);
   const title = `UI36-card-${stamp}`;
   const description = `First line ${stamp}\nSecond line is deliberately long so the card truncates it but the dialog must not.\nThird line.`;
@@ -91,14 +91,24 @@ test('UI-36: card opens a read-only quick view with full details', async ({ page
   await expect(page.locator(`[data-task="${parent.id}"]`)).toBeFocused();
 
   await page.getByRole('button', { name: title, exact: true }).click();
-  await expect(page.getByText('Edit task', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Close editor' }).click();
+  const [editorPage] = await Promise.all([
+    context.waitForEvent('page'),
+    page.getByRole('button', { name: title, exact: true }).click(),
+  ]);
+  await editorPage.waitForLoadState('domcontentloaded');
+  await expect(editorPage).toHaveURL(new RegExp(`/tasks/${parent.id}$`));
+  await editorPage.close();
 
   await page.locator(`[data-task="${parent.id}"]`).click({ position: { x: 6, y: 6 } });
   const reopened = page.getByRole('dialog');
   await expect(reopened).toBeVisible();
-  await reopened.getByRole('button', { name: 'Edit' }).click();
-  await expect(page).toHaveURL(new RegExp(`/tasks/${parent.id}$`));
+  const [fullPage] = await Promise.all([
+    context.waitForEvent('page'),
+    reopened.getByRole('button', { name: 'Edit' }).click(),
+  ]);
+  await fullPage.waitForLoadState('domcontentloaded');
+  await expect(fullPage).toHaveURL(new RegExp(`/tasks/${parent.id}$`));
+  await fullPage.close();
 
   await tool('tasks_bulk_trash', { project, ids: [parent.id, child.id] });
 });
