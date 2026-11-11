@@ -9,6 +9,8 @@
   },
   "files": [
     "dist/",
+    "bundle.json",
+    "extensions/opencode/",
     "README.md",
     "LICENSE"
   ],
@@ -57,6 +59,8 @@
     "prepare": "husky",
     "api:reference": "node scripts/api-reference.mjs",
     "design:doc": "node scripts/gen-design-doc.mjs",
+    "bundle": "node scripts/gen-bundle.mjs",
+    "bundle:check": "node scripts/gen-bundle.mjs --check",
     "backlog:check": "node scripts/check-backlog.mjs",
     "devcycle": "node scripts/devcycle.mjs",
     "agent:stats": "node scripts/agent-stats.mjs --days 1",

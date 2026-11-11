@@ -326,6 +326,20 @@ export function buildSetupMarkdown(link: SetupLink, opts: SetupDocOptions): stri
     `3. Verify with \`tools/list\` — you should see the ${name} tool surface.`,
     `4. If authentication fails, the token may be expired — ask an admin for a new setup link.`,
     '',
+    `## Bundle (AA-07)`,
+    '',
+    `This link does not install anything by itself. To add the agent plugins, commands and the MCP`,
+    `entry, ask the agent to run the bundle installer in the client's home:`,
+    '',
+    '```',
+    `npx -y ${name}@${version} install-agent --client opencode --dry-run`,
+    `npx -y ${name}@${version} install-agent --client opencode`,
+    '```',
+    '',
+    `Use \`--client claude-code\` for Claude Code. The installer is Node-only, verifies every`,
+    `\`bundle.json\` sha256, backs up changed files, is idempotent, and \`--rollback\` restores the`,
+    `pre-install state. Dry-run writes nothing.`,
+    '',
   );
 
   return lines.join('\n');

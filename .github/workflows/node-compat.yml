@@ -36,3 +36,22 @@ jobs:
         run: npm run build
       - name: Representative tests (auth gate + request scope + projects e2e)
         run: npx vitest run tests/sec003-auth-gate.test.ts tests/request-scope-project.test.ts tests/e2e-full/projects.test.ts
+
+  install-agent-windows:
+    # AA-07: Windows paths, sha256 and CRLF are first-class — no bash involved.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
+      - name: Build
+        run: npm run build
+      - name: Bundle integrity and installer
+        run: |
+          npm run bundle:check
+          npx vitest run tests/install-agent.test.ts tests/setup-link.test.ts
