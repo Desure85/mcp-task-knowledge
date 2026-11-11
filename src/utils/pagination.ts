@@ -48,6 +48,42 @@ export interface PageRequest {
   maxBytes?: number;
   /** Подмножество полей элемента. Неизвестные имена молча игнорируются. */
   fields?: string[];
+  /** U-04: drop null/empty values and unsolicited long text fields. */
+  compact?: boolean;
+}
+
+/** Long prose fields omitted by `compact` unless explicitly requested via `fields`. */
+const COMPACT_OMIT_KEYS = new Set([
+  'content',
+  'description',
+  'body',
+  'text',
+  'transcript',
+  'prompt',
+  'output',
+  'result',
+]);
+
+/** U-04: a token-cheap projection — no nulls, empty arrays/objects, or long text. */
+export function compactRecord<T>(item: T): unknown {
+  if (item === null || item === undefined) return item;
+  if (Array.isArray(item)) return item.map((entry) => compactRecord(entry));
+  if (typeof item !== 'object') return item;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value as object).length === 0) continue;
+    if (typeof value === 'string' && COMPACT_OMIT_KEYS.has(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function projectItem<T>(item: T, request: PageRequest): unknown {
+  if (request.fields && request.fields.length > 0) return pickFields(item, request.fields);
+  if (request.compact === true) return compactRecord(item);
+  return item;
 }
 
 export interface PageMeta {
@@ -219,7 +255,7 @@ export function finalizePage<T>(
       },
     };
   }
-  const projected = page.map((item) => pickFields(item, request.fields));
+  const projected = page.map((item) => projectItem(item, request));
   const { items, truncated } = fitBytes(projected, request.maxBytes ?? DEFAULT_MAX_BYTES);
   const hasMore = shape.hasMore || items.length < page.length;
   const nextCursor = hasMore && items.length > 0 ? cursorAt(items.length - 1) : null;
@@ -250,7 +286,7 @@ function finalize<T>(
       meta: { total, totalExact: true, count: total, hasMore: false, nextCursor: null, truncated: false, limit },
     };
   }
-  const projected = page.map((item) => pickFields(item, request.fields));
+  const projected = page.map((item) => projectItem(item, request));
   const { items, truncated } = fitBytes(projected, request.maxBytes ?? DEFAULT_MAX_BYTES);
   // Курсор — от последнего ФАКТИЧЕСКИ отданного элемента: иначе при усечении по байтам
   // клиент перескочит выброшенные записи.

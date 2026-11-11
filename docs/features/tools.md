@@ -26,6 +26,7 @@ old shape (array of items, or the same object as before), and pagination metadat
 | `limit` | 50 (max 500) | Page size |
 | `cursor` | — | Opaque cursor from the previous response (`nextCursor`). Omit for the first page |
 | `fields` | all | Subset of item fields (`["id","title"]`); unknown names are ignored |
+| `compact` | `false` | Drop null/empty values and unsolicited long text (`content`, `description`, `body`, …); explicit `fields` still wins |
 | `countOnly` | `false` | Return only `total`, no items |
 | `maxBytes` | 1 MiB | Hard cap on the payload; extra items are dropped and `truncated: true` is set |
 

@@ -43,6 +43,10 @@ export const pageArgsSchema = {
     .max(50)
     .optional()
     .describe('Subset of item fields to return (unknown names are ignored)'),
+  compact: z
+    .boolean()
+    .optional()
+    .describe('Drop null/empty values and unsolicited long text (content/description/body)'),
 } as const;
 
 export interface PageArgs {
@@ -52,6 +56,7 @@ export interface PageArgs {
   countOnly?: boolean;
   maxBytes?: number;
   fields?: string[];
+  compact?: boolean;
 }
 
 export function toPageRequest(args: PageArgs): PageRequest {
@@ -62,6 +67,7 @@ export function toPageRequest(args: PageArgs): PageRequest {
     countOnly: args.countOnly,
     maxBytes: args.maxBytes,
     fields: args.fields,
+    compact: args.compact,
   };
 }
 
