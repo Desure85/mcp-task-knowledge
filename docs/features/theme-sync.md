@@ -17,6 +17,7 @@ paint cache. One snapshot is stored as a single preferences object, so reconcili
 
 ## Client snapshot
 
+<!-- doc-test: skip -->
 ```ts
 {
   version: 1,
