@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, TR-37, TR-38, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/tr-38-drain-admission (от master c75bf24)
-**Текущий этап:** TR-38 закрыт; blocked — DX-29/MU-07/TK-02/T-02, AA-04
-**Статус:** drain-гейт на HTTP initialize и TCP handleConnection; 2/2, мутация RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, TR-33, TR-37, TR-38, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** chore/dx-14-close-seed-prompts (от master 05af385)
+**Текущий этап:** DX-14 закрыт по evidence; blocked — DX-29/MU-07/TK-02/T-02, AA-04
+**Статус:** сиды промптов подтверждены 8/8 + live prompts_list=7; кода не менялось.
+
+### Сессия S-20261109-night (DX-14 — закрытие)
+
+- `seedPromptsIfEmpty` уже вызывается из `AppContainer.init()`; 7 сидов, отказ при непустой библиотеке, идемпотентность.
+- `tests/prompts-seed.spec.ts` 8/8; live stdio `prompts_list` на пустом DATA_DIR → 7.
+- Ограничения: только полностью пустая библиотека; snapshot 1.0.0; без overwrite.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1205-dx-14-close.md`.
 
 ### Сессия S-20261109-night (TR-38 — drain admission)
 

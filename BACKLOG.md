@@ -899,7 +899,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | DX-13 | `briefing` tool — контекст одним вызовом | medium | done | — | Один вызов вместо пяти в начале сессии: текущий проект, открытые задачи по приоритету, последние knowledge-доки, блокеры. Собрано из listTasks/listDocs/isTaskBlocked. Реализовано в src/register/briefing.ts, 11 тестов green |
-| DX-14 | Seed workflow-промптов в поставку | medium | pending | — | Prompts-library пуста. Шипить 5-7 готовых (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`) — видимая ценность через `prompts/list` сразу + учит агента паттернам |
+| DX-14 | Seed workflow-промптов в поставку | medium | done | — | Prompts-library пуста. Шипить 5-7 готовых (`plan_sprint`, `capture_decision`, `standup`, `postmortem`, `daily_review`) — видимая ценность через `prompts/list` сразу + учит агента паттернам |
 | DX-12 | `agent_bootstrap` tool — самоинтеграция агента | medium | blocked | Проработка (design): design review контракта agent_bootstrap до регистрации в ToolRegistry | Tool возвращает готовый блок инструкций для AGENTS.md/system prompt («всегда передавай project, контракт ok/error, ключевые tools»). Design review до регистрации |
 | DX-15 | `server_capabilities` manifest | low | blocked | Проработка (design): design review контракта server_capabilities (поля, лимиты) до регистрации | Какие домены включены/выключены env-флагами, версия, лимиты — агент не гадает и не ловит `tool not found` на выключенных фичах. Design review до регистрации |
 
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **67** | **7** | **331** | **22** | **1** |
+| **Итого** | **428** | **66** | **7** | **332** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2051,3 +2051,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-11, TR-38 закрыт): HTTP initialize при draining → 503 + Retry-After,
 > TCP/Unix handleConnection → JSON-RPC error до создания сессии; существующие сессии не трогаются.
 > 2/2 теста, мутация RED.
+>
+> Примечание (2026-11-11, DX-14 закрыт): сиды уже реализованы в `prompts-seed.ts` и вызываются
+> из `AppContainer.init()`; 8/8 тестов + живая проба `prompts_list` = 7 промптов.
