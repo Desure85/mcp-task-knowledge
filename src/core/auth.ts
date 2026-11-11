@@ -456,6 +456,11 @@ export class AuthManager {
    * the sessionId itself is the key. A fresh initialize must NOT reset the
    * counter — sessionId-keyed tracking is the bug being fixed.
    */
+  /** TR-21: shared IP-keyed identifier for AuthProtection (SecurityStack uses it too). */
+  getClientKey(sessionId: string): string {
+    return this.clientKey(sessionId);
+  }
+
   private clientKey(sessionId: string): string {
     const remote = this.sessionManager?.get(sessionId)?.remote;
     if (!remote) return sessionId;
