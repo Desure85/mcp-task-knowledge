@@ -8,7 +8,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api-client';
+import { api, type DashboardActivity, type DashboardTrends } from '@/lib/api-client';
 import { PageHeader } from '@/components/PageHeader';
 import { StatTile } from '@/components/StatTile';
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, Input, Skeleton, Textarea } from '@/components/ui';
@@ -90,6 +90,70 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
   );
 }
 
+function TrendChart({ trends }: { trends: DashboardTrends }) {
+  const max = Math.max(1, ...trends.daily.map((bucket) => Math.max(bucket.created, bucket.completed)));
+  const step = Math.max(1, Math.ceil(trends.daily.length / 6));
+  return (
+    <div role="img" aria-label={`Task throughput: ${trends.summary.totalCreated} created, ${trends.summary.totalCompleted} completed over ${trends.period.days} days`}>
+      <div className="flex h-40 items-end gap-1" data-testid="analytics-chart">
+        {trends.daily.map((bucket, index) => (
+          <div key={bucket.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
+            <div className="flex h-32 w-full items-end justify-center gap-0.5">
+              <div
+                className="w-2/5 rounded-t-[var(--radius-control)] bg-accent"
+                style={{ height: `${(bucket.created / max) * 100}%` }}
+                title={`${bucket.date}: ${bucket.created} created`}
+              />
+              <div
+                className="w-2/5 rounded-t-[var(--radius-control)] bg-st-done"
+                style={{ height: `${(bucket.completed / max) * 100}%` }}
+                title={`${bucket.date}: ${bucket.completed} completed`}
+              />
+            </div>
+            <span className="tnum text-[10px] text-muted">
+              {index % step === 0 ? bucket.date.slice(5) : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-4 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="h-2 w-2 rounded-sm bg-accent" />Created</span>
+        <span className="inline-flex items-center gap-1"><span aria-hidden="true" className="h-2 w-2 rounded-sm bg-st-done" />Completed</span>
+        <span className="ml-auto tnum">
+          {trends.summary.totalCreated} created · {trends.summary.totalCompleted} completed · {trends.summary.netOpen >= 0 ? '+' : ''}{trends.summary.netOpen} net
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityFeed({ activity, onCreate }: { activity: DashboardActivity; onCreate: () => void }) {
+  if (activity.items.length === 0) {
+    return (
+      <EmptyState
+        compact
+        title="No activity yet"
+        hint="Create a task or document to start the feed."
+        action={<Button size="sm" variant="secondary" onClick={onCreate}>Create a task</Button>}
+      />
+    );
+  }
+  return (
+    <ul aria-label="Recent activity" className="divide-y divide-line">
+      {activity.items.slice(0, 12).map((item) => (
+        <li key={`${item.type}:${item.id}`} className="flex min-h-[var(--spacing-row)] items-center gap-3 py-2 text-[12px]">
+          <Badge>{item.type}</Badge>
+          <span className="min-w-0 flex-1 truncate font-medium text-ink">{item.title}</span>
+          <span className="shrink-0 text-[11px] text-muted">{item.action}</span>
+          <span className="shrink-0 tnum text-[11px] text-muted">
+            {new Date(item.updatedAt).toLocaleDateString()}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,13 +163,24 @@ export default function AnalyticsPage() {
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackComment, setFeedbackComment] = useState('');
   const [localFeedback, setLocalFeedback] = useState<FeedbackEntry[]>([]);
+  const [trends, setTrends] = useState<DashboardTrends | null>(null);
+  const [activity, setActivity] = useState<DashboardActivity | null>(null);
+  const [granularity, setGranularity] = useState<'day' | 'week'>('day');
+  const [days, setDays] = useState(30);
 
   const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       // Prefer the server-side aggregate (dashboard_stats); fall back to
       // client-side counting over raw lists when it is unavailable.
-      const dash = await api.system.dashboardStats().catch(() => null);
+      const [dashResult, trendsResult, activityResult] = await Promise.allSettled([
+        api.system.dashboardStats(),
+        api.system.dashboardTrends({ days, granularity }),
+        api.system.dashboardActivity({ limit: 12 }),
+      ]);
+      if (trendsResult.status === 'fulfilled') setTrends(trendsResult.value);
+      if (activityResult.status === 'fulfilled') setActivity(activityResult.value);
+      const dash = dashResult.status === 'fulfilled' ? dashResult.value : null;
       if (dash?.tasks?.total != null) {
         setStats({
           totalTasks: dash.tasks.total,
@@ -145,7 +220,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [days, granularity]);
 
   useEffect(() => {
     void loadStats();
@@ -241,6 +316,43 @@ export default function AnalyticsPage() {
         </div>
       ) : stats ? (
         <div className="mt-6 space-y-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="group" aria-label="Granularity" className="flex items-center gap-1">
+              {(['day', 'week'] as const).map((value) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={granularity === value ? 'primary' : 'secondary'}
+                  aria-pressed={granularity === value}
+                  onClick={() => setGranularity(value)}
+                >
+                  {value === 'day' ? 'Daily' : 'Weekly'}
+                </Button>
+              ))}
+            </div>
+            <div role="group" aria-label="Period" className="ml-auto flex items-center gap-1">
+              {[7, 30, 90].map((value) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={days === value ? 'primary' : 'secondary'}
+                  aria-pressed={days === value}
+                  onClick={() => setDays(value)}
+                >
+                  {value}d
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {stats.totalTasks === 0 ? (
+            <EmptyState
+              title="No analytics yet"
+              hint="Create your first task — trends and the activity feed will fill in as the project moves."
+              action={<Button variant="primary" onClick={() => { window.location.href = '/tasks'; }}>Create a task</Button>}
+            />
+          ) : (
+            <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatTile label="Total tasks" value={stats.totalTasks} hint="all statuses" icon={IconTasks} />
             <StatTile label="Knowledge docs" value={stats.totalKnowledge} hint="in this project" icon={IconKnowledge} />
@@ -291,6 +403,33 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <h2 className="text-[13px] font-semibold text-ink">Throughput</h2>
+              </CardHeader>
+              <CardBody>
+                {trends ? (
+                  <TrendChart trends={trends} />
+                ) : (
+                  <EmptyState compact title="No trend data" hint="dashboard_trends returned nothing." />
+                )}
+              </CardBody>
+            </Card>
+            <Card>
+              <CardHeader>
+                <h2 className="text-[13px] font-semibold text-ink">Recent activity</h2>
+              </CardHeader>
+              <CardBody>
+                {activity ? (
+                  <ActivityFeed activity={activity} onCreate={() => { window.location.href = '/tasks'; }} />
+                ) : (
+                  <EmptyState compact title="No activity available" hint="dashboard_activity returned nothing." />
+                )}
+              </CardBody>
+            </Card>
+          </div>
+
           {localFeedback.length > 0 && (
             <Card>
               <CardHeader>
@@ -314,6 +453,8 @@ export default function AnalyticsPage() {
                 ))}
               </CardBody>
             </Card>
+          )}
+            </>
           )}
         </div>
       ) : (
