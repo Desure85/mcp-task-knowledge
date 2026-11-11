@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-36 connector errors: `src/connectors/errors.ts` and a small registration wrapper now make GitHub, Jira and Slack return the same `{ok:false,error:{message}}` envelope as the other connectors instead of throwing protocol `isError`. Success envelopes are unchanged; tests 4/4 (GitHub 429, Jira 401, Slack API + validation, success); mutation removing the wrapper goes RED. Limits: only those three connectors, messages are unstructured, health stays `ConnectorHealth`
+
 - TR-35 web-crawler: `webcrawler_fetch_page` now returns `{ok:false,error:{message}}` for HTTP errors/network failures instead of an empty successful page, while `webcrawler_crawl_site` reports `failed` and `errors[]` and counts only successful pages in `crawled`. Tests 3/3 (404, network, success); mutation of the non-ok branch goes RED. Limits: all-failed crawl still has `ok:true` with failed count (batch contract), no extra error-list cap
 
 - TR-24: one `src/utils/package-version.ts` now serves `register/setup`, `services/schema-version` and `backup-archive`; the duplicated `getPackageVersion` implementations were removed. Env-first → package.json → 0.0.0 order preserved; tests 2/2 (env override, package fallback); mutation of the env guard goes RED

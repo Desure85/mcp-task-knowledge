@@ -8,6 +8,7 @@
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
 import { connectorSignal } from './fetch-timeout.js';
+import { connectorError } from './errors.js';
 import { resolveCredential } from './credentials.js';
 
 export interface JiraConfig {
@@ -46,7 +47,19 @@ export function createJiraConnector(config: Record<string, unknown>): Connector 
       token = (await resolveCredential(ctx, 'token', 'JIRA_TOKEN')) ?? cfg.token ?? '';
       if (!token || !host) throw new Error('JIRA_TOKEN and JIRA_HOST required');
 
-      ctx.registerTool('jira_issue_list', {
+      const reg = (
+        name: string,
+        schema: Parameters<ConnectorContext['registerTool']>[1],
+        handler: Parameters<ConnectorContext['registerTool']>[2],
+      ) =>
+        ctx.registerTool(name, schema, (async (input) => {
+          try {
+            return await handler(input);
+          } catch (error) {
+            return connectorError(error);
+          }
+        }) as Parameters<ConnectorContext['registerTool']>[2]);
+      reg('jira_issue_list', {
         title: 'Jira Issues',
         description: 'List issues in the configured Jira project',
         inputSchema: {
@@ -61,7 +74,7 @@ export function createJiraConnector(config: Record<string, unknown>): Connector 
         return { ok: true, data: { count: data.total, issues: data.issues.map((i) => ({ key: i.key, title: i.fields.summary, status: i.fields.status?.name })) } };
       });
 
-      ctx.registerTool('jira_issue_get', {
+      reg('jira_issue_get', {
         title: 'Jira Issue Detail',
         description: 'Get a single Jira issue by key',
         inputSchema: { key: { type: 'string' } },
@@ -72,7 +85,7 @@ export function createJiraConnector(config: Record<string, unknown>): Connector 
         return { ok: true, data: { key: issue.key, title: fields.summary, status: (fields.status as { name: string })?.name, description: fields.description, priority: (fields.priority as { name: string })?.name, assignee: (fields.assignee as { displayName: string })?.displayName } };
       });
 
-      ctx.registerTool('jira_project_list', {
+      reg('jira_project_list', {
         title: 'Jira Projects',
         description: 'List accessible Jira projects',
         inputSchema: {},

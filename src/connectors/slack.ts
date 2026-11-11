@@ -8,6 +8,7 @@
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
 import { connectorSignal } from './fetch-timeout.js';
+import { connectorError } from './errors.js';
 import { resolveCredential } from './credentials.js';
 
 const SLACK_API = 'https://slack.com/api';
@@ -47,7 +48,19 @@ export function createSlackConnector(config: Record<string, unknown>): Connector
       token = (await resolveCredential(ctx, 'token', 'SLACK_BOT_TOKEN')) ?? cfg.token ?? '';
       if (!token) throw new Error('SLACK_BOT_TOKEN required');
 
-      ctx.registerTool('slack_post', {
+      const reg = (
+        name: string,
+        schema: Parameters<ConnectorContext['registerTool']>[1],
+        handler: Parameters<ConnectorContext['registerTool']>[2],
+      ) =>
+        ctx.registerTool(name, schema, (async (input) => {
+          try {
+            return await handler(input);
+          } catch (error) {
+            return connectorError(error);
+          }
+        }) as Parameters<ConnectorContext['registerTool']>[2]);
+      reg('slack_post', {
         title: 'Slack Post Message',
         description: 'Send a message to a Slack channel',
         inputSchema: {
@@ -64,7 +77,7 @@ export function createSlackConnector(config: Record<string, unknown>): Connector
         return { ok: true, data: { channel: result.channel, ts: result.ts } };
       });
 
-      ctx.registerTool('slack_search', {
+      reg('slack_search', {
         title: 'Slack Search',
         description: 'Search messages in Slack',
         inputSchema: {
@@ -80,7 +93,7 @@ export function createSlackConnector(config: Record<string, unknown>): Connector
         return { ok: true, data: { total: data.messages.total, messages: data.messages.matches.map((m) => ({ text: m.text, user: m.user, channel: m.channel.name, ts: m.ts })) } };
       });
 
-      ctx.registerTool('slack_channels', {
+      reg('slack_channels', {
         title: 'Slack Channels',
         description: 'List public channels in the workspace',
         inputSchema: {},
