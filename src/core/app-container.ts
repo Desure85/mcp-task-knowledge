@@ -54,6 +54,7 @@ import { registerMcpPrompts } from '../register/mcp-prompts.js';
 import { registerObsidianTools } from '../register/obsidian.js';
 import { registerProjectTools } from '../register/project.js';
 import { registerBulkTools } from '../register/bulk.js';
+import { registerPackageUiTools } from '../register/packages.js';
 import { registerTasksTools } from '../register/tasks.js';
 import { registerKnowledgeTools } from '../register/knowledge.js';
 import { registerSearchTools } from '../register/search.js';
@@ -176,6 +177,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerObsidianTools(ctx);
   registerProjectTools(ctx);
   registerBulkTools(ctx);
+  registerPackageUiTools(ctx);
   registerTasksTools(ctx);
   registerKnowledgeTools(ctx);
   registerSearchTools(ctx);

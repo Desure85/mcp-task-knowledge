@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **143** — 141 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **148** — 146 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -84,6 +84,11 @@
 | `memory_temporal_stats` | Get statistics about the temporal knowledge graph — total facts, valid/invalidated counts, categorie |
 | `obsidian_export_project` | Export knowledge, tasks, and prompts to Obsidian vault (merge or replace). Use with caution in repla |
 | `obsidian_import_project` | Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy deletes existing content  |
+| `package_create` | Create a skill package from relative files. Fails if the package already exists. |
+| `package_get` | Read a skill package or plugin package file tree and text content (files >256 KiB return content:nul |
+| `package_toggle_component` | Enable or disable one plugin component in plugin.json (disabledComponents); files are not deleted. |
+| `package_write_file` | Replace one text file in a skill package. Path traversal is rejected by the package helper. |
+| `packages_list` | List skill packages and plugin packages available to the package browser UI. |
 | `project_agents_get` | Get the project agent-target registry. Built-ins universal, claude and opencode are always present. |
 | `project_agents_set` | Replace the project agent-target registry. A target still used by prompts cannot be removed without  |
 | `project_create` | Create a new project with optional description. Creates task and knowledge directories automatically |
@@ -1119,6 +1124,7 @@ List knowledge document metadata with cursor pagination and field selection. Ret
 - `tag`
 - `type`
 - `parentId`
+- `rootsOnly`
 - `includeArchived`
 - `limit`
 - `cursor`
@@ -1136,6 +1142,7 @@ List knowledge document metadata with cursor pagination and field selection. Ret
     "tag": "example",
     "type": "note",
     "parentId": null,
+    "rootsOnly": "example",
     "includeArchived": false,
     "limit": 10,
     "cursor": "example",
@@ -2167,6 +2174,123 @@ Import knowledge, tasks, and prompts from Obsidian vault. Replace strategy delet
     "confirm": true,
     "dryRun": false
   }
+}
+```
+
+## package_create
+
+**Create Skill Package**
+
+Create a skill package from relative files. Fails if the package already exists.
+
+**Параметры:**
+
+- `kind`
+- `name`
+- `files`
+- `version`
+- `description`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "package_create",
+  "arguments": {
+    "kind": "example",
+    "name": "example",
+    "files": "example",
+    "version": "example",
+    "description": "Example Description"
+  }
+}
+```
+
+## package_get
+
+**Get Package Files**
+
+Read a skill package or plugin package file tree and text content (files >256 KiB return content:null).
+
+**Параметры:**
+
+- `kind`
+- `name`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "package_get",
+  "arguments": {
+    "kind": "example",
+    "name": "example"
+  }
+}
+```
+
+## package_toggle_component
+
+**Toggle Plugin Component**
+
+Enable or disable one plugin component in plugin.json (disabledComponents); files are not deleted.
+
+**Параметры:**
+
+- `name`
+- `component`
+- `enabled`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "package_toggle_component",
+  "arguments": {
+    "name": "example",
+    "component": "example",
+    "enabled": "example"
+  }
+}
+```
+
+## package_write_file
+
+**Write Skill Package File**
+
+Replace one text file in a skill package. Path traversal is rejected by the package helper.
+
+**Параметры:**
+
+- `name`
+- `path`
+- `content`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "package_write_file",
+  "arguments": {
+    "name": "example",
+    "path": "example",
+    "content": "Example Content"
+  }
+}
+```
+
+## packages_list
+
+**List Skill Packages and Plugins**
+
+List skill packages and plugin packages available to the package browser UI.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "packages_list",
+  "arguments": {}
 }
 ```
 
@@ -3512,6 +3636,7 @@ Get task by id. Includes the active claim/lease holder when the task is claimed.
 
 - `project`
 - `id`
+- `includeGraphMetrics`
 
 **Пример вызова:**
 
@@ -3520,7 +3645,8 @@ Get task by id. Includes the active claim/lease holder when the task is claimed.
   "name": "tasks_get",
   "arguments": {
     "project": "mcp",
-    "id": "00000000-0000-0000-0000-000000000000"
+    "id": "00000000-0000-0000-0000-000000000000",
+    "includeGraphMetrics": "example"
   }
 }
 ```
@@ -3624,6 +3750,9 @@ List tasks with optional filters, cursor pagination and field selection. Returns
 - `ids`
 - `codes`
 - `includeArchived`
+- `includeGraphMetrics`
+- `groupByStatus`
+- `offsets`
 - `limit`
 - `cursor`
 - `countOnly`
@@ -3648,6 +3777,9 @@ List tasks with optional filters, cursor pagination and field selection. Returns
     ],
     "codes": "example",
     "includeArchived": false,
+    "includeGraphMetrics": "example",
+    "groupByStatus": "example",
+    "offsets": "example",
     "limit": 10,
     "cursor": "example",
     "countOnly": "example",

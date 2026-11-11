@@ -8,6 +8,8 @@
 
 ### Added
 
+- Z-03 package browser: new `package_*` MCP tools list/read/create skill and plugin packages, edit a skill text file and toggle a plugin component in `plugin.json` (`disabledComponents`, files are not deleted); the `/packages` page renders the package list, a nested `TreeView`, a text editor and component enable/disable controls, and the sidebar lists it. API reference regenerated to 148 tools. E2E creates skill+plugin fixtures over MCP, edits a file and disables the skills component. Limits: plugin files are read-only in the UI; package roots are DATA_DIR/skill-packages and DATA_DIR/plugins; no ZIP import
+
 - TR-37 bulk per-item errors: a shared `runBulkResults` isolates missing ids and thrown errors; `knowledge_bulk_update` now reports `failed` instead of silently dropping a missing document, knowledge/task archive/trash/restore report missing ids. Existing `results` shapes are preserved; the new failure list is additive. Tests cover update/archive and the helper. Limits: failed remains `{id,error}`, not a full per-item wrapper; tasks_bulk_create stays atomic for the V-03 type-race contract
 
 - TR-33 connector fetch timeouts: a shared `connectorSignal()` (`AbortSignal.timeout`, default 10 s, `CONNECTOR_TIMEOUT_MS` override) is now passed by github, jira, slack, gdrive, gmail, notion, onedrive and linear, so a stalled remote can no longer pin a tool call for the undici headers timeout. A hermetic contract test verifies the default/env parsing and every connector file; removing the signal from one connector is RED. Limits: one deadline per request, no separate connect/read budget
