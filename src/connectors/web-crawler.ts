@@ -55,28 +55,30 @@ export class WebCrawlerConnector implements Connector {
     return { healthy: true, message: 'Web Crawler connector ready' };
   }
 
-  private async fetchPage(url: string): Promise<{ ok: true; url: string; title: string; content: string; links: string[] }> {
+  private async fetchPage(url: string): Promise<{ ok: true; url: string; title: string; content: string; links: string[] } | { ok: false; url: string; error: { message: string } }> {
     try {
       const resp = await fetch(url, {
         signal: AbortSignal.timeout(this.timeoutMs),
         headers: { 'User-Agent': 'mcp-task-knowledge-crawler/1.0' },
       });
-      if (!resp.ok) return { ok: true, url, title: '', content: '', links: [] };
+      if (!resp.ok) return { ok: false, url, error: { message: `HTTP ${resp.status} ${resp.statusText}`.trim() } };
       const html = await resp.text();
       const title = extractTitle(html);
       const content = stripHtml(html);
       const links = extractLinks(html, url);
       return { ok: true, url, title, content, links };
-    } catch {
-      return { ok: true, url, title: '', content: '', links: [] };
+    } catch (error) {
+      return { ok: false, url, error: { message: (error as Error).message || 'fetch failed' } };
     }
   }
 
-  private async crawlSite(startUrl: string, project: string, maxPages: number): Promise<{ ok: true; crawled: number; synced: number }> {
+  private async crawlSite(startUrl: string, project: string, maxPages: number): Promise<{ ok: true; crawled: number; synced: number; failed: number; errors: string[] }> {
     const visited = new Set<string>();
     const queue = [startUrl];
     let crawled = 0;
     let synced = 0;
+    let failed = 0;
+    const errors: string[] = [];
 
     while (queue.length > 0 && crawled < maxPages) {
       const url = queue.shift()!;
@@ -84,6 +86,11 @@ export class WebCrawlerConnector implements Connector {
       visited.add(url);
 
       const page = await this.fetchPage(url);
+      if (!page.ok) {
+        failed++;
+        errors.push(`${url}: ${page.error.message}`);
+        continue;
+      }
       crawled++;
 
       if (page.content.length > 100) {
@@ -97,7 +104,7 @@ export class WebCrawlerConnector implements Connector {
       }
     }
 
-    return { ok: true, crawled, synced };
+    return { ok: true, crawled, synced, failed, errors };
   }
 }
 

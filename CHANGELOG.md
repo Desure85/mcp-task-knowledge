@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-35 web-crawler: `webcrawler_fetch_page` now returns `{ok:false,error:{message}}` for HTTP errors/network failures instead of an empty successful page, while `webcrawler_crawl_site` reports `failed` and `errors[]` and counts only successful pages in `crawled`. Tests 3/3 (404, network, success); mutation of the non-ok branch goes RED. Limits: all-failed crawl still has `ok:true` with failed count (batch contract), no extra error-list cap
+
 - TR-24: one `src/utils/package-version.ts` now serves `register/setup`, `services/schema-version` and `backup-archive`; the duplicated `getPackageVersion` implementations were removed. Env-first → package.json → 0.0.0 order preserved; tests 2/2 (env override, package fallback); mutation of the env guard goes RED
 
 - TR-23: removed the unused `PROJECT_META_FILE` constant from `src/projects.ts`; the real project metadata path is `DATA_DIR/projects/<id>.json`. grep finds no references, tsc clean, projects/ACL 4/4. No behavioral change

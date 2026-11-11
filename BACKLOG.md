@@ -1059,7 +1059,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-32 | Logger redaction + JIRA_HOST https + scope-доки | low | pending | TR-03 | logger.ts — нет pino `redact` для *.token/*.apiKey/authorization (defense-in-depth перед wiring LoggingMiddleware). jira.ts — JIRA_HOST без https-энфорса → Basic-auth на plaintext host. connectors.md — задокументировать минимальные scopes per connector |
 | TR-33 | Fetch timeouts на всех коннекторах | medium | done | TR-08 | 8/9 коннекторов делают plain `fetch` без timeout (github.ts:21, jira.ts:27, slack.ts:20, gdrive.ts:51, gmail.ts:64, notion.ts:70, onedrive.ts:51, linear.ts:57). Undici headers-timeout 300s → stalled remote пинит tool call на минуты. Добавить `AbortSignal.timeout()` как в web-crawler.ts:61 (default 10s, configurable) |
 | TR-34 | Connectors → circuit breaker | medium | done | TR-08 | Коннекторы обходят ServiceAvailability/CircuitBreaker — downed API получает полный TCP/TLS latency на каждый вызов. Зарегистрировать per-connector tracker в getServiceAvailabilityRegistry, recordFailure в catch-ветках, health() → toComponentHealth() |
-| TR-35 | web-crawler: не схлопывать ошибки в {ok:true, empty} | low | pending | TR-08 | web-crawler.ts:66-77 — catch возвращает {ok:true, title:'', content:'', links:[]} — caller не отличит «пустая страница» от «fetch failed/timeout». Вернуть {ok:false,error} или добавить поле `error` в success-ответ |
+| TR-35 | web-crawler: не схлопывать ошибки в {ok:true, empty} | low | done | TR-08 | web-crawler.ts:66-77 — catch возвращает {ok:true, title:'', content:'', links:[]} — caller не отличит «пустая страница» от «fetch failed/timeout». Вернуть {ok:false,error} или добавить поле `error` в success-ответ |
 | TR-36 | Единый error envelope для github/jira/slack | low | pending | TR-08 | github.ts:26, jira.ts:28, slack.ts:27-30 — throw → protocol isError, тогда как gdrive/gmail/notion/onedrive/linear возвращают {ok:false,error:{message}}. Унифицировать в ErrEnvelope |
 | TR-37 | Bulk tools: per-item errors + exception isolation | medium | done | TR-08 | bulk.ts — updateTask/updateDoc возвращают null на missing id → молча пропускаются (count<results.length без объяснения). Исключение mid-loop (dependency cycle, tasks.ts:183) аборти́т весь batch и теряет уже сделанные результаты. Добавить per-item {ok,error} как в tasks_bulk_delete_permanent dryRun (bulk.ts:243-256) + try/catch per item |
 | TR-38 | Drain enforcement: session admission consults isDraining | medium | done | TR-08 | checker.ts:88-91 — startDraining только флипает флаг; transport layer не реджектит новые сессии по isDraining. Контракт чисто observational (readyz 503). Wire draining → session admission в http/tcp транспортах |
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **40** | **7** | **358** | **22** | **1** |
+| **Итого** | **428** | **39** | **7** | **359** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2144,3 +2144,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-11, TR-23 закрыт): PROJECT_META_FILE удалена, ссылок нет; build+projects 4/4.
 >
 > Примечание (2026-11-11, TR-24 закрыт): getPackageVersion в utils/package-version; 2/2, мутация RED.
+>
+> Примечание (2026-11-11, TR-35 закрыт): fetchPage {ok:false,error}, crawl failed/errors[];
+> 3/3, мутация RED.
