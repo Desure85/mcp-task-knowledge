@@ -396,6 +396,7 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     if (options.tag) add("data->'tags' ? ?", options.tag);
     if (options.type) add("data->>'type' = ?", options.type);
     if (options.parentId) add("data->>'parentId' = ?", options.parentId);
+    if (options.rootsOnly) clauses.push("(data->>'parentId') is null");
     if (!options.includeArchived) clauses.push('archived = false');
     if (!options.includeTrashed) clauses.push('trashed = false');
     const where = `where ${clauses.join(' and ')}`;

@@ -209,6 +209,8 @@ export interface DocPageOptions {
   tag?: string;
   type?: string;
   parentId?: string;
+  /** Only documents without a parent — one level for a lazy tree. */
+  rootsOnly?: boolean;
   includeArchived?: boolean;
   includeTrashed?: boolean;
   countOnly?: boolean;

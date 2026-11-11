@@ -35,6 +35,7 @@ function toTreeNodes(items: KnowledgeTreeItem[]): TreeNode[] {
     id: item.id,
     label: item.title,
     hint: item.type ?? undefined,
+    hasChildren: true,
     children: toTreeNodes(item.children ?? []),
   }));
 }
@@ -67,6 +68,19 @@ function docPath(items: KnowledgeTreeItem[], id: string): KnowledgeListItem[] {
     cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
   }
   return path;
+}
+
+function attachChildren(
+  items: Array<KnowledgeListItem & { children?: unknown[] }>,
+  parentId: string,
+  children: KnowledgeListItem[],
+): Array<KnowledgeListItem & { children?: unknown[] }> {
+  return items.map((item) => {
+    if (item.id === parentId) return { ...item, children };
+    const nested = (item.children ?? []) as Array<KnowledgeListItem & { children?: unknown[] }>;
+    if (nested.length === 0) return item;
+    return { ...item, children: attachChildren(nested, parentId, children) };
+  });
 }
 
 type View = 'list' | 'read' | 'edit';
@@ -131,6 +145,8 @@ export default function KnowledgePage() {
   const [treeDocs, setTreeDocs] = useState<Array<KnowledgeListItem & { children?: unknown[] }>>([]);
   const [treeMode, setTreeMode] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
+  const [treeLoadingIds, setTreeLoadingIds] = useState<Set<string>>(new Set());
+  const [treeLoadedIds, setTreeLoadedIds] = useState<Set<string>>(new Set());
   const [editParentId, setEditParentId] = useState('');
   const [totalDocs, setTotalDocs] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -173,14 +189,33 @@ export default function KnowledgePage() {
   const loadTree = useCallback(async () => {
     setTreeLoading(true);
     try {
-      const result = await api.knowledge.tree();
-      setTreeDocs(Array.isArray(result) ? (result as Array<KnowledgeListItem & { children?: unknown[] }>) : []);
+      const roots = await api.knowledge.list(undefined, { rootsOnly: true });
+      setTreeDocs(roots as Array<KnowledgeListItem & { children?: unknown[] }>);
+      setTreeLoadedIds(new Set());
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setTreeLoading(false);
     }
   }, []);
+
+  async function expandTree(node: TreeNode, open: boolean) {
+    if (!open || treeLoadedIds.has(node.id)) return;
+    setTreeLoadingIds((prev) => new Set(prev).add(node.id));
+    try {
+      const page = await api.knowledge.page(undefined, { parentId: node.id, limit: 100 });
+      setTreeDocs((prev) => attachChildren(prev, node.id, page.data));
+      setTreeLoadedIds((prev) => new Set(prev).add(node.id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setTreeLoadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(node.id);
+        return next;
+      });
+    }
+  }
 
   const loadDocs = useCallback(async () => {
     try {
@@ -763,6 +798,8 @@ export default function KnowledgePage() {
                 nodes={toTreeNodes(treeDocs as KnowledgeTreeItem[])}
                 ariaLabel="Knowledge document tree"
                 selectedId={selectedDoc?.id ?? null}
+                loadingIds={treeLoadingIds}
+                onExpand={(node, open) => void expandTree(node, open)}
                 onSelect={(node) => {
                   const doc = findTreeDoc(treeDocs as KnowledgeTreeItem[], node.id);
                   if (doc) void openDocument(doc);

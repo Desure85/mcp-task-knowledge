@@ -86,6 +86,8 @@ export function resolveAuthEndpoint(path: '/login' | '/logout' | '/ws-ticket'): 
 }
 
 const TOKEN_STORAGE_KEY = 'mcp.auth.token';
+const AUTH_HANDOFF_KEY = 'mcp.auth.handoff';
+const AUTH_HANDOFF_TTL_MS = 60_000;
 const PROJECT_STORAGE_KEY = 'mcp.project';
 
 /** The project the user last picked; survives reloads (the MCP session itself does not). */
@@ -115,6 +117,25 @@ export function resolveToken(): string | undefined {
   if (typeof window !== 'undefined') {
     const stored = window.sessionStorage.getItem(TOKEN_STORAGE_KEY);
     if (stored && stored.trim().length > 0) return stored;
+    // A new tab has empty sessionStorage; the opener leaves a short-lived handoff.
+    try {
+      const raw = window.localStorage.getItem(AUTH_HANDOFF_KEY);
+      if (raw) {
+        window.localStorage.removeItem(AUTH_HANDOFF_KEY);
+        const parsed = JSON.parse(raw) as { token?: unknown; expiresAt?: unknown };
+        if (
+          typeof parsed.token === 'string' &&
+          parsed.token.trim().length > 0 &&
+          typeof parsed.expiresAt === 'number' &&
+          parsed.expiresAt > Date.now()
+        ) {
+          window.sessionStorage.setItem(TOKEN_STORAGE_KEY, parsed.token);
+          return parsed.token;
+        }
+      }
+    } catch {
+      /* storage blocked — fall back to env/login */
+    }
   }
   const envToken = process.env.NEXT_PUBLIC_MCP_TOKEN;
   if (envToken && envToken.trim().length > 0) return envToken;
@@ -129,12 +150,37 @@ export function resolveToken(): string | undefined {
 export function setAuthToken(token: string): void {
   if (typeof window === 'undefined') return;
   window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+  try {
+    window.localStorage.removeItem(AUTH_HANDOFF_KEY);
+  } catch {
+    /* ignore */
+  }
   resetClient();
+}
+
+/** Leave a short-lived token for a tab opened via window.open (sessionStorage is per-tab). */
+export function prepareCrossTabAuth(): void {
+  if (typeof window === 'undefined') return;
+  const token = resolveToken();
+  if (!token) return;
+  try {
+    window.localStorage.setItem(
+      AUTH_HANDOFF_KEY,
+      JSON.stringify({ token, expiresAt: Date.now() + AUTH_HANDOFF_TTL_MS }),
+    );
+  } catch {
+    /* storage blocked — the new tab will ask for login */
+  }
 }
 
 export function clearAuthToken(): void {
   if (typeof window === 'undefined') return;
   window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(AUTH_HANDOFF_KEY);
+  } catch {
+    /* ignore */
+  }
   resetClient();
 }
 

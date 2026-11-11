@@ -11,6 +11,8 @@ export interface TreeViewProps {
   onSelect: (node: TreeNode) => void;
   selectedId?: string | null;
   defaultExpandedIds?: string[];
+  loadingIds?: ReadonlySet<string>;
+  onExpand?: (node: TreeNode, open: boolean) => void;
   className?: string;
 }
 
@@ -19,13 +21,14 @@ interface TreeItemProps {
   depth: number;
   expanded: ReadonlySet<string>;
   selectedId?: string | null;
-  onToggle: (id: string) => void;
+  loadingIds?: ReadonlySet<string>;
+  onToggle: (node: TreeNode) => void;
   onSelect: (node: TreeNode) => void;
 }
 
-function TreeItem({ node, depth, expanded, selectedId, onToggle, onSelect }: TreeItemProps) {
+function TreeItem({ node, depth, expanded, selectedId, loadingIds, onToggle, onSelect }: TreeItemProps) {
   const children = node.children ?? [];
-  const hasChildren = children.length > 0;
+  const hasChildren = node.hasChildren ?? children.length > 0;
   const open = expanded.has(node.id);
   const selected = selectedId === node.id;
   return (
@@ -35,7 +38,7 @@ function TreeItem({ node, depth, expanded, selectedId, onToggle, onSelect }: Tre
           <button
             type="button"
             aria-label={`${open ? 'Collapse' : 'Expand'} ${node.label}`}
-            onClick={() => onToggle(node.id)}
+            onClick={() => onToggle(node)}
             className="grid h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-control)] text-muted hover:bg-surface-2 hover:text-ink"
           >
             <IconChevronRight className={cn('h-3.5 w-3.5 transition', open && 'rotate-90')} />
@@ -56,7 +59,10 @@ function TreeItem({ node, depth, expanded, selectedId, onToggle, onSelect }: Tre
           {node.hint && <span className="ml-2 text-[11px] text-muted">{node.hint}</span>}
         </button>
       </div>
-      {hasChildren && open && (
+      {hasChildren && open && loadingIds?.has(node.id) && (
+        <p role="status" className="pl-8 text-[11px] text-muted">Loading…</p>
+      )}
+      {hasChildren && open && !loadingIds?.has(node.id) && (
         <ul role="group" className="space-y-0.5">
           {children.map((child) => (
             <TreeItem
@@ -65,6 +71,7 @@ function TreeItem({ node, depth, expanded, selectedId, onToggle, onSelect }: Tre
               depth={depth + 1}
               expanded={expanded}
               selectedId={selectedId}
+              loadingIds={loadingIds}
               onToggle={onToggle}
               onSelect={onSelect}
             />
@@ -82,19 +89,23 @@ export function TreeView({
   onSelect,
   selectedId,
   defaultExpandedIds,
+  loadingIds,
+  onExpand,
   className,
 }: TreeViewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(defaultExpandedIds ?? []),
   );
 
-  const toggle = (id: string) => {
+  const toggle = (node: TreeNode) => {
+    const open = !expanded.has(node.id);
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(node.id)) next.delete(node.id);
+      else next.add(node.id);
       return next;
     });
+    onExpand?.(node, open);
   };
 
   return (
@@ -106,6 +117,7 @@ export function TreeView({
           depth={0}
           expanded={expanded}
           selectedId={selectedId}
+          loadingIds={loadingIds}
           onToggle={toggle}
           onSelect={onSelect}
         />

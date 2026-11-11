@@ -426,9 +426,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-11
 **Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-25, UI-30, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** feat/ui-30-entity-card (от master c638236)
-**Текущий этап:** UI-30 закрыт; дальше UI-31 (на той же карточке), Z-03, UI-17, Z-11; blocked — DX-29/MU-07/TK-02/T-02
-**Статус:** entity-панель Related work + graph?entity/deep links + Open in graph; e2e 1/1, регрессии 3/3, tsc/guards.
+**Текущая ветка:** fix/tree-lazy-login (от master d7f91a4)
+**Текущий этап:** hotfix после UI-25/UI-30; далее UI-31/Z-03/UI-17/Z-11; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** Knowledge tree rootsOnly + дети по parentId, TreeView onExpand/loading, cross-tab auth handoff; e2e 2/2 + 3 регрессии, unit 23/23.
+
+### Сессия S-20261109-night (hotfix — ленивое дерево и логин в новой вкладке)
+
+- `knowledge_list.rootsOnly` в file/sqlite/postgres; UI грузит корни и детей при раскрытии, `TreeView` onExpand/hasChildren/loadingIds.
+- `prepareCrossTabAuth`: одноразовый `mcp.auth.handoff` с TTL 60s; новая вкладка потребляет в sessionStorage.
+- e2e knowledge-tree 2/2 (ленивые запросы + логин в новой вкладке); api-client 23/23; регрессии 3/3.
+- Ограничения: все корни постранично, шеврон у листьев, TTL при заблокированном popup.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1900-tree-lazy-login-handoff.md`.
 
 ### Сессия S-20261109-night (UI-30 — карточка узла)
 

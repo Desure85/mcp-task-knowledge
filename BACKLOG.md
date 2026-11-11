@@ -2018,3 +2018,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > search_knowledge по 8), deep links `/graph?entity=` и `/knowledge?doc=`, кнопки Open in graph
 > из задачи/документа. e2e 1/1 + 3 регрессионных; мутация substring-fallback RED. Ограничения:
 > BM25-связи, по 8 результатов, только entity-узлы, неоднозначный title, текущий проект.
+>
+> Горячий фикс (2026-11-11, после UI-25/UI-30): `knowledge_list.rootsOnly` + ленивое дерево
+> (дети по `parentId` при раскрытии, `TreeView.onExpand`) и одноразовый cross-tab auth handoff для
+> редактора задачи в новой вкладке. e2e 2/2 + 3 регрессии; handoff/expired — unit 23/23.

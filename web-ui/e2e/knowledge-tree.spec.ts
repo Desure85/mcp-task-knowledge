@@ -57,6 +57,10 @@ test('UI-25: knowledge tree nests documents and shows the breadcrumb', async ({ 
     items: [{ id: child.id, parentId: parent.id }],
   });
 
+  const bodies: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/mcp')) bodies.push(request.postData() ?? '');
+  });
   await page.goto('/knowledge', { waitUntil: 'domcontentloaded' });
   await page.getByRole('group', { name: 'Knowledge view' }).getByRole('button', { name: 'Tree' }).click();
   await expect(page.getByRole('tree', { name: 'Knowledge document tree' })).toBeVisible();
@@ -68,4 +72,31 @@ test('UI-25: knowledge tree nests documents and shows the breadcrumb', async ({ 
   await expect(breadcrumb).toContainText(parentTitle);
 
   await tool('knowledge_bulk_trash', { project, ids: [child.id, parent.id] });
+});
+
+
+test('UI-30 hotfix: opening task editor in a new tab keeps the login', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const stamp = Date.now().toString(36);
+  const title = `UI-hotfix-newtab-${stamp}`;
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await page.locator('input[autocomplete="username"]').fill(USER);
+  await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+  await page.goto('/tasks', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'New task' }).click();
+  await page.getByPlaceholder('Task title…').fill(title);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('button', { name: title, exact: true })).toBeVisible();
+
+  const [editor] = await Promise.all([
+    context.waitForEvent('page'),
+    page.getByRole('button', { name: title, exact: true }).click(),
+  ]);
+  await editor.waitForLoadState('domcontentloaded');
+  await expect(editor).not.toHaveURL(/\/login/);
+  await expect(editor.getByRole('heading', { level: 1 })).toHaveText(title);
+  await context.close();
 });

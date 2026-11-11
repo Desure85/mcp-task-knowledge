@@ -3,6 +3,8 @@ export interface TreeNode {
   label: string;
   children?: TreeNode[];
   hint?: string;
+  /** Children may exist on the server but are not loaded yet. */
+  hasChildren?: boolean;
 }
 
 /** All ids in depth-first order (used by callers that need branch counts). */
