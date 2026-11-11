@@ -17,6 +17,7 @@ import { api, clearAuthToken, hasAuthToken, resolveToken } from '@/lib/api-clien
 import { AUTH_EXPIRED_EVENT, decodeJwtClaims, isAuthRequiredError, isExpired } from '@/lib/auth';
 import { MobileNav, Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { ThemeSync } from './ThemeSync';
 import { Button } from './ui';
 
 type GateState = 'checking' | 'ready' | 'error';
@@ -92,6 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-[var(--spacing-nav)]">
         <Topbar />
         <MobileNav />
+        {gate === 'ready' && <ThemeSync />}
         <main id="main-content" tabIndex={-1} className="px-4 py-6 outline-none sm:px-6 lg:px-8">
           <div className="mx-auto w-full max-w-[1400px]">
             {gate === 'ready' ? (

@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **155** — 153 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **157** — 155 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -92,6 +92,8 @@
 | `package_toggle_component` | Enable or disable one plugin component in plugin.json (disabledComponents); files are not deleted. |
 | `package_write_file` | Replace one text file in a skill package. Path traversal is rejected by the package helper. |
 | `packages_list` | List skill packages and plugin packages available to the package browser UI. |
+| `profile_get` | Read the current user’s server-side preferences (theme, custom themes) and updatedAt. |
+| `profile_set` | Write the current user’s preferences. Last write wins by updatedAt; an older write returns conflict  |
 | `project_agents_get` | Get the project agent-target registry. Built-ins universal, claude and opencode are always present. |
 | `project_agents_set` | Replace the project agent-target registry. A target still used by prompts cannot be removed without  |
 | `project_create` | Create a new project with optional description. Creates task and knowledge directories automatically |
@@ -2393,6 +2395,46 @@ List skill packages and plugin packages available to the package browser UI.
 {
   "name": "packages_list",
   "arguments": {}
+}
+```
+
+## profile_get
+
+**Get User Profile**
+
+Read the current user’s server-side preferences (theme, custom themes) and updatedAt.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "profile_get",
+  "arguments": {}
+}
+```
+
+## profile_set
+
+**Set User Profile**
+
+Write the current user’s preferences. Last write wins by updatedAt; an older write returns conflict with the current profile; identical timestamps are idempotent duplicates.
+
+**Параметры:**
+
+- `preferences`
+- `updatedAt`
+- `clientId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "profile_set",
+  "arguments": {
+    "preferences": "example",
+    "updatedAt": "example",
+    "clientId": "example"
+  }
 }
 ```
 

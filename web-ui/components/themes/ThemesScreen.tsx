@@ -167,6 +167,8 @@ export function ThemesScreen() {
       notify('error', 'Не удалось сохранить: хранилище браузера недоступно.');
       return false;
     }
+    // UI-33a: a custom-theme add/delete is a local change like a palette switch.
+    window.dispatchEvent(new CustomEvent('mcp:theme-change', { detail: { source: 'local' } }));
     return true;
   }
 
@@ -257,6 +259,7 @@ export function ThemesScreen() {
       setSelectedId(fallback ? fallback.id : null);
       setDraft(fallback ? draftFrom(fallback) : freshDraft(next.themes.length));
     }
+    window.dispatchEvent(new CustomEvent('mcp:theme-change', { detail: { source: 'local' } }));
     notify('ok', `Тема «${target.name}» удалена.`);
   }
 

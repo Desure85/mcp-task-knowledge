@@ -745,6 +745,17 @@ export interface DashboardStats {
   tags: { unique: number; top: Array<{ tag: string; count: number }> };
 }
 
+export interface UserProfileRecord {
+  userId: string;
+  preferences: unknown;
+  updatedAt: string;
+  clientId?: string;
+}
+
+/**
+ * Generic preference bag used by UI-33a theme sync. The value is opaque to the
+ * server; callers version their own payload and use `updatedAt` for LWW.
+ */
 export interface DashboardTrends {
   project: string;
   granularity: string;
@@ -871,6 +882,16 @@ export const api = {
       callTool<{ record: AdminToken; token: string }>('admin_token_create', args),
     tokenRevoke: (args: { userId: string; tokenId: string }) =>
       callTool<{ revoked: boolean }>('admin_token_revoke', args),
+  },
+
+  // UI-33a: server-side per-user preferences (theme sync)
+  profile: {
+    get: () => callTool<{ userId: string; profile: UserProfileRecord | null }>('profile_get', {}),
+    set: (preferences: unknown, updatedAt: string, clientId?: string) =>
+      callTool<{ userId: string; applied: boolean; duplicate: boolean; conflict: boolean; profile: UserProfileRecord | null }>(
+        'profile_set',
+        { preferences, updatedAt, ...(clientId ? { clientId } : {}) },
+      ),
   },
 
   // Tasks
