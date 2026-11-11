@@ -260,7 +260,9 @@ export function wrapToolHandler<TArgs = unknown>(
     // AUD-07: previously-dead security stack wired into dispatch. Runs only
     // when AppContainer attached a SecurityStack (SECURITY_STACK=1);
     // otherwise this is a no-op and behaviour matches the pre-AUD-07 path.
-    const secCall = { toolName, sessionId, input: args };
+    // TR-21: use the AuthManager's IP key so lockout is shared, not duplicated by sessionId.
+    const clientKey = sessionId && auth?.getClientKey ? auth.getClientKey(sessionId) : undefined;
+    const secCall = { toolName, sessionId, clientKey, input: args };
     let effectiveArgs: TArgs = args;
     if (security?.active) {
       const sec = security.check(secCall);

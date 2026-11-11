@@ -72,6 +72,8 @@ export interface SecurityStackOptions {
 export interface SecurityStackCall {
   toolName: string;
   sessionId?: string;
+  /** TR-21: IP-keyed identifier; falls back to sessionId when absent. */
+  clientKey?: string;
   /** Raw tool input (args). */
   input?: unknown;
 }
@@ -169,10 +171,12 @@ export class SecurityStack {
    */
   check(call: SecurityStackCall): SecurityDecision {
     const id = call.sessionId ?? 'anonymous';
+    // TR-21: AuthProtection uses the IP key; rate-limit/ACL/audit stay per-session.
+    const authKey = call.clientKey ?? id;
 
     // 1. AuthProtection — lockout/ban gate.
     if (this.opts.authProtection) {
-      const res = this.opts.authProtection.check(id);
+      const res = this.opts.authProtection.check(authKey);
       if (!res.allowed) {
         return {
           allowed: false,
@@ -411,7 +415,7 @@ export class SecurityStack {
    */
   recordAuthOutcome(call: SecurityStackCall, succeeded: boolean): void {
     if (!this.opts.authProtection || call.toolName !== 'mcp.authenticate') return;
-    const id = call.sessionId ?? 'anonymous';
+    const id = call.clientKey ?? call.sessionId ?? 'anonymous';
     if (succeeded) {
       this.opts.authProtection.recordSuccess(id);
     } else {
