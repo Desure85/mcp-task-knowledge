@@ -126,6 +126,9 @@ describe('buildSetupMarkdown', () => {
     expect(md).toContain('TOK');
     expect(md).toContain('demo');
     expect(md).toContain('mcp.authenticate');
+    expect(md).toContain('## Bundle (AA-07)');
+    expect(md).toContain('install-agent --client opencode --dry-run');
+    expect(md).toContain('does not install anything by itself');
   });
 
   it('stdio doc contains npx snippet and env, no token', () => {

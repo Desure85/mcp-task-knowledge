@@ -16,6 +16,11 @@ export const GRAPH_HEIGHT = 620;
 export const GRAPH_PADDING = 36;
 export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 3;
+
+/** On-screen 44px target expressed in SVG user units. */
+export function graphHitSize(svgScale: number, zoom: number): number {
+  return 44 / Math.max(0.05, svgScale * zoom);
+}
 export const GRAPH_CENTRE = { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 };
 
 const LABEL_FONT_SIZE = 13;
@@ -86,11 +91,30 @@ export function GraphCanvas({
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [svgScale, setSvgScale] = useState(1);
   const dragRef = useRef<{
     pointerId: number;
     lastX: number;
     lastY: number;
   } | null>(null);
+
+  // The SVG has a fixed viewBox, so a 44-user-unit rect would render smaller
+  // than 44 CSS px on phones. Track the viewBox -> CSS scale and size the
+  // invisible hit rect in user units so its on-screen box is 44 px.
+  useEffect(() => {
+    const element = svgRef.current;
+    if (!element) return;
+    const update = () => {
+      const width = element.getBoundingClientRect().width;
+      if (width > 0) setSvgScale(width / GRAPH_WIDTH);
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const hitSize = graphHitSize(svgScale, zoom);
 
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
 
@@ -377,10 +401,10 @@ export function GraphCanvas({
                 {/* UI-20: 44px touch target on mobile without enlarging the visible node. */}
                 <rect
                   className="graph-hit"
-                  x={node.x - 22}
-                  y={node.y - 22}
-                  width={44}
-                  height={44}
+                  x={node.x - hitSize / 2}
+                  y={node.y - hitSize / 2}
+                  width={hitSize}
+                  height={hitSize}
                   fill="transparent"
                   pointerEvents="all"
                   aria-hidden="true"

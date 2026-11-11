@@ -104,12 +104,21 @@ async function maybeRunSetup(): Promise<void> {
   }
 }
 
+async function maybeRunInstallAgent(): Promise<void> {
+  if (process.argv[2] !== 'install-agent') return;
+  // AA-07: the installer must run before DATA_DIR is configured and never shells out.
+  const { runInstallAgentCli } = await import('./cli/install-agent.js');
+  await runInstallAgentCli(process.argv.slice(3));
+}
+
 if (process.argv[2] === 'doctor') {
   void maybeRunCli();
 } else if (process.argv[2] === 'reindex') {
   void maybeRunReindex();
 } else if (process.argv[2] === 'setup') {
   void maybeRunSetup();
+} else if (process.argv[2] === 'install-agent') {
+  void maybeRunInstallAgent();
 } else if (process.argv[2] === 'bridge') {
   void runBridge();
 } else {

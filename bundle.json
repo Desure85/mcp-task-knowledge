@@ -1,0 +1,173 @@
+{
+  "schema": 1,
+  "name": "mcp-task-knowledge",
+  "version": "1.0.20",
+  "generatedBy": "scripts/gen-bundle.mjs",
+  "server": {
+    "package": "mcp-task-knowledge",
+    "version": "1.0.20",
+    "command": [
+      "npx",
+      "-y",
+      "mcp-task-knowledge@1.0.20"
+    ],
+    "sha256": "5f59a8204705c71767582ba359c871ea1d7e480c777b6a97ba831ed9baf41ec0"
+  },
+  "components": [
+    {
+      "id": "opencode-memory-context-v2",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-context-v2.ts",
+      "sha256": "a69c38f7126b45226d791959fc0d7099adcbee7f61ac69e3779fb869a617565c",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-context-v2.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-memory-context",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-context.ts",
+      "sha256": "9421ae69ff04a1ef85b5213b827cbf1d1e635e274189f1738bf78e39ecbca6c4",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-context.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-memory-dream",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-dream.ts",
+      "sha256": "1171b6817321a313ffee7730d3ba6100cf756dcacab2946ca6a6d1c6fb07b333",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-dream.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-memory-extract",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-extract.ts",
+      "sha256": "54c1c413cd184dfc95f6c5c0609123aa9185fc2becf37902880f6842d8ed355c",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-extract.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-memory-profile",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-profile.ts",
+      "sha256": "3c8467572b6ba9654917d911498943264f523f63c64732fb71b0ce726771d29c",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-profile.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-memory-recall",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-recall.ts",
+      "sha256": "3778a6ed2382587c735ad8656462f3bae94e2fb249209ecd6c7a2bcc601b3e17",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-recall.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-memory-sync",
+      "category": "sync",
+      "version": "1.0.20",
+      "source": "extensions/opencode/memory-sync.ts",
+      "sha256": "4a5a61f9022126cf0d5b92a8726d7687cd3d5cd45d877e77547f06dc643e074d",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/memory-sync.ts"
+        }
+      }
+    },
+    {
+      "id": "opencode-session-draft",
+      "category": "plugin",
+      "version": "1.0.20",
+      "source": "extensions/opencode/session-draft.ts",
+      "sha256": "c69fab1b89a631ab6aa1029d54b329f6eb8d70b030c11eb6a8bcef22222eb389",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "plugins/session-draft.ts"
+        }
+      }
+    },
+    {
+      "id": "consolidation-command",
+      "category": "consolidation",
+      "version": "1.0.20",
+      "source": "extensions/opencode/commands/end-session.md",
+      "sha256": "33745ce421abe17e7e718b72c7fb23aba54b37d0d710b5e565011c583895bff6",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "command/end-session.md"
+        },
+        "claude-code": {
+          "root": "claude",
+          "path": "commands/end-session.md"
+        }
+      }
+    },
+    {
+      "id": "draft-collector",
+      "category": "script",
+      "version": "1.0.20",
+      "source": "extensions/opencode/scripts/collect-subagent-drafts.sh",
+      "sha256": "da2028931f9a5a10b8d77efb93a035029d675dec2db308385f018e2740c624b0",
+      "targets": {
+        "opencode": {
+          "root": "opencode",
+          "path": "scripts/collect-subagent-drafts.sh"
+        },
+        "claude-code": {
+          "root": "claude",
+          "path": "scripts/collect-subagent-drafts.sh"
+        }
+      }
+    },
+    {
+      "id": "proxy-shim",
+      "category": "shim",
+      "version": "1.0.20",
+      "source": "dist/proxy/shim.js",
+      "sha256": "5e5e6b469b875e9dbff67b9ee0bea630724e97cff489b1a6280af37457c713ec",
+      "targets": {
+        "opencode": {
+          "root": "share",
+          "path": "proxy/shim.js"
+        },
+        "claude-code": {
+          "root": "share",
+          "path": "proxy/shim.js"
+        }
+      }
+    }
+  ]
+}

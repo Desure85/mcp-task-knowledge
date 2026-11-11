@@ -61,6 +61,10 @@ See [Integration Guides](getting-started/integrations.md) for:
 - VS Code
 - OpenCode
 
+Agent plugins, commands and scripts can be installed from the signed bundle with
+`npx -y mcp-task-knowledge install-agent --client <opencode|claude-code>`; see
+[Install agent bundle](deployment/install-agent.md) for dry-run, backup and rollback.
+
 ## First Steps
 
 1. **Create a project**: `project_set_current` with your project name
