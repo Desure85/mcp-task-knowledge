@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-04f dashboard date-range coverage: `tests/dashboard.test.ts` now registers the real `dashboard_stats` handler and asserts `since` includes current tasks/docs while `until:'2000-01-01'` returns zero; mutation `filterByDateRange → []` (K11) goes RED. 10/10. Limits: file profile only, timezone boundaries not exercised, `dashboard_activity` has no date filter
+
 - SPEC-09 protocol-version conformance e2e: `tests/protocol-version-e2e.test.ts` spawns the real `dist/index.js` and sends raw stdio `initialize`, asserting `result.protocolVersion` for a supported version, `LATEST_PROTOCOL_VERSION`, and an unknown version (must negotiate to latest), plus `serverInfo.name`. Assertion mutation goes RED. Limits: requires fresh dist, stdio only (HTTP initialize untested), no `initialized` notification needed for negotiation
 
 - TR-31 real OAuth health probes: `gdrive`, `gmail`, `notion`, `onedrive` and `linear` no longer report `healthy:true` just because a token string exists. `probeConnector` performs the cheapest authenticated read (Drive `/about`, Gmail `/users/me/profile`, Notion `/users/me`, Graph `/me/drive`, Linear GraphQL `{ viewer { id } }`) with the TR-33 timeout; 401/network failures are unhealthy and never throw. Tests cover URLs/headers, revoked token, network failure and apiKey-only GDrive; mutation disabling `res.ok` goes RED. Limits: probe on every health call (no cache), refresh-token flow not exercised, error body truncated
