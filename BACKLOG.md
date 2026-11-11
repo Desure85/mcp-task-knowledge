@@ -532,7 +532,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | INT-003 | Slack/Discord connector: уведомления, поиск, отправка сообщений из AI-агента | medium | completed | #165 | INT-004 |
 | INT-005 | REST wrappers: генерация REST endpoints для MCP tools. Auto-generated OpenAPI spec. Поддержка GET/POST для tool invocation | low | completed | #170 | P-002 |
 | INT-006 | gRPC wrappers: генерация gRPC service definitions для MCP tools. Protobuf schema. Streaming support | low | completed | #171 | P-002 |
-| INT-007 | YouTrack-коннектор (чтение) | medium | pending | INT-004 | Отдельный `src/connectors/youtrack.ts`: REST `/api/issues`, `/api/admin/projects`, язык запросов YouTrack передаётся как есть, поля (`State`, `Priority`, `Assignee`, `Type`), комментарии; токен через SecretManager (TR-26); `health()` — реальный GET `/api/users/me`. Инструменты `youtrack_issue_list/get`, `youtrack_project_list`. Тесты на записанных ответах API |
+| INT-007 | YouTrack-коннектор (чтение) | medium | done | INT-004 | Отдельный `src/connectors/youtrack.ts`: REST `/api/issues`, `/api/admin/projects`, язык запросов YouTrack передаётся как есть, поля (`State`, `Priority`, `Assignee`, `Type`), комментарии; токен через SecretManager (TR-26); `health()` — реальный GET `/api/users/me`. Инструменты `youtrack_issue_list/get`, `youtrack_project_list`. Тесты на записанных ответах API |
 | INT-008 | Двусторонняя синхронизация задач с внешним трекером | medium | pending | INT-007, MU-02 | Маппинг полей и состояний (конфиг), идемпотентные `*_sync` в обе стороны, внешний id в задаче, правила конфликтов поверх оптимистичной блокировки по версии (MU-02): побеждает более свежая правка по полю, конфликт по одному полю → `CONFLICT`. Сначала один трекер (YouTrack), затем Jira/Linear на том же каркасе. Тест: циклическая синхронизация не плодит дубли и не зацикливается |
 
 ---
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **58** | **7** | **340** | **22** | **1** |
+| **Итого** | **428** | **57** | **7** | **341** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2087,3 +2087,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, TR-04d закрыт): temporal query/history/invalidate проверяют данные;
 > K9 RED, 3/3. Подпункт TR-04d в «Итого» не входит.
+>
+> Примечание (2026-11-11, INT-007 закрыт): YouTrack REST read-only, 3 инструмента, custom fields/comments;
+> 5/5, мутация RED.
