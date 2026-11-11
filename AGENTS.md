@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** test/tr-04d-memory-lifecycle-data (от master cc0d3aa)
-**Текущий этап:** TR-04d закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** memory temporal e2e проверяет data; K9 RED, 3/3.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, INT-007, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/int-007-youtrack-connector (от master e5484c8)
+**Текущий этап:** INT-007 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** YouTrack REST read-only, 3 tools; 5/5, мутация RED.
+
+### Сессия S-20261109-night (INT-007 — YouTrack connector)
+
+- `src/connectors/youtrack.ts`: list/get/projects, query pass-through, custom fields/comments, real health.
+- Регистрация `YOUTRACK_CONNECTOR_ENABLED=1`; docs connectors.
+- `tests/youtrack-connector.test.ts` 5/5; связанные 23/23; мутация State RED.
+- Ограничения: read-only, $top без пагинации, live YouTrack нет.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1644-int-007.md`.
 
 ### Сессия S-20261109-night (TR-04d — memory data assertions)
 

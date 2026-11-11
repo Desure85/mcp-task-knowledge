@@ -22,6 +22,8 @@ export { createNotionConnector } from './notion.js';
 export { createOneDriveConnector } from './onedrive.js';
 export { createLinearConnector } from './linear.js';
 export { createWebCrawlerConnector } from './web-crawler.js';
+export { createYouTrackConnector } from './youtrack.js';
+export type { YouTrackConfig } from './youtrack.js';
 
 // ─── REST/gRPC wrappers ─────────────────────────────────────────────
 export { generateOpenApiSpec, handleRestRequest } from './rest-wrappers.js';
@@ -40,6 +42,7 @@ import { createNotionConnector } from './notion.js';
 import { createOneDriveConnector } from './onedrive.js';
 import { createLinearConnector } from './linear.js';
 import { createWebCrawlerConnector } from './web-crawler.js';
+import { createYouTrackConnector } from './youtrack.js';
 
 /**
  * All built-in connector registrations.
