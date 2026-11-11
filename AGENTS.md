@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** fix/tr-04h-validate-schemas (от master bcf8b0d)
-**Текущий этап:** TR-04h закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** реальный validate-schemas в тесте; 15/15, мутация N1 RED.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-29, CM-01, AA-01, AA-05, Z-01, Z-02, Z-03, Z-04, Z-10, Z-11, Z-12, CM-03a, T-01, T-02, TR-04d, TR-04f, TR-04h, TR-20, TR-31, TR-33, TR-34, TR-37, TR-38, SPEC-09, U-03, U-05, UI-11, UI-12, UI-15, UI-16, UI-17, UI-25, UI-30, UI-31, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** test/tr-04d-memory-lifecycle-data (от master cc0d3aa)
+**Текущий этап:** TR-04d закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
+**Статус:** memory temporal e2e проверяет data; K9 RED, 3/3.
+
+### Сессия S-20261109-night (TR-04d — memory data assertions)
+
+- `tests/e2e-full/memory-lifecycle.test.ts`: statement/count/history/current-slice после invalidate.
+- Мутация K9 `facts: []` RED; восстановление 3/3.
+- Ограничения: 4 из ~30 вызовов, facts list shape-only, Node 22 → fallback.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1628-tr-04d.md`.
 
 ### Сессия S-20261109-night (TR-04h — validate-schemas)
 

@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-04d memory-lifecycle e2e asserts data, not just `ok`: temporal query must return the added fact with its statement, history must be non-empty, and the current-slice query after `invalidate` must not contain the fact. Mutation K9 (`memory_temporal_query → facts: []`) now goes RED; 3/3. Limits: four assertions out of ~30 calls, facts list stays shape-only (extraction project), local Node 22 hit a better-sqlite module mismatch and fell back to file scans
+
 - TR-04h validate-schemas is now exercised, not mirrored: `scripts/validate-schemas.mjs` had `let _obj` followed by `obj = JSON.parse`, so every valid feedback JSONL row was misreported as invalid (rc 2). The variable is declared, and `tests/schema-validation.test.ts` spawns the real script twice against a temp DATA_DIR: a valid row passes (rc 0), an invalid `ts` fails (rc 2, "Validation failed"). Mutation restoring `_obj` goes RED; 15/15. Limits: feedback branch is the one exercised, legacy/mcp paths and other sections are not
 
 - TR-04f dashboard date-range coverage: `tests/dashboard.test.ts` now registers the real `dashboard_stats` handler and asserts `since` includes current tasks/docs while `until:'2000-01-01'` returns zero; mutation `filterByDateRange → []` (K11) goes RED. 10/10. Limits: file profile only, timezone boundaries not exercised, `dashboard_activity` has no date filter

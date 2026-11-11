@@ -31,6 +31,7 @@ describe('Q-014 slice 15: memory stack lifecycle', () => {
       // 2. facts are listable + searchable
       const list = await srv.callTool('memory_facts_list', {});
       expect(list.env.ok).toBe(true);
+      expect(Array.isArray(list.env.data.facts)).toBe(true);
       const search = await srv.callTool('memory_facts_search', { query: 'TypeScript' });
       expect(search.env.ok).toBe(true);
 
@@ -69,9 +70,13 @@ describe('Q-014 slice 15: memory stack lifecycle', () => {
 
       const q = await srv.callTool('memory_temporal_query', { atTime: '2026-09-02T00:00:00.000Z' });
       expect(q.env.ok).toBe(true);
+      expect(q.env.data.count).toBeGreaterThan(0);
+      const validFact = q.env.data.facts.find((f: { id: string }) => f.id === factId);
+      expect(validFact?.statement).toContain('Fridays');
 
       const hist = await srv.callTool('memory_temporal_history', { factId });
       expect(hist.env.ok).toBe(true);
+      expect(hist.env.data.history.length).toBeGreaterThan(0);
 
       const st = await srv.callTool('memory_temporal_stats', {});
       expect(st.env.ok).toBe(true);
@@ -79,8 +84,9 @@ describe('Q-014 slice 15: memory stack lifecycle', () => {
       const inv = await srv.callTool('memory_temporal_invalidate', { factId, reason: 'superseded by new policy' });
       expect(inv.env.ok).toBe(true);
 
-      const q2 = await srv.callTool('memory_temporal_query', { atTime: '2026-09-03T00:00:00.000Z' });
+      const q2 = await srv.callTool('memory_temporal_query', {});
       expect(q2.env.ok).toBe(true);
+      expect(q2.env.data.facts.some((f: { id: string }) => f.id === factId)).toBe(false);
     } finally {
       await srv.close();
     }
