@@ -102,16 +102,24 @@ describe('bm25Search — parameters', () => {
     expect(results.length).toBeLessThanOrEqual(3);
   });
 
-  it('respects custom k1 parameter', () => {
+  it('respects custom k1 parameter and default k1 changes ranking', () => {
     const corpus = [
       { id: '1', text: 'test test test test test', item: { id: '1' } },
       { id: '2', text: 'test', item: { id: '2' } },
     ];
     const resultsLow = bm25Search(corpus, 'test', { k1: 0.1 });
     const resultsHigh = bm25Search(corpus, 'test', { k1: 5.0 });
-    // Both should find results, but relative scores differ
-    expect(resultsLow.length).toBe(2);
-    expect(resultsHigh.length).toBe(2);
+    expect(resultsLow).toHaveLength(2);
+    expect(resultsHigh).toHaveLength(2);
+    expect(resultsLow[0].score).toBeCloseTo(0.195, 2);
+    expect(resultsHigh[0].score).toBeCloseTo(0.438, 2);
+    expect(resultsHigh[0].score).toBeGreaterThan(resultsLow[0].score);
+
+    // Default k1=1.5 produces a clearly different score from k1=0.1 (K13).
+    const defaults = bm25Search(corpus, 'test');
+    expect(defaults[0].id).toBe('1');
+    expect(defaults[0].score).toBeCloseTo(0.314, 2);
+    expect(defaults[0].score).not.toBeCloseTo(resultsLow[0].score, 2);
   });
 
   it('respects custom b parameter (length normalization)', () => {
@@ -119,12 +127,15 @@ describe('bm25Search — parameters', () => {
       { id: '1', text: 'test '.repeat(100), item: { id: '1' } }, // very long doc
       { id: '2', text: 'test short document', item: { id: '2' } }, // short doc
     ];
-    const resultsNoNorm = bm25Search(corpus, 'test', { b: 0 }); // no length norm
-    const resultsFullNorm = bm25Search(corpus, 'test', { b: 1 }); // full norm
-    // Both should find at least the short doc (high term frequency ratio)
+    const resultsNoNorm = bm25Search(corpus, 'test', { b: 0, limit: 10 }); // no length norm
+    const resultsFullNorm = bm25Search(corpus, 'test', { b: 1, limit: 10 }); // full norm
     expect(resultsFullNorm.length).toBeGreaterThanOrEqual(1);
-    // With b=0, long doc is less penalized
     expect(resultsNoNorm.length).toBeGreaterThanOrEqual(1);
+    const longNoNorm = resultsNoNorm.find((r) => r.id === '1')!;
+    const longFullNorm = resultsFullNorm.find((r) => r.id === '1')!;
+    expect(longFullNorm.score).toBeLessThan(longNoNorm.score);
+    expect(longNoNorm.score).toBeCloseTo(0.449, 2);
+    expect(longFullNorm.score).toBeCloseTo(0.443, 2);
   });
 
   it('default limit is 20', () => {

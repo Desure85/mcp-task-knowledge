@@ -305,3 +305,18 @@
 - Полный прогон дважды. Первый: 4 падения по таймауту под нагрузкой (cold-start 2100 мс при пороге 2000, три e2e — 5000 мс),
   все четыре файла по отдельности зелёные. Второй: 272 файла, 3128 тестов, GREEN (`npm test`, 40.7 с). Считать флаки
   под нагрузкой, а не регрессом.
+
+## Часть 7. Закрытие TR-04e (2026-11-11)
+
+Пять мутаций DoD перепроверены после усиления тестов; все красные, после восстановления 150/150.
+Production-код не менялся.
+
+| # | Тест | Мутация | Было | Стало |
+|---|---|---|---|---|
+| K10b | `tests/app-container.test.ts` | warn → `throw err` в transport catch | GREEN | **RED** (1/45) |
+| K12 | `tests/jwt-validator.test.ts` | `jwksCacheTtl` 300000 → 0 | GREEN | **RED** (1/75) |
+| K13 | `tests/bm25.unit.test.ts` | default `k1` 1.5 → 0.1 | GREEN | **RED** (2/23) |
+| K14 | `tests/ab.bandits.test.ts` | исследование `Math.random() < eps` отключено | GREEN | **RED** (1/4) |
+| K16 | `tests/embeddings.cache.test.ts` | вытесняется новый вместо LRU | GREEN | **RED** (1/3) |
+
+Детали и ограничения: `docs/dev-cycle/decisions/2026-11-11-1927-tr-04e.md`.

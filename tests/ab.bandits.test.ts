@@ -1,8 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { pickWithEpsilonGreedy } from '../src/ab-testing/bandits.js';
 
 describe('epsilon-greedy bandit', () => {
+  it('explores when epsilon > 0 and uses the random draw to pick a variant', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0.05).mockReturnValueOnce(0.9);
+    try {
+      const v = pickWithEpsilonGreedy(['A', 'B', 'C'], {} as any, { epsilon: 0.1 });
+      expect(v).toBe('C');
+      expect(random).toHaveBeenCalledTimes(2);
+    } finally {
+      random.mockRestore();
+    }
+  });
   it('falls back to random among given variants when no stats', () => {
     const variants = ['A', 'B', 'C'];
     const stats = {} as any;
