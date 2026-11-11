@@ -1,9 +1,9 @@
 /**
  * core/streaming.ts — Streaming progress notifications for long-running tools (AI-013)
  *
- * Provides a helper that tool handlers can use to send progress updates
- * to the client while executing. Works with the MCP SDK's
- * StreamableHTTPServerTransport (SSE) and falls back to no-op on stdio.
+ * SPEC-07: MCP only allows `notifications/progress` when the client supplied a
+ * `progressToken` in the request `_meta`. Without a token the notification is
+ * meaningless (the client cannot correlate it) and the spec forbids it.
  */
 
 import type { ServerContext } from '../register/context.js';
@@ -17,27 +17,53 @@ export interface ProgressUpdate {
   message?: string;
 }
 
+export type ProgressToken = string | number;
+
+/**
+ * Extract `_meta.progressToken` from an MCP request-handler `extra` object.
+ * Returns undefined when the client did not request progress.
+ */
+export function progressTokenFromExtra(extra: unknown): ProgressToken | undefined {
+  if (!extra || typeof extra !== 'object') return undefined;
+  const meta = (extra as { _meta?: unknown })._meta;
+  if (!meta || typeof meta !== 'object') return undefined;
+  const token = (meta as { progressToken?: unknown }).progressToken;
+  return typeof token === 'string' || typeof token === 'number' ? token : undefined;
+}
+
 /**
  * Create a progress sender bound to the current request context.
- * Each call sends a `notifications/progress` message to the client.
+ * Each call sends a `notifications/progress` message to the client **only**
+ * when a `progressToken` was supplied by the client.
  *
  * Usage in a tool handler:
- *   const progress = createProgressSender(ctx);
+ *   const progress = createProgressSender(ctx, progressTokenFromExtra(extra));
  *   for (let i = 0; i < items.length; i++) {
  *     await progress({ current: i + 1, total: items.length, message: `Processing ${i + 1}` });
  *     await processItem(items[i]);
  *   }
  */
-export function createProgressSender(ctx: ServerContext): (update: ProgressUpdate) => Promise<void> {
+export function createProgressSender(
+  ctx: ServerContext,
+  progressToken?: ProgressToken,
+): (update: ProgressUpdate) => Promise<void> {
   const server = ctx.server;
+  if (progressToken === undefined) {
+    return async () => {};
+  }
+
+  if (progressToken === undefined) {
+    return async () => {};
+  }
 
   return async (update: ProgressUpdate) => {
     try {
       // MCP SDK: server.sendNotification sends to the active transport
-      // The SDK handles SSE framing automatically on HTTP transport
+      // The SDK handles SSE framing automatically on HTTP transport.
       await (server as unknown as {
         sendNotification?: (method: string, params: unknown) => Promise<void>;
       }).sendNotification?.('notifications/progress', {
+        progressToken,
         progress: update.current,
         total: update.total,
         message: update.message ?? '',
