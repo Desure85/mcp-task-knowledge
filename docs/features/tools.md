@@ -187,6 +187,11 @@ See [Agent Memory](agent-memory.md) for full reference.
 | Tool | Description |
 |------|-------------|
 | `prompts_list` | List prompts |
+| `packages_list` | List skill packages and plugin packages for the package browser |
+| `package_get` | Read a package file tree and text content (files >256 KiB return null) |
+| `package_create` | Create a skill package or plugin package from relative files |
+| `package_write_file` | Replace one text file in a skill package |
+| `package_toggle_component` | Enable/disable a plugin component in plugin.json without deleting files |
 | `prompts_get` | Read one full prompt version (template/compose + metadata + version list) |
 | `prompts_search` | Search prompts |
 | `prompts_bulk_create` | Create multiple prompts |

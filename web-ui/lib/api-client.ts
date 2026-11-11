@@ -1073,6 +1073,15 @@ export const api = {
     abReport: (project?: string) => callTool<unknown>('prompts_ab_report', { project }),
   },
 
+  packages: {
+    list: () => callTool<{ skills: Array<{ kind: 'skill'; name: string; fileCount: number; totalBytes: number }>; plugins: Array<{ kind: 'plugin'; name: string; version: string; fileCount: number; totalBytes: number; componentCount: number }> }>('packages_list', {}),
+    get: (kind: 'skill' | 'plugin', name: string) => callTool<any>('package_get', { kind, name }),
+    create: (args: { kind: 'skill' | 'plugin'; name: string; files: Array<{ path: string; content: string }>; version?: string; description?: string }) =>
+      callTool<any>('package_create', args),
+    writeFile: (name: string, path: string, content: string) => callTool<{ saved: boolean; error?: { message?: string } }>('package_write_file', { name, path, content }),
+    toggleComponent: (name: string, component: string, enabled: boolean) => callTool<any>('package_toggle_component', { name, component, enabled }),
+  },
+
   // System / ops surface (PH-015)
   system: {
     sessionList: () => callTool<SessionListData>('session_list', {}),
