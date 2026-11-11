@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/cn';
 import { IconChevronRight } from '@/components/icons';
-import { treeIds, type TreeNode } from '@/lib/tree';
+import type { TreeNode } from '@/lib/tree';
 
 export interface TreeViewProps {
   nodes: TreeNode[];
@@ -84,9 +84,8 @@ export function TreeView({
   defaultExpandedIds,
   className,
 }: TreeViewProps) {
-  const allIds = useMemo(() => treeIds(nodes), [nodes]);
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(defaultExpandedIds ?? allIds.slice(0, 1)),
+    () => new Set(defaultExpandedIds ?? []),
   );
 
   const toggle = (id: string) => {
