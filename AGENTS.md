@@ -425,10 +425,18 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-11
-**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
-**Текущая ветка:** fix/related-task-preview (от master fcff25c)
-**Текущий этап:** связанные задачи в превью; после мержа — UI-17/Z-11/Z-03 (ждут UI-25), AA-04
-**Статус:** quick view переключает связанные задачи внутри Dialog без навигации; Edit — полная страница в новой вкладке.
+**Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-16, CM-01, AA-01, AA-05, Z-01, Z-02, Z-04, Z-10, Z-12, CM-03a, T-01, UI-11, UI-12, UI-15, UI-16, UI-25, UI-36, UI-37, UI-38, UI-39, SC-04 закрыты; UX-hotfix)
+**Текущая ветка:** feat/ui-25-tree (от master b9bc08a)
+**Текущий этап:** UI-25 закрыт; дальше UI-30/Z-03 (разблокированы деревом), UI-17, Z-11, AA-04; blocked — DX-29/MU-07/TK-02/T-02
+**Статус:** TreeView + дерево задач (раскрытие/прогресс/Add subtask/Parent) + Knowledge Tree/breadcrumbs/parent select; 3 unit + 2 e2e, мутация RED.
+
+### Сессия S-20261109-night (UI-25 — деревья)
+
+- `components/ui/TreeView.tsx`, `lib/tree.ts`: role tree/group, aria-expanded, вложенные группы; тест 3/3.
+- Tasks list: `tasks_get_children` по раскрытию, прогресс done/total, Add subtask, Parent select в создании.
+- Knowledge: List/Tree через `knowledge_tree`, parent select/bulkUpdate, breadcrumbs, путь на карточках.
+- e2e task-tree 1/1, knowledge-tree 1/1; мутация aria-expanded RED. Ограничения: page-limited дети, parent options loaded, tree читает все доки.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-11-1700-ui-25.md`.
 
 ### Сессия S-20261109-night (related tasks in preview)
 
