@@ -1305,7 +1305,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Z-02 | Плагин-контейнер и импорт-экспорт без потерь | high | done | Z-01 | Состав плагина: skills, commands, agents, hooks, `.mcp.json`; манифест. Исправить AI-011/AI-012: сохранять и экспортировать все компоненты и вложения, а не один `SKILL.md`. DoD: `npm test -- tests/plugin-container.test.ts`; roundtrip папки плагина без потери файлов. |
 | Z-03 | UI: дерево файлов скилла и страница плагина | high | done | Z-01, Z-02, UI-25, UI-10 | Дерево файлов скилла на общем TreeView из UI-25, просмотр и редактирование каждого файла; страница плагина с составом и включением/выключением компонентов. DoD: `npm --prefix web-ui run test`; Playwright: открыть пакет, файл и переключить компонент. |
 | Z-04 | Безопасность пакетов | high | done | Z-02 | trustLevel external на все файлы пакета; скрипты, hooks и `.mcp.json` показываются явно и по умолчанию отключены; сеть только по запросу; лицензия и предупреждение при её отсутствии. DoD: `npm test -- tests/plugin-security.test.ts`; импорт с hook не включает его без явного разрешения. |
-| Z-05 | Источники промптов и скиллов | medium | pending | Z-02, Z-04, INT-004 | Интерфейс PromptSource и первые два источника: локальный маркетплейс Claude Code и GitHub-репозиторий по ссылке; поиск, preview, import. DoD: `npm test -- tests/prompt-sources.test.ts`; импорт из временного локального маркетплейса и GitHub-фикстуры. |
+| Z-05 | Источники промптов и скиллов | medium | done | Z-02, Z-04, INT-004 | Интерфейс PromptSource и первые два источника: локальный маркетплейс Claude Code и GitHub-репозиторий по ссылке; поиск, preview, import. DoD: `npm test -- tests/prompt-sources.test.ts`; импорт из временного локального маркетплейса и GitHub-фикстуры. |
 | Z-06 | Происхождение, снимок базы и обновление по diff | medium | pending | Z-05 | Хранить источник, ссылку, версию или коммит, лицензию, дату, хэш содержимого и снимок базы; статус «изменён нами»; обновление с diff, новой версией, откатом; при отсутствии правок — обновление по кнопке. DoD: `npm test -- tests/prompt-provenance.test.ts`; изменённый пакет не перезаписывается. |
 | Z-07 | Слияние: prepare/apply, проверки и черновик | medium | pending | Z-06, MU-02, Z-09 | Авто-3-way по файлам через SYNC-003; `prompts_merge_prepare` и `prompts_merge_apply` с проверкой переменных, формата, новых `!command` и allowed-tools, expectedVersion; результат — черновик с подтверждением человеком; UI «Copy merge prompt» и MCP-подсказка. DoD: `npm test -- tests/prompt-merge.test.ts`; конфликтный пакет требует подтверждения, оптимистичная версия проверяется. |
 | Z-08 | Дальнейшие источники | low | pending | Z-05 | awesome-списки и реестр MCP; Hugging Face и LangChain Hub — только после проверки API и лицензий. DoD: источник подключается через PromptSource без изменения ядра; отчёт о лицензии. |
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **50** | **7** | **348** | **22** | **1** |
+| **Итого** | **428** | **49** | **7** | **349** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2111,3 +2111,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, SC-05 закрыт): cap 300/LOD/кластеры/окрестность; 5000 узлов — 207 ms Long Tasks,
 > timedOut=false; скриншоты 200/1000.
+>
+> Примечание (2026-11-11, Z-05 закрыт): PromptSource + local marketplace + GitHub; 6/6, мутация PATH_ESCAPE.
