@@ -180,6 +180,41 @@ export default function TaskPage() {
     [dagEdges, id, taskTitleById],
   );
 
+  const influence = useMemo(() => {
+    const byId = new Map(allTasks.map((item) => [item.id, item]));
+    const reverse = new Map<string, string[]>();
+    const forward = new Map<string, string[]>();
+    for (const edge of dagEdges) {
+      const dependents = reverse.get(edge.to) ?? [];
+      dependents.push(edge.from);
+      reverse.set(edge.to, dependents);
+      const blockers = forward.get(edge.from) ?? [];
+      blockers.push(edge.to);
+      forward.set(edge.from, blockers);
+    }
+    const walk = (start: string, edges: Map<string, string[]>) => {
+      const seen = new Set<string>();
+      const queue = [...(edges.get(start) ?? [])];
+      while (queue.length > 0) {
+        const nextId = queue.shift() as string;
+        if (seen.has(nextId) || nextId === id) continue;
+        seen.add(nextId);
+        queue.push(...(edges.get(nextId) ?? []));
+      }
+      return [...seen].map((value) => ({ id: value, title: byId.get(value)?.title ?? value }));
+    };
+    const upstream = walk(id, forward);
+    const downstream = walk(id, reverse);
+    return {
+      blockers: upstream.length > 0
+        ? upstream
+        : (deps?.dependsOn ?? []).map((item) => ({ id: item.id, title: item.title })),
+      impacted: downstream.length > 0
+        ? downstream
+        : (deps?.dependedBy ?? []).map((item) => ({ id: item.id, title: item.title })),
+    };
+  }, [allTasks, dagEdges, deps, id]);
+
   const subtasks = children;
 
   const refreshDeps = async () => {
@@ -522,6 +557,29 @@ export default function TaskPage() {
                   ))}
                 </ul>
               )}
+              <div className="mt-3 border-t border-line pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Influence</p>
+                <p className="mt-1 text-[12px] text-muted">
+                  Critical path: {task?.onCriticalPath ? <Badge>on critical path</Badge> : 'not on the critical path'}
+                  {typeof task?.dependentsCount === 'number' ? ` · ${task.dependentsCount} downstream` : ''}
+                </p>
+                <p className="mt-2 text-[11px] text-muted">
+                  Blockers (transitive): {influence.blockers.length === 0 ? 'none' : influence.blockers.map((node) => node.title).join(' → ')}
+                </p>
+                <p className="mt-1 text-[11px] text-muted">Changing this task affects:</p>
+                {influence.impacted.length === 0 ? (
+                  <p className="mt-1 text-[12px] text-muted">No downstream tasks.</p>
+                ) : (
+                  <ul className="mt-1 space-y-1 text-[12px]">
+                    {influence.impacted.map((node) => (
+                      <li key={node.id}>
+                        <Link href={`/tasks/${node.id}`} className="text-accent underline">{node.title}</Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">Subtasks</p>
               {subtasks.length === 0 ? (
                 <p className="mt-1 text-[12px] text-muted">No subtasks.</p>
@@ -574,3 +632,4 @@ export default function TaskPage() {
     </div>
   );
 }
+

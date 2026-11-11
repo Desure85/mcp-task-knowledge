@@ -71,6 +71,11 @@ test('UI-25: knowledge tree nests documents and shows the breadcrumb', async ({ 
   await expect(breadcrumb).toBeVisible();
   await expect(breadcrumb).toContainText(parentTitle);
 
+  await page.goto(`/knowledge?doc=${parent.id}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Dependent documents' })).toBeVisible();
+  await page.getByRole('button', { name: childTitle, exact: true }).click();
+  await expect(page.getByRole('heading', { name: childTitle })).toBeVisible();
+
   await tool('knowledge_bulk_trash', { project, ids: [child.id, parent.id] });
 });
 

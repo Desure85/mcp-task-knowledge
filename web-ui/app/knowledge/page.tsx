@@ -147,6 +147,7 @@ export default function KnowledgePage() {
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeLoadingIds, setTreeLoadingIds] = useState<Set<string>>(new Set());
   const [treeLoadedIds, setTreeLoadedIds] = useState<Set<string>>(new Set());
+  const [dependentDocs, setDependentDocs] = useState<KnowledgeListItem[]>([]);
   const [editParentId, setEditParentId] = useState('');
   const [totalDocs, setTotalDocs] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -285,6 +286,26 @@ export default function KnowledgePage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docParam]);
+
+  useEffect(() => {
+    const currentId = selectedDoc?.id;
+    if (!currentId) {
+      setDependentDocs([]);
+      return;
+    }
+    let cancelled = false;
+    api.knowledge
+      .page(undefined, { parentId: currentId, limit: 50 })
+      .then((page) => {
+        if (!cancelled) setDependentDocs(page.data);
+      })
+      .catch(() => {
+        if (!cancelled) setDependentDocs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDoc?.id]);
 
   useEffect(() => {
     if (knowledgeMode === 'tree' && treeDocs.length === 0) void loadTree();
@@ -711,6 +732,23 @@ export default function KnowledgePage() {
               {readerHtml
                 ? <div className="prose mt-6 max-w-[72ch]" dangerouslySetInnerHTML={{ __html: readerHtml }} />
                 : <div className="mt-6"><EmptyState compact title="This document is empty" hint="Use Edit to add Markdown content." icon={IconInbox} /></div>}
+
+              <section className="mt-8 border-t border-line pt-4" aria-labelledby="dependent-documents">
+                <h2 id="dependent-documents" className="text-[14px] font-semibold text-ink">Dependent documents</h2>
+                {dependentDocs.length === 0 ? (
+                  <p className="mt-1 text-[12px] text-muted">No documents have this document as their parent.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-[13px]">
+                    {dependentDocs.map((child) => (
+                      <li key={child.id}>
+                        <button type="button" onClick={() => void openDocument(child)} className="text-accent underline">
+                          {child.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             </article>
 
             <aside className="min-w-0 border-t border-line pt-4 xl:sticky xl:top-4 xl:border-t-0 xl:pt-0" aria-label="Document outline">

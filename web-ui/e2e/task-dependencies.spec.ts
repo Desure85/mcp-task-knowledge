@@ -51,12 +51,12 @@ test('UI-38: blockers with statuses, add/remove edge, cycle code, and DAG filter
   await tool('tasks_update', { project, id: target.id, dependsOn: [blocker.id] });
 
   await page.goto(`/tasks/${target.id}`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText(blockerTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText(blockerTitle, { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Blocked by unmet dependencies|Dependencies satisfied/)).toBeVisible();
 
   await page.getByRole('textbox', { name: 'Add dependency' }).fill(extraTitle);
   await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(page.getByText(extraTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText(extraTitle, { exact: true }).first()).toBeVisible();
   const afterAdd = await tool<{ dependsOn?: string[] }>('tasks_get', { project, id: target.id });
   expect(afterAdd.dependsOn).toEqual(expect.arrayContaining([blocker.id, extra.id]));
 
@@ -65,7 +65,7 @@ test('UI-38: blockers with statuses, add/remove edge, cycle code, and DAG filter
   const extraRow = page.locator('li', { hasText: extraTitle });
   await extraRow.getByRole('button', { name: 'Remove' }).click();
   await page.getByRole('textbox', { name: 'Add dependency' }).fill('');
-  await expect(page.getByText(extraTitle, { exact: true })).toBeHidden();
+  await expect(page.getByText(extraTitle, { exact: true }).first()).toBeHidden();
   await tool('tasks_update', { project, id: extra.id, dependsOn: [target.id] });
   await page.getByRole('textbox', { name: 'Add dependency' }).fill(extraTitle);
   await page.getByRole('button', { name: 'Add', exact: true }).click();
@@ -87,3 +87,20 @@ test('UI-38: blockers with statuses, add/remove edge, cycle code, and DAG filter
     .poll(() => dagRequests.some((body) => body.includes('tasks_dag') && body.includes('ui38') && body.includes('50') && body.includes('onlyWithDeps')))
     .toBe(true);
 });
+
+
+test('UI-31: card B shows A as a transitive blocker and C as impacted', async ({ page }) => {
+  const stamp = Date.now().toString(36);
+  const titles = [`UI31-A-${stamp}`, `UI31-B-${stamp}`, `UI31-C-${stamp}`];
+  const [a, b, c] = await Promise.all(titles.map((title) => tool<{ id: string }>('tasks_create', { project, title })));
+  await tool('tasks_update', { project, id: b.id, dependsOn: [a.id] });
+  await tool('tasks_update', { project, id: c.id, dependsOn: [b.id] });
+
+  await page.goto(`/tasks/${b.id}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Influence', { exact: true })).toBeVisible();
+  await expect(page.getByText(new RegExp(`Blockers \\(transitive\\):.*${titles[0]}`))).toBeVisible();
+  await expect(page.getByText('Changing this task affects:')).toBeVisible();
+  await expect(page.getByText(titles[2], { exact: true }).first()).toBeVisible();
+});
+
+
