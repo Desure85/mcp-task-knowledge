@@ -77,7 +77,7 @@ test('UI-16: select three tasks and close all three', async ({ page }) => {
 });
 
 
-test('UI-38/36: list row free area opens preview, task name opens editor', async ({ page }) => {
+test('UI-38/36: list row free area opens preview, task name opens full editor in a new tab', async ({ page, context }) => {
   const stamp = Date.now().toString(36);
   const title = `ZZ-row-click-${stamp}`;
   await page.goto('/tasks', { waitUntil: 'domcontentloaded' });
@@ -90,7 +90,11 @@ test('UI-38/36: list row free area opens preview, task name opens editor', async
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
 
-  await page.getByRole('button', { name: title, exact: true }).click();
-  await expect(page.getByText('Edit task', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Close editor' }).click();
+  const [editor] = await Promise.all([
+    context.waitForEvent('page'),
+    page.getByRole('button', { name: title, exact: true }).click(),
+  ]);
+  await editor.waitForLoadState('domcontentloaded');
+  await expect(editor).toHaveURL(/\/tasks\/[^/]+$/);
+  await editor.close();
 });
