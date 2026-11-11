@@ -117,6 +117,7 @@
 | `--spacing-row` | `32px` | высота строки меню, списка и таблицы |
 | `--spacing-topbar` | `48px` | высота верхней панели |
 | `--spacing-nav` | `236px` | ширина боковой навигации |
+| `--spacing-mobile-nav` | `56px` | — |
 
 **Семантические цвета** (`[data-theme][data-mode]` в `web-ui/app/globals.css`):
 
