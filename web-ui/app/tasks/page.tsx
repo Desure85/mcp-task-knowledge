@@ -1233,7 +1233,7 @@ export default function TasksPage() {
             />
           ) : (
             <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface">
-              <table className="w-full min-w-[720px] text-left text-[13px]">
+              <table data-mobile-cards className="w-full min-w-[720px] text-left text-[13px]">
                 <thead className="bg-surface-2 text-[11px] uppercase tracking-[0.06em] text-muted">
                   <tr>
                     <th className="w-10 px-3 py-2">
@@ -1291,8 +1291,8 @@ export default function TasksPage() {
                             onChange={() => toggleSelected(task.id)}
                           />
                         </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-start gap-1" style={{ paddingLeft: depth * 16 }}>
+                        <td className="px-3 py-2" data-label="Task">
+                          <div className="flex items-start gap-1">
                             <button
                               type="button"
                               aria-label={`${expandedIds.has(task.id) ? 'Collapse' : 'Expand'} ${task.title}`}
@@ -1327,11 +1327,11 @@ export default function TasksPage() {
                             </Button>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-muted">{status?.label ?? task.status}</td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 text-muted" data-label="Status">{status?.label ?? task.status}</td>
+                        <td className="px-3 py-2" data-label="Priority">
                           <Badge>{task.priority}</Badge>
                         </td>
-                        <td className="px-3 py-2 text-muted">{(task.tags ?? []).join(', ') || '—'}</td>
+                        <td className="px-3 py-2 text-muted" data-label="Tags">{(task.tags ?? []).join(', ') || '—'}</td>
                       </tr>
                     );
                   })}

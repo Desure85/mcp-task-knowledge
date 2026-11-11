@@ -7,10 +7,12 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BrandMark } from './BrandMark';
 import { NAV_SECTIONS } from './nav-config';
+import { Button, Dialog } from './ui';
 
 const ALL_HREFS = NAV_SECTIONS.flatMap((section) => section.items.map((item) => item.href));
 
@@ -93,32 +95,82 @@ export function Sidebar() {
 
 export function MobileNav() {
   const pathname = usePathname();
-  const items = NAV_SECTIONS.flatMap((section) => section.items);
+  const [open, setOpen] = useState(false);
+  const active = activeHref(pathname);
+  const activeItem = NAV_SECTIONS.flatMap((section) => section.items).find((item) => item.href === active);
+  const ActiveIcon = activeItem?.icon;
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
-    <nav
-      aria-label="Primary"
-      className="no-scrollbar sticky top-[var(--spacing-topbar)] z-20 flex gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 lg:hidden"
-    >
-      {items.map((item) => {
-        const active = isActive(pathname, item.href);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] transition duration-150 ${
-              active
-                ? 'bg-accent-soft font-medium text-accent'
-                : 'text-ink hover:bg-surface-2'
-            }`}
-          >
-            <Icon className={`h-3.5 w-3.5 ${active ? 'text-accent' : 'text-muted'}`} />
-            {item.shortLabel ?? item.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav
+        aria-label="Primary"
+        className="sticky top-[var(--spacing-topbar)] z-20 flex min-h-[var(--spacing-mobile-nav)] items-center justify-between gap-3 border-b border-line bg-surface px-4 lg:hidden"
+      >
+        <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-ink" aria-live="polite">
+          {ActiveIcon && <ActiveIcon className="h-4 w-4 shrink-0 text-accent" />}
+          <span className="truncate">{activeItem?.label ?? 'Navigation'}</span>
+        </span>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+          className="min-h-11 min-w-11 shrink-0"
+        >
+          Menu
+        </Button>
+      </nav>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Navigation"
+        description="All sections. The current section is highlighted."
+        footer={
+          <div className="flex justify-end">
+            <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)} className="min-h-11">
+              Close
+            </Button>
+          </div>
+        }
+      >
+        <nav aria-label="All sections" className="max-h-[65vh] space-y-4 overflow-y-auto">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.id}>
+              <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
+                {section.label}
+              </p>
+              <ul className="space-y-1">
+                {section.items.map((item) => {
+                  const isCurrent = item.href === active;
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={isCurrent ? 'page' : undefined}
+                        onClick={() => setOpen(false)}
+                        className={`flex min-h-11 items-center gap-2.5 rounded-[var(--radius-control)] px-3 text-[13px] ${
+                          isCurrent ? 'bg-accent-soft font-medium text-accent' : 'text-ink hover:bg-surface-2'
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 ${isCurrent ? 'text-accent' : 'text-muted'}`} />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      </Dialog>
+    </>
   );
 }
