@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { probeConnector } from './health-probe.js';
 import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
@@ -128,7 +129,11 @@ export class GmailConnector implements Connector {
   async health(): Promise<ConnectorHealth> {
     if (!this.initialized) return { healthy: false, message: 'Not initialized' };
     if (!this.accessToken) return { healthy: false, message: 'No access token' };
-    return { healthy: true, message: 'Gmail connector ready' };
+    return probeConnector(
+      'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+      'Gmail connector ready',
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+    );
   }
 
   private async listMessages(max: number, query: string): Promise<{ ok: true; messages: Array<{ id: string; snippet: string; from: string; subject: string }> } | ErrEnvelope> {

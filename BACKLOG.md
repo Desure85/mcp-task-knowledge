@@ -1055,7 +1055,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-28 | webhookUrl SSRF-guard в memory async-ops | high | done | TR-03 | register/memory.ts:413,1311 — `z.string().url()` без allowlist; async-ops.ts:277 POSTит job.output на произвольный URL. Нет блока private/loopback/link-local (169.254.169.254), нет scheme-ограничения до https. Эксфильтрация фактов на внутренние сервисы |
 | TR-29 | OAuth refresh для gdrive/gmail/onedrive — или удалить мёртвые поля | medium | blocked | Проработка (design): OAuth refresh-флоу или удаление мёртвых полей и документация; TR-03 | gdrive.ts:65-67 читает refreshToken/clientId/clientSecret но нигде не использует — нет вызова oauth2.googleapis.com/token. Access-token живёт ~1ч → после expiry все tools возвращают {ok:false} до рестарта. Либо реализовать refresh-флоу, либо удалить поля + задокументировать «refresh externally» |
 | TR-30 | Web-crawler egress policy | medium | blocked | Проработка (design): политика egress web-crawler: scheme-allowlist, блок private-IP, лимит редиректов; TR-03 | web-crawler.ts:62 — fetch произвольного URL: нет scheme-allowlist (file://?), нет private-IP блока, нет redirect-лимита. sameOrigin() ограничивает только следование ссылок, не стартовый URL. SSRF + prompt-injection ingestion (см. TR-01) |
-| TR-31 | Real health probes для OAuth-коннекторов | medium | pending | TR-03 | gdrive/gmail/notion/onedrive/linear health() проверяет только `!!token` — revoked token = healthy:true. Добавить дешёвый GET (/about, /me, /users/me) как у github/jira/slack |
+| TR-31 | Real health probes для OAuth-коннекторов | medium | done | TR-03 | gdrive/gmail/notion/onedrive/linear health() проверяет только `!!token` — revoked token = healthy:true. Добавить дешёвый GET (/about, /me, /users/me) как у github/jira/slack |
 | TR-32 | Logger redaction + JIRA_HOST https + scope-доки | low | pending | TR-03 | logger.ts — нет pino `redact` для *.token/*.apiKey/authorization (defense-in-depth перед wiring LoggingMiddleware). jira.ts — JIRA_HOST без https-энфорса → Basic-auth на plaintext host. connectors.md — задокументировать минимальные scopes per connector |
 | TR-33 | Fetch timeouts на всех коннекторах | medium | done | TR-08 | 8/9 коннекторов делают plain `fetch` без timeout (github.ts:21, jira.ts:27, slack.ts:20, gdrive.ts:51, gmail.ts:64, notion.ts:70, onedrive.ts:51, linear.ts:57). Undici headers-timeout 300s → stalled remote пинит tool call на минуты. Добавить `AbortSignal.timeout()` как в web-crawler.ts:61 (default 10s, configurable) |
 | TR-34 | Connectors → circuit breaker | medium | done | TR-08 | Коннекторы обходят ServiceAvailability/CircuitBreaker — downed API получает полный TCP/TLS latency на каждый вызов. Зарегистрировать per-connector tracker в getServiceAvailabilityRegistry, recordFailure в catch-ветках, health() → toComponentHealth() |
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **60** | **7** | **338** | **22** | **1** |
+| **Итого** | **428** | **59** | **7** | **339** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2072,3 +2072,6 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 >
 > Примечание (2026-11-11, U-05 закрыт): memory_verify (read-only) + src/memory/verify.ts,
 > verified/stale/no-anchor; 4/4, мутация RED; API 152; pending-merge только CLI.
+>
+> Примечание (2026-11-11, TR-31 закрыт): real health probes для gdrive/gmail/notion/onedrive/linear,
+> 401/network → unhealthy; 5/5, мутация RED.
