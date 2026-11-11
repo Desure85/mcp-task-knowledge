@@ -14,6 +14,7 @@
 import type { DragEvent, JSX } from 'react';
 import { Button, Card, CardBody, EmptyState, Input, Select } from '@/components/ui';
 import { statusDotClass } from '@/lib/board';
+import { ColorTokenPicker } from './ColorTokenPicker';
 import type { ProjectStatus, StatusCategory } from '@/lib/api-client';
 import {
   CATEGORY_COLOR,
@@ -217,27 +218,27 @@ export function StatusesTab({ draft, issues, disabled = false, onChange }: Statu
                       </td>
                       <td className={CELL}>
                         <div className="flex items-center gap-1.5">
-                          <span
-                            aria-hidden="true"
-                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass(status)}`}
-                          />
-                          <Select
-                            label="Colour"
-                            hideLabel
-                          aria-label={`Colour for ${status.id}`}
-                            value={colour}
-                            disabled={disabled}
-                            className="min-w-[7rem]"
-                            onChange={(event) =>
-                              commitStatuses(updateStatus(draft.statuses, status.id, { color: event.target.value }))
-                            }
-                          >
-                            {STATUS_COLOR_TOKENS.map((token) => (
-                              <option key={token} value={token}>
-                                {STATUS_COLOR_LABELS[token] ?? token}
-                              </option>
-                            ))}
-                          </Select>
+                          <details className="relative">
+                            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-12">
+                              <span
+                                aria-hidden="true"
+                                className={`h-2.5 w-2.5 shrink-0 rounded-full ${statusDotClass(status)}`}
+                              />
+                              <span>{STATUS_COLOR_LABELS[colour] ?? colour}</span>
+                            </summary>
+                            <div className="mt-1 w-[21rem] max-w-[80vw] rounded-card border border-line bg-surface p-2 shadow-pop">
+                              <ColorTokenPicker
+                                tokens={STATUS_COLOR_TOKENS}
+                                labels={STATUS_COLOR_LABELS}
+                                value={colour}
+                                label={`Colour for ${status.id}`}
+                                disabled={disabled}
+                                onChange={(token) =>
+                                  commitStatuses(updateStatus(draft.statuses, status.id, { color: token }))
+                                }
+                              />
+                            </div>
+                          </details>
                         </div>
                       </td>
                       <td className={CELL}>

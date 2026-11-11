@@ -44,6 +44,29 @@
   display: none;
 }
 
+/* UI-40: both modes are previewed side by side in the palette picker. */
+.color-token-preview-light,
+.color-token-preview-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1rem;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--token);
+}
+
+.color-token-preview-light {
+  background: color-mix(in srgb, var(--token) 18%, #ffffff);
+}
+
+.color-token-preview-dark {
+  background: color-mix(in srgb, var(--token) 22%, #101216);
+}
+
 /* UI-20: touch targets and page chrome on phones/tablets. The design system is
    intentionally dense on desktop; below lg every interactive control gets a
    44px target and the page header keeps its primary action visible. */
@@ -169,6 +192,18 @@
   --st-blocked: #b42318;
   --st-done: #0e7a5f;
   --st-archive: #6b7280;
+  --st-slate: #475569;
+  --st-blue: #1d4ed8;
+  --st-indigo: #4338ca;
+  --st-violet: #6d28d9;
+  --st-pink: #be185d;
+  --st-red: #b42318;
+  --st-orange: #b45309;
+  --st-amber: #a16207;
+  --st-green: #15803d;
+  --st-teal: #0f766e;
+  --st-cyan: #0e7490;
+  --st-gray: #4b5563;
   --ty-bug: #b42318;
   --ty-feature: #7c3aed;
   --ty-task: #4b5563;
@@ -178,6 +213,7 @@
   --danger: #b42318;
   --success: #0e7a5f;
   --warning: #b45309;
+  --info: #0e7490;
   --focus: #4f46e5;
   --shadow-pop: 0 8px 24px rgb(20 23 28 / 0.14);
 }
@@ -202,6 +238,18 @@
   --st-blocked: #f08a80;
   --st-done: #4fd1a5;
   --st-archive: #8b93a0;
+  --st-slate: #cbd5e1;
+  --st-blue: #93c5fd;
+  --st-indigo: #a5b4fc;
+  --st-violet: #c4b5fd;
+  --st-pink: #f9a8d4;
+  --st-red: #fca5a5;
+  --st-orange: #fdba74;
+  --st-amber: #fcd34d;
+  --st-green: #86efac;
+  --st-teal: #5eead4;
+  --st-cyan: #67e8f9;
+  --st-gray: #d1d5db;
   --ty-bug: #f08a80;
   --ty-feature: #c4a7ff;
   --ty-task: #a7aeb9;
@@ -211,6 +259,7 @@
   --danger: #f08a80;
   --success: #4fd1a5;
   --warning: #e0a45a;
+  --info: #67e8f9;
   --focus: #8b87ff;
   --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
 }
@@ -235,6 +284,18 @@
   --st-blocked: #a3211b;
   --st-done: #157347;
   --st-archive: #6b7280;
+  --st-slate: #475569;
+  --st-blue: #1d4ed8;
+  --st-indigo: #4338ca;
+  --st-violet: #6d28d9;
+  --st-pink: #be185d;
+  --st-red: #b42318;
+  --st-orange: #b45309;
+  --st-amber: #a16207;
+  --st-green: #15803d;
+  --st-teal: #0f766e;
+  --st-cyan: #0e7490;
+  --st-gray: #4b5563;
   --ty-bug: #a3211b;
   --ty-feature: #6d28d9;
   --ty-task: #3f4753;
@@ -244,6 +305,7 @@
   --danger: #a3211b;
   --success: #157347;
   --warning: #b45309;
+  --info: #0e7490;
   --focus: #0e6b66;
   --shadow-pop: 0 8px 24px rgb(16 18 22 / 0.14);
 }
@@ -267,6 +329,18 @@
   --st-blocked: #f08a80;
   --st-done: #6dcf9a;
   --st-archive: #8b93a0;
+  --st-slate: #cbd5e1;
+  --st-blue: #93c5fd;
+  --st-indigo: #a5b4fc;
+  --st-violet: #c4b5fd;
+  --st-pink: #f9a8d4;
+  --st-red: #fca5a5;
+  --st-orange: #fdba74;
+  --st-amber: #fcd34d;
+  --st-green: #86efac;
+  --st-teal: #5eead4;
+  --st-cyan: #67e8f9;
+  --st-gray: #d1d5db;
   --ty-bug: #f08a80;
   --ty-feature: #b49bf5;
   --ty-task: #a7aeb9;
@@ -276,6 +350,7 @@
   --danger: #f08a80;
   --success: #6dcf9a;
   --warning: #e0a45a;
+  --info: #67e8f9;
   --focus: #5ed3c6;
   --shadow-pop: 0 10px 28px rgb(0 0 0 / 0.5);
 }
@@ -300,6 +375,18 @@
   --st-blocked: #b42318;
   --st-done: #0e7a5f;
   --st-archive: #6b7280;
+  --st-slate: #475569;
+  --st-blue: #1d4ed8;
+  --st-indigo: #4338ca;
+  --st-violet: #6d28d9;
+  --st-pink: #be185d;
+  --st-red: #b42318;
+  --st-orange: #b45309;
+  --st-amber: #a16207;
+  --st-green: #15803d;
+  --st-teal: #0f766e;
+  --st-cyan: #0e7490;
+  --st-gray: #4b5563;
   --ty-bug: #b42318;
   --ty-feature: #6d28d9;
   --ty-task: #4b5563;
@@ -309,6 +396,7 @@
   --danger: #b42318;
   --success: #0e7a5f;
   --warning: #a9551b;
+  --info: #0e7490;
   --focus: #a9551b;
   --shadow-pop: 0 12px 32px rgb(18 21 28 / 0.16);
 }
@@ -332,6 +420,18 @@
   --st-blocked: #f07a7a;
   --st-done: #57c79b;
   --st-archive: #8c94a6;
+  --st-slate: #cbd5e1;
+  --st-blue: #93c5fd;
+  --st-indigo: #a5b4fc;
+  --st-violet: #c4b5fd;
+  --st-pink: #f9a8d4;
+  --st-red: #fca5a5;
+  --st-orange: #fdba74;
+  --st-amber: #fcd34d;
+  --st-green: #86efac;
+  --st-teal: #5eead4;
+  --st-cyan: #67e8f9;
+  --st-gray: #d1d5db;
   --ty-bug: #f07a7a;
   --ty-feature: #a78bfa;
   --ty-task: #8c94a6;
@@ -341,6 +441,7 @@
   --danger: #f07a7a;
   --success: #57c79b;
   --warning: #e7a46b;
+  --info: #67e8f9;
   --focus: #e7a46b;
   --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.55);
 }
@@ -366,6 +467,19 @@
   --color-st-blocked: var(--st-blocked);
   --color-st-done: var(--st-done);
   --color-st-archive: var(--st-archive);
+  --color-st-slate: var(--st-slate);
+  --color-st-blue: var(--st-blue);
+  --color-st-indigo: var(--st-indigo);
+  --color-st-violet: var(--st-violet);
+  --color-st-pink: var(--st-pink);
+  --color-st-red: var(--st-red);
+  --color-st-orange: var(--st-orange);
+  --color-st-amber: var(--st-amber);
+  --color-st-green: var(--st-green);
+  --color-st-teal: var(--st-teal);
+  --color-st-cyan: var(--st-cyan);
+  --color-st-gray: var(--st-gray);
+  --color-info: var(--info);
   --color-ty-bug: var(--ty-bug);
   --color-ty-feature: var(--ty-feature);
   --color-ty-task: var(--ty-task);

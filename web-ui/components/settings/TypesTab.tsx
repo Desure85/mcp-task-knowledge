@@ -19,6 +19,7 @@ import { TypeIcon } from '@/components/board/TypeIcon';
 import { Button, EmptyState, Input, Select } from '@/components/ui';
 import type { ProjectType } from '@/lib/api-client';
 import { typeDotClass } from '@/lib/board-lanes';
+import { ColorTokenPicker } from './ColorTokenPicker';
 import {
   TYPE_COLOR_LABELS,
   TYPE_COLOR_TOKENS,
@@ -195,29 +196,25 @@ export function TypesTab({ draft, issues, disabled = false, onChange }: TypesTab
                         />
                       </td>
                       <td className={CELL}>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            aria-hidden="true"
-                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${typeDotClass(type)}`}
-                          />
-                          <Select
-                            label="Colour"
-                            hideLabel
-                            aria-label={`Colour for ${type.id}`}
-                            value={colour}
-                            disabled={disabled}
-                            className="min-w-[7rem]"
-                            onChange={(event) =>
-                              commitTypes(updateType(draft.types, type.id, { color: event.target.value }))
-                            }
-                          >
-                            {TYPE_COLOR_TOKENS.map((token) => (
-                              <option key={token} value={token}>
-                                {TYPE_COLOR_LABELS[token] ?? token}
-                              </option>
-                            ))}
-                          </Select>
-                        </div>
+                        <details className="relative">
+                          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-12">
+                            <span
+                              aria-hidden="true"
+                              className={`h-2.5 w-2.5 shrink-0 rounded-full ${typeDotClass(type)}`}
+                            />
+                            <span>{TYPE_COLOR_LABELS[colour] ?? colour}</span>
+                          </summary>
+                          <div className="mt-1 w-[21rem] max-w-[80vw] rounded-card border border-line bg-surface p-2 shadow-pop">
+                            <ColorTokenPicker
+                              tokens={TYPE_COLOR_TOKENS}
+                              labels={TYPE_COLOR_LABELS}
+                              value={colour}
+                              label={`Colour for ${type.id}`}
+                              disabled={disabled}
+                              onChange={(token) => commitTypes(updateType(draft.types, type.id, { color: token }))}
+                            />
+                          </div>
+                        </details>
                       </td>
                       <td className={CELL}>
                         <div className="flex items-center gap-1.5">

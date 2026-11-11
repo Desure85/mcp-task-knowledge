@@ -11,6 +11,32 @@ export type ContrastPair = readonly [foreground: string, background: string, thr
 
 const STATUS = ['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'];
 const TYPES = ['ty-bug', 'ty-feature', 'ty-task'];
+
+/** UI-40: hue tokens shared by status and type palettes. */
+export const HUE_COLOR_TOKENS = [
+  'st-slate',
+  'st-blue',
+  'st-indigo',
+  'st-violet',
+  'st-pink',
+  'st-red',
+  'st-orange',
+  'st-amber',
+  'st-green',
+  'st-teal',
+  'st-cyan',
+  'st-gray',
+] as const;
+
+/** UI-40: links to semantic theme colours instead of a fixed hue. */
+export const THEME_COLOR_TOKENS = ['accent', 'success', 'warning', 'danger', 'info'] as const;
+
+export const PALETTE_COLOR_TOKENS = [...HUE_COLOR_TOKENS, ...THEME_COLOR_TOKENS] as const;
+
+const ALL_STATUS = [...STATUS, ...PALETTE_COLOR_TOKENS];
+const ALL_TYPES = [...TYPES, ...PALETTE_COLOR_TOKENS];
+const THEME_REFS = ['accent', 'success', 'warning', 'danger', 'info'];
+
 const PRIORITIES = ['pr-high', 'pr-med', 'pr-low'];
 
 export const TEXT_PAIRS: readonly ContrastPair[] = [
@@ -24,9 +50,10 @@ export const TEXT_PAIRS: readonly ContrastPair[] = [
   ['accent', 'surface', 4.5],
   ['accent', 'accent-soft', 4.5],
   ['on-accent', 'accent', 4.5],
-  ...STATUS.map((key) => [key, 'surface', 4.5] as const),
-  ...STATUS.map((key) => [key, 'surface-2', 3] as const),
-  ...TYPES.map((key) => [key, 'surface', 4.5] as const),
+  ...ALL_STATUS.map((key) => [key, 'surface', 4.5] as const),
+  ...ALL_STATUS.map((key) => [key, 'surface-2', 3] as const),
+  ...ALL_TYPES.map((key) => [key, 'surface', 4.5] as const),
+  ...THEME_REFS.map((key) => [key, 'surface-2', 3] as const),
   ...PRIORITIES.map((key) => [key, 'surface', 4.5] as const),
   ...PRIORITIES.map((key) => [key, 'surface-2', 3] as const),
   ['line-strong', 'canvas', 3],
@@ -35,6 +62,7 @@ export const TEXT_PAIRS: readonly ContrastPair[] = [
   ['st-archive', 'canvas', 3],
   ['danger', 'canvas', 3],
   ['success', 'canvas', 3],
+  ['info', 'canvas', 3],
 ];
 
 /** Pairs whose failure blocks saving a custom theme. */
