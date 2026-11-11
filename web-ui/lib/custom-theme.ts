@@ -27,6 +27,7 @@ import {
 import { DEFAULT_THEME } from './theme';
 import {
   CRITICAL_PAIRS,
+  HUE_COLOR_TOKENS,
   TEXT_PAIRS,
   pairKey,
   tokenForPair,
@@ -90,6 +91,56 @@ const STATUS_SEED: Record<ThemeMode, { review: string; success: string; warning:
     danger: '#f08a80',
     archive: '#8b93a0',
   },
+};
+
+/** UI-40 hue seeds; derivation nudges each one until it passes AA on the surface. */
+const HUE_SEED: Record<ThemeMode, Record<string, string>> = {
+  light: {
+    'st-slate': '#475569',
+    'st-blue': '#1d4ed8',
+    'st-indigo': '#4338ca',
+    'st-violet': '#6d28d9',
+    'st-pink': '#be185d',
+    'st-red': '#b42318',
+    'st-orange': '#b45309',
+    'st-amber': '#a16207',
+    'st-green': '#15803d',
+    'st-teal': '#0f766e',
+    'st-cyan': '#0e7490',
+    'st-gray': '#4b5563',
+    'info': '#0e7490',
+  },
+  dark: {
+    'st-slate': '#cbd5e1',
+    'st-blue': '#93c5fd',
+    'st-indigo': '#a5b4fc',
+    'st-violet': '#c4b5fd',
+    'st-pink': '#f9a8d4',
+    'st-red': '#fca5a5',
+    'st-orange': '#fdba74',
+    'st-amber': '#fcd34d',
+    'st-green': '#86efac',
+    'st-teal': '#5eead4',
+    'st-cyan': '#67e8f9',
+    'st-gray': '#d1d5db',
+    'info': '#67e8f9',
+  },
+};
+
+const HUE_LABELS: Record<string, string> = {
+  'st-slate': 'Slate',
+  'st-blue': 'Blue',
+  'st-indigo': 'Indigo',
+  'st-violet': 'Violet',
+  'st-pink': 'Pink',
+  'st-red': 'Red',
+  'st-orange': 'Orange',
+  'st-amber': 'Amber',
+  'st-green': 'Green',
+  'st-teal': 'Teal',
+  'st-cyan': 'Cyan',
+  'st-gray': 'Gray',
+  info: 'Info',
 };
 
 export const DEFAULT_BASE: Record<ThemeMode, ThemeBase> = {
@@ -396,8 +447,28 @@ export function deriveMode(base: ThemeBase, mode: ThemeMode): Derivation {
     danger,
     success,
     warning,
+    info: warning,
     focus,
+    'st-slate': muted,
+    'st-blue': accent,
+    'st-indigo': accent,
+    'st-violet': review,
+    'st-pink': danger,
+    'st-red': danger,
+    'st-orange': warning,
+    'st-amber': warning,
+    'st-green': success,
+    'st-teal': success,
+    'st-cyan': accent,
+    'st-gray': muted,
   };
+
+  for (const [token, seed] of Object.entries(HUE_SEED[mode])) {
+    const pickedHue = pick(seed, [token], [token, 'surface', 4.5], HUE_LABELS[token] ?? token);
+    if (typeof pickedHue === 'string') tokens[token as ColorToken] = pickedHue;
+  }
+  const info = pick(HUE_SEED[mode].info, ['info'], ['info', 'surface', 4.5], 'Цвет информации');
+  if (typeof info === 'string') tokens.info = info;
 
   const { failures } = verify(tokens);
   const criticalFailures = failures.filter((check) => check.critical);
@@ -455,7 +526,20 @@ export function previewTokens(base: ThemeBase, mode: ThemeMode): TokenMap {
       danger,
       success: seeds.success,
       warning,
+      info: HUE_SEED[mode].info,
       focus: accent,
+      'st-slate': HUE_SEED[mode]['st-slate'],
+      'st-blue': HUE_SEED[mode]['st-blue'],
+      'st-indigo': HUE_SEED[mode]['st-indigo'],
+      'st-violet': HUE_SEED[mode]['st-violet'],
+      'st-pink': HUE_SEED[mode]['st-pink'],
+      'st-red': HUE_SEED[mode]['st-red'],
+      'st-orange': HUE_SEED[mode]['st-orange'],
+      'st-amber': HUE_SEED[mode]['st-amber'],
+      'st-green': HUE_SEED[mode]['st-green'],
+      'st-teal': HUE_SEED[mode]['st-teal'],
+      'st-cyan': HUE_SEED[mode]['st-cyan'],
+      'st-gray': HUE_SEED[mode]['st-gray'],
     };
   } catch {
     const fallback = DEFAULT_BASE[mode];
@@ -492,7 +576,20 @@ export function previewTokens(base: ThemeBase, mode: ThemeMode): TokenMap {
       danger: seeds.danger,
       success: seeds.success,
       warning: seeds.warning,
+      info: HUE_SEED[mode].info,
       focus: accent,
+      'st-slate': HUE_SEED[mode]['st-slate'],
+      'st-blue': HUE_SEED[mode]['st-blue'],
+      'st-indigo': HUE_SEED[mode]['st-indigo'],
+      'st-violet': HUE_SEED[mode]['st-violet'],
+      'st-pink': HUE_SEED[mode]['st-pink'],
+      'st-red': HUE_SEED[mode]['st-red'],
+      'st-orange': HUE_SEED[mode]['st-orange'],
+      'st-amber': HUE_SEED[mode]['st-amber'],
+      'st-green': HUE_SEED[mode]['st-green'],
+      'st-teal': HUE_SEED[mode]['st-teal'],
+      'st-cyan': HUE_SEED[mode]['st-cyan'],
+      'st-gray': HUE_SEED[mode]['st-gray'],
     };
   }
 }
@@ -654,12 +751,20 @@ function parseTokens(value: unknown): { ok: true; tokens: TokenMap } | { ok: fal
   const extra = Object.keys(record).filter((key) => !(COLOR_TOKENS as readonly string[]).includes(key));
   if (extra.length > 0) return { ok: false, error: `Неизвестные токены: ${extra.slice(0, 3).join(', ')}.` };
   const tokens = {} as TokenMap;
+  const optional = new Set<string>([...HUE_COLOR_TOKENS, 'info']);
   for (const key of COLOR_TOKENS) {
     const entry = record[key];
+    if (entry === undefined && optional.has(key)) continue;
     if (typeof entry !== 'string' || !HEX6_RE.test(entry)) {
       return { ok: false, error: `Токен «${key}» должен быть #rrggbb.` };
     }
     tokens[key] = entry;
+  }
+  // Themes saved before UI-40 have no hue tokens. Keep them readable; the
+  // fallback is an already-validated surface colour, and parseTheme re-derives
+  // fresh values from the base colours immediately afterwards.
+  for (const key of optional) {
+    if (!tokens[key as ColorToken]) tokens[key as ColorToken] = tokens['st-todo'] ?? tokens.accent;
   }
   return { ok: true, tokens };
 }

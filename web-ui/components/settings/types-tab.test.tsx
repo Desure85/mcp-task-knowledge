@@ -81,12 +81,14 @@ describe('TypesTab', () => {
     const html = renderToStaticMarkup(<TypesTab {...makeProps()} />);
 
     expect(html).toContain('Colour for bug');
-    expect(html).toContain('value="ty-task"');
-    expect(html).toContain('value="ty-bug"');
-    expect(html).toContain('value="ty-feature"');
+    expect(html).toContain('aria-label="Neutral (ty-task)"');
+    expect(html).toContain('aria-label="Danger (ty-bug)"');
+    expect(html).toContain('aria-label="Secondary (ty-feature)"');
+    expect(html).toContain('aria-label="Slate (st-slate)"');
+    expect(html).toContain('color-token-preview-light');
+    expect(html).toContain('color-token-preview-dark');
     expect(html).toContain('bg-ty-bug');
-    expect(selectedOptionValues(html)).toContain('ty-bug');
-    expect(selectedOptionValues(html)).toContain('ty-feature');
+    expect(html).toContain('aria-checked="true"');
   });
 
   it('selects the current icon and renders the matching glyph preview', () => {

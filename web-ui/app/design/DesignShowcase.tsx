@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   Badge,
   Button,
@@ -20,6 +21,8 @@ import {
 } from '@/components/ui';
 import { THEMES, THEME_LABELS, MODE_LABELS, type ModeChoice, type ThemeName } from '@/lib/theme';
 import { DEFAULT_BASE } from '@/lib/custom-theme';
+import { HUE_COLOR_TOKENS, THEME_COLOR_TOKENS } from '@/lib/theme-pairs';
+import { STATUS_COLOR_LABELS } from '@/lib/project-settings';
 
 const SHOWCASE_MODES: Array<Extract<ModeChoice, 'light' | 'dark'>> = ['light', 'dark'];
 
@@ -143,6 +146,42 @@ export function DesignShowcase() {
           Dev-only showcase: six palette × mode variants, primitives only from CSS tokens.
         </p>
       </header>
+      {/* UI-40: palette names are data; colours always come from theme tokens. */}
+      <section className="rounded-card border border-line bg-surface p-3">
+        <h2 className="text-14 font-semibold text-ink">Status &amp; type palette</h2>
+        <p className="mt-1 text-12 text-muted">
+          Stored values are token names. Hue tokens and theme links replace the six legacy status names;
+          the old names stay valid.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+          {[...HUE_COLOR_TOKENS, ...THEME_COLOR_TOKENS].map((token) => (
+            <div key={token} className="rounded-control border border-line bg-canvas p-1.5">
+              <span className="flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 rounded-full border border-line"
+                  style={{ backgroundColor: `var(--${token})` }}
+                />
+                <span className="truncate text-11 text-ink">{STATUS_COLOR_LABELS[token] ?? token}</span>
+              </span>
+              <span aria-hidden="true" className="mt-1 flex gap-0.5">
+                <span
+                  className="color-token-preview-light"
+                  style={{ '--token': `var(--${token})` } as CSSProperties}
+                >
+                  Aa
+                </span>
+                <span
+                  className="color-token-preview-dark"
+                  style={{ '--token': `var(--${token})` } as CSSProperties}
+                >
+                  Aa
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
       <div className="grid gap-4 xl:grid-cols-2">
         {THEMES.flatMap((theme) =>
           SHOWCASE_MODES.map((mode) => <Variant key={`${theme}-${mode}`} theme={theme} mode={mode} />),

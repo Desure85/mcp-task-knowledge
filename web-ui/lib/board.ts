@@ -198,6 +198,23 @@ const TONE_BY_COLOR: Record<string, string> = {
   'st-blocked': 'bg-st-blocked',
   'st-done': 'bg-st-done',
   'st-archive': 'bg-st-archive',
+  'st-slate': 'bg-st-slate',
+  'st-blue': 'bg-st-blue',
+  'st-indigo': 'bg-st-indigo',
+  'st-violet': 'bg-st-violet',
+  'st-pink': 'bg-st-pink',
+  'st-red': 'bg-st-red',
+  'st-orange': 'bg-st-orange',
+  'st-amber': 'bg-st-amber',
+  'st-green': 'bg-st-green',
+  'st-teal': 'bg-st-teal',
+  'st-cyan': 'bg-st-cyan',
+  'st-gray': 'bg-st-gray',
+  accent: 'bg-accent',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  info: 'bg-info',
 };
 
 const TONE_BY_CATEGORY: Record<StatusCategory, string> = {

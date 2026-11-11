@@ -24,26 +24,31 @@
  */
 
 import type { ProjectStatus, ProjectType, StatusCategory } from './api-client';
+import { HUE_COLOR_TOKENS, THEME_COLOR_TOKENS } from './theme-pairs';
 
 /** Same shape as `STATUS_ID_RE` / `TYPE_ID_RE` on the server. */
 export const ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
+const LEGACY_STATUS_COLORS = ['st-todo', 'st-doing', 'st-review', 'st-blocked', 'st-done', 'st-archive'] as const;
+const LEGACY_TYPE_COLORS = ['ty-task', 'ty-bug', 'ty-feature'] as const;
+
 /**
  * Status colours are token *names*, never raw colours (DESIGN.md §3, §7): the
- * board resolves them through `statusDotClass`. The list is the `st-*` subset
- * of the design tokens, so a saved status always has a rendered tone.
+ * board resolves them through `statusDotClass`. UI-40 adds hue tokens plus
+ * semantic theme links; the original six stay valid for existing projects.
  */
 export const STATUS_COLOR_TOKENS = [
-  'st-todo',
-  'st-doing',
-  'st-review',
-  'st-blocked',
-  'st-done',
-  'st-archive',
+  ...LEGACY_STATUS_COLORS,
+  ...HUE_COLOR_TOKENS,
+  ...THEME_COLOR_TOKENS,
 ] as const;
 
-/** Type colours are the `ty-*` token subset (same reason as above). */
-export const TYPE_COLOR_TOKENS = ['ty-task', 'ty-bug', 'ty-feature'] as const;
+/** Type colours share the UI-40 palette, with the original `ty-*` names kept. */
+export const TYPE_COLOR_TOKENS = [
+  ...LEGACY_TYPE_COLORS,
+  ...HUE_COLOR_TOKENS,
+  ...THEME_COLOR_TOKENS,
+] as const;
 
 /** Glyphs shipped by `components/board/TypeIcon.tsx`; anything else falls back to `task`. */
 export const TYPE_ICONS = ['task', 'bug', 'feature'] as const;
@@ -620,12 +625,46 @@ export const STATUS_COLOR_LABELS: Record<string, string> = {
   'st-blocked': 'Danger',
   'st-done': 'Success',
   'st-archive': 'Muted',
+  'st-slate': 'Slate',
+  'st-blue': 'Blue',
+  'st-indigo': 'Indigo',
+  'st-violet': 'Violet',
+  'st-pink': 'Pink',
+  'st-red': 'Red',
+  'st-orange': 'Orange',
+  'st-amber': 'Amber',
+  'st-green': 'Green',
+  'st-teal': 'Teal',
+  'st-cyan': 'Cyan',
+  'st-gray': 'Gray',
+  accent: 'Theme accent',
+  success: 'Theme success',
+  warning: 'Theme warning',
+  danger: 'Theme danger',
+  info: 'Theme info',
 };
 
 export const TYPE_COLOR_LABELS: Record<string, string> = {
   'ty-task': 'Neutral',
   'ty-bug': 'Danger',
   'ty-feature': 'Secondary',
+  'st-slate': 'Slate',
+  'st-blue': 'Blue',
+  'st-indigo': 'Indigo',
+  'st-violet': 'Violet',
+  'st-pink': 'Pink',
+  'st-red': 'Red',
+  'st-orange': 'Orange',
+  'st-amber': 'Amber',
+  'st-green': 'Green',
+  'st-teal': 'Teal',
+  'st-cyan': 'Cyan',
+  'st-gray': 'Gray',
+  accent: 'Theme accent',
+  success: 'Theme success',
+  warning: 'Theme warning',
+  danger: 'Theme danger',
+  info: 'Theme info',
 };
 
 export const TYPE_ICON_LABELS: Record<string, string> = {

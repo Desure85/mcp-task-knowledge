@@ -113,10 +113,13 @@ describe('StatusesTab', () => {
   it('offers every colour token and selects the status token', () => {
     const html = renderToStaticMarkup(<StatusesTab {...makeProps()} />);
 
-    expect(html).toContain('value="st-review"');
-    expect(html).toContain('value="st-done"');
+    expect(html).toContain('aria-label="Secondary (st-review)"');
+    expect(html).toContain('aria-label="Success (st-done)"');
+    expect(html).toContain('aria-label="Slate (st-slate)"');
+    expect(html).toContain('color-token-preview-light');
+    expect(html).toContain('color-token-preview-dark');
+    expect(html).toContain('aria-checked="true"');
     expect(html).toContain('bg-st-review');
-    expect(selectedOptionValues(html)).toContain('st-review');
   });
 
   it('marks initial statuses with aria-pressed and a text state', () => {
