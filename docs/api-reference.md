@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **154** — 152 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **155** — 153 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -132,6 +132,7 @@
 | `service_catalog_health` | Check health of the configured service-catalog source (remote/embedded) |
 | `service_catalog_query` | Query services from the service-catalog (supports filters, sort, pagination) |
 | `session_info` | Query session state for a specific session ID. Returns rate limit info, TTL, idle timeout, session a |
+| `session_kill` | Terminate another live MCP session (admin only). The session disappears from session_list; the calle |
 | `session_list` | List all active sessions with their state. Returns session count, rate limiting status, and per-sess |
 | `tasks_add_subtask` | Create a subtask under a parent task. Shorthand for tasks_create with parentId. Maximum nesting dept |
 | `tasks_bulk_archive` | Archive many tasks |
@@ -3425,6 +3426,27 @@ Query session state for a specific session ID. Returns rate limit info, TTL, idl
 ```json
 {
   "name": "session_info",
+  "arguments": {
+    "sessionId": "example"
+  }
+}
+```
+
+## session_kill
+
+**Terminate Session**
+
+Terminate another live MCP session (admin only). The session disappears from session_list; the caller cannot terminate itself.
+
+**Параметры:**
+
+- `sessionId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "session_kill",
   "arguments": {
     "sessionId": "example"
   }

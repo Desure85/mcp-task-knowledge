@@ -153,9 +153,42 @@ export function registerSessionTools(ctx: ServerContext): void {
         available: true,
         sessionsEnabled: true,
         rateLimitingEnabled: ctx.rateLimiter != null,
+        selfSessionId: callerId ?? null,
         total: sessions.length,
         sessions: enriched,
       });
+    }
+  );
+
+  // ── session_kill (UI-19) ────────────────────────────
+  // Admin-only: terminate another live session; its transport is closed via onClose.
+  ctx.server.registerTool(
+    "session_kill",
+    {
+      title: "Terminate Session",
+      description: "Terminate another live MCP session (admin only). The session disappears from session_list; the caller cannot terminate itself.",
+      inputSchema: {
+        sessionId: z.string().min(1).describe("Session ID to terminate"),
+      },
+    },
+    async ({ sessionId }: { sessionId: string }, extra?: GateExtra) => {
+      const sm = ctx.sessionManager;
+      if (!sm) {
+        return ok({ available: false, closed: false, reason: 'SessionManager not initialized' });
+      }
+      const callerId = resolveExtraSessionId(extra);
+      if (!isAdmin(ctx, callerId)) {
+        return err('access denied — session_kill requires admin role');
+      }
+      if (callerId === sessionId) {
+        return err('cannot terminate the calling session; use the transport disconnect');
+      }
+      if (!sm.get(sessionId)) {
+        return err(`Session not found: ${sessionId}`);
+      }
+      const closed = await sm.close(sessionId, 'manual');
+      if (closed) ctx.rateLimiter?.remove(sessionId);
+      return ok({ available: true, closed, sessionId });
     }
   );
 

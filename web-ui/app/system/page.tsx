@@ -24,8 +24,10 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Dialog,
   EmptyState,
   Input,
+  Select,
   Skeleton,
 } from '@/components/ui';
 import { IconAlert, IconSystem } from '@/components/icons';
@@ -71,6 +73,12 @@ export default function SystemPage() {
   const [error, setError] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
   const [tokenInput, setTokenInput] = useState('');
+  const [toolOffset, setToolOffset] = useState(0);
+  const [sessionFilter, setSessionFilter] = useState('');
+  const [sessionLimit, setSessionLimit] = useState(5);
+  const [killTarget, setKillTarget] = useState<string | null>(null);
+  const [killing, setKilling] = useState(false);
+  const TOOL_PAGE = 20;
 
   const load = useCallback(async () => {
     try {
@@ -79,7 +87,7 @@ export default function SystemPage() {
       const [sess, emb, tl] = await Promise.all([
         api.system.sessionList().catch(() => null),
         api.system.embeddingsStatus().catch(() => null),
-        api.system.toolsList().catch(() => null),
+        api.system.toolsList(undefined, TOOL_PAGE, 0).catch(() => null),
       ]);
       setSessions(sess);
       setEmbeddings(emb);
@@ -113,16 +121,42 @@ export default function SystemPage() {
     void load();
   }
 
-  async function searchTools() {
+  async function searchTools(offset = 0) {
     try {
       setError(null);
-      const tl = await api.system.toolsList(toolSearch.trim() || undefined);
+      const tl = await api.system.toolsList(toolSearch.trim() || undefined, TOOL_PAGE, offset);
       setTools(tl?.data ?? []);
       setToolsTotal(tl?.pagination?.total ?? tl?.total ?? (tl?.data?.length ?? 0));
+      setToolOffset(offset);
     } catch (e) {
       setError((e as Error).message);
     }
   }
+
+  async function confirmKill() {
+    if (!killTarget) return;
+    try {
+      setKilling(true);
+      setError(null);
+      await api.system.sessionKill(killTarget);
+      setKillTarget(null);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setKilling(false);
+    }
+  }
+
+  const visibleSessions = (sessions?.sessions ?? [])
+    .filter((session) => {
+      const q = sessionFilter.trim().toLowerCase();
+      if (!q) return true;
+      return [session.sessionId, session.remote, session.metadata?.userId, session.metadata?.currentProject]
+        .filter((value): value is string => typeof value === 'string')
+        .some((value) => value.toLowerCase().includes(q));
+    })
+    .slice(0, sessionLimit);
 
   return (
     <div>
@@ -144,39 +178,54 @@ export default function SystemPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader><h2 className="text-[13px] font-semibold text-ink">Authentication</h2></CardHeader>
-            <CardBody className="space-y-3">
-              <p className="text-[12px] text-muted">
-                When the server enforces JWT auth, tools beyond initialize/tools_list/ping need an
-                authenticated session. The token is kept in sessionStorage for this tab only and is
-                never sent as a cookie, so cross-site requests cannot ride an ambient session.
-              </p>
-              <p className="text-[12px] text-muted">
-                Trade-off: any XSS in this origin could read the token. Keep Markdown sanitised and
-                rotate tokens on suspicion.
-              </p>
-              {authed ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge tone="done">Token set for this session</Badge>
-                  <Button size="sm" variant="danger" onClick={dropToken}>Clear token</Button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="flex-1">
-                    <Input
-                      label="JWT token"
-                      type="password"
-                      value={tokenInput}
-                      onChange={(e) => setTokenInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && saveToken()}
-                      placeholder="Paste a token…"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <Button variant="primary" onClick={saveToken} disabled={!tokenInput.trim()}>
-                    Authenticate
-                  </Button>
-                </div>
-              )}
+            <CardBody>
+              <ol className="space-y-3 text-[12px] text-muted">
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="tnum text-[11px] font-semibold text-accent">1</span>
+                  <span>
+                    Get a personal token on the{' '}
+                    <a href="/access" className="text-accent underline underline-offset-2 hover:text-accent-hover">
+                      Access page
+                    </a>
+                    . Admin accounts can also manage users there.
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="tnum text-[11px] font-semibold text-accent">2</span>
+                  <span>
+                    The token is kept in this tab&apos;s sessionStorage, never in a cookie; rotate it if you
+                    suspect XSS.
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="tnum text-[11px] font-semibold text-accent">3</span>
+                  <span className="min-w-0 flex-1">
+                    {authed ? (
+                      <span className="flex flex-wrap items-center gap-3">
+                        <Badge tone="done">Token set for this session</Badge>
+                        <Button size="sm" variant="danger" onClick={dropToken}>Clear token</Button>
+                      </span>
+                    ) : (
+                      <span className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <span className="flex-1">
+                          <Input
+                            label="JWT token"
+                            type="password"
+                            value={tokenInput}
+                            onChange={(e) => setTokenInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && saveToken()}
+                            placeholder="Paste a token…"
+                            autoComplete="off"
+                          />
+                        </span>
+                        <Button variant="primary" onClick={saveToken} disabled={!tokenInput.trim()}>
+                          Authenticate
+                        </Button>
+                      </span>
+                    )}
+                  </span>
+                </li>
+              </ol>
             </CardBody>
           </Card>
 
@@ -193,40 +242,85 @@ export default function SystemPage() {
             <CardBody>
               {!sessions || !sessions.available ? (
                 <p className="text-[12px] text-muted">Session manager unavailable.</p>
-              ) : sessions.sessions.length === 0 ? (
-                <p className="text-[12px] text-muted">No active sessions besides this one.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[12px]">
-                    <caption className="sr-only">Active MCP sessions</caption>
-                    <thead>
-                      <tr className="border-b border-line text-left text-[11px] text-muted">
-                        <th scope="col" className="pb-2 pr-4 font-medium">Session</th>
-                        <th scope="col" className="pb-2 pr-4 font-medium">Remote</th>
-                        <th scope="col" className="pb-2 pr-4 font-medium">User</th>
-                        <th scope="col" className="pb-2 pr-4 font-medium">Project</th>
-                        <th scope="col" className="pb-2 font-medium">Last activity</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sessions.sessions.map((session) => (
-                        <tr key={session.sessionId} className="border-b border-line last:border-0">
-                          <td className="py-2 pr-4 font-mono text-[11px] text-ink" title={session.sessionId}>
-                            {session.sessionId.slice(0, 18)}…
-                          </td>
-                          <td className="py-2 pr-4 text-ink">{session.remote ?? '—'}</td>
-                          <td className="py-2 pr-4 text-ink">{(session.metadata?.userId as string) ?? '—'}</td>
-                          <td className="py-2 pr-4 text-ink">
-                            {(session.metadata?.currentProject as string) ?? '—'}
-                          </td>
-                          <td className="py-2 font-mono text-[11px] text-muted">
-                            {session.lastActivityAt ? new Date(session.lastActivityAt).toLocaleTimeString() : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="flex-1">
+                      <Input
+                        label="Filter sessions"
+                        value={sessionFilter}
+                        onChange={(e) => setSessionFilter(e.target.value)}
+                        placeholder="Session, remote, user or project…"
+                      />
+                    </div>
+                    <div className="w-28">
+                      <Select label="Rows" value={sessionLimit} onChange={(e) => setSessionLimit(Number(e.target.value))}>
+                        {[5, 10, 20].map((value) => <option key={value} value={value}>{value}</option>)}
+                      </Select>
+                    </div>
+                  </div>
+                  {visibleSessions.length === 0 ? (
+                    <p className="text-[12px] text-muted">No active sessions besides this one.</p>
+                  ) : (
+                    <>
+                      <div className="hidden overflow-x-auto md:block">
+                        <table className="w-full text-[12px]">
+                          <caption className="sr-only">Active MCP sessions</caption>
+                          <thead>
+                            <tr className="border-b border-line text-left text-[11px] text-muted">
+                              <th scope="col" className="pb-2 pr-4 font-medium">Session</th>
+                              <th scope="col" className="pb-2 pr-4 font-medium">Remote</th>
+                              <th scope="col" className="pb-2 pr-4 font-medium">User</th>
+                              <th scope="col" className="pb-2 pr-4 font-medium">Project</th>
+                              <th scope="col" className="pb-2 pr-4 font-medium">Last activity</th>
+                              <th scope="col" className="pb-2 font-medium"><span className="sr-only">Actions</span></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {visibleSessions.map((session) => (
+                              <tr key={session.sessionId} className="border-b border-line last:border-0">
+                                <td className="py-2 pr-4 font-mono text-[11px] text-ink" title={session.sessionId}>
+                                  {session.sessionId.slice(0, 18)}…
+                                </td>
+                                <td className="py-2 pr-4 text-ink">{session.remote ?? '—'}</td>
+                                <td className="py-2 pr-4 text-ink">{(session.metadata?.userId as string) ?? '—'}</td>
+                                <td className="py-2 pr-4 text-ink">
+                                  {(session.metadata?.currentProject as string) ?? '—'}
+                                </td>
+                                <td className="py-2 pr-4 font-mono text-[11px] text-muted">
+                                  {session.lastActivityAt ? new Date(session.lastActivityAt).toLocaleTimeString() : '—'}
+                                </td>
+                                <td className="py-2 text-right">
+                                  {sessions.selfSessionId !== session.sessionId && (
+                                    <Button size="sm" variant="danger" onClick={() => setKillTarget(session.sessionId)}>
+                                      Terminate
+                                    </Button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <ul className="divide-y divide-line md:hidden">
+                        {visibleSessions.map((session) => (
+                          <li key={session.sessionId} className="space-y-1 py-2 text-[12px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <code className="font-mono text-[11px] text-ink">{session.sessionId.slice(0, 18)}…</code>
+                              {sessions.selfSessionId !== session.sessionId && (
+                                <Button size="sm" variant="danger" onClick={() => setKillTarget(session.sessionId)}>
+                                  Terminate
+                                </Button>
+                              )}
+                            </div>
+                            <p className="text-muted">{session.remote ?? '—'} · {(session.metadata?.userId as string) ?? '—'}</p>
+                            <p className="text-muted">project: {(session.metadata?.currentProject as string) ?? '—'}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
               )}
             </CardBody>
           </Card>
@@ -275,7 +369,7 @@ export default function SystemPage() {
                     placeholder="Filter tools by name…"
                   />
                 </div>
-                <Button onClick={() => void searchTools()}>Filter</Button>
+                <Button onClick={() => void searchTools(0)}>Filter</Button>
               </div>
               <div
                 className="mt-3 max-h-96 divide-y divide-line overflow-y-auto"
@@ -295,10 +389,41 @@ export default function SystemPage() {
                   </div>
                 )}
               </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
+                <span className="tnum">
+                  {tools.length === 0 ? 0 : toolOffset + 1}–{toolOffset + tools.length} of {toolsTotal}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Button size="sm" onClick={() => void searchTools(Math.max(0, toolOffset - TOOL_PAGE))} disabled={toolOffset === 0}>
+                    Previous
+                  </Button>
+                  <Button size="sm" onClick={() => void searchTools(toolOffset + TOOL_PAGE)} disabled={toolOffset + TOOL_PAGE >= toolsTotal}>
+                    Next
+                  </Button>
+                </span>
+              </div>
             </CardBody>
           </Card>
         </div>
       )}
+
+      <Dialog
+        open={killTarget !== null}
+        onClose={() => !killing && setKillTarget(null)}
+        title="Terminate session?"
+        description="The client will be disconnected immediately. This cannot be undone."
+        destructive
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button size="sm" onClick={() => setKillTarget(null)} disabled={killing}>Cancel</Button>
+            <Button size="sm" variant="danger" onClick={() => void confirmKill()} loading={killing}>
+              Terminate
+            </Button>
+          </div>
+        }
+      >
+        <p className="font-mono text-[11px] text-muted">{killTarget}</p>
+      </Dialog>
     </div>
   );
 }

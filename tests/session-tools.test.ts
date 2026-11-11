@@ -441,3 +441,48 @@ describe('session tools — combined behavior', () => {
     await sm.closeAll();
   });
 });
+
+describe('session_kill tool (UI-19)', () => {
+  it('admin terminates another session and it disappears from the list', async () => {
+    const sm = new SessionManager();
+    const { ctx, getHandler } = createMockContext({ sessionManager: sm });
+    registerSessionTools(ctx);
+    const admin = sm.create({ remote: 'admin:1' });
+    const target = sm.create({ remote: 'target:1' });
+    makeAdmin(sm, admin.id);
+
+    const result = parseResponse(await getHandler('session_kill')!({ sessionId: target.id }, asSession(admin.id)));
+    expect(result.ok).toBe(true);
+    expect(result.data).toMatchObject({ available: true, closed: true, sessionId: target.id });
+    expect(sm.get(target.id)).toBeUndefined();
+
+    const list = parseResponse(await getHandler('session_list')!({}, asSession(admin.id)));
+    expect(list.data.sessions.map((s: { sessionId: string }) => s.sessionId)).toEqual([admin.id]);
+
+    await sm.closeAll();
+  });
+
+  it('rejects non-admin, self and unknown sessions', async () => {
+    const sm = new SessionManager();
+    const { ctx, getHandler } = createMockContext({ sessionManager: sm });
+    registerSessionTools(ctx);
+    const user = sm.create({ remote: 'user:1' });
+    const admin = sm.create({ remote: 'admin:1' });
+    makeAdmin(sm, admin.id);
+    const handler = getHandler('session_kill')!;
+
+    const denied = parseResponse(await handler({ sessionId: admin.id }, asSession(user.id)));
+    expect(denied.ok).toBe(false);
+    expect(denied.error.message).toContain('admin role');
+
+    const self = parseResponse(await handler({ sessionId: admin.id }, asSession(admin.id)));
+    expect(self.ok).toBe(false);
+    expect(self.error.message).toContain('calling session');
+
+    const missing = parseResponse(await handler({ sessionId: '00000000-0000-0000-0000-000000000000' }, asSession(admin.id)));
+    expect(missing.ok).toBe(false);
+    expect(missing.error.message).toContain('Session not found');
+
+    await sm.closeAll();
+  });
+});
