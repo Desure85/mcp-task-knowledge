@@ -817,6 +817,17 @@ export const api = {
   tasks: {
     // ВРЕМЕННО: долистывает все страницы (SC-04 заменит на серверную пагинацию в UI).
     // Второй аргумент — либо тип задачи (V-03), либо объект параметров пагинации.
+    page: (project: string, args?: Record<string, unknown>) =>
+      callToolPage<Task>('tasks_list', { project, ...(args ?? {}) }),
+    board: (
+      project: string,
+      args?: { priority?: string; tag?: string; type?: string; limit?: number; offsets?: Record<string, number> },
+    ) =>
+      callTool<{
+        total: number;
+        typeCounts: Record<string, number>;
+        columns: Array<{ status: string; total: number; items: Task[]; nextOffset: number | null }>;
+      }>('tasks_list', { project, groupByStatus: true, ...(args ?? {}) }),
     list: (project?: string, typeOrArgs?: string | Record<string, unknown>) => {
       const extra = typeof typeOrArgs === 'string' ? { type: typeOrArgs } : (typeOrArgs ?? {});
       return callToolAll<Task>('tasks_list', { project, ...extra });
@@ -878,7 +889,9 @@ export const api = {
   // Knowledge (single create/update are bulk-only server-side)
   knowledge: {
     // ВРЕМЕННО: долистывает все страницы (SC-04 заменит на серверную пагинацию в UI).
-    list: (project?: string, args?: Record<string, unknown>) => callToolAll<KnowledgeListItem>('knowledge_list', { project, ...args }),
+    page: (project: string | undefined, args?: Record<string, unknown>) =>
+      callToolPage<KnowledgeListItem>('knowledge_list', { project, ...(args ?? {}) }),
+    list: (project?: string, args?: Record<string, unknown>) => callToolAll<KnowledgeListItem>('knowledge_list', { project, ...(args ?? {}) }),
     get: (project: string, id: string) => callTool<KnowledgeDoc>('knowledge_get', { project, id }),
     exportSingle: (project: string, id: string) =>
       callTool<{ id: string; title: string; markdown: string }>('knowledge_export_single', { project, id }),

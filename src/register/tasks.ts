@@ -70,14 +70,51 @@ export function registerTasksTools(ctx: ServerContext): void {
           .describe("Backlog codes recorded as task tags (case-insensitive), e.g. [\"AC-01\"]"),
         includeArchived: z.boolean().default(false).optional(),
         includeGraphMetrics: z.boolean().optional().describe('Add onCriticalPath and transitive dependentsCount to each returned task'),
+        groupByStatus: z.boolean().optional().describe('Return per-status columns with exact totals (board payload)'),
+        offsets: z.record(z.string(), z.number().int().min(0)).optional().describe('Per-status offsets for groupByStatus'),
         ...pageArgsSchema,
       },
     },
-    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ids, codes, includeGraphMetrics, ...pageArgs }) => {
+    async ({ project, status, type, tag, priority, parentId, updatedSince, includeArchived, ids, codes, includeGraphMetrics, groupByStatus, offsets, ...pageArgs }) => {
       const prj = resolveProject(project);
       try {
         if (status) assertStatusAllowed(await loadProjectWorkflow(prj), status);
         if (type) assertTypeAllowed((await loadProjectTypes(prj)).types, type);
+        if (groupByStatus) {
+          const all = await taskStore(ctx).list({ project: prj, includeArchived });
+          const filtered = all.filter(
+            (task) =>
+              !task.trashed &&
+              (!priority || task.priority === priority) &&
+              (!tag || (task.tags ?? []).includes(tag)) &&
+              (!type || (task.type ?? "task") === type),
+          );
+          const groups = new Map<string, typeof filtered>();
+          for (const task of filtered) {
+            const list = groups.get(task.status) ?? [];
+            list.push(task);
+            groups.set(task.status, list);
+          }
+          const typeCounts: Record<string, number> = {};
+          for (const task of filtered) {
+            const id = task.type ?? "task";
+            typeCounts[id] = (typeCounts[id] ?? 0) + 1;
+          }
+          const ci = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+          const pageSize = Math.min(Math.max(pageArgs.limit ?? 25, 1), 100);
+          const columns = [...groups.entries()].map(([statusId, items]) => {
+            const sorted = [...items].sort((a, b) => ci(b.updatedAt, a.updatedAt) || ci(a.id, b.id));
+            const offset = Math.max(0, offsets?.[statusId] ?? 0);
+            const end = Math.min(sorted.length, offset + pageSize);
+            return {
+              status: statusId,
+              total: sorted.length,
+              items: sorted.slice(offset, end),
+              nextOffset: end < sorted.length ? end : null,
+            };
+          });
+          return ok({ total: filtered.length, typeCounts, columns });
+        }
         const request = toPageRequest(pageArgs);
         if (ids !== undefined || codes !== undefined) {
           // AC-03: batch lookup by id (O(k) reads) or by backlog code. A code is matched
@@ -160,7 +197,6 @@ export function registerTasksTools(ctx: ServerContext): void {
       }
     }
   );
-
   ctx.server.registerTool(
     "tasks_get",
     {
