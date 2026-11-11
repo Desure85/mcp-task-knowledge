@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { probeConnector } from './health-probe.js';
 import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
@@ -124,7 +125,15 @@ export class LinearConnector implements Connector {
   async health(): Promise<ConnectorHealth> {
     if (!this.initialized) return { healthy: false, message: 'Not initialized' };
     if (!this.apiKey) return { healthy: false, message: 'No API key' };
-    return { healthy: true, message: 'Linear connector ready' };
+    return probeConnector(
+      'https://api.linear.app/graphql',
+      'Linear connector ready',
+      {
+        method: 'POST',
+        headers: { Authorization: this.apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '{ viewer { id } }' }),
+      },
+    );
   }
 
   private async listIssues(teamId: string, status: string, max: number): Promise<{ ok: true; issues: Array<{ id: string; title: string; status: string; priority: string }> } | ErrEnvelope> {

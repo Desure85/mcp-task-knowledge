@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { probeConnector } from './health-probe.js';
 import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
@@ -137,7 +138,16 @@ export class NotionConnector implements Connector {
   async health(): Promise<ConnectorHealth> {
     if (!this.initialized) return { healthy: false, message: 'Not initialized' };
     if (!this.apiKey) return { healthy: false, message: 'No API key' };
-    return { healthy: true, message: 'Notion connector ready' };
+    return probeConnector(
+      'https://api.notion.com/v1/users/me',
+      'Notion connector ready',
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Notion-Version': '2022-06-28',
+        },
+      },
+    );
   }
 
   private async searchPages(query: string, max: number): Promise<{ ok: true; pages: Array<{ id: string; title: string; url: string }> } | ErrEnvelope> {

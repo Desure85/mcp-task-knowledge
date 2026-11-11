@@ -8,6 +8,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { probeConnector } from './health-probe.js';
 import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
@@ -122,8 +123,14 @@ export class GDriveConnector implements Connector {
 
   async health(): Promise<ConnectorHealth> {
     if (!this.initialized) return { healthy: false, message: 'Not initialized' };
-    if (!this.accessToken && !this.apiKey && !this.refreshToken) return { healthy: false, message: 'No credentials' };
-    return { healthy: true, message: 'Google Drive connector ready' };
+    if (!this.accessToken) {
+      return { healthy: false, message: 'No OAuth access token for health probe' };
+    }
+    return probeConnector(
+      'https://www.googleapis.com/drive/v3/about?fields=user',
+      'Google Drive connector ready',
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+    );
   }
 
   private async listFiles(folderId: string, max: number): Promise<{ ok: true; files: Array<{ id: string; name: string; mimeType: string }> } | ErrEnvelope> {

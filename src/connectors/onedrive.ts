@@ -7,6 +7,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { probeConnector } from './health-probe.js';
 import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
 import type { ErrEnvelope } from '../utils/respond.js';
@@ -109,7 +110,11 @@ export class OneDriveConnector implements Connector {
   async health(): Promise<ConnectorHealth> {
     if (!this.initialized) return { healthy: false, message: 'Not initialized' };
     if (!this.accessToken) return { healthy: false, message: 'No access token' };
-    return { healthy: true, message: 'OneDrive connector ready' };
+    return probeConnector(
+      'https://graph.microsoft.com/v1.0/me/drive',
+      'OneDrive connector ready',
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+    );
   }
 
   private async listFiles(folderPath: string, max: number): Promise<{ ok: true; files: Array<{ id: string; name: string; size: number }> } | ErrEnvelope> {
