@@ -8,6 +8,8 @@
 
 ### Added
 
+- AA-09: `scripts/backlog-sync-check.mjs` compares explicitly mapped BACKLOG ids with file-profile tracker tasks without writing either side. Status aliases are normalised; mismatches exit 1; tests pin a byte-identical BACKLOG. Live `/data` is absent in this environment, so fixtures are the only execution here
+
 - DX-25: `docs/compatibility.md` records per-client config/protocol/live status with a last-check date. Config-level is verified for setup targets; Claude Code/OpenCode live is blocked by environment, GUI protocol stays unexplored rather than inferred. README links the matrix
 
 - DX-28: contributor DX now includes `.github/PULL_REQUEST_TEMPLATE.md`, bug/feature issue templates, a Node 24 devcontainer, and a `docs/architecture.md` Last verified note listing the modules checked against the diagram
