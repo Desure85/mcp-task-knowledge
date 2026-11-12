@@ -77,3 +77,18 @@ describe('TR-37 bulk tools isolate per-item failures', () => {
     expect(results.find((item) => item.id === 'null')?.error?.message).toContain('Missing:');
   });
 });
+
+describe('MU-07 bulk create is all-or-nothing', () => {
+  it('rolls back earlier items when a later item fails', async () => {
+    const tasks = await import('../src/storage/tasks.js');
+    const before = (await tasks.listTasks({ project: 'mcp' })).length;
+    const env = await call(tools.get('tasks_bulk_create')!, {
+      project: 'mcp',
+      items: [{ title: 'mu07-ok' }, { title: 'mu07-bad', type: 'no-such-type' }],
+    });
+    expect(env.ok).toBe(false);
+    const after = await tasks.listTasks({ project: 'mcp' });
+    expect(after.length).toBe(before);
+    expect(after.some((task) => task.title.startsWith('mu07-'))).toBe(false);
+  });
+});

@@ -100,3 +100,51 @@ describe('MU-03/SC-07 git history batching', () => {
     }
   });
 });
+
+describe('MU-07 concurrent/durability scenarios', () => {
+  it('recovers a write enqueued before a crash and records the session author', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'mu07-recover-'));
+    try {
+      const first = new GitHistory({ root, flushMs: 60_000 });
+      first.setAuthor('session-abc <session-abc@session>');
+      await first.init();
+      writeFileSync(path.join(root, 'jobs.json'), '{"id":"1"}');
+      await first.enqueue(['jobs.json']);
+      // Simulate kill before flush: drop the instance without flushing.
+      await first.close();
+
+      const second = new GitHistory({ root, flushMs: 60_000 });
+      await second.init();
+      await second.flush();
+      const log = await second.logPaths(['jobs.json']);
+      expect(log.length).toBeGreaterThan(0);
+      expect(log[0]!.author).toBe('session-abc');
+      expect(await second.readAt(log[0]!.hash, 'jobs.json')).toContain('"id":"1"');
+      await second.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('two writers on one DATA_DIR commit both files without losing either', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'mu07-two-writers-'));
+    const a = new GitHistory({ root, flushMs: 60_000 });
+    const b = new GitHistory({ root, flushMs: 60_000 });
+    try {
+      await a.init();
+      await b.init();
+      writeFileSync(path.join(root, 'a.json'), 'a');
+      writeFileSync(path.join(root, 'b.json'), 'b');
+      await a.enqueue(['a.json']);
+      await b.enqueue(['b.json']);
+      await a.flush();
+      await b.flush();
+      expect(await a.tracked(['a.json'])).toHaveLength(1);
+      expect(await b.tracked(['b.json'])).toHaveLength(1);
+    } finally {
+      await a.close();
+      await b.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

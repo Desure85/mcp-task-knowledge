@@ -190,6 +190,10 @@ export function registerBulkTools(ctx: ServerContext): void {
           created.push(t);
         }
       } catch (e) {
+        // MU-07: a failed bulk create must not leave a partial batch behind.
+        for (const task of created) {
+          await taskStore(ctx).deletePermanent(prj, task.id).catch(() => undefined);
+        }
         if (e instanceof WorkflowError) return errWith(e.toPayload());
         throw e;
       }
