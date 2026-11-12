@@ -1,13 +1,18 @@
 /**
  * tests/transport-wire-snapshots.test.ts — Wire format snapshots (Q-011)
  *
+ * @dependency-contract
+ * This file intentionally imports ONLY @modelcontextprotocol/sdk wire codecs. It does not
+ * exercise src/ and is excluded from project coverage (`coverage.include` is src/**); its
+ * job is to pin the SDK contract Q-011. Divergence of our transports is covered by
+ * integration/e2e tests (stdio/http/tcp), not by this file.
+ *
  * Locks the JSON-RPC wire format produced by the SDK framing used across
  * our transports (stdio/tcp/unix). If the SDK or our message shapes change
  * the wire format, these snapshots fail — catching regressions early.
  *
  * Uses vitest inline snapshots (no snapshot files needed for stable output).
  */
-
 import { describe, it, expect } from 'vitest';
 import { serializeMessage, deserializeMessage, ReadBuffer } from '@modelcontextprotocol/sdk/shared/stdio.js';
 
