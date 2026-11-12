@@ -173,10 +173,9 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerCatalogTools(ctx);
   registerResources(ctx);
   registerPromptsTools(ctx);
-  // SPEC-03: expose the prompt library via native MCP prompts (prompts/list,
-  // prompts/get) so client UIs render them. Snapshot at startup — new prompts
-  // appear after a restart (listChanged is SPEC-04).
-  await registerMcpPrompts(ctx);
+  // SPEC-03 prompts are registered after DX-14 seeding in init() — the seed
+  // writes the first library, and registering before it produced an empty
+  // prompts/list on a fresh install.
   registerObsidianTools(ctx);
   registerProjectTools(ctx);
   registerBulkTools(ctx);
@@ -773,6 +772,10 @@ export class AppContainer {
       } catch (e) {
         this.log.warn({ err: e }, 'prompts seeding failed (non-fatal)');
       }
+
+      // SPEC-03/PH-014: expose the prompt library after seeding so a fresh
+      // install answers prompts/list with the seeded prompts, not [].
+      await registerMcpPrompts(this.ctx);
 
       // SC-06: opt-in auto-archive of stale closed tasks. Never deletes; the
       // sweep is skipped unless TASK_ARCHIVE_AFTER_DAYS is a positive number.

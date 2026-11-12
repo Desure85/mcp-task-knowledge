@@ -62,6 +62,12 @@ async function spawnOnStore(store: string, tmp: string, tag: string): Promise<Bo
   async function close() {
     try { await client.close(); } catch {}
     try { await (transport as any).close?.(); } catch {}
+    // PH-014: boot 2 starts immediately after boot 1; wait for the child's
+    // .server.lock to disappear so the next process is not rejected.
+    for (let i = 0; i < 120; i++) {
+      if (!(await fsp.access(path.join(store, '.server.lock')).then(() => true, () => false))) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
   }
 
   return { client, store, tmp, callTool, close };
@@ -86,25 +92,19 @@ describe('SPEC-03: MCP prompts surface (prompts/list + prompts/get)', () => {
     await fsp.rm(tmp, { recursive: true, force: true });
     await fsp.mkdir(store, { recursive: true });
 
-    // Boot 1: fresh store → DX-14 seeds 7 prompts + reindex builds the catalog.
-    const first = await spawnOnStore(store, tmp, 'seed');
+    // PH-014: one fresh boot now seeds AND registers in the same process.
+    const srv = await spawnOnStore(store, tmp, 'seed');
     try {
       const deadline = Date.now() + 30000;
       let catalogOk = false;
       while (Date.now() < deadline) {
-        const catalog = await first.callTool('prompts_catalog_get', { project: 'mcp' });
+        const catalog = await srv.callTool('prompts_catalog_get', { project: 'mcp' });
         if (catalog.env.ok) { catalogOk = true; break; }
         await new Promise((r) => setTimeout(r, 300));
       }
       expect(catalogOk).toBe(true);
-    } finally {
-      await first.close();
-    }
 
-    // Boot 2: same store → catalog exists at startup → prompts registered.
-    const second = await spawnOnStore(store, tmp, 'serve');
-    try {
-      const list = await second.client.listPrompts();
+      const list = await srv.client.listPrompts();
       const names = list.prompts.map((p) => p.name);
       expect(names).toEqual(
         expect.arrayContaining([
@@ -121,7 +121,7 @@ describe('SPEC-03: MCP prompts surface (prompts/list + prompts/get)', () => {
         expect.objectContaining({ name: 'bug_description', required: true }),
       ]);
 
-      const rendered = await second.client.getPrompt({
+      const rendered = await srv.client.getPrompt({
         name: 'bug_triage',
         arguments: { bug_description: 'Login button does nothing on mobile' },
       });
@@ -132,23 +132,29 @@ describe('SPEC-03: MCP prompts surface (prompts/list + prompts/get)', () => {
       expect(text).not.toContain('{{bug_description}}');
       expect(text).toContain('Severity');
     } finally {
-      await second.close();
+      await srv.close();
       await cleanupTmp(tmp);
     }
   }, 120000);
 
-  it('prompts/list answers cleanly when no catalog exists (empty list, not -32601)', async () => {
+  it('fresh boot answers with the seeded prompts, not -32601 and not []', async () => {
     const tmp = path.join(ROOT, `.tmp-e2e-spec03-empty-${process.pid}`);
     const store = path.join(tmp, 'store');
     await fsp.rm(tmp, { recursive: true, force: true });
     await fsp.mkdir(store, { recursive: true });
 
-    // First boot: registration runs BEFORE seeding, so the catalog is absent
-    // at registration time — prompts/list must still answer { prompts: [] }.
+    // PH-014: registration now runs AFTER seeding, so the first boot must
+    // expose the seven DX-14 seeds; the empty-catalog sentinel still keeps
+    // prompts/list answerable instead of -32601.
     const srv = await spawnOnStore(store, tmp, 'empty');
     try {
       const list = await srv.client.listPrompts();
-      expect(list.prompts).toEqual([]);
+      expect(list.prompts.map((p) => p.name)).toEqual(
+        expect.arrayContaining([
+          'plan_sprint', 'capture_decision', 'standup',
+          'postmortem', 'daily_review', 'code_review', 'bug_triage',
+        ]),
+      );
     } finally {
       await srv.close();
       await cleanupTmp(tmp);
