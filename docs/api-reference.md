@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **157** — 155 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **161** — 159 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -31,6 +31,9 @@
 | `dashboard_project_summary` | Get a summary across all projects: task counts, knowledge counts, and top metrics per project. |
 | `dashboard_stats` | Get project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
 | `dashboard_trends` | Get task creation and completion trends over time. Returns daily or weekly buckets for burndown/burn |
+| `draft_append` | Append an idempotent draft record to the append-only journal. Repeating the same key returns the exi |
+| `draft_pending` | List journal drafts that have not been acknowledged by a successful sync. |
+| `draft_sync` | Upsert pending drafts into knowledge by externalKey, acking each one after success. Safe to retry. |
 | `embeddings_status` | Show current embeddings configuration and mode |
 | `embeddings_try_init` | Force lazy initialization of vector adapter and return diagnostics |
 | `graph_export_mermaid` | Build a Mermaid graph from tasks and knowledge (nodes + parent edges) |
@@ -51,6 +54,7 @@
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge document metadata with cursor pagination and field selection. Returns `data` (array)  |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
+| `knowledge_upsert` | Create or update a knowledge document by stable externalKey (no duplicates on retry). |
 | `logs_tail` | Read the newest records of the server JSON log (read-only). File logging is opt-in: set LOG_FILE to  |
 | `mcp.authenticate` | Authenticate this session with a token. Required before calling any other tool on http/tcp transport |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
@@ -691,6 +695,67 @@ Get task creation and completion trends over time. Returns daily or weekly bucke
 }
 ```
 
+## draft_append
+
+**Append Draft**
+
+Append an idempotent draft record to the append-only journal. Repeating the same key returns the existing draft.
+
+**Параметры:**
+
+- `key`
+- `project`
+- `title`
+- `content`
+- `tags`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "draft_append",
+  "arguments": {
+    "key": "example",
+    "project": "mcp",
+    "title": "Example Title",
+    "content": "Example Content",
+    "tags": [
+      "example"
+    ]
+  }
+}
+```
+
+## draft_pending
+
+**Pending Drafts**
+
+List journal drafts that have not been acknowledged by a successful sync.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "draft_pending",
+  "arguments": {}
+}
+```
+
+## draft_sync
+
+**Sync Drafts**
+
+Upsert pending drafts into knowledge by externalKey, acking each one after success. Safe to retry.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "draft_sync",
+  "arguments": {}
+}
+```
+
 ## embeddings_status
 
 **Embeddings Status**
@@ -1259,6 +1324,37 @@ List knowledge documents as a hierarchical tree (by parentId)
 }
 ```
 
+## knowledge_upsert
+
+**Upsert Knowledge**
+
+Create or update a knowledge document by stable externalKey (no duplicates on retry).
+
+**Параметры:**
+
+- `externalKey`
+- `project`
+- `title`
+- `content`
+- `tags`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_upsert",
+  "arguments": {
+    "externalKey": "example",
+    "project": "mcp",
+    "title": "Example Title",
+    "content": "Example Content",
+    "tags": [
+      "example"
+    ]
+  }
+}
+```
+
 ## logs_tail
 
 **Tail Server Log**
@@ -1271,6 +1367,7 @@ Read the newest records of the server JSON log (read-only). File logging is opt-
 - `lines`
 - `level`
 - `maxBytes`
+- `requestId`
 
 **Пример вызова:**
 
@@ -1281,7 +1378,8 @@ Read the newest records of the server JSON log (read-only). File logging is opt-
     "project": "mcp",
     "lines": "example",
     "level": "example",
-    "maxBytes": "example"
+    "maxBytes": "example",
+    "requestId": "example"
   }
 }
 ```
