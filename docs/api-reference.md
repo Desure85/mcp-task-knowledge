@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **179** — 177 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **183** — 181 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -58,6 +58,10 @@
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge document metadata with cursor pagination and field selection. Returns `data` (array)  |
 | `knowledge_publish` | Set a document status to draft or published (wiki lifecycle). |
+| `knowledge_review` | Record human review (reviewedBy/reviewedAt) and optionally publish a document. |
+| `knowledge_stale` | List documents not updated for N days (default 90), newest-oldest first. |
+| `knowledge_template_apply` | Render a document template with {{title}}, {{project}}, {{date}}. Returns markdown; create the doc s |
+| `knowledge_template_list` | List markdown document templates from DATA_DIR/knowledge-templates. |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
 | `knowledge_upsert` | Create or update a knowledge document by stable externalKey (no duplicates on retry). |
 | `knowledge_version_restore` | Restore a document from a commit as a new commit (history is not erased). |
@@ -1437,6 +1441,98 @@ Set a document status to draft or published (wiki lifecycle).
     "id": "00000000-0000-0000-0000-000000000000",
     "status": "pending"
   }
+}
+```
+
+## knowledge_review
+
+**Knowledge Review**
+
+Record human review (reviewedBy/reviewedAt) and optionally publish a document.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `reviewer`
+- `publish`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_review",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "reviewer": "example",
+    "publish": "example"
+  }
+}
+```
+
+## knowledge_stale
+
+**Knowledge Stale**
+
+List documents not updated for N days (default 90), newest-oldest first.
+
+**Параметры:**
+
+- `project`
+- `days`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_stale",
+  "arguments": {
+    "project": "mcp",
+    "days": "example",
+    "limit": 10
+  }
+}
+```
+
+## knowledge_template_apply
+
+**Knowledge Template Apply**
+
+Render a document template with {{title}}, {{project}}, {{date}}. Returns markdown; create the doc separately.
+
+**Параметры:**
+
+- `templateId`
+- `title`
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_template_apply",
+  "arguments": {
+    "templateId": "example",
+    "title": "Example Title",
+    "project": "mcp"
+  }
+}
+```
+
+## knowledge_template_list
+
+**Knowledge Template List**
+
+List markdown document templates from DATA_DIR/knowledge-templates.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_template_list",
+  "arguments": {}
 }
 ```
 

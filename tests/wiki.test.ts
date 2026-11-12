@@ -41,3 +41,24 @@ describe('T-05 wiki links', () => {
     expect(pub.data.status).toBe('draft');
   });
 });
+describe('T-05 templates/review/stale', () => {
+  it('lists and renders templates', async () => {
+    await fsp.mkdir(path.join(ROOT, 'knowledge-templates'), { recursive: true });
+    await fsp.writeFile(path.join(ROOT, 'knowledge-templates', 'adr.md'), '# ADR {{title}}\nProject: {{project}}\nDate: {{date}}\n', 'utf8');
+    const list = await call(tools.get('knowledge_template_list')!, {});
+    expect(list.data.templates.map((t: { id: string }) => t.id)).toContain('adr');
+    const rendered = await call(tools.get('knowledge_template_apply')!, { templateId: 'adr', title: 'Cache', project: 'mcp' });
+    expect(rendered.data.content).toContain('# ADR Cache');
+    expect(rendered.data.content).toContain('Project: mcp');
+  });
+
+  it('records review and finds stale docs', async () => {
+    const doc = await k.createDoc({ project: 'mcp', title: 'Old doc', content: 'x' });
+    const reviewed = await call(tools.get('knowledge_review')!, { project: 'mcp', id: doc.id, reviewer: 'alice', publish: true });
+    expect(reviewed.data.reviewedBy).toBe('alice');
+    expect(reviewed.data.status).toBe('published');
+    const stale = await call(tools.get('knowledge_stale')!, { project: 'mcp', days: 1 });
+    expect(stale.ok).toBe(true);
+    expect(Array.isArray(stale.data.documents)).toBe(true);
+  });
+});

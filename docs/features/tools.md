@@ -516,3 +516,8 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `knowledge_backlinks` | Documents linking to this doc via [[wiki links]] |
 | `knowledge_wikilinks` | Outgoing [[wiki links]] with resolution |
 | `knowledge_publish` | Set doc status draft/published |
+
+| `knowledge_template_list` | List DATA_DIR/knowledge-templates/*.md |
+| `knowledge_template_apply` | Render template with title/project/date |
+| `knowledge_review` | Record reviewedBy/reviewedAt; optional publish |
+| `knowledge_stale` | Docs not updated for N days |
