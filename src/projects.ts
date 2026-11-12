@@ -49,6 +49,14 @@ export type ProjectDetail = ProjectInfo & {
 export type ProjectRole = 'viewer' | 'editor' | 'admin';
 export type ProjectMembers = Record<string, ProjectRole>;
 
+export interface ProjectTheme {
+  id: string;
+  name: string;
+  theme: Record<string, unknown>;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
 export interface ProjectMetadata {
   description?: string;
   createdAt: string;
@@ -63,6 +71,8 @@ export interface ProjectMetadata {
   requireEvidence?: boolean;
   /** T-02: user id → project role. Absent = legacy/public project. */
   members?: ProjectMembers;
+  /** UI-33b: team themes visible to every project member. */
+  themes?: ProjectTheme[];
 }
 
 
@@ -285,6 +295,8 @@ export type ProjectMetaUpdates = {
   agents?: string[] | null;
   requireEvidence?: boolean;
   members?: ProjectMembers;
+  /** UI-33b: team themes visible to every project member. */
+  themes?: ProjectTheme[];
 };
 
 export async function updateProjectMeta(
@@ -328,6 +340,9 @@ export async function updateProjectMeta(
     }
     if (updates.members !== undefined) {
       meta.members = updates.members;
+    }
+    if (updates.themes !== undefined) {
+      meta.themes = updates.themes;
     }
     await writeProjectMetadata(projectId, meta);
     return meta;

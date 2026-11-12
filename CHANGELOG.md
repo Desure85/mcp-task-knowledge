@@ -8,6 +8,8 @@
 
 ### Added
 
+- UI-33b (server slice): `ProjectMetadata.themes` + `project_themes_list`/`project_theme_set`/`project_theme_delete`; editor/admin write via T-02 gate, max 20. UI pending as UI-33b2.
+
 - MU-02: optimistic `version`/`fieldVersions`/`expectedVersion` CAS on tasks (file/sqlite/postgres) and docs storage; stale same-field edits return `CONFLICT` with current values/diff, different fields merge. 3/3 tests; 381/0.
 
 - AA-04: append-only draft journal (`draft_append`/`draft_pending`/`draft_sync`) with ack-per-draft retries, plus `knowledge_upsert` by stable `externalKey`. Five scenarios 5/5; 380/0.

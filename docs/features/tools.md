@@ -230,7 +230,7 @@ from the catalog — new prompts appear after a server restart (`listChanged` is
 SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 (never `-32601`).
 
-## Projects (14 tools)
+## Projects (17 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -240,6 +240,9 @@ SPEC-04). When the library is empty, `prompts/list` answers with an empty list
 | `project_members_list` | List project members and their viewer/editor/admin roles |
 | `project_members_set` | Add or update one project member role (project admin) |
 | `project_members_remove` | Remove one project member (project admin) |
+| `project_themes_list` | List team themes stored in project data |
+| `project_theme_set` | Publish a team theme (editor/admin; max 20) |
+| `project_theme_delete` | Delete a team theme (copied personal themes unaffected) |
 | `project_delete` | Delete a project |
 | `project_get_current` | Get current project |
 | `project_set_current` | Set current project |
