@@ -8,6 +8,8 @@
 
 ### Added
 
+- Y-02e: storage-profile composition moved from `src/register/setup.ts` to `src/core/profile-factory.ts`; registrators no longer import `src/storage/**` and the guard allowlist is empty. 31/31 storage contract, 3/3 wiring.
+
 - CM-04: bridge --tools meta exposes only tools_list/tool_schema/tool_help/tools_run and rejects direct calls to other tools; full remains the default mirror. Env MCP_PROXY_TOOLS mirrors the flag
 
 - CM-02: the owner gate chooses the existing `tools_batch` (Promise.all) as the canonical parallel path; `tools_run` stays sequential and no second `parallel` flag is added. Contract tests 8/8

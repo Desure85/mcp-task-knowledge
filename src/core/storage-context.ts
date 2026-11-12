@@ -14,6 +14,16 @@
 import { createFileProfile } from '../storage/profiles/file/index.js';
 import type { StorageProfile } from '../storage/contracts.js';
 
+// Y-02e: registrators import storage-facing constants/types through this composition-root module,
+// not from `src/storage/**`.
+export {
+  DEFAULT_CLAIM_TTL_SEC,
+  MAX_TASK_DEPTH,
+  MAX_CLAIM_TTL_SEC,
+  MIN_CLAIM_TTL_SEC,
+} from '../storage/contracts.js';
+export type { ClaimActor } from '../storage/contracts.js';
+
 export interface StorageCarrier {
   storage?: StorageProfile;
 }

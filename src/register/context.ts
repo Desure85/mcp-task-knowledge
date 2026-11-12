@@ -19,7 +19,7 @@ import type { SetupLinkStore } from '../core/setup-link.js';
 import type { RelayManager } from '../relay/relay-manager.js';
 import type { RuleManager } from '../rules/rule-manager.js';
 import type { ConnectorRegistry } from '../connectors/registry.js';
-import type { StorageProfile } from '../storage/contracts.js';
+import type { StorageProfile } from '../core/profile-factory.js';
 
 export interface ServerContext {
   server: McpServer;

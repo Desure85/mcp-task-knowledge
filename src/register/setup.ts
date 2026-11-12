@@ -9,11 +9,7 @@ import { createServiceCatalogProvider } from "../catalog/provider.js";
 import type { ServiceCatalogProvider } from "../catalog/provider.js";
 import { getVectorAdapter } from "../search/vector.js";
 import type { VectorSearchAdapter } from "../search/index.js";
-import { createFileProfile } from '../storage/profiles/file/index.js';
-import { createSqliteProfile } from '../storage/profiles/sqlite/index.js';
-import { readStorageProfileKind } from '../storage/profile-select.js';
-import { createPostgresProfile } from '../storage/profiles/postgres/index.js';
-import { StoreError } from '../storage/contracts.js';
+import { createStorageProfile } from '../core/profile-factory.js';
 import { DATA_DIR } from '../config.js';
 import { createFileEmbeddingProvider, type EmbeddingAdapterLike } from '../search/embeddings-file.js';
 import {
@@ -466,7 +462,6 @@ export async function createServerContext(): Promise<ServerContext> {
   // Y-05a: STORAGE_PROFILE picks implementation behind the same contracts. The file profile stays
   // the default (behaviour unchanged); the sqlite profile owns its database file under DATA_DIR so a
   // caller-provided root still matches ADR-009 rule 1.
-  const storageKind = readStorageProfileKind();
   const embeddingProviderFactory = async () => {
     if (externalEmbeddingConfig.enabled) {
       const problem = externalEmbeddingConfigProblem(externalEmbeddingConfig);
@@ -507,31 +502,13 @@ export async function createServerContext(): Promise<ServerContext> {
   };
   const externalPolicy = (item: { project: string; trustLevel?: 'system' | 'user' | 'external' }) =>
     externalEmbeddingGate.decide({ project: item.project, trustLevel: item.trustLevel });
-  const fileStorageOptions = {
-    externalPolicy,
+  const storage = await createStorageProfile({
+    dataDir: DATA_DIR,
     embeddingProvider: embeddingProviderFactory,
-  };
-  const storage =
-    storageKind === 'postgres'
-      ? await createPostgresProfile({
-          connectionString: process.env.POSTGRES_URL ?? '',
-          embeddingProvider: embeddingProviderFactory,
-          externalPolicy,
-          ...(process.env.STORAGE_BLOBS_DIR ? { blobsDir: process.env.STORAGE_BLOBS_DIR } : {}),
-        }).catch((error) => {
-          throw error instanceof StoreError
-            ? error
-            : new StoreError('CONFIG_MISMATCH', `postgres profile failed to open: ${(error as Error).message}`, {
-                hint: 'set POSTGRES_URL to a reachable PostgreSQL connection string',
-              });
-        })
-      : storageKind === 'sqlite'
-        ? createSqliteProfile({
-            databasePath: path.join(DATA_DIR, '.index', 'storage.sqlite'),
-            embeddingProvider: embeddingProviderFactory,
-            externalPolicy,
-          })
-        : createFileProfile(fileStorageOptions);
+    externalPolicy,
+    postgresUrl: process.env.POSTGRES_URL,
+    blobsDir: process.env.STORAGE_BLOBS_DIR,
+  });
   log.info({ storageProfile: storage.manifest.profile }, 'storage profile selected');
 
   // T-01a: auth.db is opened only when login/auth is configured; env admin is a bootstrap row.
