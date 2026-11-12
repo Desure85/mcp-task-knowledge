@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-04g: a concurrent two-server e2e asserts distinct `DATA_DIR` stores and no cross-project task leakage. The existing `tests/e2e-full/harness.ts` and `tests/support/server-process.ts` remain the shared spawn paths; no bespoke spawn was added
+
 - TR-04i: the wire-snapshot test is explicitly marked `@dependency-contract`; it imports only the MCP SDK codec and is outside `coverage.include=src/**`. Divergence of our own transports remains covered by stdio/http/tcp e2e
 
 - PH-013: a real-ONNX e2e skips without `EMBEDDINGS_MODEL_PATH` and otherwise loads the MiniLM encoder, tokenizer and cosine ranking; a weekly workflow caches the model and runs it with `onnx-cpu`. Verified locally with the 23 MB quantized model; the workflow itself was not exercised here
