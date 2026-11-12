@@ -56,6 +56,8 @@ export interface Task {
   type?: string;
   priority: Priority;
   tags?: string[];
+  /** TK-01 field, optional: assignee user id. */
+  assignee?: string;
   /** MU-02: optimistic-lock version (1-based). */
   version?: number;
   /** MU-02: last version that changed each field. */

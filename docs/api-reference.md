@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **183** — 181 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **187** — 185 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -178,8 +178,12 @@
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
 | `tasks_history` | List git commits that touched a task in DATA_DIR. |
 | `tasks_list` | List tasks with optional filters, cursor pagination and field selection. Returns `data` (array) plus |
+| `tasks_query` | Query tasks with the TK-02 language: `project: X #tag status: Doing assignee: me`, AND/OR/NOT, paren |
 | `tasks_release` | Release your lease so another agent can pick the task up. Only the holder may release before expiry; |
 | `tasks_renew` | Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not  |
+| `tasks_saved_search_delete` | Delete a saved query by name. |
+| `tasks_saved_search_list` | List saved task queries. |
+| `tasks_saved_search_save` | Create or replace a named saved query. |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blocked |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
@@ -4682,6 +4686,33 @@ List tasks with optional filters, cursor pagination and field selection. Returns
 }
 ```
 
+## tasks_query
+
+**Tasks Query**
+
+Query tasks with the TK-02 language: `project: X #tag status: Doing assignee: me`, AND/OR/NOT, parentheses, quoted values, sort by: updated|created|priority|title.
+
+**Параметры:**
+
+- `query`
+- `project`
+- `includeArchived`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_query",
+  "arguments": {
+    "query": "example",
+    "project": "mcp",
+    "includeArchived": false,
+    "limit": 10
+  }
+}
+```
+
 ## tasks_release
 
 **Release Task Claim**
@@ -4726,6 +4757,67 @@ Extend your lease on a claimed task (heartbeat). Only the current holder may ren
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
     "ttlSec": "example"
+  }
+}
+```
+
+## tasks_saved_search_delete
+
+**Delete Saved Search**
+
+Delete a saved query by name.
+
+**Параметры:**
+
+- `name`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_saved_search_delete",
+  "arguments": {
+    "name": "example"
+  }
+}
+```
+
+## tasks_saved_search_list
+
+**Saved Searches**
+
+List saved task queries.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_saved_search_list",
+  "arguments": {}
+}
+```
+
+## tasks_saved_search_save
+
+**Save Search**
+
+Create or replace a named saved query.
+
+**Параметры:**
+
+- `name`
+- `query`
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_saved_search_save",
+  "arguments": {
+    "name": "example",
+    "query": "example",
+    "project": "mcp"
   }
 }
 ```

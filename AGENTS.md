@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… TK-01 закрыт)
-**Текущая ветка:** docs/tk-01-task-model-adr (от master ac4863e)
-**Текущий этап:** TK-01 design gate закрыт; TK-02/03/04/T-06 разблокированы; blocked 27
-**Статус:** ADR task model; backlog 393/0/27/1.
+**Session ID:** S-20261109-night (… TK-02 закрыт)
+**Текущая ветка:** feat/tk-02-query-language (от master 0aa9c49)
+**Текущий этап:** TK-02 закрыт; pending 0; blocked 26
+**Статус:** query language/saved searches; 4/4; backlog 394/0/26/1.
+
+### Сессия S-20261109-night (TK-02)
+
+- Parser/matcher/sort/saved; `tasks_query` + 3 saved tools.
+- Ограничения: assignee только Task.assignee; fields/dueDate после TK-01 storage; O(all tasks).
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2130-tk-02.md`.
 
 ### Сессия S-20261109-night (TK-01)
 

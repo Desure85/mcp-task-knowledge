@@ -521,3 +521,8 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `knowledge_template_apply` | Render template with title/project/date |
 | `knowledge_review` | Record reviewedBy/reviewedAt; optional publish |
 | `knowledge_stale` | Docs not updated for N days |
+
+| `tasks_query` | TK-02 query language over tasks |
+| `tasks_saved_search_list` | List saved searches |
+| `tasks_saved_search_save` | Upsert a saved search |
+| `tasks_saved_search_delete` | Delete a saved search |

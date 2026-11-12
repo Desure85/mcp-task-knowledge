@@ -8,6 +8,8 @@
 
 ### Added
 
+- TK-02: query language (`project:`, `#tag`, AND/OR/NOT, quotes, sort by) + saved searches; 4/4; API 187; 394/0/26/1.
+
 - TK-01: ADR task model (assignee/dueDate/custom fields/comments/relations), additive wire, schema 1→2 no-op; unlocks TK-02..04/T-06.
 
 - T-05b: knowledge templates/render, review record, stale-doc listing; 5/5 wiki tests; API 183.
