@@ -986,7 +986,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-10 | API governance doc | low | blocked | Проработка (design): политика API governance: breaking changes, коды ошибок, deprecation | Политика breaking changes для ~114 tools, таксономия error-кодов, нейминг-конвенция (tasks_*/memory_*/tools_*), deprecation-путь. ToolRegistry версионирует — политики нет |
 | TR-11 | MCP spec frontier tracking | low | blocked | Проработка (design): политика spec frontier: что берём (elicitation/sampling/roots/subscriptions), что нет | Политика отслеживания спеки + оценка неиспользуемых фич: elicitation, sampling, roots, subscriptions. Выход: что брать, что осознанно нет |
 | TR-12 | Elicitation для confirm-флоу | medium | done | TR-11, DX-19 | Деструктивные ops (project_purge, bulk-delete) → elicitation-запрос юзеру вместо слепого выполнения. Синергия с auto-backup DX-19. Реализовано: src/core/elicitation.ts (elicitConfirm → accepted/declined/unsupported/error), wired в tasks_bulk_delete_permanent + knowledge_bulk_delete_permanent + project_purge; confirm:true backward-compat; fail-safe на error. Тесты: src/core/elicitation.spec.ts (9), tests/e2e-full/elicitation.test.ts (5) |
-| TR-13 | Upgrade-path e2e | low | pending | DX-18 | Данные версии N → апгрейд пакета → читаются корректно. Ловит то, что schema-version не покроет |
+| TR-13 | Upgrade-path e2e | low | done | DX-18 | Данные версии N → апгрейд пакета → читаются корректно. Ловит то, что schema-version не покроет |
 
 ---
 
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **28** | **7** | **370** | **22** | **1** |
+| **Итого** | **428** | **27** | **7** | **371** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2171,3 +2171,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, SPEC-08 закрыт): logging/setLevel → pino, capability до handler.
 >
 > Примечание (2026-11-12, SC-08 закрыт): nightly workflow не запускался; gate/CLI проверены локально.
+>
+> Примечание (2026-11-12, TR-13 закрыт): schema 0 + текущий dist; старого бинарника нет.

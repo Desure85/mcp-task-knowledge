@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-13: an upgrade-path e2e boots the real server over a schema-0 DATA_DIR (no manifest, legacy task/doc shapes), reads both records and asserts the schema-1 manifest. The old package binary is not available, so this is schema-0 compatibility rather than a two-binary N→N+1 run
+
 - SC-08: a weekly scale workflow seeds 100k tasks and gates `tasks_list`/`knowledge_list` against a checked-in baseline (2x median or absolute caps). The gate exits 1 on regression; the workflow itself was not exercised because Actions is unavailable here
 
 - SPEC-08: the server advertises MCP `logging` and accepts `logging/setLevel`; MCP levels map to pino (`notice→info`, `warning→warn`, `critical/alert/emergency→fatal`). A real stdio client asserts the capability and two level calls
