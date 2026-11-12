@@ -14,7 +14,11 @@ import { z } from 'zod/v3';
 // ─── Transport ───────────────────────────────────────────────────
 
 export const TransportSchema = z.object({
-  type: z.enum(['stdio', 'tcp', 'http']).default('stdio'),
+  // AA-02: comma-separated transports are valid (stdio,http); single value stays compatible.
+  type: z
+    .string()
+    .regex(/^(stdio|tcp|http)(,(stdio|tcp|http))*$/, 'expected stdio,tcp,http list')
+    .default('stdio'),
   port: z.number().int().min(1).max(65535).default(3001),
   host: z.string().default('0.0.0.0'),
   // TCP/Unix specific

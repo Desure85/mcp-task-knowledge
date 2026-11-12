@@ -8,6 +8,8 @@
 
 ### Added
 
+- AA-02: `MCP_TRANSPORT` accepts a comma list; `AppContainer` starts/closes every adapter around one `ServerContext`. `stdio,http` e2e proves identical `tools/list`, stdio-close survival, and SIGTERM shutdown. 379/19.
+
 - DX-26: CLI surface complete — `--help`, `config show`, `init --demo`, `uninstall`, `ui` (HTTP + browser), and actionable `EADDRINUSE`/`DATA_DIR` hints. UI tests 4/4; backlog 378/20.
 
 - DX-26c: `uninstall --client <opencode|claude-code> [--home] [--dry-run]` removes files recorded in the install manifest when their sha256 still matches, and deletes the `mcp-task-knowledge` config entry. 3/3.
