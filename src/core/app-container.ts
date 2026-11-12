@@ -73,6 +73,7 @@ import { registerDraftTools } from '../register/drafts.js';
 import { registerHistoryTools } from '../register/history.js';
 import { registerPromptMergeTools } from '../register/prompt-merge.js';
 import { registerWikiTools } from '../register/wiki.js';
+import { registerQueryTools } from '../register/query.js';
 import { registerBriefingTools } from '../register/briefing.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
@@ -197,6 +198,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerHistoryTools(ctx);
   registerPromptMergeTools(ctx);
   registerWikiTools(ctx);
+  registerQueryTools(ctx);
   registerBriefingTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);
