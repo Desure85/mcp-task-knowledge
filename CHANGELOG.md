@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-26c: `uninstall --client <opencode|claude-code> [--home] [--dry-run]` removes files recorded in the install manifest when their sha256 still matches, and deletes the `mcp-task-knowledge` config entry. 3/3.
+
 - DX-26b: `init --demo [--project <id>]` seeds a sample project with two tasks (parent + child) and one knowledge doc; a duplicate project id exits 1 without writing. CLI tests 4/4.
 
 - DX-26a: `--help` works without `DATA_DIR`; `config show` prints the effective config with secrets redacted and exits 2 with a `DATA_DIR` hint when unset. CLI surface subitem 3/3.

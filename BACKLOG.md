@@ -894,6 +894,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | DX-26 | CLI surface polish | low | pending | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
 | DX-26a | CLI: `--help` и `config show` | low | done | DX-26 | help без DATA_DIR; config JSON с маскировкой; tests 3/3 |
 | DX-26b | CLI: `init --demo` | low | done | DX-26 | sample-проект 2 задачи + 1 документ; повторный id → exit 1; tests 4/4 |
+| DX-26c | CLI: `uninstall` | low | done | DX-26 | manifest-driven удаление файлов/config; dry-run; tests 3/3 |
 | DX-29 | Setup-link: одноразовая ссылка самонастройки агента | high | done | AUD-07, AUD-05, DX-12 | Web UI: «Сгенерировать ссылку» → scope (project, role, TTL токена). Backend: `POST /admin/setup-links` → `{url, expiresAt}`; `GET /.well-known/mcp-setup/<otp>` → one-time reveal markdown-док для агента: server URL, transport, выданный scoped JWT, инструкции самонастройки (агент знает формат своего клиента), capabilities, default project. Security: TTL ссылки ~15мин, one-time reveal, rate-limit redemption, audit-log на create+redeem, токен scoped (project+role+exp). Stdio-вариант: doc отдаёт npx-snippet + env. Дублировать как MCP-tool `admin_setup_link` для админов без Web UI. Спековая альтернатива — OAuth DCR, оценить при дизайне |
 
 ### Фаза 2 — Первые 5 минут после подключения
@@ -2201,3 +2202,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, DX-26a закрыт как подпункт DX-26): help/config show; родитель DX-26 остаётся pending.
 >
 > Примечание (2026-11-12, DX-26b закрыт как подпункт DX-26): init --demo; родитель DX-26 pending.
+>
+> Примечание (2026-11-12, DX-26c закрыт как подпункт DX-26): uninstall; родитель DX-26 pending.
