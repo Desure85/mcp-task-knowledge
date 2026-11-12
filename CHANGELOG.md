@@ -8,6 +8,8 @@
 
 ### Added
 
+- T-03: admin-only `admin_audit_query` and System audit tab with filters/pagination; 19/19 session tests; 387/0/33/1.
+
 - MU-05: task history panel (history/diff/restore) and CONFLICT dialog (take current / keep mine / manual merge); web tsc + guards 12/12; 386/0/34/1.
 
 - MU-04: `tasks_/knowledge_/skills_{history,diff,restore}` over git history; restore is a new commit; 5/5 tests; 385/1/35/1.

@@ -1162,6 +1162,8 @@ export const api = {
     sessionList: () => callTool<SessionListData>('session_list', {}),
     sessionKill: (sessionId: string) => callTool<{ closed: boolean; sessionId: string }>('session_kill', { sessionId }),
     sessionInfo: (sessionId: string) => callTool<unknown>('session_info', { sessionId }),
+    auditQuery: (args?: { userId?: string; target?: string; project?: string; status?: string; since?: string; until?: string; limit?: number; offset?: number }) =>
+      callTool<{ events: Array<{ id: string; timestamp: string; userId?: string; target: string; status: string; input?: Record<string, unknown>; metadata?: Record<string, unknown> }>; total: number; limit: number; offset: number }>('admin_audit_query', { ...(args ?? {}) }),
     embeddingsStatus: () => callTool<EmbeddingsStatus>('embeddings_status', {}),
     embeddingsTryInit: () => callTool<unknown>('embeddings_try_init', {}),
     toolsList: (search?: string, limit = 100, offset = 0) =>

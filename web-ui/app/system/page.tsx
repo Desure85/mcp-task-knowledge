@@ -32,6 +32,11 @@ import {
 } from '@/components/ui';
 import { IconAlert, IconSystem } from '@/components/icons';
 
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
 function Notice({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div
@@ -75,7 +80,27 @@ export default function SystemPage() {
   const [tokenInput, setTokenInput] = useState('');
   const [toolOffset, setToolOffset] = useState(0);
   const [sessionFilter, setSessionFilter] = useState('');
+  const [audit, setAudit] = useState<Awaited<ReturnType<typeof api.system.auditQuery>> | null>(null);
+  const [auditUser, setAuditUser] = useState('');
+  const [auditTarget, setAuditTarget] = useState('');
+  const [auditStatus, setAuditStatus] = useState('');
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [sessionLimit, setSessionLimit] = useState(5);
+
+  const loadAudit = useCallback(async (offset = 0) => {
+    setAuditError(null);
+    try {
+      setAudit(await api.system.auditQuery({
+        ...(auditUser.trim() ? { userId: auditUser.trim() } : {}),
+        ...(auditTarget.trim() ? { target: auditTarget.trim() } : {}),
+        ...(auditStatus ? { status: auditStatus } : {}),
+        limit: 20,
+        offset,
+      }));
+    } catch (e) {
+      setAuditError((e as Error).message);
+    }
+  }, [auditUser, auditTarget, auditStatus]);
   const [killTarget, setKillTarget] = useState<string | null>(null);
   const [killing, setKilling] = useState(false);
   const TOOL_PAGE = 20;
@@ -226,6 +251,62 @@ export default function SystemPage() {
                   </span>
                 </li>
               </ol>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-[13px] font-semibold text-ink">Audit log</h2>
+              <span className="text-[11px] text-muted">Admin only · redacted</span>
+            </CardHeader>
+            <CardBody>
+              <div className="mb-3 grid gap-2 sm:grid-cols-4">
+                <Input label="User" value={auditUser} onChange={(e) => setAuditUser(e.target.value)} placeholder="userId" />
+                <Input label="Tool" value={auditTarget} onChange={(e) => setAuditTarget(e.target.value)} placeholder="target" />
+                <Select label="Result" value={auditStatus} onChange={(e) => setAuditStatus(e.target.value)}>
+                  <option value="">any</option>
+                  <option value="success">success</option>
+                  <option value="error">error</option>
+                  <option value="denied">denied</option>
+                </Select>
+                <Button variant="primary" onClick={() => void loadAudit(0)}>Query</Button>
+              </div>
+              {auditError && <p role="alert" className="text-[12px] text-danger">{auditError}</p>}
+              {audit && audit.events.length === 0 && <p className="text-[12px] text-muted">No audit events match.</p>}
+              {audit && audit.events.length > 0 && (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[12px]">
+                      <caption className="sr-only">Audit log events</caption>
+                      <thead>
+                        <tr className="border-b border-line text-left text-[11px] text-muted">
+                          <th scope="col" className="pb-2 pr-4 font-medium">Time</th>
+                          <th scope="col" className="pb-2 pr-4 font-medium">User</th>
+                          <th scope="col" className="pb-2 pr-4 font-medium">Tool</th>
+                          <th scope="col" className="pb-2 pr-4 font-medium">Project</th>
+                          <th scope="col" className="pb-2 pr-4 font-medium">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {audit.events.map((event) => (
+                          <tr key={event.id} className="border-b border-line/50">
+                            <td className="py-2 pr-4 text-muted">{formatDate(event.timestamp)}</td>
+                            <td className="py-2 pr-4">{event.userId ?? '—'}</td>
+                            <td className="py-2 pr-4"><code>{event.target}</code></td>
+                            <td className="py-2 pr-4">{String(event.input?.project ?? event.metadata?.project ?? '—')}</td>
+                            <td className="py-2 pr-4"><Badge tone={event.status === 'success' ? 'done' : event.status === 'denied' ? 'blocked' : 'neutral'}>{event.status}</Badge></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+                    <Button size="sm" disabled={(audit.offset ?? 0) === 0} onClick={() => void loadAudit(Math.max(0, (audit.offset ?? 0) - audit.limit))}>Previous</Button>
+                    <span>{audit.offset + 1}–{Math.min(audit.offset + audit.events.length, audit.total)} of {audit.total}</span>
+                    <Button size="sm" disabled={audit.offset + audit.events.length >= audit.total} onClick={() => void loadAudit(audit.offset + audit.limit)}>Next</Button>
+                  </div>
+                </>
+              )}
             </CardBody>
           </Card>
 

@@ -232,4 +232,42 @@ export function registerSessionTools(ctx: ServerContext): void {
       });
     }
   );
+
+  // ── admin_audit_query (T-03) ────────────────────────
+  ctx.server.registerTool(
+    "admin_audit_query",
+    {
+      title: "Admin Audit Query",
+      description: "Query the audit log (admin only): filter by user, tool/target, project, status and time; paginated. Sensitive fields are already redacted by the audit logger.",
+      inputSchema: {
+        userId: z.string().optional(),
+        target: z.string().optional(),
+        project: z.string().optional(),
+        status: z.enum(["success", "error", "denied", "pending"]).optional(),
+        since: z.string().optional(),
+        until: z.string().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+        offset: z.number().int().min(0).optional(),
+      },
+    },
+    async (args: { userId?: string; target?: string; project?: string; status?: "success" | "error" | "denied" | "pending"; since?: string; until?: string; limit?: number; offset?: number }, extra?: GateExtra) => {
+      const logger = ctx.auditLogger;
+      if (!logger) return err('audit log is disabled (SECURITY_AUDIT=0)');
+      const callerId = resolveExtraSessionId(extra);
+      if (!isAdmin(ctx, callerId)) return err('access denied — admin_audit_query requires admin role');
+      const result = logger.query({
+        userId: args.userId,
+        target: args.target,
+        status: args.status,
+        since: args.since,
+        until: args.until,
+        limit: args.limit ?? 50,
+        offset: args.offset ?? 0,
+      });
+      const events = args.project
+        ? result.events.filter((event) => event.input?.project === args.project || event.metadata?.project === args.project)
+        : result.events;
+      return ok({ events, total: args.project ? events.length : result.total, limit: result.limit, offset: result.offset });
+    }
+  );
 }

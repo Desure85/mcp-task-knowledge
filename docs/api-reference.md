@@ -2,12 +2,13 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **173** — 171 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **174** — 172 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
 | Инструмент | Описание |
 |------------|-----------|
+| `admin_audit_query` | Query the audit log (admin only): filter by user, tool/target, project, status and time; paginated.  |
 | `admin_backup` | Create a portable tar.gz archive of DATA_DIR (ADR-008): manifest.json with formatVersion/profile/sch |
 | `admin_restore` | Restore DATA_DIR from a tar.gz archive created by admin_backup (ADR-008): validates every entry (pat |
 | `admin_setup_link` | Create a one-time setup link (TTL ~15min) that reveals a markdown document with server URL, transpor |
@@ -181,6 +182,41 @@
 | `tools_register` | Hot-register a new tool at runtime without restarting the server. The handler is defined as a JSON e |
 | `tools_run` | Execute one or many tools by name with params via RPC. |
 | `tools_unregister` | Hot-remove a tool at runtime (DX-001). Experimental. |
+
+## admin_audit_query
+
+**Admin Audit Query**
+
+Query the audit log (admin only): filter by user, tool/target, project, status and time; paginated. Sensitive fields are already redacted by the audit logger.
+
+**Параметры:**
+
+- `userId`
+- `target`
+- `project`
+- `status`
+- `since`
+- `until`
+- `limit`
+- `offset`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "admin_audit_query",
+  "arguments": {
+    "userId": "example",
+    "target": "example",
+    "project": "mcp",
+    "status": "pending",
+    "since": "example",
+    "until": "example",
+    "limit": 10,
+    "offset": "example"
+  }
+}
+```
 
 ## admin_backup
 
