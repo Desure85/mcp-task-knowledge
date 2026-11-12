@@ -22,6 +22,7 @@ import { mapLimit } from '../utils/concurrency.js';
 import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
 import { childLogger } from '../core/logger.js';
+import { WorkflowError } from '../workflow.js';
 
 const log = childLogger('storage:knowledge');
 
@@ -66,6 +67,8 @@ export async function createDoc(input: {
     type: input.type,
     trustLevel: input.trustLevel ?? 'user',
     externalKey: blankToUndefined(input.externalKey),
+    version: 1,
+    fieldVersions: {},
     archived: false,
     trashed: false,
   };
@@ -365,11 +368,21 @@ export async function readDoc(project: string, id: string): Promise<KnowledgeDoc
   return { ...meta, project: metaProject, content } as KnowledgeDoc;
 }
 
-export async function updateDoc(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {
-  return withFileLock(`doc:${project}/${id}`, () => updateDocUnlocked(project, id, patch));
+export async function updateDoc(
+  project: string,
+  id: string,
+  patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>,
+  expectedVersion?: number,
+): Promise<KnowledgeDoc | null> {
+  return withFileLock(`doc:${project}/${id}`, () => updateDocUnlocked(project, id, patch, expectedVersion));
 }
 
-async function updateDocUnlocked(project: string, id: string, patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>): Promise<KnowledgeDoc | null> {
+async function updateDocUnlocked(
+  project: string,
+  id: string,
+  patch: Partial<Omit<KnowledgeDoc, 'id' | 'project' | 'createdAt'>>,
+  expectedVersion?: number,
+): Promise<KnowledgeDoc | null> {
   const existing = await readDoc(project, id);
   if (!existing) return null;
   // Monotonic updatedAt: bump by 1ms when the new timestamp would equal the old
@@ -377,6 +390,19 @@ async function updateDocUnlocked(project: string, id: string, patch: Partial<Omi
   let updatedAt = new Date().toISOString();
   if (updatedAt <= existing.updatedAt) {
     updatedAt = new Date(new Date(existing.updatedAt).getTime() + 1).toISOString();
+  }
+
+  const currentVersionForCas = existing.version ?? 1;
+  const patchKeysForCas = Object.keys(patch);
+  if (expectedVersion !== undefined && expectedVersion !== currentVersionForCas) {
+    const conflicting = patchKeysForCas.filter((key) => (existing.fieldVersions?.[key] ?? 0) > expectedVersion);
+    if (expectedVersion > currentVersionForCas || conflicting.length > 0) {
+      const current = Object.fromEntries(patchKeysForCas.map((key) => [key, (existing as unknown as Record<string, unknown>)[key]]));
+      throw new WorkflowError('CONFLICT', 'Document changed since expectedVersion', 'Re-read the document and retry with its current version', {
+        expectedVersion, currentVersion: currentVersionForCas, fields: conflicting, current,
+        diff: conflicting.map((key) => ({ field: key, expected: (patch as unknown as Record<string, unknown>)[key], current: (existing as unknown as Record<string, unknown>)[key] })),
+      });
+    }
   }
 
   // Versioning (TD-005): snapshot the current version before overwriting
@@ -404,6 +430,10 @@ async function updateDocUnlocked(project: string, id: string, patch: Partial<Omi
     createdAt: existing.createdAt,
     updatedAt,
     version: currentVersion + 1,
+    fieldVersions: {
+      ...(existing.fieldVersions ?? {}),
+      ...Object.fromEntries(patchKeysForCas.map((key) => [key, currentVersion + 1])),
+    },
     history,
   };
   const content = patch.content !== undefined ? patch.content : existing.content;

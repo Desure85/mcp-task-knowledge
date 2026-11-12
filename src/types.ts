@@ -56,6 +56,10 @@ export interface Task {
   type?: string;
   priority: Priority;
   tags?: string[];
+  /** MU-02: optimistic-lock version (1-based). */
+  version?: number;
+  /** MU-02: last version that changed each field. */
+  fieldVersions?: Record<string, number>;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   links?: string[]; // file paths or URLs
@@ -96,6 +100,8 @@ export interface KnowledgeDocMeta {
   trashedAt?: string; // ISO
   // Versioning (TD-005)
   version?: number; // current version number (1-based)
+  /** MU-02: last version that changed each field. */
+  fieldVersions?: Record<string, number>;
   history?: Array<{ version: number; updatedAt: string; title?: string }>; // prior versions
 }
 

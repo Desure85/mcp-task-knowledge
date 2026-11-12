@@ -4280,6 +4280,7 @@ Update a single task by id. Can change any field except id, project, createdAt. 
 - `links`
 - `parentId`
 - `dependsOn`
+- `expectedVersion`
 - `fields`
 - `compact`
 
@@ -4304,6 +4305,7 @@ Update a single task by id. Can change any field except id, project, createdAt. 
     ],
     "parentId": null,
     "dependsOn": "example",
+    "expectedVersion": "example",
     "fields": "example",
     "compact": "example"
   }

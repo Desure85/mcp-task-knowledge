@@ -178,7 +178,7 @@ export interface TaskStore {
   page(project: string, options: TaskPageOptions): Promise<TaskPage>;
   get(project: string, id: string): Promise<Task | null>;
   create(input: CreateTaskInput): Promise<Task>;
-  update(project: string, id: string, patch: TaskPatch): Promise<Task | null>;
+  update(project: string, id: string, patch: TaskPatch, expectedVersion?: number): Promise<Task | null>;
   close(project: string, id: string): Promise<Task | null>;
   archive(project: string, id: string): Promise<Task | null>;
   trash(project: string, id: string): Promise<Task | null>;
