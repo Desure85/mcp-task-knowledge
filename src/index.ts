@@ -115,6 +115,8 @@ if (process.argv[2] === '--help' || process.argv[2] === '-h') {
   void import('./cli/help-config.js').then((m) => { m.runHelp(); process.exit(0); });
 } else if (process.argv[2] === 'config' && process.argv[3] === 'show') {
   void import('./cli/help-config.js').then(async (m) => { process.exit(await m.runConfigShow()); });
+} else if (process.argv[2] === 'uninstall') {
+  void import('./cli/uninstall-agent.js').then(async (m) => { process.exit(await m.runUninstallCli(process.argv.slice(3))); });
 } else if (process.argv[2] === 'init') {
   void import('./cli/init-demo.js').then(async (m) => { process.exit(await m.runInitCli(process.argv.slice(3))); });
 } else if (process.argv[2] === 'doctor') {
