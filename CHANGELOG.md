@@ -8,6 +8,8 @@
 
 ### Added
 
+- PH-013: a real-ONNX e2e skips without `EMBEDDINGS_MODEL_PATH` and otherwise loads the MiniLM encoder, tokenizer and cosine ranking; a weekly workflow caches the model and runs it with `onnx-cpu`. Verified locally with the 23 MB quantized model; the workflow itself was not exercised here
+
 - PH-014: MCP prompts are registered after DX-14 seeding, so a fresh install answers `prompts/list` with the seeded library instead of []. A real-stdio e2e covers `resources/list`, `resources/read` (`tasks://current`) and `prompts/get`; two-peer WS broadcast is already covered by `realtime.spec.ts`
 
 - TR-13: an upgrade-path e2e boots the real server over a schema-0 DATA_DIR (no manifest, legacy task/doc shapes), reads both records and asserts the schema-1 manifest. The old package binary is not available, so this is schema-0 compatibility rather than a two-binary N→N+1 run
