@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… TK-04 закрыт)
-**Текущая ветка:** feat/tk-04-dashboard-widgets (от master ca046a1)
-**Текущий этап:** TK-04 закрыт; pending 0; blocked 25
-**Статус:** dashboard widgets; 3/3; backlog 395/0/25/1.
+**Session ID:** S-20261109-night (… TK-03 закрыт)
+**Текущая ветка:** feat/tk-03-boards-sprints (от master a88c784)
+**Текущий этап:** TK-03 закрыт; pending 0; blocked 24
+**Статус:** boards/sprints server; 3/3; backlog 396/0/24/1.
+
+### Сессия S-20261109-night (TK-03)
+
+- Board query/columns/swimlanes; sprints CRUD + assignment; null clear.
+- Ограничения: нет UI досок/спринтов; swimlane по tag дублирует задачу; без спринт-бёрндауна.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2215-tk-03.md`.
 
 ### Сессия S-20261109-night (TK-04)
 

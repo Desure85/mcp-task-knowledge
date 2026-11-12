@@ -56,6 +56,8 @@ export interface Task {
   type?: string;
   priority: Priority;
   tags?: string[];
+  /** TK-03: sprint membership. */
+  sprintId?: string | null;
   /** TK-01 field, optional: assignee user id. */
   assignee?: string;
   /** MU-02: optimistic-lock version (1-based). */
@@ -135,3 +137,4 @@ export interface SearchResult<T> {
 export interface TaskTreeNode extends Task {
   children: TaskTreeNode[];
 }
+
