@@ -262,3 +262,47 @@ describe('AC-04d: secret classes (input -> output)', () => {
     expect(result.masked).toBe(false);
   });
 });
+
+describe('AC-04e: log diagnostics candidates', () => {
+  it('reads active + rotated segments, oldest first', () => {
+    const file = path.join(tmpDir, 'rotated-read.log');
+    fs.writeFileSync(`${file}.2`, `${record('info', 'oldest')}\n`);
+    fs.writeFileSync(`${file}.1`, `${record('info', 'middle')}\n`);
+    fs.writeFileSync(file, `${record('info', 'newest')}\n`);
+    const tail = readLogTail({ file, lines: 10 });
+    expect(tail.segments.map((s) => path.basename(s))).toEqual(['rotated-read.log.2', 'rotated-read.log.1', 'rotated-read.log']);
+    expect(tail.lines).toHaveLength(3);
+    expect(tail.lines[0]).toContain('oldest');
+    expect(tail.lines[2]).toContain('newest');
+  });
+
+  it('filters by requestId and project', () => {
+    const file = path.join(tmpDir, 'filtered.log');
+    fs.writeFileSync(file, [
+      record('info', 'other', { requestId: 'r-1', project: 'alpha' }),
+      record('error', 'target', { requestId: 'r-2', project: 'beta' }),
+      'plain line without json',
+    ].join('\n') + '\n');
+    expect(readLogTail({ file, requestId: 'r-2' }).lines).toHaveLength(1);
+    expect(readLogTail({ file, requestId: 'r-2' }).lines[0]).toContain('target');
+    expect(readLogTail({ file, project: 'alpha' }).lines).toHaveLength(1);
+    expect(readLogTail({ file, project: 'alpha' }).lines[0]).toContain('other');
+    expect(readLogTail({ file, requestId: 'r-2', project: 'alpha' }).lines).toHaveLength(0);
+  });
+
+  it('passes requestId/project through logs_tail', async () => {
+    const file = path.join(tmpDir, 'tool-filter.log');
+    fs.writeFileSync(file, [
+      record('info', 'alpha line', { requestId: 'r-a', project: 'alpha' }),
+      record('info', 'beta line', { requestId: 'r-b', project: 'beta' }),
+    ].join('\n') + '\n');
+    process.env.LOG_FILE = file;
+    const byId = await call('logs_tail', { requestId: 'r-b' });
+    expect(byId.ok).toBe(true);
+    expect(byId.data.count).toBe(1);
+    expect(byId.data.lines[0]).toContain('beta line');
+    const byProject = await call('logs_tail', { project: 'alpha' });
+    expect(byProject.data.count).toBe(1);
+    expect(byProject.data.lines[0]).toContain('alpha line');
+  });
+});

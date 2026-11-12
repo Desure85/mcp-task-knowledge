@@ -33,6 +33,10 @@ export interface LogTailOptions {
   level?: LogLevelFilter;
   /** Hard cap for the returned text, in bytes. */
   maxBytes?: number;
+  /** Keep only JSON records with this `requestId` (nested tools_run/tools_batch failure). */
+  requestId?: string;
+  /** Keep only JSON records with this `project` field. */
+  project?: string;
 }
 
 export interface LogTailResult {
@@ -46,6 +50,8 @@ export interface LogTailResult {
   truncated: boolean;
   /** How many lines had at least one secret masked. */
   maskedLines: number;
+  /** Log segments read, oldest first (active file plus `.1`, `.2` when present). */
+  segments: string[];
 }
 
 const LEVEL_ORDER: Record<string, number> = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 };
@@ -133,6 +139,21 @@ function passesLevel(line: string, filter: LogLevelFilter): boolean {
   return (LEVEL_ORDER[level] ?? threshold) >= threshold;
 }
 
+function jsonField(line: string, key: string): unknown {
+  try {
+    return (JSON.parse(line) as Record<string, unknown>)[key];
+  } catch {
+    return undefined;
+  }
+}
+
+function passesFilters(line: string, options: Pick<LogTailOptions, 'level' | 'requestId' | 'project'>): boolean {
+  if (!passesLevel(line, options.level ?? 'all')) return false;
+  if (options.requestId && jsonField(line, 'requestId') !== options.requestId) return false;
+  if (options.project && jsonField(line, 'project') !== options.project) return false;
+  return true;
+}
+
 /** Resolve the configured log file; relative paths are resolved against `DATA_DIR`. */
 export function resolveLogFile(dataDir?: string): string | undefined {
   const configured = process.env.LOG_FILE?.trim();
@@ -148,32 +169,39 @@ export function readLogTail(options: LogTailOptions): LogTailResult {
   const wanted = Math.max(1, Math.trunc(options.lines ?? 200));
   const maxBytes = Math.max(1024, Math.trunc(options.maxBytes ?? 64 * 1024));
   const level = options.level ?? 'all';
-
-  let handle: number;
-  try {
-    handle = fs.openSync(options.file, 'r');
-  } catch (error) {
-    throw new Error(`cannot read log file: ${(error as Error).message}`);
-  }
-  let text = '';
+  // Rotation names the previous copies `.1` (newest) and `.2` (oldest kept); read oldest first.
+  const candidates = [`${options.file}.${LOG_ROTATE_KEEP - 1}`, `${options.file}.1`, options.file];
+  const segments: string[] = [];
+  const all: string[] = [];
   let windowTruncated = false;
-  try {
-    const size = fs.fstatSync(handle).size;
-    const start = Math.max(0, size - READ_WINDOW_BYTES);
-    windowTruncated = start > 0;
-    const length = size - start;
-    const buffer = Buffer.alloc(length);
-    if (length > 0) fs.readSync(handle, buffer, 0, length, start);
-    text = buffer.toString('utf8');
-  } finally {
-    fs.closeSync(handle);
+
+  for (const segment of candidates) {
+    let handle: number;
+    try {
+      handle = fs.openSync(segment, 'r');
+    } catch {
+      continue;
+    }
+    segments.push(segment);
+    try {
+      const size = fs.fstatSync(handle).size;
+      const start = Math.max(0, size - READ_WINDOW_BYTES);
+      if (start > 0) windowTruncated = true;
+      const length = size - start;
+      const buffer = Buffer.alloc(length);
+      if (length > 0) fs.readSync(handle, buffer, 0, length, start);
+      const lines = buffer.toString('utf8').split('\n').filter((line) => line.trim().length > 0);
+      // A partial first line is a side effect of reading the tail of a file.
+      if (start > 0 && lines.length > 0) lines.shift();
+      all.push(...lines);
+    } finally {
+      fs.closeSync(handle);
+    }
   }
 
-  const all = text.split('\n').filter((line) => line.trim().length > 0);
-  // A partial first line is a side effect of reading the tail of a file.
-  if (windowTruncated && all.length > 0) all.shift();
+  if (segments.length === 0) throw new Error(`cannot read log file: ${options.file}`);
 
-  const matched = all.filter((line) => passesLevel(line, level));
+  const matched = all.filter((line) => passesFilters(line, { level, requestId: options.requestId, project: options.project }));
   const selected = matched.slice(-wanted);
 
   const maskedLines: string[] = [];
@@ -204,5 +232,6 @@ export function readLogTail(options: LogTailOptions): LogTailResult {
     scanned: all.length,
     truncated: windowTruncated || payloadTruncated || matched.length > selected.length,
     maskedLines: masked,
+    segments,
   };
 }
