@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-26a: `--help` works without `DATA_DIR`; `config show` prints the effective config with secrets redacted and exits 2 with a `DATA_DIR` hint when unset. CLI surface subitem 3/3.
+
 - Y-02e: storage-profile composition moved from `src/register/setup.ts` to `src/core/profile-factory.ts`; registrators no longer import `src/storage/**` and the guard allowlist is empty. 31/31 storage contract, 3/3 wiring.
 
 - CM-04: bridge --tools meta exposes only tools_list/tool_schema/tool_help/tools_run and rejects direct calls to other tools; full remains the default mirror. Env MCP_PROXY_TOOLS mirrors the flag

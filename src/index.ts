@@ -111,7 +111,11 @@ async function maybeRunInstallAgent(): Promise<void> {
   await runInstallAgentCli(process.argv.slice(3));
 }
 
-if (process.argv[2] === 'doctor') {
+if (process.argv[2] === '--help' || process.argv[2] === '-h') {
+  void import('./cli/help-config.js').then((m) => { m.runHelp(); process.exit(0); });
+} else if (process.argv[2] === 'config' && process.argv[3] === 'show') {
+  void import('./cli/help-config.js').then(async (m) => { process.exit(await m.runConfigShow()); });
+} else if (process.argv[2] === 'doctor') {
   void maybeRunCli();
 } else if (process.argv[2] === 'reindex') {
   void maybeRunReindex();
