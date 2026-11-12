@@ -87,13 +87,23 @@ describe('AC-03a: tasks_list batch lookup', () => {
 
 describe('AC-03a: tools_list can page the whole surface', () => {
   it('accepts limit 200 and returns every registered tool', async () => {
-    const listed = await call('tools_list', { limit: 200 });
-    expect(listed.ok).toBe(true);
+    const first = await call('tools_list', { limit: 200 });
+    expect(first.ok).toBe(true);
     // `tools_list` wraps the registry page: data.items + data.pagination.
-    const total = listed.data.pagination.total as number;
+    const total = first.data.pagination.total as number;
     expect(total).toBeGreaterThanOrEqual(128);
-    expect(listed.data.data.length).toBe(total);
-    expect(listed.data.pagination.hasMore).toBe(false);
+    expect(first.data.data.length).toBe(Math.min(total, 200));
+    const seen = new Set(first.data.data.map((t: { name: string }) => t.name));
+    if (total > 200) {
+      const second = await call('tools_list', { limit: 200, offset: 200 });
+      expect(second.ok).toBe(true);
+      expect(second.data.data.length).toBe(total - 200);
+      for (const t of second.data.data as Array<{ name: string }>) seen.add(t.name);
+      expect(second.data.pagination.hasMore).toBe(false);
+    } else {
+      expect(first.data.pagination.hasMore).toBe(false);
+    }
+    expect(seen.size).toBe(total);
   });
 });
 
