@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-03/SC-07: git history wired to task/doc updates and prompt bulk writes; one batched commit, durable queue, recovered/author; 5/5 tests; 384/0/36/1.
+
 - MU-03/SC-07 core: `GitHistory` batched queue/flush (100 paths/2 s), durable queue, dirty recovery, revert-as-new-commit; 3/3 tests. Not wired to storage yet.
 
 - MU-03/SC-07 design: git via `execFile`, batched commits (100 paths/2 s) with durable queue; CLI commit median 170 ms; implementation pending.

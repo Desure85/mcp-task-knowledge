@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
+import { TASKS_DIR, KNOWLEDGE_DIR, DATA_DIR } from '../config.js';
 import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson } from '../fs.js';
 import { listDataFiles, resolveDataFile, writeDataPath } from './sharding.js';
 import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
@@ -21,6 +21,7 @@ import { nextTaskVersion } from './optimistic.js';
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
+import { enqueueHistory } from '../history/service.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
@@ -554,6 +555,7 @@ async function persistClaim(project: string, id: string, task: Task, claim: Task
   const p = taskFilePath(project, id);
   await writeJson(p, updated);
   await indexTaskWrite(project, updated, p);
+  void enqueueHistory([p]).catch(() => undefined);
   return updated;
 }
 
@@ -826,7 +828,7 @@ async function updateTaskUnlocked(
     ...normalizedPatch,
     id: existing.id,
     project: existing.project,
-    type: (normalizedPatch as any).type ?? existing.type ?? 'task',
+    type: normalizedPatch.type ?? existing.type ?? 'task',
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
     version: versionState.version,
@@ -836,6 +838,7 @@ async function updateTaskUnlocked(
   await ensureDir(path.dirname(p));
   await writeJson(p, updated);
   await indexTaskWrite(project, updated, p);
+  void enqueueHistory([p]).catch(() => undefined);
   noteTaskWritten(updated);
   return updated;
 }

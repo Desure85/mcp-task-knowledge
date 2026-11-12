@@ -1,6 +1,7 @@
 import type { ServerContext } from './context.js';
 import { z } from 'zod/v3';
 import { PROMPTS_DIR, resolveProject } from '../config.js';
+import { enqueueHistory } from '../history/service.js';
 import { resolveUnder } from '../fs.js';
 import { ok, okWith, err, errWith } from '../utils/respond.js';
 import { PaginationError, paginateRanked, scopeOf } from '../utils/pagination.js';
@@ -186,6 +187,7 @@ export function registerPromptsTools(ctx: ServerContext) {
             continue;
           }
           await fs.writeFile(file, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+      void enqueueHistory([file]).catch(() => undefined);
           results.push({ id: obj.id, version: obj.version, path: file });
         } catch (e: any) {
           results.push({ id: obj?.id || '', version: obj?.version || '', error: e?.message || String(e) });
@@ -237,6 +239,7 @@ export function registerPromptsTools(ctx: ServerContext) {
           await ensureDir(dstDir);
           const dstFile = path.join(dstDir, `${updated.id}@${updated.version}.json`);
           await fs.writeFile(dstFile, JSON.stringify(updated, null, 2) + '\n', 'utf8');
+        void enqueueHistory([dstFile]).catch(() => undefined);
           if (dstFile !== targetPath) {
             try { await fs.unlink(targetPath); } catch {}
           }
