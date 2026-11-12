@@ -56,6 +56,8 @@ export interface Task {
   type?: string;
   priority: Priority;
   tags?: string[];
+  /** T-06: bidirectional task<->document links. */
+  relatedDocIds?: string[];
   /** TK-03: sprint membership. */
   sprintId?: string | null;
   /** TK-01 field, optional: assignee user id. */
@@ -106,6 +108,8 @@ export interface KnowledgeDocMeta {
   version?: number; // current version number (1-based)
   /** T-05: draft/published wiki lifecycle. */
   status?: 'draft' | 'published';
+  /** T-06: bidirectional task<->document links. */
+  relatedTaskIds?: string[];
   /** T-05: human review record. */
   reviewedBy?: string;
   reviewedAt?: string;

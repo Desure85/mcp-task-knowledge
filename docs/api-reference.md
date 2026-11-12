@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **197** — 195 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **206** — 204 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -167,6 +167,8 @@
 | `skills_diff` | Show the diff of one commit for a skill. |
 | `skills_history` | List git commits that touched a skill in DATA_DIR. |
 | `skills_version_restore` | Restore a skill from a commit as a new commit (history is not erased). |
+| `task_document_links_get` | Read bidirectional links by task or document. |
+| `task_document_links_set` | Set bidirectional links for one document and the listed tasks; removes stale doc links from other ta |
 | `tasks_add_subtask` | Create a subtask under a parent task. Shorthand for tasks_create with parentId. Maximum nesting dept |
 | `tasks_board` | Render the saved board: columns by query + swimlane counts. Falls back to one column per distinct st |
 | `tasks_bulk_archive` | Archive many tasks |
@@ -188,6 +190,10 @@
 | `tasks_history` | List git commits that touched a task in DATA_DIR. |
 | `tasks_list` | List tasks with optional filters, cursor pagination and field selection. Returns `data` (array) plus |
 | `tasks_query` | Query tasks with the TK-02 language: `project: X #tag status: Doing assignee: me`, AND/OR/NOT, paren |
+| `tasks_recurring_delete` | Delete a recurring definition. |
+| `tasks_recurring_list` | List recurring definitions and next run. |
+| `tasks_recurring_save` | Create or replace a recurring definition (daily/weekly/monthly, UTC time, optional templateId). |
+| `tasks_recurring_tick` | Create due instances exactly once per occurrence (idempotent across restarts). Safe to call repeated |
 | `tasks_release` | Release your lease so another agent can pick the task up. Only the holder may release before expiry; |
 | `tasks_renew` | Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not  |
 | `tasks_saved_search_delete` | Delete a saved query by name. |
@@ -195,6 +201,9 @@
 | `tasks_saved_search_save` | Create or replace a named saved query. |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blocked |
 | `tasks_sprint_assign` | Assign tasks to a sprint; sprintId=null clears membership. |
+| `tasks_template_delete` | Delete a template by id. |
+| `tasks_template_list` | List task templates. |
+| `tasks_template_save` | Create or replace a task template with default fields (priority/type/tags/description/links). |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 | `tasks_version_restore` | Restore a task from a commit as a new commit (history is not erased). |
@@ -4291,6 +4300,56 @@ Restore a skill from a commit as a new commit (history is not erased).
 }
 ```
 
+## task_document_links_get
+
+**Get Task/Document Links**
+
+Read bidirectional links by task or document.
+
+**Параметры:**
+
+- `project`
+- `taskId`
+- `docId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "task_document_links_get",
+  "arguments": {
+    "project": "mcp",
+    "taskId": "example",
+    "docId": "example"
+  }
+}
+```
+
+## task_document_links_set
+
+**Link Task/Document**
+
+Set bidirectional links for one document and the listed tasks; removes stale doc links from other tasks.
+
+**Параметры:**
+
+- `project`
+- `docId`
+- `taskIds`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "task_document_links_set",
+  "arguments": {
+    "project": "mcp",
+    "docId": "example",
+    "taskIds": "example"
+  }
+}
+```
+
 ## tasks_add_subtask
 
 **Add Subtask**
@@ -4924,6 +4983,94 @@ Query tasks with the TK-02 language: `project: X #tag status: Doing assignee: me
 }
 ```
 
+## tasks_recurring_delete
+
+**Delete Recurring Task**
+
+Delete a recurring definition.
+
+**Параметры:**
+
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_recurring_delete",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+## tasks_recurring_list
+
+**Recurring Tasks**
+
+List recurring definitions and next run.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_recurring_list",
+  "arguments": {}
+}
+```
+
+## tasks_recurring_save
+
+**Save Recurring Task**
+
+Create or replace a recurring definition (daily/weekly/monthly, UTC time, optional templateId).
+
+**Параметры:**
+
+- `id`
+- `project`
+- `title`
+- `templateId`
+- `schedule`
+- `nextAt`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_recurring_save",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "project": "mcp",
+    "title": "Example Title",
+    "templateId": "example",
+    "schedule": "example",
+    "nextAt": "example"
+  }
+}
+```
+
+## tasks_recurring_tick
+
+**Tick Recurring Tasks**
+
+Create due instances exactly once per occurrence (idempotent across restarts). Safe to call repeatedly.
+
+**Параметры:**
+
+- `now`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_recurring_tick",
+  "arguments": {
+    "now": "example"
+  }
+}
+```
+
 ## tasks_release
 
 **Release Task Claim**
@@ -5087,6 +5234,67 @@ Assign tasks to a sprint; sprintId=null clears membership.
       "00000000-0000-0000-0000-000000000000"
     ],
     "sprintId": "example"
+  }
+}
+```
+
+## tasks_template_delete
+
+**Delete Task Template**
+
+Delete a template by id.
+
+**Параметры:**
+
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_template_delete",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+## tasks_template_list
+
+**Task Templates**
+
+List task templates.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_template_list",
+  "arguments": {}
+}
+```
+
+## tasks_template_save
+
+**Save Task Template**
+
+Create or replace a task template with default fields (priority/type/tags/description/links).
+
+**Параметры:**
+
+- `id`
+- `name`
+- `defaults`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_template_save",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "example",
+    "defaults": "example"
   }
 }
 ```
