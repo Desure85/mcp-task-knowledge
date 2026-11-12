@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… AUD-18e закрыт)
-**Текущая ветка:** refactor/aud-18e-remove-dead-sync (от master bf54f3e)
-**Текущий этап:** AUD-18e закрыт; blocked 21
-**Статус:** dead sync removed; backlog 399/0/21/1.
+**Session ID:** S-20261109-night (… TR-30 закрыт)
+**Текущая ветка:** fix/tr-30-crawler-egress (от master 45787a2)
+**Текущий этап:** TR-30 закрыт; blocked 20
+**Статус:** crawler egress; 6/6; backlog 400/0/20/1.
+
+### Сессия S-20261109-night (TR-30)
+
+- Egress: scheme/credentials/localhost/private IP/DNS/redirect/allowlist; crawler использует safeFetchText.
+- Ограничения: DNS rebinding между проверкой и fetch; без port/CIDR; prompt injection не фильтруется.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0035-tr-30.md`, docs.
 
 ### Сессия S-20261109-night (AUD-18e)
 

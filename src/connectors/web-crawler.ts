@@ -5,6 +5,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { safeFetchText } from './egress.js';
 
 export class WebCrawlerConnector implements Connector {
   readonly id = 'web-crawler';
@@ -14,10 +15,16 @@ export class WebCrawlerConnector implements Connector {
   private initialized = false;
   private maxPages = 100;
   private timeoutMs = 10_000;
+  private allowedHosts: string[] | undefined;
+  private allowPrivate = false;
+  private maxRedirects = 5;
 
   async init(ctx: ConnectorContext): Promise<void> {
     this.maxPages = (ctx.config['maxPages'] as number) ?? 100;
     this.timeoutMs = (ctx.config['timeoutMs'] as number) ?? 10_000;
+    this.allowedHosts = ctx.config['allowedHosts'] as string[] | undefined;
+    this.allowPrivate = ctx.config['allowPrivate'] === true;
+    this.maxRedirects = (ctx.config['maxRedirects'] as number) ?? 5;
 
     ctx.registerTool('webcrawler_fetch_page', {
       title: 'Web Crawler: Fetch Page',
@@ -57,16 +64,18 @@ export class WebCrawlerConnector implements Connector {
 
   private async fetchPage(url: string): Promise<{ ok: true; url: string; title: string; content: string; links: string[] } | { ok: false; url: string; error: { message: string } }> {
     try {
-      const resp = await fetch(url, {
-        signal: AbortSignal.timeout(this.timeoutMs),
-        headers: { 'User-Agent': 'mcp-task-knowledge-crawler/1.0' },
+      const resp = await safeFetchText(url, {
+        timeoutMs: this.timeoutMs,
+        allowedHosts: this.allowedHosts,
+        allowPrivate: this.allowPrivate,
+        maxRedirects: this.maxRedirects,
       });
-      if (!resp.ok) return { ok: false, url, error: { message: `HTTP ${resp.status} ${resp.statusText}`.trim() } };
-      const html = await resp.text();
+      if (resp.status < 200 || resp.status >= 300) return { ok: false, url, error: { message: `HTTP ${resp.status}` } };
+      const html = resp.text;
       const title = extractTitle(html);
       const content = stripHtml(html);
-      const links = extractLinks(html, url);
-      return { ok: true, url, title, content, links };
+      const links = extractLinks(html, resp.url);
+      return { ok: true, url: resp.url, title, content, links };
     } catch (error) {
       return { ok: false, url, error: { message: (error as Error).message || 'fetch failed' } };
     }
