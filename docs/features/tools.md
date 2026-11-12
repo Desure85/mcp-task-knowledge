@@ -538,3 +538,13 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `project_sprint_save` | Save sprint dates |
 | `project_sprint_delete` | Delete sprint |
 | `tasks_sprint_assign` | Assign tasks to a sprint |
+
+| `tasks_template_list` | List task templates |
+| `tasks_template_save` | Save task template defaults |
+| `tasks_template_delete` | Delete a template |
+| `tasks_recurring_list` | List recurring definitions |
+| `tasks_recurring_save` | Save recurring schedule |
+| `tasks_recurring_delete` | Delete recurring definition |
+| `tasks_recurring_tick` | Create due instances idempotently |
+| `task_document_links_set` | Set bidirectional task↔document links |
+| `task_document_links_get` | Read bidirectional links |

@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… TK-03 закрыт)
-**Текущая ветка:** feat/tk-03-boards-sprints (от master a88c784)
-**Текущий этап:** TK-03 закрыт; pending 0; blocked 24
-**Статус:** boards/sprints server; 3/3; backlog 396/0/24/1.
+**Session ID:** S-20261109-night (… T-06 закрыт)
+**Текущая ветка:** feat/t-06-templates-recurring-links (от master f749be4)
+**Текущий этап:** T-06 закрыт; pending 0; blocked 23
+**Статус:** templates/recurring/links; 3/3; backlog 397/0/23/1.
+
+### Сессия S-20261109-night (T-06)
+
+- Templates CRUD; recurring daily/weekly/monthly + idempotent tick; bidirectional task↔doc links.
+- Ограничения: нет фонового планировщика/tick по cron; нет UI; удаление документа не чистит task.relatedDocIds.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2245-t-06.md`.
 
 ### Сессия S-20261109-night (TK-03)
 
