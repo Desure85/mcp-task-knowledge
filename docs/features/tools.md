@@ -530,3 +530,11 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `dashboard_widgets_get` | Read a user's dashboard layout |
 | `dashboard_widgets_set` | Replace dashboard layout (≤20) |
 | `dashboard_widgets_render` | Render list/distribution/burndown widgets |
+
+| `project_board_get` | Read board config |
+| `project_board_set` | Set query/columns/swimlanes |
+| `tasks_board` | Render board columns + swimlanes |
+| `project_sprint_list` | List sprints |
+| `project_sprint_save` | Save sprint dates |
+| `project_sprint_delete` | Delete sprint |
+| `tasks_sprint_assign` | Assign tasks to a sprint |

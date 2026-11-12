@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **190** — 188 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **197** — 195 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -114,6 +114,8 @@
 | `profile_set` | Write the current user’s preferences. Last write wins by updatedAt; an older write returns conflict  |
 | `project_agents_get` | Get the project agent-target registry. Built-ins universal, claude and opencode are always present. |
 | `project_agents_set` | Replace the project agent-target registry. A target still used by prompts cannot be removed without  |
+| `project_board_get` | Read board config (saved query, columns, swimlane field). |
+| `project_board_set` | Replace board config: saved query, 1..20 columns with query per column, optional swimlane field. |
 | `project_create` | Create a new project with optional description. Creates task and knowledge directories automatically |
 | `project_delete` | Delete a project and all its data. Requires force=true if project has tasks or knowledge entries. |
 | `project_get_current` | Return the name of the current project context (session-scoped on multi-client transports) |
@@ -124,6 +126,9 @@
 | `project_members_set` | Add or update one project member role. Requires a project admin (global admin bypasses). |
 | `project_purge` | Enumerate and permanently delete ALL tasks and/or knowledge in the project. Requires confirm=true un |
 | `project_set_current` | Change the current project context used when project is omitted (per-session on http/tcp, global on  |
+| `project_sprint_delete` | Delete a sprint by id; tasks keep sprintId but it no longer resolves. |
+| `project_sprint_list` | List sprints with dates. |
+| `project_sprint_save` | Create or replace a sprint (id, name, startDate, endDate). |
 | `project_statuses_get` | Get the project status set, close status and allowed initial statuses. New projects use the default  |
 | `project_statuses_set` | Replace the project status set. Statuses used by tasks cannot be removed without moveTo or moves. At |
 | `project_theme_delete` | Remove a team theme from project data. A member's locally copied theme is unaffected. |
@@ -163,6 +168,7 @@
 | `skills_history` | List git commits that touched a skill in DATA_DIR. |
 | `skills_version_restore` | Restore a skill from a commit as a new commit (history is not erased). |
 | `tasks_add_subtask` | Create a subtask under a parent task. Shorthand for tasks_create with parentId. Maximum nesting dept |
+| `tasks_board` | Render the saved board: columns by query + swimlane counts. Falls back to one column per distinct st |
 | `tasks_bulk_archive` | Archive many tasks |
 | `tasks_bulk_close` | Mark many tasks as closed |
 | `tasks_bulk_create` | Create many tasks at once (optionally hierarchical via parentId) |
@@ -188,6 +194,7 @@
 | `tasks_saved_search_list` | List saved task queries. |
 | `tasks_saved_search_save` | Create or replace a named saved query. |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blocked |
+| `tasks_sprint_assign` | Assign tasks to a sprint; sprintId=null clears membership. |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 | `tasks_version_restore` | Restore a task from a commit as a new commit (history is not erased). |
@@ -2953,6 +2960,54 @@ Replace the project agent-target registry. A target still used by prompts cannot
 }
 ```
 
+## project_board_get
+
+**Project Board**
+
+Read board config (saved query, columns, swimlane field).
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_board_get",
+  "arguments": {
+    "project": "mcp"
+  }
+}
+```
+
+## project_board_set
+
+**Set Project Board**
+
+Replace board config: saved query, 1..20 columns with query per column, optional swimlane field.
+
+**Параметры:**
+
+- `project`
+- `query`
+- `columns`
+- `swimlaneField`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_board_set",
+  "arguments": {
+    "project": "mcp",
+    "query": "example",
+    "columns": "example",
+    "swimlaneField": "example"
+  }
+}
+```
+
 ## project_create
 
 **Create Project**
@@ -3181,6 +3236,69 @@ Change the current project context used when project is omitted (per-session on 
   "name": "project_set_current",
   "arguments": {
     "project": "mcp"
+  }
+}
+```
+
+## project_sprint_delete
+
+**Delete Sprint**
+
+Delete a sprint by id; tasks keep sprintId but it no longer resolves.
+
+**Параметры:**
+
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_sprint_delete",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+## project_sprint_list
+
+**Sprint List**
+
+List sprints with dates.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_sprint_list",
+  "arguments": {}
+}
+```
+
+## project_sprint_save
+
+**Save Sprint**
+
+Create or replace a sprint (id, name, startDate, endDate).
+
+**Параметры:**
+
+- `id`
+- `name`
+- `startDate`
+- `endDate`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_sprint_save",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "example",
+    "startDate": "example",
+    "endDate": "example"
   }
 }
 ```
@@ -4212,6 +4330,29 @@ Create a subtask under a parent task. Shorthand for tasks_create with parentId. 
 }
 ```
 
+## tasks_board
+
+**Render Task Board**
+
+Render the saved board: columns by query + swimlane counts. Falls back to one column per distinct status.
+
+**Параметры:**
+
+- `project`
+- `includeArchived`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_board",
+  "arguments": {
+    "project": "mcp",
+    "includeArchived": false
+  }
+}
+```
+
 ## tasks_bulk_archive
 
 **Bulk Archive Tasks**
@@ -4919,6 +5060,33 @@ Set or replace dependency list for a task. Validates no cycles. Returns task, st
     "markBlocked": "example",
     "fields": "example",
     "compact": "example"
+  }
+}
+```
+
+## tasks_sprint_assign
+
+**Assign Sprint**
+
+Assign tasks to a sprint; sprintId=null clears membership.
+
+**Параметры:**
+
+- `project`
+- `ids`
+- `sprintId`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_sprint_assign",
+  "arguments": {
+    "project": "mcp",
+    "ids": [
+      "00000000-0000-0000-0000-000000000000"
+    ],
+    "sprintId": "example"
   }
 }
 ```

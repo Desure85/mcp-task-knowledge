@@ -8,6 +8,8 @@
 
 ### Added
 
+- TK-03: board saved query/columns/swimlanes + sprints and assignment; 3/3; API 196; 396/0/24/1.
+
 - TK-04: dashboard_widgets_get/set/render (list query, distribution, burndown); time unsupported until TK-05; 3/3; API 190; 395/0/25/1.
 
 - TK-02: query language (`project:`, `#tag`, AND/OR/NOT, quotes, sort by) + saved searches; 4/4; API 187; 394/0/26/1.
