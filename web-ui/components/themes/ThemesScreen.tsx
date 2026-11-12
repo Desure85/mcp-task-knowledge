@@ -19,6 +19,8 @@ import {
   buildTheme,
   clearCustomTheme,
   importThemeJson,
+  newThemeId,
+  parseTheme,
   previewTokens,
   readActiveCustomId,
   readCustomThemes,
@@ -44,6 +46,7 @@ import {
 import { ContrastPanel } from './ContrastPanel';
 import { ImportExportPanel } from './ImportExportPanel';
 import { ThemePreview } from './ThemePreview';
+import { api, type ProjectTheme } from '@/lib/api-client';
 
 interface Draft {
   name: string;
@@ -133,6 +136,8 @@ export function ThemesScreen() {
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomTheme | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [teamThemes, setTeamThemes] = useState<ProjectTheme[]>([]);
+  const [teamBusy, setTeamBusy] = useState(false);
 
   useEffect(() => {
     const loaded = readCustomThemes(window.localStorage);
@@ -148,7 +153,63 @@ export function ThemesScreen() {
       setSelectedId(null);
       setDraft(freshDraft(loaded.themes.length));
     }
+    reloadTeamThemes();
   }, []);
+
+  function reloadTeamThemes() {
+    api.projects.themes
+      .list()
+      .then((res) => setTeamThemes(res.themes))
+      .catch(() => setTeamThemes([]));
+  }
+
+  function copyTeamTheme(item: ProjectTheme) {
+    const parsed = parseTheme(item.theme);
+    if (!parsed) {
+      notify('error', 'Тема команды повреждена.');
+      return;
+    }
+    const id = store.themes.some((theme) => theme.id === parsed.id) ? newThemeId() : parsed.id;
+    const copy = { ...parsed, id, name: item.name };
+    const next = { ...store, themes: [...store.themes, copy] };
+    if (!persist(next)) return;
+    setStore(next);
+    setSelectedId(copy.id);
+    setDraft(draftFrom(copy));
+    applyNow(copy);
+    notify('ok', `Тема «${item.name}» скопирована в личные.`);
+  }
+
+  async function publishCurrentTheme() {
+    const theme = selected ?? store.themes.find((entry) => entry.id === activeId);
+    if (!theme) {
+      notify('error', 'Выберите личную тему для публикации.');
+      return;
+    }
+    setTeamBusy(true);
+    try {
+      await api.projects.themes.set(undefined, theme.id, theme.name, theme as unknown as Record<string, unknown>);
+      reloadTeamThemes();
+      notify('ok', 'Тема опубликована команде.');
+    } catch (error) {
+      notify('error', error instanceof Error ? error.message : 'Нет права публиковать тему.');
+    } finally {
+      setTeamBusy(false);
+    }
+  }
+
+  async function removeTeamTheme(item: ProjectTheme) {
+    setTeamBusy(true);
+    try {
+      await api.projects.themes.remove(undefined, item.id);
+      reloadTeamThemes();
+      notify('ok', 'Тема удалена из проекта; личные копии не затронуты.');
+    } catch (error) {
+      notify('error', error instanceof Error ? error.message : 'Нет права удалять тему.');
+    } finally {
+      setTeamBusy(false);
+    }
+  }
 
   const selected = selectedId ? store.themes.find((theme) => theme.id === selectedId) ?? null : null;
   const analyses = useMemo(
@@ -358,6 +419,34 @@ export function ThemesScreen() {
                 Duplicate
               </Button>
             </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2 text-[12px] font-semibold">
+            <span>Team themes</span>
+            <Badge tone="neutral">{teamThemes.length}</Badge>
+          </CardHeader>
+          <CardBody className="space-y-1">
+            {teamThemes.length === 0 && (
+              <p className="text-[11px] text-muted">Команда ещё не публиковала темы.</p>
+            )}
+            {teamThemes.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-1 rounded-[var(--radius-control)] px-1 py-0.5">
+                <span className="truncate text-[12px] text-ink">{item.name}</span>
+                <div className="flex shrink-0 gap-1">
+                  <Button size="sm" onClick={() => copyTeamTheme(item)}>
+                    Copy
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={teamBusy} onClick={() => void removeTeamTheme(item)}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <Button size="sm" variant="ghost" disabled={teamBusy} onClick={() => void publishCurrentTheme()}>
+              Publish current
+            </Button>
           </CardBody>
         </Card>
       </div>

@@ -567,6 +567,7 @@ export interface ProjectInfo {
   hasTasks?: boolean;
   hasKnowledge?: boolean;
 }
+export interface ProjectTheme { id: string; name: string; theme: Record<string, unknown>; updatedAt: string; }
 
 export interface FactRelationship {
   targetId: string;
@@ -1042,6 +1043,15 @@ export const api = {
       get: (project?: string) => callTool<ProjectTransitionsData>('project_transitions_get', { project }),
       set: (project: string, transitions: Record<string, string[]> | null) =>
         callTool<ProjectTransitionsData>('project_transitions_set', { project, transitions }),
+    },
+
+    themes: {
+      list: (project?: string) =>
+        callTool<{ project: string; themes: ProjectTheme[] }>('project_themes_list', { project }),
+      set: (project: string | undefined, id: string, name: string, theme: Record<string, unknown>) =>
+        callTool<{ project: string; themes: ProjectTheme[] }>('project_theme_set', { project, id, name, theme }),
+      remove: (project: string | undefined, id: string) =>
+        callTool<{ project: string; themes: ProjectTheme[] }>('project_theme_delete', { project, id }),
     },
 
     members: {
