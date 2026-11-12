@@ -441,6 +441,8 @@ export interface Task {
   type?: string;
   priority: 'low' | 'medium' | 'high';
   tags?: string[];
+  /** MU-02: optimistic-lock version. */
+  version?: number;
   parentId?: string | null;
   project?: string;
   links?: string[];
@@ -966,6 +968,13 @@ export const api = {
         isBlocked: boolean;
         unmetDependencies: Array<{ id: string; title: string; status: string }>;
       }>('tasks_get_deps', { project, id }),
+    history: (project: string, id: string, limit = 20) =>
+      callTool<{ project: string; id: string; paths: string[]; commits: Array<{ hash: string; author: string; date: string; subject: string }> }>(
+        'tasks_history', { project, id, limit }),
+    diff: (project: string, id: string, commit: string) =>
+      callTool<{ project: string; id: string; commit: string; diff: string }>('tasks_diff', { project, id, commit }),
+    versionRestore: (project: string, id: string, commit: string) =>
+      callTool<{ project: string; id: string; restoredFrom: string; files: string[] }>('tasks_version_restore', { project, id, commit }),
   },
 
   agents: {

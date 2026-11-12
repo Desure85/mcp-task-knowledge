@@ -37,6 +37,7 @@ import {
 
 type Priority = 'low' | 'medium' | 'high';
 type DestructiveAction = 'archive' | 'trash';
+type HistoryCommit = { hash: string; author: string; date: string; subject: string };
 
 function formatDate(value: string | undefined): string {
   if (!value) return '—';
@@ -76,6 +77,10 @@ export default function TaskPage() {
   const [claimNotice, setClaimNotice] = useState<string | null>(null);
   const [destructive, setDestructive] = useState<DestructiveAction | null>(null);
   const [destructiveBusy, setDestructiveBusy] = useState(false);
+  const [history, setHistory] = useState<HistoryCommit[] | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyDiff, setHistoryDiff] = useState<{ commit: string; text: string } | null>(null);
+  const [conflict, setConflict] = useState<{ expectedVersion: number; currentVersion: number; fields: string[]; current: Record<string, unknown> } | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -245,7 +250,7 @@ export default function TaskPage() {
   const addDependency = (depId: string) => setDependency([...(task?.dependsOn ?? []), depId]);
   const removeDependency = (depId: string) => setDependency((task?.dependsOn ?? []).filter((value) => value !== depId));
 
-  const save = async () => {
+  const save = async (forceVersion?: number) => {
     if (!project || !task) return;
     setSaving(true);
     setError(null);
@@ -260,11 +265,21 @@ export default function TaskPage() {
         links: links.split(',').map((link) => link.trim()).filter(Boolean),
         status,
         dependsOn,
-      });
+        ...(forceVersion !== undefined ? { expectedVersion: forceVersion } : task.version ? { expectedVersion: task.version } : {}),
+      } as never);
       hydrate(updated);
+      setConflict(null);
       setAllTasks((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     } catch (e) {
-      if (e instanceof ToolCallError && e.code === 'TRANSITION_NOT_ALLOWED') {
+      if (e instanceof ToolCallError && e.code === 'CONFLICT') {
+        const details = (e.details ?? {}) as { expectedVersion?: number; currentVersion?: number; fields?: string[]; current?: Record<string, unknown> };
+        setConflict({
+          expectedVersion: details.expectedVersion ?? task.version ?? 1,
+          currentVersion: details.currentVersion ?? task.version ?? 1,
+          fields: details.fields ?? [],
+          current: details.current ?? {},
+        });
+      } else if (e instanceof ToolCallError && e.code === 'TRANSITION_NOT_ALLOWED') {
         const details = e.details as { allowed?: string[] } | undefined;
         setTransitionError({ code: e.code, message: e.message, hint: e.hint, allowed: details?.allowed ?? e.allowed ?? [] });
       } else {
@@ -272,6 +287,47 @@ export default function TaskPage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!project) return;
+    setHistoryBusy(true);
+    try {
+      setHistory((await api.tasks.history(project, id)).commits);
+    } catch (e) {
+      setHistory([]);
+      setError((e as Error).message);
+    } finally {
+      setHistoryBusy(false);
+    }
+  };
+
+  const showDiff = async (commit: string) => {
+    if (!project) return;
+    setHistoryBusy(true);
+    try {
+      setHistoryDiff({ commit, text: (await api.tasks.diff(project, id, commit)).diff });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setHistoryBusy(false);
+    }
+  };
+
+  const restoreVersion = async (commit: string) => {
+    if (!project) return;
+    setHistoryBusy(true);
+    try {
+      await api.tasks.versionRestore(project, id, commit);
+      const fresh = await api.tasks.get(project, id);
+      hydrate(fresh);
+      setHistoryDiff(null);
+      await loadHistory();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setHistoryBusy(false);
     }
   };
 
@@ -602,13 +658,65 @@ export default function TaskPage() {
             <CardBody>
               <p className="text-[12px] text-muted">Created: {formatDate(task.createdAt)}</p>
               <p className="text-[12px] text-muted">Updated: {formatDate(task.updatedAt)}</p>
-              <p className="mt-2 text-[11px] text-muted">
-                Version history is not part of the task wire format yet; this section reflects the current revision only.
-              </p>
+              <p className="text-[12px] text-muted">Version: {task.version ?? 1}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => void loadHistory()} disabled={historyBusy}>
+                  {historyBusy ? 'Loading…' : 'Show history'}
+                </Button>
+              </div>
+              {history && history.length === 0 && (
+                <p className="mt-2 text-[11px] text-muted">No git history (set HISTORY_ENABLED=1 on the server).</p>
+              )}
+              {history && history.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {history.map((commit) => (
+                    <li key={commit.hash} className="text-[11px] text-muted">
+                      <code>{commit.hash}</code> {commit.subject}
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => void showDiff(commit.hash)}>Diff</Button>
+                        <Button size="sm" variant="ghost" onClick={() => void restoreVersion(commit.hash)}>Restore</Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {historyDiff && (
+                <pre className="mt-2 max-h-60 overflow-auto rounded bg-surface-2 p-2 text-[10px] text-ink">{historyDiff.text}</pre>
+              )}
             </CardBody>
           </Card>
         </div>
       </div>
+
+      <Dialog
+        open={conflict !== null}
+        onClose={() => setConflict(null)}
+        title="This task changed elsewhere"
+        description={
+          conflict
+            ? `Version ${conflict.expectedVersion} → ${conflict.currentVersion}; conflicting fields: ${conflict.fields.join(', ') || 'none'}.`
+            : undefined
+        }
+        footer={
+          <>
+            <Button onClick={() => setConflict(null)}>Merge manually</Button>
+            <Button
+              onClick={() => {
+                if (!project) return;
+                void api.tasks.get(project, id).then((fresh) => {
+                  hydrate(fresh);
+                  setConflict(null);
+                });
+              }}
+            >
+              Take current
+            </Button>
+            <Button variant="primary" onClick={() => void save(conflict?.currentVersion)} disabled={saving}>
+              Keep mine
+            </Button>
+          </>
+        }
+      />
 
       <Dialog
         open={destructive !== null}

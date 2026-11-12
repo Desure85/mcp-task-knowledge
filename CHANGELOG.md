@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-05: task history panel (history/diff/restore) and CONFLICT dialog (take current / keep mine / manual merge); web tsc + guards 12/12; 386/0/34/1.
+
 - MU-04: `tasks_/knowledge_/skills_{history,diff,restore}` over git history; restore is a new commit; 5/5 tests; 385/1/35/1.
 
 - MU-03/SC-07: git history wired to task/doc updates and prompt bulk writes; one batched commit, durable queue, recovered/author; 5/5 tests; 384/0/36/1.
