@@ -437,6 +437,97 @@
   --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.55);
 }
 
+/* ── High contrast (UI-23) — separate palette, not a mode ─────────── */
+[data-theme="high-contrast"][data-mode="light"] {
+  color-scheme: light;
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f2f2f2;
+  --line: #000000;
+  --line-strong: #000000;
+  --ink: #000000;
+  --muted: #333333;
+  --accent: #0033cc;
+  --accent-hover: #002299;
+  --accent-soft: #dbe4ff;
+  --on-accent: #ffffff;
+  --st-todo: #333333;
+  --st-doing: #0033cc;
+  --st-review: #4b0082;
+  --st-blocked: #8b0000;
+  --st-done: #005c3c;
+  --st-archive: #4d4d4d;
+  --st-slate: #333333;
+  --st-blue: #0033cc;
+  --st-indigo: #2a2a8f;
+  --st-violet: #4b0082;
+  --st-pink: #8b0057;
+  --st-red: #8b0000;
+  --st-orange: #7a3b00;
+  --st-amber: #6b4e00;
+  --st-green: #005c3c;
+  --st-teal: #00524d;
+  --st-cyan: #00505c;
+  --st-gray: #333333;
+  --ty-bug: #8b0000;
+  --ty-feature: #4b0082;
+  --ty-task: #333333;
+  --pr-high: #8b0000;
+  --pr-med: #7a3b00;
+  --pr-low: #4d4d4d;
+  --danger: #8b0000;
+  --success: #005c3c;
+  --warning: #7a3b00;
+  --info: #00505c;
+  --focus: #0033cc;
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+[data-theme="high-contrast"][data-mode="dark"] {
+  color-scheme: dark;
+  --canvas: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #141414;
+  --line: #666666;
+  --line-strong: #ffffff;
+  --ink: #ffffff;
+  --muted: #d0d0d0;
+  --accent: #b3c6ff;
+  --accent-hover: #ccd9ff;
+  --accent-soft: #001a4d;
+  --on-accent: #000000;
+  --st-todo: #d0d0d0;
+  --st-doing: #b3c6ff;
+  --st-review: #d9b3ff;
+  --st-blocked: #ff9e9e;
+  --st-done: #7dffc4;
+  --st-archive: #b0b0b0;
+  --st-slate: #e0e0e0;
+  --st-blue: #b3d4ff;
+  --st-indigo: #c4ccff;
+  --st-violet: #e0b3ff;
+  --st-pink: #ffb3d9;
+  --st-red: #ff9e9e;
+  --st-orange: #ffc48a;
+  --st-amber: #ffe066;
+  --st-green: #7dffc4;
+  --st-teal: #7dfff0;
+  --st-cyan: #8ae9ff;
+  --st-gray: #d9d9d9;
+  --ty-bug: #ff9e9e;
+  --ty-feature: #e0b3ff;
+  --ty-task: #d0d0d0;
+  --pr-high: #ff9e9e;
+  --pr-med: #ffc48a;
+  --pr-low: #b0b0b0;
+  --danger: #ff9e9e;
+  --success: #7dffc4;
+  --warning: #ffc48a;
+  --info: #8ae9ff;
+  --focus: #b3c6ff;
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.8);
+}
+
 /* Tailwind v4 utilities bound to the runtime tokens. */
 @theme inline {
   --color-canvas: var(--canvas);
