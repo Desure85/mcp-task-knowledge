@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **174** — 172 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **176** — 174 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -136,6 +136,8 @@
 | `prompts_feedback_validate` | Validate feedback JSONL file and return stats/samples |
 | `prompts_get` | Read one prompt version with full template/compose and metadata; version defaults to the latest semv |
 | `prompts_list` | List prompts from prompts catalog with optional filters |
+| `prompts_merge_apply` | Apply a prepared merge draft to targetPath (relative to DATA_DIR). Conflicts require confirm=true. |
+| `prompts_merge_prepare` | Three-way merge of base/local/remote prompt text; validates variables, !commands and allowed-tools.  |
 | `prompts_metrics_log_bulk` | Append events and update aggregates for prompts (bulk) |
 | `prompts_search` | Semantic/lexical search across prompt builds and markdown |
 | `prompts_variants_list` | List available variants for a promptKey (experiment or builds) |
@@ -3505,6 +3507,56 @@ List prompts from prompts catalog with optional filters
     "maxBytes": "example",
     "fields": "example",
     "compact": "example"
+  }
+}
+```
+
+## prompts_merge_apply
+
+**Apply Prompt Merge**
+
+Apply a prepared merge draft to targetPath (relative to DATA_DIR). Conflicts require confirm=true.
+
+**Параметры:**
+
+- `draftId`
+- `targetPath`
+- `confirm`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "prompts_merge_apply",
+  "arguments": {
+    "draftId": "example",
+    "targetPath": "example",
+    "confirm": true
+  }
+}
+```
+
+## prompts_merge_prepare
+
+**Prepare Prompt Merge**
+
+Three-way merge of base/local/remote prompt text; validates variables, !commands and allowed-tools. Returns a draft id; conflicts require confirmation on apply.
+
+**Параметры:**
+
+- `base`
+- `local`
+- `remote`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "prompts_merge_prepare",
+  "arguments": {
+    "base": "example",
+    "local": "example",
+    "remote": "example"
   }
 }
 ```

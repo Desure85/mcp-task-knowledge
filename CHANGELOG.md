@@ -8,6 +8,8 @@
 
 ### Added
 
+- Z-07: `prompts_merge_prepare/apply` with variable/command/allowed-tools validation and confirm gate; 4/4 tests; 389/0/31/1.
+
 - MU-07: bulk-create rollback (all-or-nothing), recovery before commit, two-writer and author tests; 388/0/32/1.
 
 - T-03: admin-only `admin_audit_query` and System audit tab with filters/pagination; 19/19 session tests; 387/0/33/1.
