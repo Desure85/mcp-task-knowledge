@@ -227,6 +227,64 @@ export function registerProjectTools(ctx: ServerContext): void {
 
   // project_update — update project metadata
   ctx.server.registerTool(
+    "project_themes_list",
+    {
+      title: "List Project Themes",
+      description: "List team themes stored in project data. Every project member sees them without local import.",
+      inputSchema: { project: z.string().optional() },
+    },
+    async ({ project }: { project?: string }) => {
+      const prj = resolveProject(project);
+      const meta = await readProjectMetadata(prj);
+      if (!meta) return err(`Project not found: ${prj}`);
+      return ok({ project: prj, themes: meta.themes ?? [] });
+    }
+  );
+
+  ctx.server.registerTool(
+    "project_theme_set",
+    {
+      title: "Publish Project Theme",
+      description: "Create or replace a team theme in project data. Editors and admins only; max 20 themes.",
+      inputSchema: {
+        project: z.string().optional(),
+        id: z.string().regex(/^[a-z0-9][a-z0-9-]{1,39}$/),
+        name: z.string().min(1).max(60),
+        theme: z.record(z.unknown()).describe("CustomTheme JSON as produced by the web UI"),
+      },
+    },
+    async ({ project, id, name, theme }: { project?: string; id: string; name: string; theme: Record<string, unknown> }) => {
+      const prj = resolveProject(project);
+      const meta = await readProjectMetadata(prj);
+      if (!meta) return err(`Project not found: ${prj}`);
+      const current = meta.themes ?? [];
+      const at = new Date().toISOString();
+      const next = current.some((item) => item.id === id)
+        ? current.map((item) => item.id === id ? { ...item, name, theme, updatedAt: at } : item)
+        : [...current, { id, name, theme, updatedAt: at }];
+      if (next.length > 20) return err(`Too many project themes (${next.length}); max 20`);
+      const updated = await updateProjectMeta(prj, { themes: next });
+      return ok({ project: prj, themes: updated?.themes ?? next });
+    }
+  );
+
+  ctx.server.registerTool(
+    "project_theme_delete",
+    {
+      title: "Delete Project Theme",
+      description: "Remove a team theme from project data. A member's locally copied theme is unaffected.",
+      inputSchema: { project: z.string().optional(), id: z.string().min(1) },
+    },
+    async ({ project, id }: { project?: string; id: string }) => {
+      const prj = resolveProject(project);
+      const meta = await readProjectMetadata(prj);
+      if (!meta) return err(`Project not found: ${prj}`);
+      const next = (meta.themes ?? []).filter((item) => item.id !== id);
+      const updated = await updateProjectMeta(prj, { themes: next });
+      return ok({ project: prj, themes: updated?.themes ?? next });
+    }
+  );
+  ctx.server.registerTool(
     "project_update",
     {
       title: "Update Project",

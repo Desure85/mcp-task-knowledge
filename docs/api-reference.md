@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **161** — 159 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **164** — 162 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -112,6 +112,9 @@
 | `project_set_current` | Change the current project context used when project is omitted (per-session on http/tcp, global on  |
 | `project_statuses_get` | Get the project status set, close status and allowed initial statuses. New projects use the default  |
 | `project_statuses_set` | Replace the project status set. Statuses used by tasks cannot be removed without moveTo or moves. At |
+| `project_theme_delete` | Remove a team theme from project data. A member's locally copied theme is unaffected. |
+| `project_theme_set` | Create or replace a team theme in project data. Editors and admins only; max 20 themes. |
+| `project_themes_list` | List team themes stored in project data. Every project member sees them without local import. |
 | `project_transitions_get` | Get the allowed status transition graph. A null graph means every transition is allowed. |
 | `project_transitions_set` | Replace the allowed status transition graph. A missing from-key is unrestricted; use null to restore |
 | `project_types_get` | Get the project task type set. New projects use task, bug and feature; legacy tasks without a type a |
@@ -2864,6 +2867,77 @@ Replace the project status set. Statuses used by tasks cannot be removed without
     "moves": "example",
     "closeStatus": "example",
     "initialStatuses": "example"
+  }
+}
+```
+
+## project_theme_delete
+
+**Delete Project Theme**
+
+Remove a team theme from project data. A member's locally copied theme is unaffected.
+
+**Параметры:**
+
+- `project`
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_theme_delete",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+## project_theme_set
+
+**Publish Project Theme**
+
+Create or replace a team theme in project data. Editors and admins only; max 20 themes.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `name`
+- `theme`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_theme_set",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "example",
+    "theme": "example"
+  }
+}
+```
+
+## project_themes_list
+
+**List Project Themes**
+
+List team themes stored in project data. Every project member sees them without local import.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "project_themes_list",
+  "arguments": {
+    "project": "mcp"
   }
 }
 ```
