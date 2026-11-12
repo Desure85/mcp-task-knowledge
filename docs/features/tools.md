@@ -493,3 +493,17 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 `resources.subscribe: true`.
 
 ## Total: 157 tools by default (159 with catalog; 161 when catalog writes are enabled) + resources
+
+## History (9 tools)
+
+| Tool | Description |
+|------|-------------|
+| `tasks_history` | List commits touching a task |
+| `tasks_diff` | Diff one commit for a task |
+| `tasks_version_restore` | Restore a task version as a new commit |
+| `knowledge_history` | List commits touching a document |
+| `knowledge_diff` | Diff one commit for a document |
+| `knowledge_version_restore` | Restore a document version as a new commit |
+| `skills_history` | List commits touching a skill/prompt |
+| `skills_diff` | Diff one commit for a skill |
+| `skills_version_restore` | Restore a skill version as a new commit |

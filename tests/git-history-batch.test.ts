@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -59,6 +59,28 @@ describe('MU-03/SC-07 git history batching', () => {
       const second = new GitHistory({ root });
       await second.init();
       expect(git(root, ['log', '--pretty=format:%s'])).toContain('history: recovered');
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('exposes log/diff/restore for a tracked file', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'history-tools-'));
+    const history = new GitHistory({ root, flushMs: 60_000 });
+    try {
+      await history.init();
+      writeFileSync(path.join(root, 'entity.json'), 'v1');
+      await history.enqueue(['entity.json']);
+      await history.flush();
+      const commits = await history.logPaths(['entity.json']);
+      expect(commits.length).toBeGreaterThan(0);
+      const first = commits[0]!.hash;
+      expect(await history.diffCommit(first, ['entity.json'])).toContain('v1');
+      writeFileSync(path.join(root, 'entity.json'), 'v2');
+      await history.enqueue(['entity.json']);
+      await history.flush();
+      await history.restoreFile(first, 'entity.json');
+      expect(readFileSync(path.join(root, 'entity.json'), 'utf8')).toBe('v1');
+      const after = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+      expect(Number(after)).toBe(4);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 

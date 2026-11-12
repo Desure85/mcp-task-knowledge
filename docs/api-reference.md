@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **164** — 162 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **173** — 171 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -45,16 +45,19 @@
 | `knowledge_bulk_restore` | Restore many knowledge docs from archive/trash |
 | `knowledge_bulk_trash` | Move many knowledge docs to trash |
 | `knowledge_bulk_update` | Update fields of many knowledge docs at once |
+| `knowledge_diff` | Show the diff of one commit for a document. |
 | `knowledge_export_bundle` | Export knowledge docs as a single concatenated markdown string. Docs are separated by horizontal rul |
 | `knowledge_export_markdown` | Export knowledge docs from a project to a directory as individual .md files with frontmatter. Each f |
 | `knowledge_export_single` | Export a single knowledge document as a markdown string with YAML frontmatter. Returns the full mark |
 | `knowledge_get` | Read a knowledge document by id |
+| `knowledge_history` | List git commits that touched a document in DATA_DIR. |
 | `knowledge_import_markdown` | Import .md files from a directory into the knowledge base. Files can have YAML frontmatter (title, t |
 | `knowledge_import_multimodal` | Extract text chunks from a file (pdf/text/code/image/video/audio) via the multimodal ingestion pipel |
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge document metadata with cursor pagination and field selection. Returns `data` (array)  |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
 | `knowledge_upsert` | Create or update a knowledge document by stable externalKey (no duplicates on retry). |
+| `knowledge_version_restore` | Restore a document from a commit as a new commit (history is not erased). |
 | `logs_tail` | Read the newest records of the server JSON log (read-only). File logging is opt-in: set LOG_FILE to  |
 | `mcp.authenticate` | Authenticate this session with a token. Required before calling any other tool on http/tcp transport |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
@@ -143,6 +146,9 @@
 | `session_info` | Query session state for a specific session ID. Returns rate limit info, TTL, idle timeout, session a |
 | `session_kill` | Terminate another live MCP session (admin only). The session disappears from session_list; the calle |
 | `session_list` | List all active sessions with their state. Returns session count, rate limiting status, and per-sess |
+| `skills_diff` | Show the diff of one commit for a skill. |
+| `skills_history` | List git commits that touched a skill in DATA_DIR. |
+| `skills_version_restore` | Restore a skill from a commit as a new commit (history is not erased). |
 | `tasks_add_subtask` | Create a subtask under a parent task. Shorthand for tasks_create with parentId. Maximum nesting dept |
 | `tasks_bulk_archive` | Archive many tasks |
 | `tasks_bulk_close` | Mark many tasks as closed |
@@ -155,16 +161,19 @@
 | `tasks_close` | Close a task by moving it to the project's close status. Optionally cascade the close to all descend |
 | `tasks_create` | Create a single task. Optionally set parentId to create a subtask. Maximum nesting depth is 10 level |
 | `tasks_dag` | Get the dependency DAG for a project: topological sort, critical path and edge list. Supports tag an |
+| `tasks_diff` | Show the diff of one commit for a task. |
 | `tasks_get` | Get task by id. Includes the active claim/lease holder when the task is claimed. |
 | `tasks_get_children` | Get direct children of a task (one level deep, not recursive). |
 | `tasks_get_deps` | Get the dependency graph for a specific task: what it depends on and what depends on it. |
 | `tasks_get_subtree` | Get a specific task and all its descendants as a hierarchical tree. Useful for inspecting a branch o |
+| `tasks_history` | List git commits that touched a task in DATA_DIR. |
 | `tasks_list` | List tasks with optional filters, cursor pagination and field selection. Returns `data` (array) plus |
 | `tasks_release` | Release your lease so another agent can pick the task up. Only the holder may release before expiry; |
 | `tasks_renew` | Extend your lease on a claimed task (heartbeat). Only the current holder may renew. Renewals do not  |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blocked |
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
+| `tasks_version_restore` | Restore a task from a commit as a new commit (history is not erased). |
 | `tool_help` | Short help for a tool with an example call |
 | `tool_schema` | Return metadata and example payload for a tool name |
 | `tools_batch` | Execute multiple tools in parallel (Promise.all). Returns aggregated results. Unlike tools_run (sequ |
@@ -1024,6 +1033,31 @@ Update fields of many knowledge docs at once
 }
 ```
 
+## knowledge_diff
+
+**Document Diff**
+
+Show the diff of one commit for a document.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `commit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_diff",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "commit": "example"
+  }
+}
+```
+
 ## knowledge_export_bundle
 
 **Export Knowledge as Markdown Bundle**
@@ -1138,6 +1172,31 @@ Read a knowledge document by id
     "id": "00000000-0000-0000-0000-000000000000",
     "fields": "example",
     "compact": "example"
+  }
+}
+```
+
+## knowledge_history
+
+**Document History**
+
+List git commits that touched a document in DATA_DIR.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_history",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "limit": 10
   }
 }
 ```
@@ -1354,6 +1413,31 @@ Create or update a knowledge document by stable externalKey (no duplicates on re
     "tags": [
       "example"
     ]
+  }
+}
+```
+
+## knowledge_version_restore
+
+**Document Restore**
+
+Restore a document from a commit as a new commit (history is not erased).
+
+**Параметры:**
+
+- `project`
+- `id`
+- `commit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_version_restore",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "commit": "example"
   }
 }
 ```
@@ -3682,6 +3766,81 @@ List all active sessions with their state. Returns session count, rate limiting 
 }
 ```
 
+## skills_diff
+
+**Skill Diff**
+
+Show the diff of one commit for a skill.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `commit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "skills_diff",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "commit": "example"
+  }
+}
+```
+
+## skills_history
+
+**Skill History**
+
+List git commits that touched a skill in DATA_DIR.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "skills_history",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "limit": 10
+  }
+}
+```
+
+## skills_version_restore
+
+**Skill Restore**
+
+Restore a skill from a commit as a new commit (history is not erased).
+
+**Параметры:**
+
+- `project`
+- `id`
+- `commit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "skills_version_restore",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "commit": "example"
+  }
+}
+```
+
 ## tasks_add_subtask
 
 **Add Subtask**
@@ -4044,6 +4203,31 @@ Get the dependency DAG for a project: topological sort, critical path and edge l
 }
 ```
 
+## tasks_diff
+
+**Task Diff**
+
+Show the diff of one commit for a task.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `commit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_diff",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "commit": "example"
+  }
+}
+```
+
 ## tasks_get
 
 **Get Task**
@@ -4152,6 +4336,31 @@ Get a specific task and all its descendants as a hierarchical tree. Useful for i
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
     "maxDepth": "example"
+  }
+}
+```
+
+## tasks_history
+
+**Task History**
+
+List git commits that touched a task in DATA_DIR.
+
+**Параметры:**
+
+- `project`
+- `id`
+- `limit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_history",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "limit": 10
   }
 }
 ```
@@ -4382,6 +4591,31 @@ Update a single task by id. Can change any field except id, project, createdAt. 
     "expectedVersion": "example",
     "fields": "example",
     "compact": "example"
+  }
+}
+```
+
+## tasks_version_restore
+
+**Task Restore**
+
+Restore a task from a commit as a new commit (history is not erased).
+
+**Параметры:**
+
+- `project`
+- `id`
+- `commit`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_version_restore",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "commit": "example"
   }
 }
 ```
