@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-07: bulk-create rollback (all-or-nothing), recovery before commit, two-writer and author tests; 388/0/32/1.
+
 - T-03: admin-only `admin_audit_query` and System audit tab with filters/pagination; 19/19 session tests; 387/0/33/1.
 
 - MU-05: task history panel (history/diff/restore) and CONFLICT dialog (take current / keep mine / manual merge); web tsc + guards 12/12; 386/0/34/1.
