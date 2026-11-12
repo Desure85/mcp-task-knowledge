@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… INT-008 blocked)
-**Текущая ветка:** docs/int-008-blocked (от master c2679eb)
-**Текущий этап:** pending 0; blocked 28; все medium закрыты или blocked
-**Статус:** INT-008 [env] нет writable YouTrack; backlog 392/0/28/1.
+**Session ID:** S-20261109-night (… TK-01 закрыт)
+**Текущая ветка:** docs/tk-01-task-model-adr (от master ac4863e)
+**Текущий этап:** TK-01 design gate закрыт; TK-02/03/04/T-06 разблокированы; blocked 27
+**Статус:** ADR task model; backlog 393/0/27/1.
+
+### Сессия S-20261109-night (TK-01)
+
+- ADR: assignee/dueDate/fields/relations/comments, schema 1→2 no-op.
+- Ограничения: design-only; код не менялся; mentions без уведомлений.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2110-tk-01.md`, ADR.
 
 ### Сессия S-20261109-night (INT-008 triage)
 
