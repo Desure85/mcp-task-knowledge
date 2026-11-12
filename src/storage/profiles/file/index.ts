@@ -163,8 +163,8 @@ class FileTaskStore implements TaskStore {
     return createTask(input);
   }
 
-  update(project: string, id: string, patch: TaskPatch) {
-    return updateTask(project, id, patch);
+  update(project: string, id: string, patch: TaskPatch, expectedVersion?: number) {
+    return updateTask(project, id, patch, expectedVersion);
   }
 
   close(project: string, id: string) {

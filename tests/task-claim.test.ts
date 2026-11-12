@@ -141,7 +141,8 @@ describe('U-01: storage claim/lease', () => {
     expect(renewed.status).toBe('renewed');
     const after = await tasks.getTask(prj, task.id);
     expect(after?.updatedAt).toBe(before?.updatedAt);
-    expect((after as unknown as { version?: number }).version).toBeUndefined();
+    expect(after?.version).toBe(before?.version);
+    expect(after?.version).toBe(1);
     expect(after?.claim?.heartbeatAt).not.toBe(claimed.claim.heartbeatAt);
     expect(Date.parse(after!.claim!.expiresAt)).toBeGreaterThan(Date.parse(claimed.claim.expiresAt));
   });

@@ -12,6 +12,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { nextTaskVersion } from '../../optimistic.js';
 import type Database from 'better-sqlite3';
 import {
   StoreError,
@@ -205,9 +206,10 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
       indexTask(task);
       return task;
     },
-    async update(project: string, id: string, patch: TaskPatch): Promise<Task | null> {
+    async update(project: string, id: string, patch: TaskPatch, expectedVersion?: number): Promise<Task | null> {
       const existing = readTask(project, id);
       if (!existing) return null;
+      const version = nextTaskVersion(existing, patch as Record<string, unknown>, expectedVersion);
       const merged: Task = cleanObject({
         ...existing,
         ...patch,
@@ -215,6 +217,8 @@ export function createSqliteProfile(options: SqliteProfileOptions): StorageProfi
         project: existing.project,
         createdAt: existing.createdAt,
         updatedAt: isoNow(),
+        version: version.version,
+        fieldVersions: version.fieldVersions,
       });
       writeTask(merged);
       indexTask(merged);

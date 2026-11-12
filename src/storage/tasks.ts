@@ -17,6 +17,7 @@ import {
   WorkflowError,
   type ProjectWorkflow,
 } from '../workflow.js';
+import { nextTaskVersion } from './optimistic.js';
 import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
@@ -114,6 +115,8 @@ export async function createTask(input: {
       priority: input.priority || 'medium',
       tags: input.tags || [],
       links: input.links || [],
+      version: 1,
+      fieldVersions: {},
       createdAt: now,
       updatedAt: now,
       parentId: blankToUndefined(input.parentId),
@@ -715,10 +718,15 @@ export function stopClaimSweeper(): void {
   }
 }
 
-export async function updateTask(project: string, id: string, patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>): Promise<Task | null> {
+export async function updateTask(
+  project: string,
+  id: string,
+  patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>,
+  expectedVersion?: number,
+): Promise<Task | null> {
   return withFileLock(`workflow:${project}`, async () => {
     const workflow = await loadProjectWorkflow(project);
-    return withFileLock(`task:${project}/${id}`, () => updateTaskUnlocked(project, id, patch, workflow));
+    return withFileLock(`task:${project}/${id}`, () => updateTaskUnlocked(project, id, patch, workflow, expectedVersion));
   });
 }
 
@@ -727,6 +735,7 @@ async function updateTaskUnlocked(
   id: string,
   patch: Partial<Omit<Task, 'id' | 'project' | 'createdAt'>>,
   workflow?: ProjectWorkflow,
+  expectedVersion?: number,
 ): Promise<Task | null> {
   const existing = await getTask(project, id);
   if (!existing) return null;
@@ -811,6 +820,7 @@ async function updateTaskUnlocked(
     normalizedPatch.dependsOn = newDeps;
   }
 
+  const versionState = nextTaskVersion(existing, normalizedPatch as Record<string, unknown>, expectedVersion);
   const updated: Task = {
     ...existing,
     ...normalizedPatch,
@@ -819,6 +829,8 @@ async function updateTaskUnlocked(
     type: (normalizedPatch as any).type ?? existing.type ?? 'task',
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
+    version: versionState.version,
+    fieldVersions: versionState.fieldVersions,
   };
   const p = (await resolveDataFile(resolveUnder(TASKS_DIR, project), id, '.json')) ?? resolveUnder(TASKS_DIR, project, `${id}.json`);
   await ensureDir(path.dirname(p));

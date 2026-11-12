@@ -16,6 +16,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { nextTaskVersion } from '../../optimistic.js';
 import path from 'node:path';
 import { StoreError } from '../../contracts.js';
 import type {
@@ -179,10 +180,24 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
     return task;
   }
 
-  async function patchTask(project: string, id: string, patch: Record<string, unknown>): Promise<Task | null> {
+  async function patchTask(
+    project: string,
+    id: string,
+    patch: Record<string, unknown>,
+    expectedVersion?: number,
+  ): Promise<Task | null> {
     const current = await readTask(project, id);
     if (!current) return null;
-    const next = { ...current, ...patch, id, project, updatedAt: isoNow() } as Task;
+    const version = nextTaskVersion(current, patch, expectedVersion);
+    const next = {
+      ...current,
+      ...patch,
+      id,
+      project,
+      updatedAt: isoNow(),
+      version: version.version,
+      fieldVersions: version.fieldVersions,
+    } as Task;
     return writeTask(next);
   }
 
@@ -275,7 +290,8 @@ export async function createPostgresProfile(options: PostgresProfileOptions): Pr
       }) as Task;
       return writeTask(task);
     },
-    update: (project, id, patch: TaskPatch) => patchTask(project, id, patch as Record<string, unknown>),
+    update: (project, id, patch: TaskPatch, expectedVersion?: number) =>
+      patchTask(project, id, patch as Record<string, unknown>, expectedVersion),
     async close(project, id) {
       // Same workflow-owned close status as the file and sqlite profiles.
       const workflow = workflowFor(await readProjectMetadata(project));

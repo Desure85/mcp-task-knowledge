@@ -293,13 +293,14 @@ export function registerTasksTools(ctx: ServerContext): void {
         links: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional(),
         dependsOn: z.array(z.string()).optional().describe("Dependency task IDs (DAG edges, cycle-protected)"),
+        expectedVersion: z.number().int().min(1).optional().describe("MU-02: task version from a prior read; stale same-field edits return CONFLICT"),
         ...writeResponseArgs,
       },
     },
-    async ({ project, id, fields, compact, ...patch }) => {
+    async ({ project, id, fields, compact, expectedVersion, ...patch }) => {
       const prj = resolveProject(project);
       try {
-        const task = await taskStore(ctx).update(prj, id, patch as any);
+        const task = await taskStore(ctx).update(prj, id, patch as any, expectedVersion);
         if (!task) {
           return err(`Task not found: ${project}/${id}`);
         }

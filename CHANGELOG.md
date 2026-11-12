@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-02: optimistic `version`/`fieldVersions`/`expectedVersion` CAS on tasks (file/sqlite/postgres) and docs storage; stale same-field edits return `CONFLICT` with current values/diff, different fields merge. 3/3 tests; 381/0.
+
 - AA-04: append-only draft journal (`draft_append`/`draft_pending`/`draft_sync`) with ack-per-draft retries, plus `knowledge_upsert` by stable `externalKey`. Five scenarios 5/5; 380/0.
 
 - AA-02: `MCP_TRANSPORT` accepts a comma list; `AppContainer` starts/closes every adapter around one `ServerContext`. `stdio,http` e2e proves identical `tools/list`, stdio-close survival, and SIGTERM shutdown. 379/19.
