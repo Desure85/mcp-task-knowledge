@@ -2,6 +2,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { ensureDir, pathExists, readJson, resolveUnder, withFileLock, writeJson } from '../fs.js';
+import { listDataFiles, resolveDataFile, writeDataPath } from './sharding.js';
 import type { Task, TaskClaim, Priority, Status, TaskTreeNode } from '../types.js';
 import {
   assertStatusAllowed,
@@ -62,8 +63,8 @@ export async function restoreTask(project: string, id: string): Promise<Task | n
 }
 
 export async function deleteTaskPermanent(project: string, id: string): Promise<boolean> {
-  const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
-  if (!(await pathExists(p))) {
+  const p = await resolveDataFile(resolveUnder(TASKS_DIR, project), id, '.json');
+  if (!p || !(await pathExists(p))) {
     indexTaskDelete(id);
     noteTaskRemoved(project, id);
     return false;
@@ -119,7 +120,9 @@ export async function createTask(input: {
       archived: false,
       trashed: false,
     };
-    const filePath = path.join(await tasksProjectDir(input.project), `${id}.json`);
+    const dir = await tasksProjectDir(input.project);
+    const filePath = await writeDataPath(dir, id, '.json');
+    await ensureDir(path.dirname(filePath));
     await writeJson(filePath, task);
     await indexTaskWrite(input.project, task, filePath);
     noteTaskWritten(task);
@@ -132,8 +135,8 @@ function taskFilePath(project: string, id: string): string {
 }
 
 async function readTaskRaw(project: string, id: string): Promise<Task | null> {
-  const p = taskFilePath(project, id);
-  if (!(await pathExists(p))) return null;
+  const p = await resolveDataFile(resolveUnder(TASKS_DIR, project), id, '.json');
+  if (!p) return null;
   return readJson<Task>(p);
 }
 
@@ -172,11 +175,10 @@ interface TaskFileEntry {
 export async function listTaskEntries(project: string): Promise<TaskFileEntry[]> {
   const dir = await resolveTasksDir(project);
   if (!dir) return [];
-  const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json'));
-  const entries = await mapLimit(files, 256, async (f) => {
-    const file = path.join(dir, f);
+  const files = await listDataFiles(dir, '.json', { legacyFlat: dir === TASKS_DIR });
+  const entries = await mapLimit(files, 256, async ({ id, file }) => {
     const st = await fs.stat(file);
-    return { id: f.slice(0, -'.json'.length), file, mtimeMs: st.mtimeMs };
+    return { id, file, mtimeMs: st.mtimeMs };
   });
   entries.sort((a, b) => (b.mtimeMs - a.mtimeMs) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return entries;
@@ -418,11 +420,11 @@ export async function listTasks(filter?: {
         continue;
       }
     }
-    const files = (await (await import('node:fs/promises')).readdir(dir)).filter((f) => f.endsWith('.json'));
+    const files = await listDataFiles(dir, '.json', { legacyFlat: dir === TASKS_DIR });
     // Parallel reads: sequential `await` in a loop was the dominant cost at scale
     // (100k tasks = 4.3 s warm, docs/benchmarks/scale-2026-10.md §3.1). mapLimit keeps
     // descriptor usage bounded and preserves the original "first error wins" semantics.
-    const loaded = await mapLimit(files, 32, (f) => readJson<Task>(path.join(dir, f)));
+    const loaded = await mapLimit(files, 32, ({ file }) => readJson<Task>(file));
     for (const raw of loaded) {
       const t = withoutExpiredClaim(raw);
       t.type = t.type ?? 'task';
@@ -615,6 +617,43 @@ export async function releaseTaskClaim(project: string, id: string, actor: Claim
   });
 }
 
+/**
+ * SC-06: archive (never delete) closed tasks whose updatedAt is older than the
+ * cutoff. Used by the env-gated maintenance sweep; no task status is changed.
+ */
+export async function archiveStaleClosedTasks(project: string, maxAgeDays: number): Promise<string[]> {
+  if (!Number.isFinite(maxAgeDays) || maxAgeDays < 0) throw new Error('maxAgeDays must be >= 0');
+  const cutoff = Date.now() - maxAgeDays * 86_400_000;
+  const archived: string[] = [];
+  for (const entry of await listTaskEntries(project)) {
+    let task: Task;
+    try {
+      task = await readJson<Task>(entry.file);
+    } catch {
+      continue;
+    }
+    if ((task as any).archived || (task as any).trashed) continue;
+    const doneStatus = ['done', 'completed', 'closed'].includes(String(task.status).toLowerCase());
+    if (!doneStatus) continue;
+    const updated = Date.parse(task.updatedAt);
+    if (!Number.isFinite(updated) || updated >= cutoff) continue;
+    (task as any).archived = true;
+    (task as any).archivedAt = new Date().toISOString();
+    await writeJson(entry.file, task);
+    archived.push(task.id);
+  }
+  return archived;
+}
+
+/**
+ * SC-06: collapse shards only when a project is small again (or forced). This
+ * is a maintenance primitive, not a timer; callers decide when to run it.
+ */
+export async function compactTaskStorage(project: string, opts: { force?: boolean; threshold?: number } = {}) {
+  const { compactShards } = await import('./sharding.js');
+  return compactShards(await tasksProjectDir(project), '.json', opts);
+}
+
 /** Remove expired claims from disk. Returns `<project>/<id>` for each cleaned task. */
 export async function pruneExpiredClaims(project?: string): Promise<string[]> {
   const projects = project ? [project] : await listAllProjects();
@@ -623,18 +662,16 @@ export async function pruneExpiredClaims(project?: string): Promise<string[]> {
   for (const prj of projects) {
     const dir = resolveUnder(TASKS_DIR, prj);
     if (!(await pathExists(dir))) continue;
-    let files: string[];
+    let files: { id: string; file: string }[];
     try {
-      files = await fs.readdir(dir);
+      files = await listDataFiles(dir, '.json');
     } catch {
       continue;
     }
-    for (const f of files) {
-      if (!f.endsWith('.json')) continue;
-      const id = f.slice(0, -'.json'.length);
+    for (const { id, file } of files) {
       let probe: Task;
       try {
-        probe = await readJson<Task>(path.join(dir, f));
+        probe = await readJson<Task>(file);
       } catch {
         continue;
       }
@@ -783,7 +820,8 @@ async function updateTaskUnlocked(
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
-  const p = resolveUnder(TASKS_DIR, project, `${id}.json`);
+  const p = (await resolveDataFile(resolveUnder(TASKS_DIR, project), id, '.json')) ?? resolveUnder(TASKS_DIR, project, `${id}.json`);
+  await ensureDir(path.dirname(p));
   await writeJson(p, updated);
   await indexTaskWrite(project, updated, p);
   noteTaskWritten(updated);

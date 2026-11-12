@@ -35,6 +35,7 @@ function parseArgs(argv) {
     docs: true,
     concurrency: 64,
     quiet: false,
+    sharded: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -53,10 +54,11 @@ function parseArgs(argv) {
       case '--tasks-only': out.docs = false; break;
       case '--docs-only': out.tasks = false; break;
       case '--quiet': out.quiet = true; break;
+      case '--sharded': out.sharded = true; break;
       case '-h':
       case '--help':
         console.log(
-          'usage: node scripts/bench/seed-scale.mjs --n <count> --out <DATA_DIR> [--project p] [--seed s] [--facts n] [--tasks-only|--docs-only] [--concurrency 64] [--quiet]',
+          'usage: node scripts/bench/seed-scale.mjs --n <count> --out <DATA_DIR> [--project p] [--seed s] [--facts n] [--tasks-only|--docs-only] [--sharded] [--concurrency 64] [--quiet]',
         );
         process.exit(0);
         break;
@@ -84,10 +86,15 @@ function mulberry32(seed) {
 }
 
 /** UUID-v4-shaped deterministic id: stable, sortable by counter, unique per run. */
-function makeId(index, rand) {
+function makeId(index, rand, sharded = false) {
   const tail = (index >>> 0).toString(16).padStart(8, '0');
   const rnd = Math.floor(rand() * 0xffffffff).toString(16).padStart(8, '0');
-  return `b3e1a2c4-${rnd.slice(0, 4)}-4${rnd.slice(4, 7)}-8${tail.slice(0, 3)}-${tail}${rnd.slice(0, 4)}`;
+  const body = `b3e1a2c4-${rnd.slice(0, 4)}-4${rnd.slice(4, 7)}-8${tail.slice(0, 3)}-${tail}${rnd.slice(0, 4)}`;
+  if (!sharded) return body;
+  // Distribute ids across two-character shards for the SC-06 benchmark.
+  const prefix = ((Math.imul(index + 1, 0x9e3779b1) ^ Math.floor(rand() * 0xffffffff)) >>> 0)
+    .toString(16).padStart(8, '0').slice(0, 2);
+  return prefix + body.slice(2);
 }
 
 // ─── plausible content ──────────────────────────────────────────────
@@ -176,11 +183,12 @@ async function pool(items, limit, worker) {
   await Promise.all(runners);
 }
 
-async function seedTasks({ n, dir, project, rand, concurrency }) {
+async function seedTasks({ n, dir, project, rand, concurrency, sharded = false }) {
   await fs.mkdir(dir, { recursive: true });
+  if (sharded) await fs.writeFile(path.join(dir, '.sharded'), '1\n', 'utf-8');
   const ids = [];
   const files = [];
-  for (let i = 0; i < n; i++) ids.push(makeId(i, rand));
+  for (let i = 0; i < n; i++) ids.push(makeId(i, rand, sharded));
 
   for (let i = 0; i < n; i++) {
     const id = ids[i];
@@ -217,7 +225,11 @@ async function seedTasks({ n, dir, project, rand, concurrency }) {
       task.trashed = true;
       task.trashedAt = updatedAt;
     }
-    files.push({ file: path.join(dir, `${id}.json`), body: JSON.stringify(task, null, 2) });
+    const taskDir = sharded ? path.join(dir, id.slice(0, 2)) : dir;
+    files.push({ file: path.join(taskDir, `${id}.json`), body: JSON.stringify(task, null, 2) });
+  }
+  if (sharded) {
+    for (const id of ids) await fs.mkdir(path.join(dir, id.slice(0, 2)), { recursive: true });
   }
 
   await pool(files, concurrency, async (i) => {
@@ -226,11 +238,12 @@ async function seedTasks({ n, dir, project, rand, concurrency }) {
   return { ids, bytes: files.reduce((s, f) => s + Buffer.byteLength(f.body), 0) };
 }
 
-async function seedDocs({ n, dir, project, rand, concurrency }) {
+async function seedDocs({ n, dir, project, rand, concurrency, sharded = false }) {
   await fs.mkdir(dir, { recursive: true });
+  if (sharded) await fs.writeFile(path.join(dir, '.sharded'), '1\n', 'utf-8');
   const ids = [];
   const files = [];
-  for (let i = 0; i < n; i++) ids.push(makeId(i, rand));
+  for (let i = 0; i < n; i++) ids.push(makeId(i, rand, sharded));
 
   for (let i = 0; i < n; i++) {
     const id = ids[i];
@@ -258,7 +271,11 @@ async function seedDocs({ n, dir, project, rand, concurrency }) {
     // body 1–8 KB
     const target = 1024 + Math.floor(rand() * 7168);
     const body = `# ${meta.title}\n\n${textOfBytes(rand, target - meta.title.length)}\n`;
-    files.push({ file: path.join(dir, `${id}.md`), body: matter.stringify(body, meta) });
+    const docDir = sharded ? path.join(dir, id.slice(0, 2)) : dir;
+    files.push({ file: path.join(docDir, `${id}.md`), body: matter.stringify(body, meta) });
+  }
+  if (sharded) {
+    for (const id of ids) await fs.mkdir(path.join(dir, id.slice(0, 2)), { recursive: true });
   }
 
   await pool(files, concurrency, async (i) => {
@@ -315,6 +332,7 @@ async function main() {
       project: args.project,
       rand,
       concurrency: args.concurrency,
+      sharded: args.sharded,
     });
     taskBytes = res.bytes;
     log(`  tasks: ${args.n} files, ${(taskBytes / 1048576).toFixed(1)} MiB, ${Date.now() - t0} ms`);
@@ -327,6 +345,7 @@ async function main() {
       project: args.project,
       rand,
       concurrency: args.concurrency,
+      sharded: args.sharded,
     });
     docBytes = res.bytes;
     log(`  docs: ${args.n} files, ${(docBytes / 1048576).toFixed(1)} MiB, ${Date.now() - t0} ms`);

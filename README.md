@@ -113,6 +113,7 @@ See: [Integration Guides](docs/getting-started/integrations.md)
 | [Skills & Rules](docs/features/skills-rules.md) | Skills CRUD, rules engine, workflows |
 | [Connectors](docs/features/connectors.md) | GitHub, Jira, Slack, Google Drive, Notion, Linear |
 | [Backlog sync](docs/features/backlog-sync.md) | Read-only BACKLOG ↔ tracker reconciliation |
+| [Storage sharding](docs/features/storage-sharding.md) | Two-character shards, legacy reads, archive/compaction |
 | [Client compatibility](docs/compatibility.md) | Per-client config/protocol/live status and last-check date |
 | [OpenCode Plugins](docs/plugins/opencode.md) | memory-recall, memory-sync, memory-extract, memory-dream |
 | [Web UI](docs/features/web-ui.md) | Kanban, knowledge editor, prompts, analytics, realtime |
