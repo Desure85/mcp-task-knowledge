@@ -512,3 +512,7 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 
 | `prompts_merge_prepare` | Three-way prompt merge draft; validates variables/commands/allowed-tools |
 | `prompts_merge_apply` | Apply merge draft inside DATA_DIR; conflicts require confirm |
+
+| `knowledge_backlinks` | Documents linking to this doc via [[wiki links]] |
+| `knowledge_wikilinks` | Outgoing [[wiki links]] with resolution |
+| `knowledge_publish` | Set doc status draft/published |
