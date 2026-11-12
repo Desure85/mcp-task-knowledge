@@ -215,3 +215,38 @@ describe('SqliteMetadataIndex — two instances on one file', () => {
     a.close();
   });
 });
+
+describe('SC-02g layout compatibility', () => {
+  it('rebuilds rows when a task moves from project layout to shards and reads both layouts', async () => {
+    const dir = makeDataDir();
+    const tasksDir = path.join(dir, 'tasks');
+    const knowledgeDir = path.join(dir, 'knowledge');
+    fs.mkdirSync(path.join(tasksDir, 'alpha'), { recursive: true });
+    fs.mkdirSync(knowledgeDir, { recursive: true });
+    const task = (id: string) => JSON.stringify({ id, project: 'alpha', title: id, status: 'todo', priority: 'medium', type: 'task' });
+    fs.writeFileSync(path.join(tasksDir, 'alpha', 't-1.json'), task('t-1'));
+    fs.writeFileSync(path.join(tasksDir, 't-2.json'), task('t-2'));
+
+    const index = createMetadataIndex({ dataDir: dir })!;
+    index.open();
+    try {
+      await index.rebuild({ tasksDir, knowledgeDir });
+      let rows = index.listTasks({ project: 'alpha' }).items;
+      expect(rows.map((r) => r.id).sort()).toEqual(['t-1', 't-2']);
+      const before = rows.find((r) => r.id === 't-1')!;
+      expect(before.relPath.replace(/\\/g, '/')).toBe('tasks/alpha/t-1.json');
+
+      fs.mkdirSync(path.join(tasksDir, 'al'), { recursive: true });
+      fs.renameSync(path.join(tasksDir, 'alpha', 't-1.json'), path.join(tasksDir, 'al', 't-1.json'));
+      await index.rebuild({ tasksDir, knowledgeDir });
+
+      rows = index.listTasks({ project: 'alpha' }).items;
+      expect(rows.map((r) => r.id).sort()).toEqual(['t-1', 't-2']);
+      const after = rows.find((r) => r.id === 't-1')!;
+      expect(after.relPath.replace(/\\/g, '/')).toBe('tasks/al/t-1.json');
+      expect(rows.filter((r) => r.id === 't-1')).toHaveLength(1);
+    } finally {
+      index.close();
+    }
+  });
+});
