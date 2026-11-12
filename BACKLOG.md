@@ -1041,7 +1041,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-04f | Coverage gaps: dashboard_*, confirm-gate, bandit epsilon>0, bm25 params | medium | done | TR-04 | Реальные дыры покрытия при 92.7% total; DoD: `filterByDateRange → []` (K11) красит `tests/dashboard.test.ts`. |
 | TR-04g | Test hygiene: DATA_DIR isolation + shared e2e http harness | low | pending | TR-04 | /tmp/mcp-data гонки; ~200 строк дублей в 6 e2e файлах; DoD: параллельный прогон двух файлов с общим `/tmp/mcp-data` не даёт гонок; число `spawnServer` в `tests/e2e-full` сокращено общим харнессом. |
 | TR-04h | `tests/schema-validation.test.ts` зеркалит `scripts/validate-schemas.mjs` | medium | done | TR-04 | N1: скрипт сломан (rc=1), тест зелёный. DoD: `node scripts/validate-schemas.mjs` с намеренной ошибкой красит тест; либо зеркало удалено. |
-| TR-04i | `tests/transport-wire-snapshots.test.ts` тестирует SDK, не наш слой | low | pending | TR-04 | Нет импорта `src/`: проверяются `serializeMessage` и `deserializeMessage` из `@modelcontextprotocol/sdk`. DoD: тест переведён на наш wire-слой либо помечен как контракт зависимости и исключён из покрытия проекта. |
+| TR-04i | `tests/transport-wire-snapshots.test.ts` тестирует SDK, не наш слой | low | done | TR-04 | Нет импорта `src/`: проверяются `serializeMessage` и `deserializeMessage` из `@modelcontextprotocol/sdk`. DoD: тест переведён на наш wire-слой либо помечен как контракт зависимости и исключён из покрытия проекта. |
 | TR-18 | tests/security-stack.test.ts:197,209 — `lockoutMs` → `maxLockoutMs` (pre-existing tsc error) | low | done | AUD-10 | AuthProtectionOptions нет `lockoutMs`. Закрыто 26fbe9d |
 | TR-19 | Битые `_X` импорты в 4+ тест-файлах (event-bus, tool-executor, async-ops, multimodal) | medium | done | AUD-10 | tsconfig.test.json красный — экспорты удалены при рефакторинге, импорты остались. Закрыто 26fbe9d (17 test:types ошибок → 0) |
 | TR-20 | WS tokenValidator: rate-limit по IP — realtime.ts не имеет req.socket.remoteAddress | medium | done | AUD-13 | brute-force по /ws endpoint не ограничен — validator closure не видит req; прокидывать remote в RealtimeAttachOptions |
@@ -2177,3 +2177,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, PH-014 закрыт): prompts seed перенесён до registerMcpPrompts; WS peer уже в realtime.spec.
 >
 > Примечание (2026-11-12, PH-013 закрыт): реальный MiniLM локально 1/1; workflow не запускался.
+>
+> Примечание (2026-11-12, TR-04i закрыт как подпункт TR-04 и не входит в «Итого»): тест помечен dependency-contract; coverage.include=src/**.

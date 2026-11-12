@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-04i: the wire-snapshot test is explicitly marked `@dependency-contract`; it imports only the MCP SDK codec and is outside `coverage.include=src/**`. Divergence of our own transports remains covered by stdio/http/tcp e2e
+
 - PH-013: a real-ONNX e2e skips without `EMBEDDINGS_MODEL_PATH` and otherwise loads the MiniLM encoder, tokenizer and cosine ranking; a weekly workflow caches the model and runs it with `onnx-cpu`. Verified locally with the 23 MB quantized model; the workflow itself was not exercised here
 
 - PH-014: MCP prompts are registered after DX-14 seeding, so a fresh install answers `prompts/list` with the seeded library instead of []. A real-stdio e2e covers `resources/list`, `resources/read` (`tasks://current`) and `prompts/get`; two-peer WS broadcast is already covered by `realtime.spec.ts`
