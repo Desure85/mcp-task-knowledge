@@ -1343,7 +1343,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | SC-05 | Граф: лимит, окрестность узла, кластеризация, LOD и легенда | medium | done | — | Дефолтный лимит 200–300 узлов с «показано N из M», режим окрестности (`depth=1..2`), кластеризация по типу/тегу с раскрытием, подписи только у крупных узлов. Сейчас 1000 узлов = 2.3 с и 2 с Long Tasks, 5000 = 13.7 с и 16.3 с (`scripts/bench/graph-bench.mjs`). DoD: `node scripts/bench/graph-bench.mjs --sizes 200,1000,5000` → при 5000 узлах `longTaskTotalMs < 2000` и `timedOut === false`; скриншоты 200/1000 в PR |
 | SC-06 | Шардирование каталогов и ретеншн архива | medium | done | SC-02 | При > 50k файлов в проекте писать в `tasks/<project>/<ab>/` и `knowledge/<project>/<ab>/` (ab = первые 2 символа id), чтение поддерживает оба layout (паттерн уже есть в `listTasks`/`listDocs`); автоархив закрытых задач старше T без удаления; фоновая компакция. 1M файлов в одном каталоге: `readdir` 1.07 с тёплый, `rm -rf` 24.8 с. DoD: `npm test -- tests/sharding.test.ts` (миграция, чтение старого layout, отсутствие дублей); `node scripts/bench/seed-scale.mjs --n 100000 --out <dir> --sharded` → `readdir` по шарду < 100 мс |
 | SC-07 | Пакетная git-история (решение для MU-03) | medium | blocked | Проработка (design): ADR: пакетный коммит, отдельный репозиторий истории или таблица ревизий | До реализации MU-03 зафиксировать, что коммит на операцию при 100k+ файлов недопустим (`git add`/`status` = O(N) на запись): очередь изменений + коммит по таймеру/размеру пачки, либо отдельный репозиторий истории, либо таблица ревизий в SQLite. ADR + реализация пакетного коммита вместе с MU-03. DoD: `npm test -- tests/git-history-batch.test.ts` (N операций → один коммит, откат = новый коммит, нет потери изменений при падении); ADR в `docs/adr/` |
-| SC-08 | Бенчмарк масштаба как ночной гейт | low | pending | SC-01..SC-04 | `npm run bench:scale -- --n 100000` с порогами из DoD выше, JSON-результаты в артефакт CI, регрессия > 2× от baseline — красный. Не входит в `npm test`. DoD: workflow `.github/workflows/scale-bench.yml` (schedule) зелёный на master; при искусственном замедлении `listTasks` порог падает |
+| SC-08 | Бенчмарк масштаба как ночной гейт | low | done | SC-01..SC-04 | `npm run bench:scale -- --n 100000` с порогами из DoD выше, JSON-результаты в артефакт CI, регрессия > 2× от baseline — красный. Не входит в `npm test`. DoD: workflow `.github/workflows/scale-bench.yml` (schedule) зелёный на master; при искусственном замедлении `listTasks` порог падает |
 
 ### Подпункты SC-02 (проработка 2026-11-07)
 
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **29** | **7** | **369** | **22** | **1** |
+| **Итого** | **428** | **28** | **7** | **370** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2169,3 +2169,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, PH-012 закрыт): fetch-стаб вместо undici MockAgent (пакета нет).
 >
 > Примечание (2026-11-12, SPEC-08 закрыт): logging/setLevel → pino, capability до handler.
+>
+> Примечание (2026-11-12, SC-08 закрыт): nightly workflow не запускался; gate/CLI проверены локально.

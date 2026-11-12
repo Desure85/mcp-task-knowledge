@@ -1,0 +1,14 @@
+{
+  "label": "sc02e-dod-100k-2026-11-08",
+  "n": 100000,
+  "ops": {
+    "tasks_list": { "medianMs": 28 },
+    "knowledge_list": { "medianMs": 33 }
+  },
+  "coldStartMs": 967,
+  "caps": {
+    "tasks_list": 500,
+    "knowledge_list": 500,
+    "coldStartMs": 5000
+  }
+}

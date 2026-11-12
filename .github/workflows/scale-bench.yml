@@ -1,0 +1,48 @@
+name: Scale benchmark (nightly)
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Seed 100k tasks
+        run: node scripts/bench/seed-scale.mjs --n 100000 --out "$RUNNER_TEMP/scale-100k" --tasks-only --sharded
+      - name: Run scale benchmark
+        env:
+          EMBEDDINGS_MODE: none
+          CATALOG_ENABLED: 'false'
+          TASK_CLAIM_SWEEP_MS: '0'
+        run: |
+          node scripts/bench/run-scale.mjs \
+            --data "$RUNNER_TEMP/scale-100k" \
+            --n 100000 \
+            --only tasks_list,knowledge_list \
+            --reps 3 \
+            --label "nightly-100k-${GITHUB_RUN_ID}" \
+            --out "$RUNNER_TEMP/scale-result.json"
+      - name: Gate (2x baseline or absolute cap)
+        run: node scripts/bench/gate-scale.mjs --result "$RUNNER_TEMP/scale-result.json" --out "$RUNNER_TEMP/scale-gate.json"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-results-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/scale-result.json
+            ${{ runner.temp }}/scale-gate.json
+          if-no-files-found: warn
