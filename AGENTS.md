@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… T-06 закрыт)
-**Текущая ветка:** feat/t-06-templates-recurring-links (от master f749be4)
-**Текущий этап:** T-06 закрыт; pending 0; blocked 23
-**Статус:** templates/recurring/links; 3/3; backlog 397/0/23/1.
+**Session ID:** S-20261109-night (… AUD-18 закрыт)
+**Текущая ветка:** docs/aud-18-data-path-audit (от master cc1725b)
+**Текущий этап:** AUD-18 research закрыт; blocked 22
+**Статус:** data-path audit; backlog 398/0/22/1.
+
+### Сессия S-20261109-night (AUD-18)
+
+- Аудит storage/index/FTS/memory/sync: 7 находок, инварианты I1–I8.
+- Ограничения: без SIGKILL/двух процессов/нагрузки; исправления отдельными пунктами.
+- Решение: `docs/audit/2026-11-12-data-path-audit.md`, decision.
 
 ### Сессия S-20261109-night (T-06)
 

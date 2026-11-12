@@ -869,7 +869,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| AUD-18 | Аудит data-path (storage → sync → search → memory) | high | blocked | Проработка (research): промпт и скоуп аудита data-path (storage→sync→search→memory) с инвариантами | Request-path проаудирован, data-path — нет. Тем же промптом: гонки read-modify-write в `writeJson`, crash-окна, 3-way merge в `src/sync/`, GC event-log не съедает живое, FTS5/BM25 injection, изоляция scope (tenant A vs B). Находки → новый этап задач |
+| AUD-18 | Аудит data-path (storage → sync → search → memory) | high | done | Проработка (research): промпт и скоуп аудита data-path (storage→sync→search→memory) с инвариантами | Request-path проаудирован, data-path — нет. Тем же промптом: гонки read-modify-write в `writeJson`, crash-окна, 3-way merge в `src/sync/`, GC event-log не съедает живое, FTS5/BM25 injection, изоляция scope (tenant A vs B). Находки → новый этап задач |
 
 ---
 
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **7** | **397** | **23** | **1** |
+| **Итого** | **428** | **0** | **7** | **398** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2237,3 +2237,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, TK-04 закрыт): widgets layout + list/distribution/burndown; time unsupported до TK-05.
 > Примечание (2026-11-12, TK-03 закрыт): board config/sprints server-side; UI досок ещё нет.
 > Примечание (2026-11-12, T-06 закрыт): шаблоны/повторяющиеся задачи/tick + двусторонние task↔doc ссылки; фонового планировщика нет.
+> Примечание (2026-11-12, AUD-18 закрыт): data-path audit report; исправления — AUD-18d/e и отдельные пункты.
