@@ -8,6 +8,8 @@
 
 ### Added
 
+- T-05b: knowledge templates/render, review record, stale-doc listing; 5/5 wiki tests; API 183.
+
 - T-05: wiki `[[links]]`, backlinks/outgoing tools, doc status draft/published; 3/3; 392/0/28/1.
 
 - T-04: outgoing webhooks with HMAC, one retry and SSRF guard; task.created/updated events; 2/2; 391/0/29/1.

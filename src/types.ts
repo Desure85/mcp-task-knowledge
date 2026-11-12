@@ -102,6 +102,9 @@ export interface KnowledgeDocMeta {
   version?: number; // current version number (1-based)
   /** T-05: draft/published wiki lifecycle. */
   status?: 'draft' | 'published';
+  /** T-05: human review record. */
+  reviewedBy?: string;
+  reviewedAt?: string;
   /** MU-02: last version that changed each field. */
   fieldVersions?: Record<string, number>;
   history?: Array<{ version: number; updatedAt: string; title?: string }>; // prior versions
