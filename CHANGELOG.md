@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-26b: `init --demo [--project <id>]` seeds a sample project with two tasks (parent + child) and one knowledge doc; a duplicate project id exits 1 without writing. CLI tests 4/4.
+
 - DX-26a: `--help` works without `DATA_DIR`; `config show` prints the effective config with secrets redacted and exits 2 with a `DATA_DIR` hint when unset. CLI surface subitem 3/3.
 
 - Y-02e: storage-profile composition moved from `src/register/setup.ts` to `src/core/profile-factory.ts`; registrators no longer import `src/storage/**` and the guard allowlist is empty. 31/31 storage contract, 3/3 wiring.
