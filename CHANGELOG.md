@@ -8,6 +8,8 @@
 
 ### Added
 
+- AUD-18e: removed dead sync stack (SyncManager/threeWayMerge/protocol); EventLog retained for storage events.
+
 - AA-08: ADR tool profiles (core ≤28/agent ≤60/full) + server instructions; design only; 399/0/21/1.
 
 - AUD-18d: EventLog auto-compacts at compactThreshold; 9/9 event-log tests; 398/0/22/1.
