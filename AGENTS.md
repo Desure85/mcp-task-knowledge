@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… UI-33b закрыт; core закрыты)
-**Текущая ветка:** feat/ui-33b2-theme-ui (от master a246887)
-**Текущий этап:** UI-33b закрыт; pending 0; blocked 39
-**Статус:** team themes server+UI; web tsc/guards; backlog 381/0/39/1.
+**Session ID:** S-20261109-night (… TR-22 закрыт; core закрыты)
+**Текущая ветка:** chore/tr-22-remove-dead-sqlite (от master cb679fb)
+**Текущий этап:** TR-22 закрыт; pending 0; blocked 38
+**Статус:** dead FTS/migration removed; build чистый; backlog 382/0/38/1.
+
+### Сессия S-20261109-night (TR-22 — dead modules)
+
+- Удалены `fts-search.ts`, `db/migration-framework.ts` + их spec/barrel; 0 runtime-потребителей.
+- Ограничения: `better-sqlite3` остаётся для SQLite-профиля; FTS5 памяти не подключён.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-12-1515-tr-22.md`.
 
 ### Сессия S-20261109-night (UI-33b — team themes UI)
 

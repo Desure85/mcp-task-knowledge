@@ -32,8 +32,6 @@ export type { ProjectMemory, CrossProjectHit, FixSearchOptions } from './cross-p
 export { GuardRuleLearner } from './guard-rule-learner.js';
 export type { LearnResult, LearnerOptions } from './guard-rule-learner.js';
 
-export { FtsMemorySearch } from './fts-search.js';
-export type { FtsRecord, FtsQueryOptions, FtsQueryResult, FtsMemorySearchOptions, MemoryKind } from './fts-search.js';
 
 export { BehavioralDashboard } from './dashboard.js';
 export type { DashboardOptions, DashboardData, TrendPoint, ApproachStat, TimelineEvent } from './dashboard.js';
