@@ -424,11 +424,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… AUD-18d закрыт)
-**Текущая ветка:** fix/aud-18d-event-log-compaction (от master 9f2a581)
-**Текущий этап:** AUD-18d закрыт; AUD-18e остаётся blocked
-**Статус:** EventLog auto-compact; 9/9; backlog 398/0/22/1.
+**Дата последнего обновления:** 2026-11-13
+**Session ID:** S-20261109-night (… AA-08 закрыт)
+**Текущая ветка:** docs/aa-08-tool-profiles (от master 2a21b33)
+**Текущий этап:** AA-08 design закрыт; реализация AA-08b; blocked 21
+**Статус:** ADR profiles/instructions; backlog 399/0/21/1.
+
+### Сессия S-20261109-night (AA-08)
+
+- Профили core/agent/full, лимиты, конфиг, текст instructions.
+- Ограничения: design-only; allowlist и фильтрация — AA-08b; не security boundary.
+- Решение: `docs/adr/ADR-2026-11-12-tool-profiles.md`.
 
 ### Сессия S-20261109-night (AUD-18d)
 

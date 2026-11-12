@@ -8,6 +8,8 @@
 
 ### Added
 
+- AA-08: ADR tool profiles (core ≤28/agent ≤60/full) + server instructions; design only; 399/0/21/1.
+
 - AUD-18d: EventLog auto-compacts at compactThreshold; 9/9 event-log tests; 398/0/22/1.
 
 - AUD-18: data-path audit (storage→index/FTS→memory→sync), 7 findings with invariants; 398/0/22/1.
