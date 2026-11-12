@@ -9,7 +9,7 @@ import { execFile as execFileCb } from 'node:child_process';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { ensureDir, withFileLock } from '../fs.js';
+import { ensureDir, pathExists, withFileLock } from '../fs.js';
 import { childLogger } from '../core/logger.js';
 
 const execFile = promisify(execFileCb);
@@ -28,7 +28,7 @@ interface GitResult { code: number; stdout: string; stderr: string }
 export class GitHistory {
   readonly root: string;
   readonly queueFile: string;
-  private readonly author: string;
+  private currentAuthor: string;
   private readonly batchSize: number;
   private readonly flushMs: number;
   private readonly gitBin: string;
@@ -41,7 +41,7 @@ export class GitHistory {
   constructor(options: GitHistoryOptions) {
     this.root = options.root;
     this.queueFile = path.join(this.root, '.history', 'queue.jsonl');
-    this.author = options.author ?? 'mcp-task-knowledge <mcp@localhost>';
+    this.currentAuthor = options.author ?? 'mcp-task-knowledge <mcp@localhost>';
     this.batchSize = options.batchSize ?? 100;
     this.flushMs = options.flushMs ?? 2000;
     this.gitBin = options.gitBin ?? 'git';
@@ -70,16 +70,13 @@ export class GitHistory {
       return false;
     }
     await ensureDir(this.root);
-    const top = await this.git(['rev-parse', '--show-toplevel'], true);
-    const expected = path.resolve(this.root);
-    const actual = top.code === 0 ? path.resolve(top.stdout.trim()) : '';
-    if (actual.toLowerCase() !== expected.toLowerCase()) {
+    if (!(await pathExists(path.join(this.root, '.git')))) {
       await this.git(['init', '-q']);
       await this.writeIgnore();
       await this.git(['config', 'user.name', 'mcp-task-knowledge']);
       await this.git(['config', 'user.email', 'mcp@localhost']);
       await this.git(['add', '.gitignore']);
-      await this.git(['commit', '-q', '-m', 'history: init', `--author=${this.author}`], true);
+      await this.git(['commit', '-q', '-m', 'history: init', `--author=${this.currentAuthor}`], true);
     }
     await this.writeIgnore();
     await this.recoverDirty();
@@ -107,7 +104,11 @@ export class GitHistory {
     const status = await this.git(['status', '--porcelain'], true);
     if (status.code !== 0 || !status.stdout.trim()) return;
     await this.git(['add', '-A']);
-    await this.git(['commit', '-q', '-m', 'history: recovered', `--author=${this.author}`], true);
+    await this.git(['commit', '-q', '-m', 'history: recovered', `--author=${this.currentAuthor}`], true);
+  }
+
+  setAuthor(author: string): void {
+    this.currentAuthor = author;
   }
 
   async enqueue(paths: string[]): Promise<void> {
@@ -151,7 +152,7 @@ export class GitHistory {
         await fs.writeFile(this.queueFile, '', 'utf8');
         return;
       }
-      await this.git(['commit', '-q', '-m', `history: ${queued.size} path(s)`, `--author=${this.author}`]);
+      await this.git(['commit', '-q', '-m', `history: ${queued.size} path(s)`, `--author=${this.currentAuthor}`]);
       this.queue.clear();
       await fs.writeFile(this.queueFile, '', 'utf8');
     }).finally(() => { this.flushing = undefined; });

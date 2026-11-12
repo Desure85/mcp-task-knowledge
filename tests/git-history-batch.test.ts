@@ -51,6 +51,17 @@ describe('MU-03/SC-07 git history batching', () => {
     }
   });
 
+  it('commits a dirty tree as recovered on init', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'history-dirty-'));
+    try {
+      await new GitHistory({ root }).init();
+      writeFileSync(path.join(root, 'dirty.txt'), 'dirty');
+      const second = new GitHistory({ root });
+      await second.init();
+      expect(git(root, ['log', '--pretty=format:%s'])).toContain('history: recovered');
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
   it('auto-flushes at the batch size', async () => {
     const root = mkdtempSync(path.join(tmpdir(), 'history-size-'));
     const history = new GitHistory({ root, batchSize: 3, flushMs: 3_600_000 });

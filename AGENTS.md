@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… MU-03 core; wiring pending)
-**Текущая ветка:** feat/mu-03-git-history (от master 624975d)
-**Текущий этап:** MU-03 core implemented; wiring pending; pending 2
-**Статус:** GitHistory 3/3; backlog 382/2/36/1.
+**Session ID:** S-20261109-night (… MU-03 закрыт; core закрыты)
+**Текущая ветка:** feat/mu-03-wire-history (от master 81d02ee)
+**Текущий этап:** MU-03/SC-07 закрыты; pending 0; blocked 36
+**Статус:** history service wired (opt-in); 5/5 tests; backlog 384/0/36/1.
+
+### Сессия S-20261109-night (MU-03 — history wiring)
+
+- Service init/close, enqueue tasks/docs/prompts bulk, per-enqueue author; 5/5 tests.
+- Ограничения: prompts provenance/build/sources мимо; session id не userId; no-git не тестирован.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-12-1550-mu-03-wiring.md`.
 
 ### Сессия S-20261109-night (MU-03 — GitHistory core)
 

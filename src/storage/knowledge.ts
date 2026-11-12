@@ -22,6 +22,7 @@ import { mapLimit } from '../utils/concurrency.js';
 import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
 import { childLogger } from '../core/logger.js';
+import { enqueueHistory } from '../history/service.js';
 import { WorkflowError } from '../workflow.js';
 
 const log = childLogger('storage:knowledge');
@@ -77,6 +78,7 @@ export async function createDoc(input: {
   await ensureDir(path.dirname(p));
   await writeText(p, body);
   await indexDocWrite(input.project, data, p);
+  void enqueueHistory([p]).catch(() => undefined);
   noteDocWritten(input.project, data, input.content);
   emitKnowledgeChanged(input.project, 'created', id);
   return { ...data, content: input.content };
@@ -442,6 +444,7 @@ async function updateDocUnlocked(
   await ensureDir(path.dirname(p));
   await writeText(p, body);
   await indexDocWrite(project, updatedMeta, p);
+  void enqueueHistory([p]).catch(() => undefined);
   noteDocWritten(project, updatedMeta, content);
   emitKnowledgeChanged(project, 'updated', id);
   return { ...updatedMeta, content };
