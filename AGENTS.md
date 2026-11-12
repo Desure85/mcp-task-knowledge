@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… UI-33b server-срез; core закрыты)
-**Текущая ветка:** feat/ui-33b-team-themes-server (от master f5ee00f)
-**Текущий этап:** UI-33b in_progress; server done, UI-33b2 pending
-**Статус:** project themes 3/3; docs coverage 6/6; backlog 381/0/39/1.
+**Session ID:** S-20261109-night (… UI-33b закрыт; core закрыты)
+**Текущая ветка:** feat/ui-33b2-theme-ui (от master a246887)
+**Текущий этап:** UI-33b закрыт; pending 0; blocked 39
+**Статус:** team themes server+UI; web tsc/guards; backlog 381/0/39/1.
+
+### Сессия S-20261109-night (UI-33b — team themes UI)
+
+- /themes Team themes: list, copy-to-personal, publish, delete; role gate server-side; delete не ломает copy.
+- Ограничения: нет Playwright на team themes; нет редактора темы команды; delete без confirm.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-12-1155-ui-33b-ui.md`.
 
 ### Сессия S-20261109-night (UI-33b — team themes server)
 
