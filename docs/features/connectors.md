@@ -112,3 +112,22 @@ Each connector provides a health check:
 curl http://localhost:3001/healthz
 # {"healthy": true, "connectors": {"github": true, "jira": true, ...}}
 ```
+
+### OAuth refresh (Google Drive)
+
+GDrive поддерживает refresh-token grant: если `accessToken` отсутствует или истёк, коннектор вызывает
+`https://oauth2.googleapis.com/token` с `refreshToken` + `clientId` + `clientSecret`. При 401 запрос
+повторяется один раз.
+
+```json
+{
+  "gdrive": {
+    "refreshToken": "...",
+    "clientId": "...",
+    "clientSecret": "..."
+  }
+}
+```
+
+Gmail и OneDrive остаются с externally-provided access token: обновите `GMAIL_ACCESS_TOKEN` /
+`ONEDRIVE_ACCESS_TOKEN` и перезапустите.

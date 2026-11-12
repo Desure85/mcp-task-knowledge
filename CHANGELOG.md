@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-29: Google Drive OAuth refresh-token grant with 401 retry; Gmail/OneDrive documented as external refresh; 3/3; 401/0/19/1.
+
 - TR-30: web-crawler egress policy: scheme allowlist, private IP/DNS block, redirect checks, allowedHosts; 6/6; 400/0/20/1.
 
 - AUD-18e: removed dead sync stack (SyncManager/threeWayMerge/protocol); EventLog retained for storage events.
