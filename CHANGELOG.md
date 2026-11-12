@@ -8,6 +8,8 @@
 
 ### Added
 
+- SPEC-08: the server advertises MCP `logging` and accepts `logging/setLevel`; MCP levels map to pino (`notice→info`, `warning→warn`, `critical/alert/emergency→fatal`). A real stdio client asserts the capability and two level calls
+
 - PH-012: connector contract tests cover GitHub issue mapping, Jira JQL search, Slack channels/post and error envelopes without network or credentials. `undici` is not installed, so `vi.stubGlobal('fetch')` is used instead of MockAgent; no dependencies were added
 
 - SC-06: file-profile tasks and knowledge can live in two-character shards (`src/storage/sharding.ts`); both layouts stay readable with root-first dedupe. Stale closed tasks archive without deletion (`TASK_ARCHIVE_AFTER_DAYS`), compaction is operator-driven, and `seed-scale --sharded` generates a 100k corpus. A 374-entry shard readdir measured 0.67 ms

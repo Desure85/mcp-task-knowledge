@@ -1014,7 +1014,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | SPEC-05 | `completion/complete` | low | blocked | Проработка (design): autocomplete или убрать completion/complete из dispatch | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
 | SPEC-06 | `resources/subscribe` + `resources/updated` | medium | done | SPEC-02 | Event-bus уже есть → мост: подписка на uri → `notifications/resources/updated` при изменении |
 | SPEC-07 | `progressToken` gating | low | done | — | `streaming.ts` шлёт progress без проверки токена; спека — только если клиент прислал `progressToken` в `_meta` |
-| SPEC-08 | `logging/setLevel` | low | pending | — | Принять → прокинуть в pino level. Полезно для отладки удалённых подключений |
+| SPEC-08 | `logging/setLevel` | low | done | — | Принять → прокинуть в pino level. Полезно для отладки удалённых подключений |
 
 ### Фаза 3 — Политика
 
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **30** | **7** | **368** | **22** | **1** |
+| **Итого** | **428** | **29** | **7** | **369** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2167,3 +2167,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, SC-06 закрыт): shard 0.67 ms на 100k; live 6/6; компакция ручная.
 >
 > Примечание (2026-11-12, PH-012 закрыт): fetch-стаб вместо undici MockAgent (пакета нет).
+>
+> Примечание (2026-11-12, SPEC-08 закрыт): logging/setLevel → pino, capability до handler.
