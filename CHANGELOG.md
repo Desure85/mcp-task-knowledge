@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-03/SC-07 design: git via `execFile`, batched commits (100 paths/2 s) with durable queue; CLI commit median 170 ms; implementation pending.
+
 - TR-22: removed dead `FtsMemorySearch` and `MigrationFramework` (zero runtime consumers); `better-sqlite3` stays for the SQLite profile. 382/0/38/1.
 
 - UI-33b (UI slice): `/themes` Team themes — list/copy-to-personal/publish/delete; server role gate, personal copy survives project deletion. Web tsc + design guards 12/12.

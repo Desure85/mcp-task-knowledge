@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… TR-22 закрыт; core закрыты)
-**Текущая ветка:** chore/tr-22-remove-dead-sqlite (от master cb679fb)
-**Текущий этап:** TR-22 закрыт; pending 0; blocked 38
-**Статус:** dead FTS/migration removed; build чистый; backlog 382/0/38/1.
+**Session ID:** S-20261109-night (… MU-03/SC-07 design; core закрыты)
+**Текущая ветка:** docs/mu-03-sc-07-git-adr (от master 13fd979)
+**Текущий этап:** MU-03/SC-07 design снят; pending 2; blocked 36
+**Статус:** ADR git history; кода нет; backlog 382/2/36/1.
+
+### Сессия S-20261109-night (MU-03/SC-07 — git ADR)
+
+- execFile git, batch 100/2s + queue.jsonl; dirty→recovered; no-git WARN; revert = new commit.
+- Замер commit median 170 ms/100 files; isomorphic-git отсутствует и отклонён.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-12-1530-mu-03-sc-07.md`, ADR в `docs/adr/`.
 
 ### Сессия S-20261109-night (TR-22 — dead modules)
 
