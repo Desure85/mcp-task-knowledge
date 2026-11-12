@@ -8,6 +8,8 @@
 
 ### Added
 
+- SC-08: a weekly scale workflow seeds 100k tasks and gates `tasks_list`/`knowledge_list` against a checked-in baseline (2x median or absolute caps). The gate exits 1 on regression; the workflow itself was not exercised because Actions is unavailable here
+
 - SPEC-08: the server advertises MCP `logging` and accepts `logging/setLevel`; MCP levels map to pino (`notice→info`, `warning→warn`, `critical/alert/emergency→fatal`). A real stdio client asserts the capability and two level calls
 
 - PH-012: connector contract tests cover GitHub issue mapping, Jira JQL search, Slack channels/post and error envelopes without network or credentials. `undici` is not installed, so `vi.stubGlobal('fetch')` is used instead of MockAgent; no dependencies were added
