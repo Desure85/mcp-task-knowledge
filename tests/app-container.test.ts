@@ -62,7 +62,9 @@ describe('AppContainer — state transitions', () => {
     const app = new AppContainer({ handleSignals: false });
     app._setState('running');
     const close = vi.fn().mockRejectedValue(new Error('close boom'));
-    (app as any).adapter = { type: 'stdio', closed: false, connect: vi.fn(), close };
+    const adapter = { type: 'stdio', closed: false, connect: vi.fn(), close };
+    (app as any).adapters = [adapter];
+    (app as any).adapter = adapter;
     const warn = vi.spyOn((app as any).log, 'warn');
 
     await expect(app.stop()).resolves.toBeUndefined();

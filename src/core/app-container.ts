@@ -239,6 +239,7 @@ export class AppContainer {
   private _state: AppState = 'idle';
   private ctx?: ServerContext;
   private adapter?: TransportAdapter;
+  private adapters: TransportAdapter[] = [];
   private sessionMgr?: SessionManager;
   private authManager?: AuthManager;
   private authProtection?: AuthProtection;
@@ -258,6 +259,7 @@ export class AppContainer {
   private readonly log = childLogger('app-container');
   private readonly opts: {
     transportType: string;
+    transportTypes: string[];
     port: number;
     host: string;
     handleSignals: boolean;
@@ -268,8 +270,11 @@ export class AppContainer {
   };
 
   constructor(options?: AppContainerOptions) {
-    const transportType = options?.transportType
+    const rawTransports = options?.transportType
       ?? (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
+    const transportTypes = [...new Set(rawTransports.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean))];
+    if (transportTypes.length === 0) throw new Error('MCP_TRANSPORT must name at least one transport');
+    const transportType = transportTypes.find((value) => value !== 'stdio') ?? transportTypes[0]!;
     const port = options?.port
       ?? parseInt(process.env.MCP_PORT || '3001', 10);
     const host = options?.host
@@ -277,13 +282,14 @@ export class AppContainer {
 
     let handleSignals: boolean;
     if (options?.handleSignals === 'auto' || options?.handleSignals === undefined) {
-      handleSignals = transportType !== 'stdio';
+      handleSignals = transportTypes.some((value) => value !== 'stdio');
     } else {
       handleSignals = options.handleSignals;
     }
 
     this.opts = {
       transportType,
+      transportTypes,
       port,
       host,
       handleSignals,
@@ -310,6 +316,11 @@ export class AppContainer {
   }
 
   /** Transport adapter (available after start()). Throws if not started. */
+  /** AA-02: every connected transport adapter (first one is getTransport()). */
+  getTransports(): TransportAdapter[] {
+    return [...this.adapters];
+  }
+
   getTransport(): TransportAdapter {
     if (!this.adapter) {
       throw new Error('[app-container] transport not available — call start() first');
@@ -581,7 +592,7 @@ export class AppContainer {
       updateServerInfo({ toolCount: this.ctx.toolNames.size });
 
       // 6. SessionManager for multi-client transports (auto for non-stdio, unless explicitly disabled)
-      if (this.opts.sessionManager !== false && this.opts.transportType !== 'stdio') {
+      if (this.opts.sessionManager !== false && this.opts.transportTypes.some((value) => value !== 'stdio')) {
         this.sessionMgr = new SessionManager({
           ...(this.opts.sessionManager === undefined ? {} : this.opts.sessionManager),
           // S-005: wire session metrics callbacks
@@ -741,7 +752,7 @@ export class AppContainer {
       }
 
       // 7. ClusterManager for multi-node deployments (WIRE-003, auto for non-stdio unless explicitly disabled)
-      if (this.opts.cluster !== false && this.opts.transportType !== 'stdio') {
+      if (this.opts.cluster !== false && this.opts.transportTypes.some((value) => value !== 'stdio')) {
         const clusterOpts = this.opts.cluster === undefined ? {} : this.opts.cluster;
         const cm: ClusterManager = getClusterManager();
         const selfId = clusterOpts.selfId ?? cm.getSelfId();
@@ -860,13 +871,18 @@ export class AppContainer {
     }
 
     try {
-      // Create transport adapter via registry
-      const config: TransportConfig = {
-        type: this.opts.transportType,
-        options: { port: this.opts.port, host: this.opts.host, healthChecker: this.healthChecker },
-      };
-      this.adapter = defaultTransportRegistry.createTransport(config);
-      await this.adapter.connect(this.ctx);
+      // Create and connect every configured transport (AA-02). A single value in
+      // MCP_TRANSPORT keeps the old one-adapter behaviour.
+      for (const type of this.opts.transportTypes) {
+        const config: TransportConfig = {
+          type,
+          options: { port: this.opts.port, host: this.opts.host, healthChecker: this.healthChecker },
+        };
+        const adapter = defaultTransportRegistry.createTransport(config);
+        await adapter.connect(this.ctx);
+        this.adapters.push(adapter);
+      }
+      this.adapter = this.adapters[0];
 
       // Install signal handlers for graceful shutdown
       if (this.opts.handleSignals) {
@@ -876,7 +892,7 @@ export class AppContainer {
       this._state = 'running';
       this.startedAt = Date.now();
       this.log.info(
-        { transport: this.opts.transportType, port: this.opts.port },
+        { transports: this.opts.transportTypes, port: this.opts.port },
         'app running',
       );
 
@@ -937,15 +953,16 @@ export class AppContainer {
       // 1. Remove signal handlers first (prevent re-entry)
       this.removeSignalHandlers();
 
-      // 2. Close transport adapter
-      if (this.adapter) {
+      // 2. Close every transport adapter (reverse order of start)
+      for (const adapter of [...this.adapters].reverse()) {
         try {
-          await this.adapter.close();
+          await adapter.close();
         } catch (err) {
           this.log.warn({ err }, 'transport close error (non-fatal)');
         }
-        this.adapter = undefined;
       }
+      this.adapters = [];
+      this.adapter = undefined;
 
       // 2.1 Stop LAN Relay (BM-012)
       if (this.relay) {
