@@ -8,6 +8,8 @@
 
 ### Added
 
+- AUD-18d: EventLog auto-compacts at compactThreshold; 9/9 event-log tests; 398/0/22/1.
+
 - AUD-18: data-path audit (storage→index/FTS→memory→sync), 7 findings with invariants; 398/0/22/1.
 
 - T-06: task templates, recurring tick (idempotent per occurrence), bidirectional task↔document links; 3/3; API 206; 397/0/23/1.

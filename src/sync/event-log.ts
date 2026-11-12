@@ -74,7 +74,8 @@ export class EventLog {
       version,
     };
     this.events.push(event);
-    this.persist();
+    if (this.events.length >= this.compactThreshold) this.compact();
+    else this.persist();
     return event;
   }
 

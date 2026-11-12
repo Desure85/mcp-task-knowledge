@@ -48,6 +48,16 @@ describe('SYNC-004: EventLog', () => {
     expect(events).toHaveLength(3);
   });
 
+  it('auto-compacts when append reaches compactThreshold', () => {
+    const el = new EventLog({ storagePath: logPath, compactThreshold: 3 });
+    el.append('t1', 'task', 'create', { title: 'v1' }, 1);
+    el.append('t1', 'task', 'update', { title: 'v2' }, 2);
+    expect(el.eventCount).toBe(2);
+    el.append('t1', 'task', 'update', { title: 'v3' }, 3);
+    expect(el.eventCount).toBe(0);
+    expect(el.snapshotCount).toBe(1);
+    expect(el.getSnapshot('t1')?.state?.title).toBe('v3');
+  });
   it('compact creates snapshots and GCs old events', () => {
     const el = new EventLog({ storagePath: logPath, compactThreshold: 5 });
     el.append('t1', 'task', 'create', { title: 'v1' }, 1);
