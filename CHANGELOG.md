@@ -8,6 +8,8 @@
 
 ### Added
 
+- SC-02g: a metadata-index e2e moves a task from `tasks/alpha/...` to `tasks/al/...`, rebuilds, and asserts both layouts are read with one row and an updated `rel_path`. No product code changed
+
 - Z-08: `McpRegistrySource` and `AwesomeListSource` implement `PromptSource` over local registry/awesome-list snapshots, with a per-item `licenseReport()`; imports are provenance stubs, linked resources are not fetched
 
 - TR-04g: a concurrent two-server e2e asserts distinct `DATA_DIR` stores and no cross-project task leakage. The existing `tests/e2e-full/harness.ts` and `tests/support/server-process.ts` remain the shared spawn paths; no bespoke spawn was added
