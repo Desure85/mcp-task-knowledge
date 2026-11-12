@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… AUD-18 закрыт)
-**Текущая ветка:** docs/aud-18-data-path-audit (от master cc1725b)
-**Текущий этап:** AUD-18 research закрыт; blocked 22
-**Статус:** data-path audit; backlog 398/0/22/1.
+**Session ID:** S-20261109-night (… AUD-18d закрыт)
+**Текущая ветка:** fix/aud-18d-event-log-compaction (от master 9f2a581)
+**Текущий этап:** AUD-18d закрыт; AUD-18e остаётся blocked
+**Статус:** EventLog auto-compact; 9/9; backlog 398/0/22/1.
+
+### Сессия S-20261109-night (AUD-18d)
+
+- append вызывает compact при достижении compactThreshold; лог ограничен.
+- Ограничение: compact всё ещё переписывает файл целиком; append-only не сделан.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2325-aud-18d.md`.
 
 ### Сессия S-20261109-night (AUD-18)
 
