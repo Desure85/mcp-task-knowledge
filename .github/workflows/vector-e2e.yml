@@ -1,0 +1,39 @@
+name: ONNX vector e2e
+
+on:
+  schedule:
+    - cron: '41 2 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+          cache: npm
+      - name: Cache MiniLM model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/minilm
+          key: minilm-all-MiniLM-L6-v2-${{ hashFiles('package-lock.json') }}
+      - name: Fetch MiniLM model
+        run: |
+          if [ ! -f "$RUNNER_TEMP/minilm/onnx/model_quantized.onnx" ]; then
+            git clone --depth 1 https://huggingface.co/Xenova/all-MiniLM-L6-v2 "$RUNNER_TEMP/minilm"
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Vector e2e (real ONNX CPU)
+        env:
+          EMBEDDINGS_MODE: onnx-cpu
+          EMBEDDINGS_MODEL_PATH: ${{ runner.temp }}/minilm/onnx/model_quantized.onnx
+          EMBEDDINGS_DIM: '384'
+          ONNXRUNTIME_NODE_EXECUTION_PROVIDERS: cpu
+        run: npx vitest run tests/vector-e2e.test.ts

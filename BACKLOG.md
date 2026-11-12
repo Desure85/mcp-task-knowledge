@@ -807,7 +807,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | PH-012 | Connector contract-тесты через mock-HTTP | low | done | PH-006 | nock/msw-стабы GitHub/Jira/Slack API → реальные вызовы без credentials, проверка payload-маппинга и error-paths — без новых зависимостей: через встроенный undici MockAgent (nock/msw не добавлять). |
-| PH-013 | ONNX/vector e2e job | low | pending | — | Отдельный nightly-job с `EMBEDDINGS_MODE=local`, кэш модели в CI; сейчас vector-пути только unit-спеками |
+| PH-013 | ONNX/vector e2e job | low | done | — | Отдельный nightly-job с `EMBEDDINGS_MODE=local`, кэш модели в CI; сейчас vector-пути только unit-спеками |
 | PH-014 | WS realtime + MCP resources e2e | low | done | PH-002 | WS relay с реальным пиром; `resources/list`, `resources/read`, `prompts/get` protocol surface |
 
 ### Фаза 6 — Web UI (GUI до ума)
@@ -1629,7 +1629,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **26** | **7** | **372** | **22** | **1** |
+| **Итого** | **428** | **25** | **7** | **373** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2175,3 +2175,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, TR-13 закрыт): schema 0 + текущий dist; старого бинарника нет.
 >
 > Примечание (2026-11-12, PH-014 закрыт): prompts seed перенесён до registerMcpPrompts; WS peer уже в realtime.spec.
+>
+> Примечание (2026-11-12, PH-013 закрыт): реальный MiniLM локально 1/1; workflow не запускался.
