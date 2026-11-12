@@ -53,15 +53,25 @@ export function passthroughCapabilities(upstream?: ServerCapabilities): ServerCa
   };
 }
 
+export interface ProxyPassthroughOptions {
+  /** CM-04: `meta` exposes only the discovery/run surface. */
+  toolsMode?: 'full' | 'meta';
+}
+
+const META_TOOLS = new Set(['tools_list', 'tool_schema', 'tool_help', 'tools_run']);
+
 export class ProxyPassthrough {
   private client: Client;
   private recovery?: (err: unknown) => Promise<boolean>;
+  private readonly toolsMode: 'full' | 'meta';
 
   constructor(
     client: Client,
     private readonly server: Server,
+    options: ProxyPassthroughOptions = {},
   ) {
     this.client = client;
+    this.toolsMode = options.toolsMode ?? 'full';
     this.watchNotifications();
   }
 
@@ -85,9 +95,17 @@ export class ProxyPassthrough {
    */
   attach(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, (request) =>
-      this.call((client) => client.listTools(request.params)));
-    this.server.setRequestHandler(CallToolRequestSchema, (request) =>
-      this.call((client) => client.callTool(request.params)));
+      this.call(async (client) => {
+        const result = await client.listTools(request.params);
+        if (this.toolsMode === 'full') return result;
+        return { ...result, tools: (result.tools ?? []).filter((tool) => META_TOOLS.has(tool.name)) };
+      }));
+    this.server.setRequestHandler(CallToolRequestSchema, (request) => {
+      if (this.toolsMode === 'meta' && !META_TOOLS.has(request.params.name)) {
+        throw new Error(`tool not exposed in meta mode: ${request.params.name}`);
+      }
+      return this.call((client) => client.callTool(request.params));
+    });
     this.server.setRequestHandler(ListResourcesRequestSchema, (request) =>
       this.call((client) => client.listResources(request.params)));
     this.server.setRequestHandler(ListResourceTemplatesRequestSchema, (request) =>
@@ -106,7 +124,8 @@ export class ProxyPassthrough {
    * connection/authentication error instead of serving an empty tool list.
    */
   async probe(): Promise<PassthroughStats> {
-    const tools = (await this.client.listTools()).tools ?? [];
+    const allTools = (await this.client.listTools()).tools ?? [];
+    const tools = this.toolsMode === 'meta' ? allTools.filter((tool) => META_TOOLS.has(tool.name)) : allTools;
     const resources = await this.client.listResources().then((r) => r.resources ?? []).catch(() => []);
     const resourceTemplates = await this.client.listResourceTemplates().then((r) => r.resourceTemplates ?? []).catch(() => []);
     const prompts = await this.client.listPrompts().then((r) => r.prompts ?? []).catch(() => []);

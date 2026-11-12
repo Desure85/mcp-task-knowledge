@@ -157,7 +157,7 @@
       "category": "shim",
       "version": "1.0.20",
       "source": "dist/proxy/shim.js",
-      "sha256": "5e5e6b469b875e9dbff67b9ee0bea630724e97cff489b1a6280af37457c713ec",
+      "sha256": "3a97bc48a3f2fc1daa0c384ab04e94b59c0ac12885027337d2f654ddca7a4323",
       "targets": {
         "opencode": {
           "root": "share",
