@@ -40,10 +40,14 @@ export function registerLogTools(ctx: ServerContext): void {
           .max(512 * 1024)
           .optional()
           .describe('Payload cap in bytes (default 65536)'),
+        requestId: z
+          .string()
+          .optional()
+          .describe('Keep only records with this requestId (from tools_run/tools_batch failures)'),
       },
     },
-    async ({ project, lines, level, maxBytes }) => {
-      // project is accepted for surface symmetry, but the log is server-wide.
+    async ({ project, lines, level, maxBytes, requestId }) => {
+      // project is optional: when supplied, only JSON records with that exact field survive.
       resolveProject(project);
       const file = resolveLogFile(process.env.DATA_DIR);
       if (!file) {
@@ -54,16 +58,19 @@ export function registerLogTools(ctx: ServerContext): void {
         });
       }
       try {
-        const tail = readLogTail({ file, lines, level, maxBytes });
+        const tail = readLogTail({ file, lines, level, maxBytes, project, requestId });
         return ok({
           file,
           level: level ?? 'all',
+          project: project ?? null,
+          requestId: requestId ?? null,
           lines: tail.lines,
           count: tail.lines.length,
           matched: tail.matched,
           scanned: tail.scanned,
           truncated: tail.truncated,
           maskedLines: tail.maskedLines,
+          segments: tail.segments,
         });
       } catch (error) {
         return errWith({

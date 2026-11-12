@@ -8,6 +8,8 @@
 
 ### Added
 
+- AC-04e: `logs_tail` now filters by `requestId` and `project` and reads rotated `.1/.2` segments (oldest first); the direct-call `requestId` candidate was not reproduced and is recorded in the decision
+
 - SC-02g: a metadata-index e2e moves a task from `tasks/alpha/...` to `tasks/al/...`, rebuilds, and asserts both layouts are read with one row and an updated `rel_path`. No product code changed
 
 - Z-08: `McpRegistrySource` and `AwesomeListSource` implement `PromptSource` over local registry/awesome-list snapshots, with a per-item `licenseReport()`; imports are provenance stubs, linked resources are not fetched
