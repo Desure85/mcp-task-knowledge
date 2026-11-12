@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… MU-03/SC-07 design; core закрыты)
-**Текущая ветка:** docs/mu-03-sc-07-git-adr (от master 13fd979)
-**Текущий этап:** MU-03/SC-07 design снят; pending 2; blocked 36
-**Статус:** ADR git history; кода нет; backlog 382/2/36/1.
+**Session ID:** S-20261109-night (… MU-03 core; wiring pending)
+**Текущая ветка:** feat/mu-03-git-history (от master 624975d)
+**Текущий этап:** MU-03 core implemented; wiring pending; pending 2
+**Статус:** GitHistory 3/3; backlog 382/2/36/1.
+
+### Сессия S-20261109-night (MU-03 — GitHistory core)
+
+- `src/history/git.ts`: durable queue, batch 100/2s, recovered, revert, nested-repo detection.
+- Ограничения: не подключён к tasks/knowledge/prompts; author не из сессии; no-git ветка не тестировалась.
+- Тест: `tests/git-history-batch.test.ts` 3/3; ADR `docs/adr/ADR-2026-11-12-git-history.md`.
 
 ### Сессия S-20261109-night (MU-03/SC-07 — git ADR)
 
