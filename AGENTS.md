@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… MU-05 закрыт; pending 0)
-**Текущая ветка:** feat/mu-05-history-ui (от master b8b3660)
-**Текущий этап:** MU-05 закрыт; pending 0; blocked 34
-**Статус:** task history/conflict UI; web tsc/guards; backlog 386/0/34/1.
+**Session ID:** S-20261109-night (… T-03 закрыт)
+**Текущая ветка:** feat/t-03-audit-ui (от master 0642033)
+**Текущий этап:** T-03 закрыт; pending 0; blocked 33
+**Статус:** audit query/UI; 19/19; backlog 387/0/33/1.
+
+### Сессия S-202609-night
+
+- T-03: admin_audit_query + Audit log tab; filters/pagination; redaction.
+- Ограничение: project-фильтр пост-фильтр, total для него = число совпадений страницы.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-1710-t-03.md`.
 
 ### Сессия S-20261109-night (MU-05 — history UI)
 

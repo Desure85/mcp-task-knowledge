@@ -691,6 +691,7 @@ export class AppContainer {
           redactFields: ['password', 'token', 'secret', 'apiKey', 'jwt', 'authorization'],
         });
         auditLoggerRef = auditLogger;
+        this.ctx.auditLogger = auditLogger;
         const acl = new ACLEngine({
           enabled: process.env.SECURITY_ACL === '1' || process.env.SECURITY_ACL === 'true',
         });

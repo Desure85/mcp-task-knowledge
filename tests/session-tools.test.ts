@@ -7,6 +7,11 @@
 import { describe, it, expect, vi} from 'vitest';
 import { SessionManager } from '../src/core/session-manager.js';
 import { RateLimiter } from '../src/core/rate-limiter.js';
+import { AuditLogger } from '../src/audit/logger.js';
+import { DEFAULT_AUDIT_CONFIG } from '../src/audit/types.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { registerSessionTools } from '../src/register/session.js';
 import type { ServerContext } from '../src/register/context.js';
 import type { ToolMetaHandler } from '../src/register/setup.js';
@@ -486,3 +491,30 @@ describe('session_kill tool (UI-19)', () => {
     await sm.closeAll();
   });
 });
+
+describe('admin_audit_query tool (T-03)', () => {
+  it('requires admin and returns redacted events', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'audit-tool-'));
+    const logger = new AuditLogger({ ...DEFAULT_AUDIT_CONFIG, enabled: true, filePath: path.join(root, 'audit.log') });
+    const sm = new SessionManager();
+    const admin = sm.create({ remote: '10.0.0.1:1' });
+    makeAdmin(sm, admin.id);
+    const user = sm.create({ remote: '10.0.0.2:1' });
+    logger.record('tool.call', 'success', 'tasks_update', { input: { project: 'mcp', token: 'secret' }, userId: 'u1' });
+    try {
+      const { ctx, getHandler } = createMockContext({ sessionManager: sm, auditLogger: logger });
+      registerSessionTools(ctx);
+      const handler = getHandler('admin_audit_query')!;
+      const denied = parseResponse(await handler({}, asSession(user.id)));
+      expect(denied.ok).toBe(false);
+      const result = parseResponse(await handler({ userId: 'u1' }, asSession(admin.id)));
+      expect(result.ok).toBe(true);
+      expect(result.data.events).toHaveLength(1);
+      expect(JSON.stringify(result.data.events[0])).toContain('tasks_update');
+    } finally {
+      logger.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+

@@ -507,3 +507,5 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `skills_history` | List commits touching a skill/prompt |
 | `skills_diff` | Diff one commit for a skill |
 | `skills_version_restore` | Restore a skill version as a new commit |
+
+| `admin_audit_query` | Admin-only audit log query (user/tool/status/time, paginated, redacted) |

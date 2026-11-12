@@ -13,6 +13,7 @@ import type { AuthManager } from '../core/auth.js';
 import type { SessionManager } from '../core/session-manager.js';
 import type { ClusterManager } from '../core/cluster.js';
 import type { RateLimiter } from '../core/rate-limiter.js';
+import type { AuditLogger } from '../audit/logger.js';
 import type { SecurityStack } from '../core/security-stack.js';
 import type { TokenManager } from '../core/token-manager.js';
 import type { SetupLinkStore } from '../core/setup-link.js';
@@ -132,6 +133,9 @@ export interface ServerContext {
 
   /** Optional SecurityStack (AUD-07) — rate-limit/sanitizer/ACL/audit/AuthProtection in tools/call dispatch. Set by AppContainer when SECURITY_STACK=1. */
   securityStack?: SecurityStack;
+
+  /** T-03: admin audit log reader. */
+  auditLogger?: AuditLogger;
 
   /** Connector registry (INT-004, WIRE-001). Set by AppContainer after init. */
   connectorRegistry?: ConnectorRegistry;
