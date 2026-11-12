@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-03/SC-07 core: `GitHistory` batched queue/flush (100 paths/2 s), durable queue, dirty recovery, revert-as-new-commit; 3/3 tests. Not wired to storage yet.
+
 - MU-03/SC-07 design: git via `execFile`, batched commits (100 paths/2 s) with durable queue; CLI commit median 170 ms; implementation pending.
 
 - TR-22: removed dead `FtsMemorySearch` and `MigrationFramework` (zero runtime consumers); `better-sqlite3` stays for the SQLite profile. 382/0/38/1.
