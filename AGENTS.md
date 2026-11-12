@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… TK-02 закрыт)
-**Текущая ветка:** feat/tk-02-query-language (от master 0aa9c49)
-**Текущий этап:** TK-02 закрыт; pending 0; blocked 26
-**Статус:** query language/saved searches; 4/4; backlog 394/0/26/1.
+**Session ID:** S-20261109-night (… TK-04 закрыт)
+**Текущая ветка:** feat/tk-04-dashboard-widgets (от master ca046a1)
+**Текущий этап:** TK-04 закрыт; pending 0; blocked 25
+**Статус:** dashboard widgets; 3/3; backlog 395/0/25/1.
+
+### Сессия S-20261109-night (TK-04)
+
+- Layout per user; list/distribution/burndown; time unsupported.
+- Ограничения: нет web-ui виджетов; burndown по updatedAt; field distribution не по custom fields.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2155-tk-04.md`.
 
 ### Сессия S-20261109-night (TK-02)
 

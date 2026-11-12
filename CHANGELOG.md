@@ -8,6 +8,8 @@
 
 ### Added
 
+- TK-04: dashboard_widgets_get/set/render (list query, distribution, burndown); time unsupported until TK-05; 3/3; API 190; 395/0/25/1.
+
 - TK-02: query language (`project:`, `#tag`, AND/OR/NOT, quotes, sort by) + saved searches; 4/4; API 187; 394/0/26/1.
 
 - TK-01: ADR task model (assignee/dueDate/custom fields/comments/relations), additive wire, schema 1→2 no-op; unlocks TK-02..04/T-06.

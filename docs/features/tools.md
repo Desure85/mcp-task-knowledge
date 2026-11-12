@@ -526,3 +526,7 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `tasks_saved_search_list` | List saved searches |
 | `tasks_saved_search_save` | Upsert a saved search |
 | `tasks_saved_search_delete` | Delete a saved search |
+
+| `dashboard_widgets_get` | Read a user's dashboard layout |
+| `dashboard_widgets_set` | Replace dashboard layout (≤20) |
+| `dashboard_widgets_render` | Render list/distribution/burndown widgets |
