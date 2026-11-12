@@ -97,7 +97,7 @@ import { seedPromptsIfEmpty } from '../services/prompts-seed.js';
 import { PROMPTS_DIR, getCurrentProject, TASKS_DIR, KNOWLEDGE_DIR } from '../config.js';
 import { checkSchemaVersion, SchemaVersionError } from '../services/schema-version.js';
 import type { MetadataIndex } from '../storage/metadata-index.js';
-import { startClaimSweeper, stopClaimSweeper } from '../storage/tasks.js';
+import { startClaimSweeper, stopClaimSweeper, archiveStaleClosedTasks } from '../storage/tasks.js';
 import {
   acquireServerLock,
   ServerLockError,
@@ -772,6 +772,18 @@ export class AppContainer {
         }
       } catch (e) {
         this.log.warn({ err: e }, 'prompts seeding failed (non-fatal)');
+      }
+
+      // SC-06: opt-in auto-archive of stale closed tasks. Never deletes; the
+      // sweep is skipped unless TASK_ARCHIVE_AFTER_DAYS is a positive number.
+      const archiveDays = Number(process.env.TASK_ARCHIVE_AFTER_DAYS);
+      if (Number.isFinite(archiveDays) && archiveDays > 0) {
+        try {
+          const ids = await archiveStaleClosedTasks(getCurrentProject(), archiveDays);
+          if (ids.length > 0) this.log.info({ count: ids.length, archiveDays }, 'stale closed tasks archived');
+        } catch (e) {
+          this.log.warn({ err: e }, 'stale task archive failed (non-fatal)');
+        }
       }
 
       this._state = 'ready';

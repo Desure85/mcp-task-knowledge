@@ -12,6 +12,7 @@ npm run build                      # бенчмарки гоняют реаль�
 
 # 1. Данные: 100k задач + 100k документов + 100k фактов графа
 node scripts/bench/seed-scale.mjs --n 100000 --facts 100000 --out /tmp/mcp-scale/data-100k
+node scripts/bench/seed-scale.mjs --n 100000 --out /tmp/mcp-scale/data-100k-sharded --sharded --tasks-only
 
 # 2. Замеры через настоящий HTTP MCP (3 повтора, медиана/p95, размер ответа)
 node scripts/bench/run-scale.mjs --data /tmp/mcp-scale/data-100k --n 100000 \

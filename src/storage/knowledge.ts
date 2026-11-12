@@ -1,9 +1,9 @@
 import path from 'node:path';
-import fg from 'fast-glob';
 import matter from 'gray-matter';
 import { randomUUID } from 'node:crypto';
 import { KNOWLEDGE_DIR, TASKS_DIR } from '../config.js';
 import { ensureDir, pathExists, readText, resolveUnder, withFileLock, writeText } from '../fs.js';
+import { listDataFiles, resolveDataFile, writeDataPath } from './sharding.js';
 import type { KnowledgeDoc, KnowledgeDocMeta, TrustLevel } from '../types.js';
 import { promises as fsp } from 'node:fs';
 import { emitKnowledgeChanged } from './knowledge-events.js';
@@ -29,12 +29,7 @@ function fileFor(project: string, id: string) {
   return resolveUnder(KNOWLEDGE_DIR, project, `${id}.md`);
 }
 
-// Centralized resolver for knowledge doc file paths (modern first, then legacy)
-function resolveDocFilePaths(project: string, id: string): string[] {
-  const modern = fileFor(project, id);
-  const legacy = resolveUnder(KNOWLEDGE_DIR, `${id}.md`);
-  return [modern, legacy];
-}
+// Centralized resolver for knowledge doc file paths (root, shard, then legacy).
 
 // Remove undefined values from frontmatter to avoid YAML dump errors
 function cleanMeta<T extends Record<string, any>>(obj: T): T {
@@ -73,7 +68,7 @@ export async function createDoc(input: {
     trashed: false,
   };
   const body = matter.stringify(input.content, cleanMeta(data) as any);
-  const p = fileFor(input.project, id);
+  const p = await writeDataPath(resolveUnder(KNOWLEDGE_DIR, input.project), id, '.md');
   await ensureDir(path.dirname(p));
   await writeText(p, body);
   await indexDocWrite(input.project, data, p);
@@ -96,11 +91,11 @@ export async function listDocs(filter?: { project?: string; tag?: string; includ
         continue;
       }
     }
-    const files = await fg('*.md', { cwd: dir, dot: false });
+    const files = await listDataFiles(dir, '.md', { legacyFlat: dir === KNOWLEDGE_DIR });
     // Parallel read+parse: YAML parsing 100k frontmatters serially cost 11.6 s (§3.1).
-    const parsed = await mapLimit(files, 32, async (f) => {
-      const raw = await readText(path.join(dir, f));
-      return { f, fm: matter(raw) };
+    const parsed = await mapLimit(files, 32, async ({ file }) => {
+      const raw = await readText(file);
+      return { f: path.basename(file), fm: matter(raw) };
     });
     for (const { f, fm } of parsed) {
       const meta = fm.data as any as KnowledgeDocMeta;
@@ -143,11 +138,10 @@ interface DocFileEntry {
 export async function listDocEntries(project: string): Promise<DocFileEntry[]> {
   const dir = await resolveKnowledgeDir(project);
   if (!dir) return [];
-  const files = await fg('*.md', { cwd: dir, dot: false });
-  const entries = await mapLimit(files, 256, async (f) => {
-    const file = path.join(dir, f);
+  const files = await listDataFiles(dir, '.md', { legacyFlat: dir === KNOWLEDGE_DIR });
+  const entries = await mapLimit(files, 256, async ({ id, file }) => {
     const st = await fsp.stat(file);
-    return { id: f.slice(0, -'.md'.length), file, mtimeMs: st.mtimeMs };
+    return { id, file, mtimeMs: st.mtimeMs };
   });
   entries.sort((a, b) => (b.mtimeMs - a.mtimeMs) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return entries;
@@ -351,13 +345,14 @@ export async function listDocsPage(project: string, opts: DocPageOptions): Promi
 }
 
 export async function readDoc(project: string, id: string): Promise<KnowledgeDoc | null> {
-  // Try resolved paths in order
-  const [pModern, pLegacy] = resolveDocFilePaths(project, id);
-  let p = pModern;
-  if (!(await pathExists(pModern))) {
-    if (!(await pathExists(pLegacy))) return null;
-    p = pLegacy;
+  // Root first, then shard, then legacy flat layout.
+  const dir = resolveUnder(KNOWLEDGE_DIR, project);
+  let p = await resolveDataFile(dir, id, '.md');
+  if (!p) {
+    const legacy = resolveUnder(KNOWLEDGE_DIR, `${id}.md`);
+    if (await pathExists(legacy)) p = legacy;
   }
+  if (!p) return null;
   const raw = await readText(p);
   const fm = matter(raw);
   const meta = fm.data as any as KnowledgeDocMeta;
@@ -411,7 +406,8 @@ async function updateDocUnlocked(project: string, id: string, patch: Partial<Omi
   };
   const content = patch.content !== undefined ? patch.content : existing.content;
   const body = matter.stringify(content, cleanMeta(updatedMeta) as any);
-  const p = fileFor(project, id);
+  const p = (await resolveDataFile(resolveUnder(KNOWLEDGE_DIR, project), id, '.md')) ?? fileFor(project, id);
+  await ensureDir(path.dirname(p));
   await writeText(p, body);
   await indexDocWrite(project, updatedMeta, p);
   noteDocWritten(project, updatedMeta, content);
@@ -432,7 +428,7 @@ export async function restoreDoc(project: string, id: string): Promise<Knowledge
 }
 
 export async function deleteDocPermanent(project: string, id: string): Promise<boolean> {
-  const p = fileFor(project, id);
+  const p = (await resolveDataFile(resolveUnder(KNOWLEDGE_DIR, project), id, '.md')) ?? resolveUnder(KNOWLEDGE_DIR, `${id}.md`);
   if (!(await pathExists(p))) {
     indexDocDelete(id);
     noteDocRemoved(project, id);
