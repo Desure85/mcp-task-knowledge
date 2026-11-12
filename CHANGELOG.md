@@ -8,6 +8,8 @@
 
 ### Added
 
+- Z-08: `McpRegistrySource` and `AwesomeListSource` implement `PromptSource` over local registry/awesome-list snapshots, with a per-item `licenseReport()`; imports are provenance stubs, linked resources are not fetched
+
 - TR-04g: a concurrent two-server e2e asserts distinct `DATA_DIR` stores and no cross-project task leakage. The existing `tests/e2e-full/harness.ts` and `tests/support/server-process.ts` remain the shared spawn paths; no bespoke spawn was added
 
 - TR-04i: the wire-snapshot test is explicitly marked `@dependency-contract`; it imports only the MCP SDK codec and is outside `coverage.include=src/**`. Divergence of our own transports remains covered by stdio/http/tcp e2e
