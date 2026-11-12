@@ -46,4 +46,24 @@ describe('DX-26a CLI: --help and config show', () => {
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('DATA_DIR');
   });
+
+  it('seeds a demo project and refuses a duplicate id', () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dx26b-'));
+    const env = {
+      ...process.env,
+      DATA_DIR: dataDir,
+      EMBEDDINGS_MODE: 'none',
+      OBSIDIAN_VAULT_ROOT: path.join(dataDir, 'vault'),
+    };
+    const first = run(['init', '--demo', '--project', 'demo'], env);
+    expect(first.status).toBe(0);
+    expect(first.stdout).toContain("demo project 'demo' created");
+    expect(fs.readdirSync(path.join(dataDir, 'tasks', 'demo'))).toHaveLength(2);
+    expect(fs.readdirSync(path.join(dataDir, 'knowledge', 'demo'))).toHaveLength(1);
+
+    const second = run(['init', '--demo', '--project', 'demo'], env);
+    expect(second.status).toBe(1);
+    expect(second.stderr).toContain('init:');
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
 });
