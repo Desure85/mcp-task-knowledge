@@ -20,6 +20,10 @@ export interface PromptSourceItem {
   kind?: 'prompt' | 'skill' | 'workflow' | 'rule' | 'template' | 'policy';
   /** Relative path inside the source, when it has one. */
   path?: string;
+  /** Canonical upstream URL, when the source has one. */
+  url?: string;
+  /** SPDX-ish license string declared by the source, when known. */
+  license?: string;
 }
 
 export interface PromptSourcePreview extends PromptSourceItem {
@@ -332,5 +336,226 @@ export class GitHubPromptSource implements PromptSource {
       throw error;
     }
     return { sourceId: this.id, itemId: preview.id, path: destination, bytes: preview.bytes };
+  }
+}
+
+/** Z-08: license/provenance report for external prompt/skill catalogs. */
+export interface PromptSourceLicenseReport {
+  source: string;
+  sourceLicense?: string;
+  items: Array<{ id: string; title: string; url?: string; license?: string }>;
+}
+
+function slug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100) || 'item';
+}
+
+async function writeImported(
+  sourceId: string,
+  item: PromptSourceItem,
+  content: string,
+  targetDir: string,
+  options: PromptImportOptions = {},
+): Promise<PromptImportResult> {
+  const targetRoot = path.resolve(targetDir);
+  await fs.mkdir(targetRoot, { recursive: true });
+  const destination = path.join(targetRoot, `${slug(item.id)}.md`);
+  assertInside(targetRoot, destination);
+  try {
+    await fs.writeFile(destination, content, { encoding: 'utf8', flag: options.overwrite ? 'w' : 'wx' });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new PromptSourceError('INVALID_SOURCE', `destination exists: ${destination}`);
+    }
+    throw error;
+  }
+  return { sourceId, itemId: item.id, path: destination, bytes: Buffer.byteLength(content, 'utf8') };
+}
+
+function markdownStub(item: PromptSourceItem): string {
+  const lines = [`# ${item.title}`, ''];
+  if (item.description) lines.push(item.description, '');
+  if (item.url) lines.push(`Source: ${item.url}`);
+  lines.push(`License: ${item.license ?? 'unknown'}`);
+  lines.push(`Kind: ${item.kind ?? 'prompt'}`);
+  lines.push('');
+  return lines.join('\n');
+}
+
+interface RegistryEntry {
+  name?: string;
+  title?: string;
+  description?: string;
+  license?: string;
+  homepage?: string;
+  repository?: string | { url?: string };
+}
+
+/** Z-08: official MCP registry snapshot (`server.json` / `{ servers: [...] }`). */
+export class McpRegistrySource implements PromptSource {
+  readonly id = 'mcp-registry';
+  readonly name = 'MCP registry (local snapshot)';
+  private readonly file: string;
+
+  constructor(file: string) {
+    this.file = path.resolve(file);
+  }
+
+  private async entries(): Promise<Array<PromptSourceItem & { file: string }>> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await fs.readFile(this.file, 'utf8'));
+    } catch (error) {
+      throw new PromptSourceError('INVALID_SOURCE', `cannot read MCP registry snapshot: ${(error as Error).message}`);
+    }
+    const raw = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === 'object' && Array.isArray((parsed as { servers?: unknown }).servers)
+        ? (parsed as { servers: unknown[] }).servers
+        : [];
+    const out: Array<PromptSourceItem & { file: string }> = [];
+    for (const entry of raw as RegistryEntry[]) {
+      const name = String(entry?.name ?? entry?.title ?? '').trim();
+      if (!name) continue;
+      const repo = typeof entry.repository === 'string' ? entry.repository : entry.repository?.url;
+      out.push({
+        id: slug(name),
+        title: name,
+        description: entry.description,
+        license: entry.license,
+        url: entry.homepage ?? repo,
+        tags: ['registry', 'mcp'],
+        kind: 'skill',
+        file: name,
+      });
+    }
+    return out;
+  }
+
+  async list(query?: string): Promise<PromptSourceItem[]> {
+    const entries = (await this.entries()).filter((item) => matches(item, query));
+    return entries.map(({ file: _file, ...item }) => item);
+  }
+
+  async preview(id: string): Promise<PromptSourcePreview> {
+    const item = (await this.entries()).find((entry) => entry.id === id || entry.file === id);
+    if (!item) throw new PromptSourceError('NOT_FOUND', `registry entry not found: ${id}`);
+    const content = markdownStub(item);
+    return { ...item, content, bytes: Buffer.byteLength(content, 'utf8') };
+  }
+
+  async import(id: string, targetDir: string, options: PromptImportOptions = {}): Promise<PromptImportResult> {
+    const preview = await this.preview(id);
+    return writeImported(this.id, preview, preview.content, targetDir, options);
+  }
+
+  async licenseReport(): Promise<PromptSourceLicenseReport> {
+    const items = (await this.entries()).map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      license: item.license,
+    }));
+    return { source: this.id, items };
+  }
+}
+
+/**
+ * Z-08: awesome-list Markdown reader. The list is a local clone/snapshot:
+ * entries are `- [Title](url) — description`; linked resources are not fetched.
+ */
+export class AwesomeListSource implements PromptSource {
+  readonly id = 'awesome-list';
+  readonly name = 'Awesome list (local snapshot)';
+  private readonly root: string;
+
+  constructor(root: string) {
+    this.root = path.resolve(root);
+  }
+
+  private async readme(): Promise<string> {
+    for (const name of ['README.md', 'readme.md', 'awesome.md']) {
+      try {
+        return await fs.readFile(path.join(this.root, name), 'utf8');
+      } catch {
+        // try next
+      }
+    }
+    throw new PromptSourceError('INVALID_SOURCE', `no README.md/awesome.md under ${this.root}`);
+  }
+
+  private parse(markdown: string): PromptSourceItem[] {
+    const items: PromptSourceItem[] = [];
+    const seen = new Set<string>();
+    const pattern = /^\s*[-*]\s+\[([^\]]+)\]\(([^)\s]+)\)(?:\s*[-–—:]\s*(.*))?$/gm;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(markdown)) !== null) {
+      const title = match[1].trim();
+      const url = match[2].trim();
+      let id = slug(title);
+      if (seen.has(id)) {
+        let n = 2;
+        while (seen.has(`${id}-${n}`)) n++;
+        id = `${id}-${n}`;
+      }
+      seen.add(id);
+      items.push({
+        id,
+        title,
+        description: (match[3] ?? '').trim() || undefined,
+        url,
+        tags: ['awesome'],
+        kind: 'skill',
+      });
+    }
+    return items;
+  }
+
+  async list(query?: string): Promise<PromptSourceItem[]> {
+    return (await this.entries()).filter((item) => matches(item, query));
+  }
+
+  async preview(id: string): Promise<PromptSourcePreview> {
+    const item = (await this.entries()).find((entry) => entry.id === id);
+    if (!item) throw new PromptSourceError('NOT_FOUND', `awesome-list entry not found: ${id}`);
+    const content = markdownStub(item);
+    return { ...item, content, bytes: Buffer.byteLength(content, 'utf8') };
+  }
+
+  async import(id: string, targetDir: string, options: PromptImportOptions = {}): Promise<PromptImportResult> {
+    const preview = await this.preview(id);
+    return writeImported(this.id, preview, preview.content, targetDir, options);
+  }
+
+  private async sourceLicense(): Promise<string | undefined> {
+    for (const name of ['LICENSE', 'LICENSE.md', 'COPYING']) {
+      try {
+        const text = await fs.readFile(path.join(this.root, name), 'utf8');
+        return text.split(/\r?\n/).find((line) => line.trim())?.trim();
+      } catch {
+        // try next
+      }
+    }
+    return undefined;
+  }
+
+  private async entries(): Promise<PromptSourceItem[]> {
+    const license = await this.sourceLicense();
+    return this.parse(await this.readme()).map((item) => ({ ...item, license: item.license ?? license }));
+  }
+
+  async licenseReport(): Promise<PromptSourceLicenseReport> {
+    const sourceLicense = await this.sourceLicense();
+    const items = (await this.entries()).map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      license: item.license ?? sourceLicense,
+    }));
+    return { source: this.id, sourceLicense, items };
   }
 }
