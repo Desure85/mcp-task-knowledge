@@ -7,9 +7,7 @@ import { GitHistory } from './git.js';
 let instance: GitHistory | undefined;
 
 export function historyEnabled(): boolean {
-  if (process.env.HISTORY_ENABLED === '0') return false;
-  if (process.env.HISTORY_ENABLED === '1') return true;
-  return process.env.NODE_ENV !== 'test';
+  return process.env.HISTORY_ENABLED === '1' && process.env.NODE_ENV !== 'test';
 }
 
 export function historyAuthor(): string {
