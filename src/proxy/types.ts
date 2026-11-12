@@ -23,6 +23,13 @@ export interface ProxyConfig {
   /** Enable proxy mode. When false, the server runs normally (non-proxy). */
   enabled: boolean;
 
+  /**
+   * CM-04: what the downstream client sees. `full` mirrors every upstream tool;
+   * `meta` exposes only the discovery/run surface (tools_list/tool_schema/
+   * tool_help/tools_run) so a small client can reach the rest via tools_run.
+   */
+  toolsMode?: 'full' | 'meta';
+
   /** Upstream MCP server connection settings. */
   upstream: {
     /** Transport type to connect to upstream. */
@@ -84,6 +91,7 @@ export interface ProxyHealth {
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   enabled: false,
+  toolsMode: 'full',
   upstream: {
     transport: 'http',
     url: 'http://localhost:3001',

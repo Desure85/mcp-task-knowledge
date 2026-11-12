@@ -8,6 +8,8 @@
 
 ### Added
 
+- CM-04: bridge --tools meta exposes only tools_list/tool_schema/tool_help/tools_run and rejects direct calls to other tools; full remains the default mirror. Env MCP_PROXY_TOOLS mirrors the flag
+
 - CM-02: the owner gate chooses the existing `tools_batch` (Promise.all) as the canonical parallel path; `tools_run` stays sequential and no second `parallel` flag is added. Contract tests 8/8
 
 - UI-23: a fourth `high-contrast` palette adds AAA core text pairs (>=7:1) on the existing tokens, stays separate from `data-mode`, and is covered by the 94x8 AA matrix plus a 12-route Playwright smoke

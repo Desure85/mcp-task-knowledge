@@ -19,10 +19,12 @@ export const BRIDGE_EXIT = {
   AUTH: 4,
 } as const;
 
-const USAGE = `Usage: mcp-task-knowledge bridge --url <http(s)://core/mcp> [--token <token>]
+const USAGE = `Usage: mcp-task-knowledge bridge --url <http(s)://core/mcp> [--token <token>] [--tools full|meta]
 
   --url, --proxy-upstream   MCP endpoint of the http core (env: MCP_PROXY_UPSTREAM)
   --token                   access token (env: MCP_PROXY_TOKEN); never printed
+  --tools                   full = mirror every tool (default); meta = expose only
+                            tools_list/tool_schema/tool_help/tools_run (env: MCP_PROXY_TOOLS)
   -h, --help                show this help
 
 Exit codes: 0 stdin closed / signal, 2 usage, 3 upstream unreachable, 4 auth failed.
@@ -31,6 +33,7 @@ Exit codes: 0 stdin closed / signal, 2 usage, 3 upstream unreachable, 4 auth fai
 interface BridgeArgs {
   url: string;
   token?: string;
+  toolsMode: 'full' | 'meta';
   help?: boolean;
 }
 
@@ -40,6 +43,7 @@ const START_DELAYS_MS = [300, 900];
 function parseArgs(argv: string[]): BridgeArgs | string {
   let url: string | undefined;
   let token: string | undefined;
+  let toolsMode: 'full' | 'meta' | undefined;
   let help = false;
 
   for (let i = 0; i < argv.length; i++) {
@@ -55,13 +59,24 @@ function parseArgs(argv: string[]): BridgeArgs | string {
     if (nextUrl !== undefined) { url = nextUrl; continue; }
     const nextToken = value('--token');
     if (nextToken !== undefined) { token = nextToken; continue; }
+    const nextTools = value('--tools');
+    if (nextTools !== undefined) {
+      if (nextTools !== 'full' && nextTools !== 'meta') return `--tools must be 'full' or 'meta', got: ${nextTools}`;
+      toolsMode = nextTools;
+      continue;
+    }
     return `unknown argument: ${arg}`;
   }
 
   url = url ?? process.env.MCP_PROXY_UPSTREAM;
   token = token ?? process.env.MCP_PROXY_TOKEN;
+  if (!toolsMode) {
+    const envTools = process.env.MCP_PROXY_TOOLS;
+    if (envTools && envTools !== 'full' && envTools !== 'meta') return `MCP_PROXY_TOOLS must be 'full' or 'meta', got: ${envTools}`;
+    toolsMode = (envTools as 'full' | 'meta' | undefined) ?? 'full';
+  }
 
-  if (help) return { url: url ?? '', token, help: true };
+  if (help) return { url: url ?? '', token, toolsMode, help: true };
   if (!url) return 'missing --url (or MCP_PROXY_UPSTREAM)';
 
   let parsed: URL;
@@ -76,7 +91,7 @@ function parseArgs(argv: string[]): BridgeArgs | string {
   if (parsed.username || parsed.password) {
     return 'credentials in the URL are not supported; pass the token via MCP_PROXY_TOKEN';
   }
-  return { url, token };
+  return { url, token, toolsMode };
 }
 
 function isAuthFailure(text: string): boolean {
@@ -103,6 +118,7 @@ function buildConfig(args: BridgeArgs): ProxyConfig {
       ? { mode: 'static-token', token: args.token }
       : { mode: 'none' },
     downstream: { transport: 'stdio', port: 0, host: '127.0.0.1' },
+    toolsMode: args.toolsMode,
   };
 }
 

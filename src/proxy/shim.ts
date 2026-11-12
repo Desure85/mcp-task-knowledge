@@ -69,9 +69,11 @@ export class StdioBridge {
     // CM-03: the bridge has no registry of its own; describe the forwarding protocol.
     setServerInstructions(
       this.server,
-      'mcp-task-knowledge thin bridge: tools are forwarded to the HTTP core. Use tools_list {search}, tool_schema {name}, then tools_run {name, params}.',
+      this.config.toolsMode === 'meta'
+        ? 'mcp-task-knowledge thin bridge (meta tools): only tools_list, tool_schema, tool_help and tools_run are exposed. Use tools_list {search}, tool_schema {name}, then tools_run {name, params} to reach every core tool.'
+        : 'mcp-task-knowledge thin bridge: tools are forwarded to the HTTP core. Use tools_list {search}, tool_schema {name}, then tools_run {name, params}.',
     );
-    this.passthrough = new ProxyPassthrough(client, this.server);
+    this.passthrough = new ProxyPassthrough(client, this.server, { toolsMode: this.config.toolsMode });
     this.passthrough.setRecovery((err) => this.recover(err));
     this.passthrough.attach();
 
