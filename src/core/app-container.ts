@@ -74,6 +74,7 @@ import { registerHistoryTools } from '../register/history.js';
 import { registerPromptMergeTools } from '../register/prompt-merge.js';
 import { registerWikiTools } from '../register/wiki.js';
 import { registerQueryTools } from '../register/query.js';
+import { registerDashboardWidgetTools } from '../register/dashboard-widgets.js';
 import { registerBriefingTools } from '../register/briefing.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
@@ -199,6 +200,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerPromptMergeTools(ctx);
   registerWikiTools(ctx);
   registerQueryTools(ctx);
+  registerDashboardWidgetTools(ctx);
   registerBriefingTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);

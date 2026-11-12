@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **187** — 185 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **190** — 188 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -32,6 +32,9 @@
 | `dashboard_project_summary` | Get a summary across all projects: task counts, knowledge counts, and top metrics per project. |
 | `dashboard_stats` | Get project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
 | `dashboard_trends` | Get task creation and completion trends over time. Returns daily or weekly buckets for burndown/burn |
+| `dashboard_widgets_get` | Read a user dashboard widget layout (per session by default). |
+| `dashboard_widgets_render` | Render saved widgets for a user: list query, distribution by field, burndown; time is unsupported un |
+| `dashboard_widgets_set` | Replace a user dashboard layout (≤20 widgets). Types: list, distribution, burndown, time. |
 | `draft_append` | Append an idempotent draft record to the append-only journal. Repeating the same key returns the exi |
 | `draft_pending` | List journal drafts that have not been acknowledged by a successful sync. |
 | `draft_sync` | Upsert pending drafts into knowledge by externalKey, acking each one after success. Safe to retry. |
@@ -752,6 +755,73 @@ Get task creation and completion trends over time. Returns daily or weekly bucke
     "project": "mcp",
     "granularity": "example",
     "days": "example"
+  }
+}
+```
+
+## dashboard_widgets_get
+
+**Dashboard Widgets**
+
+Read a user dashboard widget layout (per session by default).
+
+**Параметры:**
+
+- `user`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "dashboard_widgets_get",
+  "arguments": {
+    "user": "example"
+  }
+}
+```
+
+## dashboard_widgets_render
+
+**Render Dashboard Widgets**
+
+Render saved widgets for a user: list query, distribution by field, burndown; time is unsupported until TK-05.
+
+**Параметры:**
+
+- `user`
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "dashboard_widgets_render",
+  "arguments": {
+    "user": "example",
+    "project": "mcp"
+  }
+}
+```
+
+## dashboard_widgets_set
+
+**Set Dashboard Widgets**
+
+Replace a user dashboard layout (≤20 widgets). Types: list, distribution, burndown, time.
+
+**Параметры:**
+
+- `user`
+- `widgets`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "dashboard_widgets_set",
+  "arguments": {
+    "user": "example",
+    "widgets": "example"
   }
 }
 ```
