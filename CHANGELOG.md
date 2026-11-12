@@ -8,6 +8,8 @@
 
 ### Added
 
+- CM-02: the owner gate chooses the existing `tools_batch` (Promise.all) as the canonical parallel path; `tools_run` stays sequential and no second `parallel` flag is added. Contract tests 8/8
+
 - UI-23: a fourth `high-contrast` palette adds AAA core text pairs (>=7:1) on the existing tokens, stays separate from `data-mode`, and is covered by the 94x8 AA matrix plus a 12-route Playwright smoke
 
 - AC-04e: `logs_tail` now filters by `requestId` and `project` and reads rotated `.1/.2` segments (oldest first); the direct-call `requestId` candidate was not reproduced and is recorded in the decision
