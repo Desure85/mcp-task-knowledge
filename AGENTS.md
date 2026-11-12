@@ -426,9 +426,15 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 **Дата последнего обновления:** 2026-11-12
 **Session ID:** S-20261109-night (Y, TS-01, DX-10, DX-11, DX-14, DX-16, DX-25, DX-26, DX-28, DX-29, CM-01, CM-02, CM-03, CM-04, AA-01, AA-02, AA-05, AA-07, AA-09, SC-06, SC-08, PH-012, PH-013, PH-014, SPEC-08, TR-13, TR-04i, TR-04g, SC-02g, AC-04e, Y-02e, Z-01, Z-02, Z-03, Z-04, Z-05, Z-06, Z-08, Z-10, Z-11, Z-12, CM-03a, INT-007, T-01, T-02, TR-04d, TR-04e, TR-04f, TR-04h, TR-20, TR-21, TR-23, TR-24, TR-31, TR-32, TR-33, TR-34, TR-35, TR-36, TR-37, TR-38, SPEC-06, SPEC-07, SPEC-09, U-02, U-03, U-04, U-05, U-06, UI-11, UI-12, UI-15, UI-16, UI-17, UI-18, UI-19, UI-20, UI-21, UI-23, UI-25, UI-30, UI-31, UI-32, UI-33a, UI-36, UI-37, UI-38, UI-39, UI-40, SC-04, SC-05 закрыты; UX-hotfix)
-**Текущая ветка:** feat/aa-02-multi-transport (от master a59ece7)
-**Текущий этап:** AA-02 закрыт; blocked — MU-07/TK-02/TK-01/MU-02/MU-03, AA-04
-**Статус:** stdio+http e2e 1/1; backlog 379/19.
+**Текущая ветка:** docs/backlog-blockers-audit (от master 9e88505)
+**Текущий этап:** аудит блокеров; pending — AA-04; blocked — 40
+**Статус:** 18 пунктов переведены в blocked по зависимостям/владельцу; кода нет.
+
+### Сессия S-20261109-night (backlog blockers audit)
+
+- INT-008/DX-21/DX-27/MU-04/05/07/TK-02/03/04/05/T-03/04/05/06/Z-07/AA-06/CM-05/06 → blocked.
+- Причины: MU-02/MU-03/TK-01/DX-20/CM-05/внешний registry; pending остаётся AA-04.
+- Решение/откат: `docs/dev-cycle/decisions/2026-11-12-1038-backlog-blockers.md`.
 
 ### Сессия S-20261109-night (AA-02 — multi-transport)
 
