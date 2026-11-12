@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **176** — 174 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **179** — 177 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -40,6 +40,7 @@
 | `graph_export_mermaid` | Build a Mermaid graph from tasks and knowledge (nodes + parent edges) |
 | `graph_neighbors` | Return neighbors of a task/document/entity with the reason for each edge: task dependency, parent/ch |
 | `graph_visualize` | Render the entity-graph as a self-contained interactive HTML page (SVG + JS, zero dependencies). See |
+| `knowledge_backlinks` | List documents that link to this document via [[wiki links]]. |
 | `knowledge_bulk_archive` | Archive many knowledge docs |
 | `knowledge_bulk_create` | Create many knowledge docs at once (optionally hierarchical via parentId) |
 | `knowledge_bulk_delete_permanent` | Permanently delete many knowledge docs (use with caution). Requires confirm=true unless the client s |
@@ -56,9 +57,11 @@
 | `knowledge_import_multimodal` | Extract text chunks from a file (pdf/text/code/image/video/audio) via the multimodal ingestion pipel |
 | `knowledge_import_single` | Import a single markdown document into the knowledge base. The markdown can contain YAML frontmatter |
 | `knowledge_list` | List knowledge document metadata with cursor pagination and field selection. Returns `data` (array)  |
+| `knowledge_publish` | Set a document status to draft or published (wiki lifecycle). |
 | `knowledge_tree` | List knowledge documents as a hierarchical tree (by parentId) |
 | `knowledge_upsert` | Create or update a knowledge document by stable externalKey (no duplicates on retry). |
 | `knowledge_version_restore` | Restore a document from a commit as a new commit (history is not erased). |
+| `knowledge_wikilinks` | List outgoing [[wiki links]] of a document and whether each resolves. |
 | `logs_tail` | Read the newest records of the server JSON log (read-only). File logging is opt-in: set LOG_FILE to  |
 | `mcp.authenticate` | Authenticate this session with a token. Required before calling any other tool on http/tcp transport |
 | `mcp1_search_knowledge_two_stage` | Two-stage search: Stage1 BM25 over docs (prefilter), Stage2 chunked hybrid within top-M long docs. C |
@@ -915,6 +918,29 @@ Render the entity-graph as a self-contained interactive HTML page (SVG + JS, zer
 }
 ```
 
+## knowledge_backlinks
+
+**Knowledge Backlinks**
+
+List documents that link to this document via [[wiki links]].
+
+**Параметры:**
+
+- `project`
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_backlinks",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
 ## knowledge_bulk_archive
 
 **Bulk Archive Knowledge Docs**
@@ -1389,6 +1415,31 @@ List knowledge document metadata with cursor pagination and field selection. Ret
 }
 ```
 
+## knowledge_publish
+
+**Knowledge Publish**
+
+Set a document status to draft or published (wiki lifecycle).
+
+**Параметры:**
+
+- `project`
+- `id`
+- `status`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_publish",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000",
+    "status": "pending"
+  }
+}
+```
+
 ## knowledge_tree
 
 **Knowledge Tree**
@@ -1476,6 +1527,29 @@ Restore a document from a commit as a new commit (history is not erased).
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
     "commit": "example"
+  }
+}
+```
+
+## knowledge_wikilinks
+
+**Knowledge Wiki Links**
+
+List outgoing [[wiki links]] of a document and whether each resolves.
+
+**Параметры:**
+
+- `project`
+- `id`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "knowledge_wikilinks",
+  "arguments": {
+    "project": "mcp",
+    "id": "00000000-0000-0000-0000-000000000000"
   }
 }
 ```

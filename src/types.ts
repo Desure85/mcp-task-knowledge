@@ -100,6 +100,8 @@ export interface KnowledgeDocMeta {
   trashedAt?: string; // ISO
   // Versioning (TD-005)
   version?: number; // current version number (1-based)
+  /** T-05: draft/published wiki lifecycle. */
+  status?: 'draft' | 'published';
   /** MU-02: last version that changed each field. */
   fieldVersions?: Record<string, number>;
   history?: Array<{ version: number; updatedAt: string; title?: string }>; // prior versions

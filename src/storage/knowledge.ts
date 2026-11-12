@@ -53,6 +53,7 @@ export async function createDoc(input: {
   type?: string;
   trustLevel?: TrustLevel;
   externalKey?: string;
+  status?: 'draft' | 'published';
 }): Promise<KnowledgeDoc> {
   const id = randomUUID();
   const now = new Date().toISOString();
@@ -68,6 +69,7 @@ export async function createDoc(input: {
     type: input.type,
     trustLevel: input.trustLevel ?? 'user',
     externalKey: blankToUndefined(input.externalKey),
+    status: input.status ?? 'published',
     version: 1,
     fieldVersions: {},
     archived: false,

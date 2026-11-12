@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… T-04 закрыт)
-**Текущая ветка:** feat/t-04-webhooks (от master 257d691)
-**Текущий этап:** T-04 закрыт; pending 0; blocked 29
-**Статус:** webhooks; 2/2; backlog 391/0/29/1.
+**Session ID:** S-20261109-night (… T-05 закрыт)
+**Текущая ветка:** feat/t-05-wiki (от master 9fb2aa1)
+**Текущий этап:** T-05 закрыт; pending 0; blocked 28
+**Статус:** wiki links/status; 3/3; backlog 392/0/28/1.
+
+### Сессия S-20261109-night (T-05)
+
+- `[[wiki]]` parse/resolve, backlinks/outgoing tools, status draft/published.
+- Ограничения: шаблоны, вложения, review-процесс, stale-виджет не сделаны; UI нет.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-1845-t-05.md`.
 
 ### Сессия S-20261109-night (T-04)
 
