@@ -8,6 +8,8 @@
 
 ### Added
 
+- AA-06: `consolidateDrafts` writes anchored facts/patterns and emits one sync event; idempotent on re-run; 1/1 test; 390/0/30/1.
+
 - Z-07: `prompts_merge_prepare/apply` with variable/command/allowed-tools validation and confirm gate; 4/4 tests; 389/0/31/1.
 
 - MU-07: bulk-create rollback (all-or-nothing), recovery before commit, two-writer and author tests; 388/0/32/1.
