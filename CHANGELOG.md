@@ -8,6 +8,8 @@
 
 ### Added
 
+- PH-012: connector contract tests cover GitHub issue mapping, Jira JQL search, Slack channels/post and error envelopes without network or credentials. `undici` is not installed, so `vi.stubGlobal('fetch')` is used instead of MockAgent; no dependencies were added
+
 - SC-06: file-profile tasks and knowledge can live in two-character shards (`src/storage/sharding.ts`); both layouts stay readable with root-first dedupe. Stale closed tasks archive without deletion (`TASK_ARCHIVE_AFTER_DAYS`), compaction is operator-driven, and `seed-scale --sharded` generates a 100k corpus. A 374-entry shard readdir measured 0.67 ms
 
 - AA-09: `scripts/backlog-sync-check.mjs` compares explicitly mapped BACKLOG ids with file-profile tracker tasks without writing either side. Status aliases are normalised; mismatches exit 1; tests pin a byte-identical BACKLOG. Live `/data` is absent in this environment, so fixtures are the only execution here
