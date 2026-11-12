@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… T-05b)
-**Текущая ветка:** feat/t05-templates-stale (от master 8c9f280)
-**Текущий этап:** T-05 закрыт; T-05b шаблоны/review/stale; blocked 28
-**Статус:** 5/5 wiki; backlog 392/0/28/1.
+**Session ID:** S-20261109-night (… INT-008 blocked)
+**Текущая ветка:** docs/int-008-blocked (от master c2679eb)
+**Текущий этап:** pending 0; blocked 28; все medium закрыты или blocked
+**Статус:** INT-008 [env] нет writable YouTrack; backlog 392/0/28/1.
+
+### Сессия S-20261109-night (INT-008 triage)
+
+- INT-008 остаётся blocked: INT-007 read-only, записываемого токена нет.
+- Остальные medium: DX-27/TK-03/TK-04/CM-05 blocked внешними/design-гейтами.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-2100-int008-blocked.md`.
 
 ### Сессия S-20261109-night (T-05b)
 
