@@ -509,3 +509,6 @@ call notifies `notifications/resources/updated` for matching subscriptions.
 | `skills_version_restore` | Restore a skill version as a new commit |
 
 | `admin_audit_query` | Admin-only audit log query (user/tool/status/time, paginated, redacted) |
+
+| `prompts_merge_prepare` | Three-way prompt merge draft; validates variables/commands/allowed-tools |
+| `prompts_merge_apply` | Apply merge draft inside DATA_DIR; conflicts require confirm |
