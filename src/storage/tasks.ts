@@ -22,6 +22,7 @@ import type { Dirent } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { childLogger } from '../core/logger.js';
 import { enqueueHistory } from '../history/service.js';
+import { dispatchWebhook } from '../webhooks.js';
 import { mapLimit } from '../utils/concurrency.js';
 import { blankToUndefined } from '../utils/strings.js';
 import { decodeKeyCursor } from '../utils/pagination.js';
@@ -840,6 +841,7 @@ async function updateTaskUnlocked(
   await indexTaskWrite(project, updated, p);
   void enqueueHistory([p]).catch(() => undefined);
   noteTaskWritten(updated);
+  void dispatchWebhook({ event: 'task.updated', project: updated.project, data: updated }).catch(() => undefined);
   return updated;
 }
 

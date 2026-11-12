@@ -8,6 +8,8 @@
 
 ### Added
 
+- T-04: outgoing webhooks with HMAC, one retry and SSRF guard; task.created/updated events; 2/2; 391/0/29/1.
+
 - AA-06: `consolidateDrafts` writes anchored facts/patterns and emits one sync event; idempotent on re-run; 1/1 test; 390/0/30/1.
 
 - Z-07: `prompts_merge_prepare/apply` with variable/command/allowed-tools validation and confirm gate; 4/4 tests; 389/0/31/1.
