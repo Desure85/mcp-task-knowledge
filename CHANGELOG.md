@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-04: `tasks_/knowledge_/skills_{history,diff,restore}` over git history; restore is a new commit; 5/5 tests; 385/1/35/1.
+
 - MU-03/SC-07: git history wired to task/doc updates and prompt bulk writes; one batched commit, durable queue, recovered/author; 5/5 tests; 384/0/36/1.
 
 - MU-03/SC-07 core: `GitHistory` batched queue/flush (100 paths/2 s), durable queue, dirty recovery, revert-as-new-commit; 3/3 tests. Not wired to storage yet.

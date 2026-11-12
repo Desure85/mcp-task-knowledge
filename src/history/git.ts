@@ -165,6 +165,53 @@ export class GitHistory {
     return result.stdout;
   }
 
+  /** Files under `paths` currently tracked by the history repo. */
+  async tracked(paths: string[]): Promise<string[]> {
+    if (!(await this.init())) return [];
+    const result = await this.git(['ls-files', '--', ...paths]);
+    return result.stdout.split('\n').map((line) => line.trim()).filter(Boolean);
+  }
+
+  async logPaths(paths: string[], limit = 20): Promise<Array<{ hash: string; author: string; date: string; subject: string }>> {
+    if (!(await this.init())) return [];
+    const result = await this.git([
+      'log',
+      `-${limit}`,
+      '--pretty=format:%h%x1f%an%x1f%aI%x1f%s',
+      '--',
+      ...paths,
+    ]);
+    return result.stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [hash, author, date, subject] = line.split('\x1f');
+        return { hash, author, date, subject };
+      });
+  }
+
+  async diffCommit(commit: string, paths: string[]): Promise<string> {
+    if (!(await this.init())) throw new Error('git history disabled');
+    const result = await this.git(['show', '--format=', '--no-color', commit, '--', ...paths]);
+    return result.stdout;
+  }
+
+  async readAt(commit: string, file: string): Promise<string> {
+    if (!(await this.init())) throw new Error('git history disabled');
+    const result = await this.git(['show', `${commit}:${file}`]);
+    return result.stdout;
+  }
+
+  /** Restore one file from a commit and record it as a new commit (never erase history). */
+  async restoreFile(commit: string, file: string): Promise<void> {
+    if (!(await this.init())) throw new Error('git history disabled');
+    const content = await this.readAt(commit, file);
+    await ensureDir(path.dirname(path.join(this.root, file)));
+    await fs.writeFile(path.join(this.root, file), content, 'utf8');
+    await this.git(['add', '--', file]);
+    await this.git(['commit', '-q', '-m', `history: restore ${file} from ${commit}`, `--author=${this.currentAuthor}`]);
+  }
+
   async revert(commit: string): Promise<void> {
     if (!(await this.init())) throw new Error('git history disabled');
     await this.git(['revert', '--no-edit', commit]);
