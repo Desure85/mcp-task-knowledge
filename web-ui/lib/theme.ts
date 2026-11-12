@@ -17,7 +17,7 @@
 
 import { COLOR_TOKENS, CUSTOM_ACTIVE_KEY, CUSTOM_STORE_KEY, CUSTOM_THEME_NAME } from './theme-tokens';
 
-export const THEMES = ['indigo', 'petrol', 'copper'] as const;
+export const THEMES = ['indigo', 'petrol', 'copper', 'high-contrast'] as const;
 export const MODES = ['light', 'dark', 'system'] as const;
 
 export type ThemeName = (typeof THEMES)[number];
@@ -33,6 +33,7 @@ export const THEME_LABELS: Record<ThemeName, string> = {
   indigo: 'Indigo',
   petrol: 'Petrol',
   copper: 'Copper',
+  'high-contrast': 'High contrast',
 };
 
 export const MODE_LABELS: Record<ModeChoice, string> = {

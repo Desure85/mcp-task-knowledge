@@ -14,7 +14,7 @@ import { TEXT_PAIRS } from './theme-pairs';
 
 type Tokens = Record<string, string>;
 
-const THEMES = ['indigo', 'petrol', 'copper'] as const;
+const THEMES = ['indigo', 'petrol', 'copper', 'high-contrast'] as const;
 const MODES = ['light', 'dark'] as const;
 
 
@@ -76,8 +76,8 @@ describe('UI-10: WCAG AA across palettes and modes', () => {
     }
   }
 
-  it('has all six palette × mode variants', () => {
-    expect(rows).toHaveLength(6);
+  it('has all eight palette × mode variants', () => {
+    expect(rows).toHaveLength(8);
   });
 
   it('every required pair meets its threshold', () => {
@@ -86,7 +86,32 @@ describe('UI-10: WCAG AA across palettes and modes', () => {
       : undefined;
     if (failures.length) console.error(message);
     expect(failures, message).toEqual([]);
-    console.log(`Contrast OK (${TEXT_PAIRS.length} pairs × 6 variants):\n${rows.join('\n')}`);
+    console.log(`Contrast OK (${TEXT_PAIRS.length} pairs × 8 variants):\n${rows.join('\n')}`);
   });
+});
+
+describe('UI-23: high-contrast palette reaches AAA for core text', () => {
+  const source = css();
+  const AAA_PAIRS = [
+    ['ink', 'canvas'],
+    ['ink', 'surface'],
+    ['ink', 'surface-2'],
+    ['muted', 'canvas'],
+    ['muted', 'surface'],
+    ['muted', 'surface-2'],
+    ['accent', 'canvas'],
+    ['accent', 'surface'],
+    ['on-accent', 'accent'],
+  ] as const;
+
+  for (const mode of MODES) {
+    it(`high-contrast/${mode}: >= 7:1 on core pairs`, () => {
+      const tokens = variantTokens(source, 'high-contrast', mode);
+      for (const [fg, bg] of AAA_PAIRS) {
+        const ratio = contrastRatio(tokens[fg], tokens[bg]);
+        expect(ratio, `${fg} on ${bg} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(7 - 1e-9);
+      }
+    });
+  }
 });
 
