@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-12
-**Session ID:** S-20261109-night (… Z-07 закрыт)
-**Текущая ветка:** feat/z-07-prompt-merge (от master 17f5ce6)
-**Текущий этап:** Z-07 закрыт; pending 0; blocked 31
-**Статус:** prompt merge draft; 4/4; backlog 389/0/31/1.
+**Session ID:** S-20261109-night (… AA-06 закрыт)
+**Текущая ветка:** feat/aa-06-draft-consolidation (от master bcb3e77)
+**Текущий этап:** AA-06 закрыт; pending 0; blocked 30
+**Статус:** draft consolidation event; 1/1; backlog 390/0/30/1.
+
+### Сессия S-20261109-night (AA-06)
+
+- consolidateDrafts: facts.md, patterns.json, один sync-event, ack; повторный прогон без дублей.
+- Ограничение: нет MCP/UI-триггера; memory:verify на facts.md не проверялся.
+- Решение: `docs/dev-cycle/decisions/2026-11-12-1805-aa-06.md`.
 
 ### Сессия S-20261109-night (Z-07)
 
