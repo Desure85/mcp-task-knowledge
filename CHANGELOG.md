@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-30: web-crawler egress policy: scheme allowlist, private IP/DNS block, redirect checks, allowedHosts; 6/6; 400/0/20/1.
+
 - AUD-18e: removed dead sync stack (SyncManager/threeWayMerge/protocol); EventLog retained for storage events.
 
 - AA-08: ADR tool profiles (core ≤28/agent ≤60/full) + server instructions; design only; 399/0/21/1.
