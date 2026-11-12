@@ -891,7 +891,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | DX-10 | `mcp-task-knowledge setup` — интерактивный установщик | high | done | AUD-01, AUD-03 | Бинарь в `dist/` (работает из npx): детект клиентов по конфиг-путям (Claude Desktop, Cursor, Windsurf, VS Code, Claude Code), вопросы (транспорт/DATA_DIR/auth), идемпотентный merge в `mcpServers` с бэкапом, финал — self-check: спавн stdio → `tools/list` → «✓ 114 tools» + cheatsheet. Флаг `--client X --yes` для CI |
 | DX-11 | `mcp-task-knowledge doctor` — диагностика | high | done | — | Node ≥20, DATA_DIR существует/writable, конфиг валиден, порт свободен, клиентский конфиг ссылается на живой бинарь. Это же health-gate в конце setup |
-| DX-26 | CLI surface polish | low | pending | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
+| DX-26 | CLI surface polish | low | done | DX-10 | `--help`, `ui` (http + open browser), `config show` (эффективный конфиг: env > file > defaults), `init --demo` (seed sample-проект), `uninstall` (вычистить клиентские конфиги), actionable errors («порт занят → --port», «DATA_DIR не writable → …») |
 | DX-26a | CLI: `--help` и `config show` | low | done | DX-26 | help без DATA_DIR; config JSON с маскировкой; tests 3/3 |
 | DX-26b | CLI: `init --demo` | low | done | DX-26 | sample-проект 2 задачи + 1 документ; повторный id → exit 1; tests 4/4 |
 | DX-26c | CLI: `uninstall` | low | done | DX-26 | manifest-driven удаление файлов/config; dry-run; tests 3/3 |
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **21** | **7** | **377** | **22** | **1** |
+| **Итого** | **428** | **20** | **7** | **378** | **22** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2204,3 +2204,5 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-12, DX-26b закрыт как подпункт DX-26): init --demo; родитель DX-26 pending.
 >
 > Примечание (2026-11-12, DX-26c закрыт как подпункт DX-26): uninstall; родитель DX-26 pending.
+>
+> Примечание (2026-11-12, DX-26 закрыт): help/config/init/uninstall/ui + actionable hints (DX-26a-d).

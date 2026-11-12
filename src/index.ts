@@ -52,7 +52,15 @@ async function main(): Promise<void> {
       writeSync(2, `${err.code}: ${err.message}\n`);
       process.exit(err.exitCode);
     }
-    log.fatal({ err }, 'unhandled error in main()');
+    if (err instanceof ServerLockError) {
+      writeSync(2, `${err.code}: ${err.message}\n`);
+      process.exit(err.exitCode);
+    }
+    const hint = (err as { code?: string; message?: string }).code === 'EADDRINUSE'
+      ? 'port is busy; pass --port N (or set MCP_PORT)'
+      : /DATA_DIR must be set/i.test((err as Error).message) ? 'set DATA_DIR to a writable directory' : null;
+    if (hint) writeSync(2, `startup: ${(err as Error).message}\nhint: ${hint}\n`);
+    else log.fatal({ err }, 'unhandled error in main()');
     process.exit(1);
   });
 }
@@ -115,6 +123,8 @@ if (process.argv[2] === '--help' || process.argv[2] === '-h') {
   void import('./cli/help-config.js').then((m) => { m.runHelp(); process.exit(0); });
 } else if (process.argv[2] === 'config' && process.argv[3] === 'show') {
   void import('./cli/help-config.js').then(async (m) => { process.exit(await m.runConfigShow()); });
+} else if (process.argv[2] === 'ui') {
+  void import('./cli/ui.js').then(async (m) => { process.exit(await m.runUiCli(process.argv.slice(3))); });
 } else if (process.argv[2] === 'uninstall') {
   void import('./cli/uninstall-agent.js').then(async (m) => { process.exit(await m.runUninstallCli(process.argv.slice(3))); });
 } else if (process.argv[2] === 'init') {
