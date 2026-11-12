@@ -1,8 +1,9 @@
 import path from 'node:path';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RegisteredTool, RegisteredResource, RegisteredResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { SetLevelRequestSchema, SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { loadConfig, loadCatalogConfig, isToolsEnabled, isToolResourcesEnabled, isToolResourcesExecEnabled } from "../config.js";
+import { setLogLevel } from "../core/logger.js";
 import type { ServerConfig, CatalogConfig } from "../config.js";
 import { createServiceCatalogProvider } from "../catalog/provider.js";
 import type { ServiceCatalogProvider } from "../catalog/provider.js";
@@ -211,12 +212,18 @@ export async function createServerContext(): Promise<ServerContext> {
   }
 
   const lowServer = rawServer?.server as
-    | { setRequestHandler?: (schema: unknown, handler: (request: { params?: { uri?: string } }) => Promise<unknown>) => void }
+    | { setRequestHandler?: (schema: unknown, handler: (request: { params?: { uri?: string; level?: string } }) => Promise<unknown>) => void }
     | undefined;
   if (typeof lowServer?.setRequestHandler === 'function') {
+    const capServer = lowServer as typeof lowServer & { registerCapabilities?: (caps: Record<string, unknown>) => void };
+    capServer.registerCapabilities?.({ logging: {} });
     lowServer.setRequestHandler(SubscribeRequestSchema, async (request) => {
       const uri = request.params?.uri;
       if (typeof uri === 'string' && uri.length > 0) resourceSubscriptions.add(uri);
+      return {};
+    });
+    lowServer.setRequestHandler(SetLevelRequestSchema, async (request) => {
+      if (request.params?.level) setLogLevel(request.params.level);
       return {};
     });
     lowServer.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
@@ -301,7 +308,7 @@ export async function createServerContext(): Promise<ServerContext> {
     }
 
     if (typeof baseServer.registerCapabilities === 'function') {
-      (baseServer.registerCapabilities as (caps: Record<string, unknown>) => void)({ resources: { list: true, read: true, subscribe: true } });
+      (baseServer.registerCapabilities as (caps: Record<string, unknown>) => void)({ resources: { list: true, read: true, subscribe: true }, logging: {} });
     }
   }
 

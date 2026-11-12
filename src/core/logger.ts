@@ -117,6 +117,30 @@ export function createLogger(destination?: DestinationStream): Logger {
   return _root;
 }
 
+/** SPEC-08: map MCP logging levels to pino's smaller level set. */
+export function mapMcpLogLevel(level: string): pino.Level {
+  switch (level) {
+    case 'debug': return 'debug';
+    case 'info':
+    case 'notice': return 'info';
+    case 'warning': return 'warn';
+    case 'error': return 'error';
+    case 'critical':
+    case 'alert':
+    case 'emergency': return 'fatal';
+    default: throw new Error(`unsupported MCP logging level: ${level}`);
+  }
+}
+
+/** SPEC-08: logging/setLevel handler mutates the root logger level. */
+export function setLogLevel(level: string): pino.Level {
+  const mapped = mapMcpLogLevel(level);
+  const logger = getRootLogger();
+  if (!logger) throw new Error('logger is not initialized');
+  logger.level = mapped;
+  return mapped;
+}
+
 /**
  * Get the root logger without creating one.
  * Returns undefined if createLogger() was not yet called.
