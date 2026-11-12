@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-22: removed dead `FtsMemorySearch` and `MigrationFramework` (zero runtime consumers); `better-sqlite3` stays for the SQLite profile. 382/0/38/1.
+
 - UI-33b (UI slice): `/themes` Team themes — list/copy-to-personal/publish/delete; server role gate, personal copy survives project deletion. Web tsc + design guards 12/12.
 
 - UI-33b (server slice): `ProjectMetadata.themes` + `project_themes_list`/`project_theme_set`/`project_theme_delete`; editor/admin write via T-02 gate, max 20. UI pending as UI-33b2.
