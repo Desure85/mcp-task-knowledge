@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… AA-08 закрыт)
-**Текущая ветка:** docs/aa-08-tool-profiles (от master 2a21b33)
-**Текущий этап:** AA-08 design закрыт; реализация AA-08b; blocked 21
-**Статус:** ADR profiles/instructions; backlog 399/0/21/1.
+**Session ID:** S-20261109-night (… AUD-18e закрыт)
+**Текущая ветка:** refactor/aud-18e-remove-dead-sync (от master bf54f3e)
+**Текущий этап:** AUD-18e закрыт; blocked 21
+**Статус:** dead sync removed; backlog 399/0/21/1.
+
+### Сессия S-20261109-night (AUD-18e)
+
+- Удалены SyncManager/threeWayMerge/protocol/index и их тесты; EventLog оставлен (storage events).
+- Ограничение: EventLog всё ещё переписывает файл целиком; других потребителей sync не было.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0010-aud-18e.md`.
 
 ### Сессия S-20261109-night (AA-08)
 
