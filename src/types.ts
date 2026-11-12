@@ -84,6 +84,8 @@ export interface KnowledgeDocMeta {
   source?: string; // optional source path/url
   // Provenance (TR-16); absent in legacy docs = treated as 'user'
   trustLevel?: TrustLevel;
+  // AA-04: stable external key for idempotent draft sync/upsert.
+  externalKey?: string;
   // Optional hierarchical fields for knowledge tree
   parentId?: string; // parent knowledge doc id
   type?: string; // e.g. component, api, schemas, routes, overview

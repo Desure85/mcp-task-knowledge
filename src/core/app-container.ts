@@ -69,6 +69,7 @@ import { registerDependencyTools } from '../register/dependencies.js';
 import { registerDashboardTools } from '../register/dashboard.js';
 import { registerChangesTools } from '../register/changes.js';
 import { registerGraphNeighborsTools } from '../register/graph-neighbors.js';
+import { registerDraftTools } from '../register/drafts.js';
 import { registerBriefingTools } from '../register/briefing.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
@@ -189,6 +190,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerDashboardTools(ctx);
   registerChangesTools(ctx);
   registerGraphNeighborsTools(ctx);
+  registerDraftTools(ctx);
   registerBriefingTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);

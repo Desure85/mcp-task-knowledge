@@ -118,7 +118,7 @@ holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
 - renew/release are coordination writes: `updatedAt` is untouched, so the future optimistic-lock version (MU-02) is not disturbed;
 - the lease is advisory for writes: it prevents double *claiming*, not content updates by a non-holder.
 
-## Knowledge (15 tools)
+## Knowledge (19 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -128,6 +128,10 @@ holder (`bySessionId`, `byUserId`, `client`) and `expiresAt`. Rules:
 | `knowledge_import_markdown` | Import Markdown file as knowledge doc |
 | `knowledge_import_single` | Import single Markdown file |
 | `knowledge_import_multimodal` | Extract text chunks from a pdf/text/code/image/video/audio file inside `DATA_DIR` (extract-only) |
+| `knowledge_upsert` | Create or update a doc by stable `externalKey` (idempotent retry) |
+| `draft_append` | Append an idempotent draft to the append-only journal |
+| `draft_pending` | List drafts not yet acknowledged by a successful sync |
+| `draft_sync` | Upsert pending drafts by `externalKey`, ack each after success |
 | `knowledge_export_markdown` | Export doc as Markdown |
 | `knowledge_export_single` | Export single doc |
 | `knowledge_export_bundle` | Export all docs as bundle |
