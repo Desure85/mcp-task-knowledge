@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-30: realtime subscribe regression (project-only) + ticket spec text; 29/29 web-ui unit; 402/0/18/1.
+
 - TR-29: Google Drive OAuth refresh-token grant with 401 retry; Gmail/OneDrive documented as external refresh; 3/3; 401/0/19/1.
 
 - TR-30: web-crawler egress policy: scheme allowlist, private IP/DNS block, redirect checks, allowedHosts; 6/6; 400/0/20/1.

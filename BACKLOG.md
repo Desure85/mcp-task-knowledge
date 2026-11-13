@@ -1029,7 +1029,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TR-15 | tools_run/tools_batch — пропускает auth-gate+SecurityStack | critical | done | TR-01 | Закрыто вместе с AUD-10: registry хранит gated handler (wrapToolHandler) → auth/ACL/audit/egress-scan применяются на dispatch через tools_run/tools_batch. Тесты: tests/aud10-tools-run-gate.test.ts |
 | TR-16 | Trust/provenance metadata на stored docs | medium | done | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external.  Реализовано: `trustLevel` ('system'|'user'|'external') в frontmatter knowledge и memory-фактов (createDoc/import/bulk, extraction, temporal graph); egress для external применяет EXTERNAL_PATTERNS и метит annotate-блок как EXTERNAL UNTRUSTED CONTENT, JSON остаётся парсимым. Тесты: tests/tr16-trust-level.test.ts (15); проверено откатом. |
 | TR-17 | XML/context escaping в memory_context_assemble | high | done | TR-01 | buildBlock() интерполирует контент без escaping — stored </context> ломает boundary. Эскейпить или валидировать. **Закрыто (S-20261030-prodaudit): Экранирование в buildBlock уже было (escapeXmlText/Attr), тест tests/context-assembly.spec.ts «TR-17».** |
-| DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | blocked | Проработка (spec): актуализация текста под ticket/Authorization после UI-22, затем правка клиента; AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
+| DX-30 | web-ui realtime client: ?token= + unconditional subscribe | medium | done | Проработка (spec): актуализация текста под ticket/Authorization после UI-22, затем правка клиента; AUD-06 | web-ui/lib/realtime.ts не шлёт token и subscribe только при project — на requireAuth deployment будет 4001. |
 | AUD-18a | Path traversal userId в ProfileManager | critical | done | AUD-18 | memory/user-profile.ts:95 join(storageDir, userId+'.json') без resolveUnder — arbitrary read/write **Закрыто (S-20261030-prodaudit): userId → resolveUnder в ProfileManager (get/update/delete); заодно `require` в ESM ломал deleteProfile.** |
 | AUD-18b | Non-atomic JSON stores в memory/sync | critical | done | AUD-18 | TemporalGraph/EntityGraph/ProfileManager пишут writeFileSync без tmp+rename — crash = silent data loss **Закрыто (S-20261030-prodaudit): writeFileAtomicSync (tmp+rename) в user-profile/temporal-graph/entity-graph/event-log.** |
 | AUD-18c | Lost-update RMW races в stores | high | done | AUD-18 | In-memory copy→mutate→rewrite без lock; concurrent updates теряются **Закрыто (S-20261030-prodaudit): withFileLock на updateTask/updateDoc; заодно tmp-имя writeJson коллидировало в одну мс → ENOENT (tests/lost-update.spec.ts). Только in-process — несколько процессов на одном DATA_DIR не координируются.** |
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **7** | **401** | **19** | **1** |
+| **Итого** | **428** | **0** | **7** | **402** | **18** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2243,3 +2243,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-13, AUD-18e закрыт): мёртвый sync-стек удалён; EventLog оставлен для storage events.
 > Примечание (2026-11-13, TR-30 закрыт): egress policy (scheme/private/redirect/DNS) + allowedHosts; 6/6.
 > Примечание (2026-11-13, TR-29 закрыт): GDrive refresh-token grant; Gmail/OneDrive external refresh.
+> Примечание (2026-11-13, DX-30 закрыт): клиент уже на ticket (UI-22); добавлен regression-тест subscribe/без project и spec-текст.

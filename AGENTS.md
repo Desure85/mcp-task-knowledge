@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TR-29 закрыт)
-**Текущая ветка:** feat/tr-29-oauth-refresh (от master aa3b144)
-**Текущий этап:** TR-29 закрыт; blocked 19
-**Статус:** GDrive refresh; 3/3; backlog 401/0/19/1.
+**Session ID:** S-20261109-night (… DX-30 закрыт)
+**Текущая ветка:** fix/dx-30-realtime-subscribe-test (от master ba161af)
+**Текущий этап:** DX-30 закрыт; blocked 18
+**Статус:** realtime subscribe regression; 29/29; backlog 402/0/18/1.
+
+### Сессия S-20261109-night (DX-30)
+
+- Клиент уже ticket/UI-22; добавлен тест project-only subscribe и spec-строка.
+- Ограничение: код не менялся (уже корректен), проверка только unit.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0135-dx-30.md`.
 
 ### Сессия S-20261109-night (TR-29)
 
