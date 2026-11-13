@@ -109,7 +109,7 @@
     "fast-glob": "^3.3.2",
     "gray-matter": "^4.0.3",
     "jose": "^6.2.2",
-    "markdown-it": "^14.3.3",
+    "markdown-it": "^15.0.3",
     "onnxruntime-node": "1.30.0",
     "onnxruntime-web": "^1.22.0",
     "pg": "8.23.1",
