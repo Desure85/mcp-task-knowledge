@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… DX-27 mock)
-**Текущая ветка:** feat/dx-27-mcp-registry-manifest (от master 8f06f0c)
-**Текущий этап:** DX-27 mock-закрыт; blocked 6 counted (+CM-03b), deferred 1
-**Статус:** registry manifest prepared, not published; 421/0/0/6/1.
+**Session ID:** S-20261109-night (… TK-06)
+**Текущая ветка:** feat/tk-05b-worklog-edit (от master f3451fa)
+**Текущий этап:** TK-06 закрыт; blocked 6 counted (+CM-03b), deferred 1
+**Статус:** worklog edit/delete + spentMinutes; 429/422/0/0/6/1.
+
+### Сессия S-20261109-night (TK-06)
+
+- Идея из TK-05: `tasks_worklog_update/delete`, `spentMinutes` в `tasks_get`; тесты 9/9.
+- Ограничение: нет UI/отчётов, list не суммирует, SQLite/PG e2e нет.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-2130-tk-06.md`.
 
 ### Сессия S-20261109-night (DX-27 mock)
 

@@ -1159,6 +1159,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | TK-03 | Доски и спринты поверх запросов | medium | done | TK-02, V-04, V-05 | Базовая доска со своими статусами, сворачиванием колонок и дорожками по типу — этап V; здесь: колонки привязаны к полю состояния, дорожки по ПРОИЗВОЛЬНОМУ полю, спринты со сроками; доска = сохранённый запрос, а не жёсткие 4 колонки |
 | TK-04 | Настраиваемые виджеты дашборда | medium | done | TK-02 | Превратить `dashboard_*` в виджеты: список по запросу, burndown, распределение по полю, затраченное время; раскладка хранится на пользователя |
 | TK-05 | Команды и workflow-правила, учёт времени | low | done | TK-03 [design 2026-11-13: `docs/design/tk-05-commands-workflow.md`; implementation ждёт реальных пользователей] | `tasks_command("for me State Done")` по образцу YouTrack; правила на проект поверх графа допустимых переходов (данные и проверка — V-02); work items (затраченное время). Самое дорогое — после первых реальных пользователей |
+| TK-06 | Work items: edit/delete и spentMinutes в tasks_get | low | done | TK-05 | Добавить `tasks_worklog_update` и `tasks_worklog_delete` (по `workItemId`, `expectedVersion`), а `tasks_get` должен отдавать вычисленный `spentMinutes`. DoD: `npx vitest run tests/task-commands.test.ts`; pass — update меняет только выбранный item, delete убирает его, чужая задача/version даёт ошибку, `spentMinutes` совпадает с суммой и не хранится отдельно; fail — item теряется/дублируется или сумма расходится |
 
 ---
 
@@ -1632,7 +1633,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **0** | **421** | **6** | **1** |
+| **Итого** | **429** | **0** | **0** | **422** | **6** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O

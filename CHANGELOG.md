@@ -8,6 +8,8 @@
 
 ### Added
 
+- TK-06: `tasks_worklog_update/delete` + `spentMinutes` in `tasks_get` (idea recorded during TK-05); 9/9, mutation RED; API 213 tools; 429/422/0/0/6/1.
+
 - DX-27: official MCP registry `server.json` + offline `registry:validate` (mock; not published); 4/4, mutation RED; 421/0/0/6/1.
 
 - TK-05: `tasks_command` (State/for me, dry-run, confirm, max 50) + `workItems`/`tasks_worklog_add`/`list`; 7/7, mutation RED; API 211 tools; 420/0/0/7/1.
