@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.desure85/mcp-task-knowledge",
+  "title": "MCP Task & Knowledge",
+  "description": "File-backed MCP server for tasks, knowledge base, prompts, and agent memory.",
+  "version": "1.0.20",
+  "websiteUrl": "https://github.com/Desure85/mcp-task-knowledge",
+  "repository": {
+    "url": "https://github.com/Desure85/mcp-task-knowledge",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "mcp-task-knowledge",
+      "version": "1.0.20",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

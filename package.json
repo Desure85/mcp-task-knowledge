@@ -1,5 +1,6 @@
 {
   "name": "mcp-task-knowledge",
+  "mcpName": "io.github.desure85/mcp-task-knowledge",
   "version": "1.0.20",
   "description": "MCP server for task management and knowledge base — file-backed, stdio & HTTP transport",
   "type": "module",
@@ -58,6 +59,7 @@
     "prepublishOnly": "npm run build:publish",
     "prepare": "husky",
     "api:reference": "node scripts/api-reference.mjs",
+    "registry:validate": "node scripts/validate-server-json.mjs",
     "design:doc": "node scripts/gen-design-doc.mjs",
     "bundle": "node scripts/gen-bundle.mjs",
     "bundle:check": "node scripts/gen-bundle.mjs --check",
