@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TK-05 закрыт)
-**Текущая ветка:** feat/tk-05-commands-workitems (от master d6a1d1d)
-**Текущий этап:** TK-05 закрыт; blocked 7, deferred 1
-**Статус:** task commands + work items; 420/0/0/7/1; API 211 tools.
+**Session ID:** S-20261109-night (… DX-27 mock)
+**Текущая ветка:** feat/dx-27-mcp-registry-manifest (от master 8f06f0c)
+**Текущий этап:** DX-27 mock-закрыт; blocked 6 counted (+CM-03b), deferred 1
+**Статус:** registry manifest prepared, not published; 421/0/0/6/1.
+
+### Сессия S-20261109-night (DX-27 mock)
+
+- `server.json` + `mcpName` + offline validator/docs; публикация не выполнялась.
+- Ограничение: namespace/npm republish/registry validate не проверены; манифест stdio-only.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-2110-dx-27.md`.
 
 ### Сессия S-20261109-night (TK-05)
 
