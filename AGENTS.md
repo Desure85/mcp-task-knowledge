@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… SPEC-05 закрыт)
-**Текущая ветка:** fix/spec-05-remove-completion (от master bf479b7)
-**Текущий этап:** SPEC-05 закрыт; blocked 14, deferred 1
-**Статус:** completion surface removed; 413/0/0/14/1.
+**Session ID:** S-20261109-night (… SPEC-10 закрыт)
+**Текущая ветка:** docs/spec-10-sdk-upgrade-policy (от master ab18dd4)
+**Текущий этап:** SPEC-10 закрыт; blocked 13, deferred 1
+**Статус:** SDK upgrade policy; 414/0/0/13/1.
+
+### Сессия S-20261109-night (SPEC-10)
+
+- Политика monthly sweep / review split / checklist / rollback в `docs/sdk-upgrade-policy.md`.
+- Ограничение: нет Dependabot/nightly canary; lockfile 1.32.2, range ^1.32.0.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0630-spec-10.md`.
 
 ### Сессия S-20261109-night (SPEC-05)
 
