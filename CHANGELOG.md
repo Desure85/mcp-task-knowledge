@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-10: API governance policy (compatibility, error taxonomy, naming, deprecation); 411/0/0/17/1.
+
 - Backlog bookkeeping: seven already-merged items (Q-015/16/17, PH-016, DX-36, TR-40/41) moved from in_progress to done; 410/0/0/17/1.
 
 - UI-29: typed subject-predicate-object relations on temporal facts (allowlist, dedupe, migration) + Relations graph mode with predicate filter; 21/21 server, 35/35 graph tests; 403/0/17/1.
