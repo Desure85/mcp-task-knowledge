@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… SPEC-10 закрыт)
-**Текущая ветка:** docs/spec-10-sdk-upgrade-policy (от master ab18dd4)
-**Текущий этап:** SPEC-10 закрыт; blocked 13, deferred 1
-**Статус:** SDK upgrade policy; 414/0/0/13/1.
+**Session ID:** S-20261109-night (… TR-09 закрыт)
+**Текущая ветка:** docs/tr-09-capacity-budgets (от master 7ef27f9)
+**Текущий этап:** TR-09 закрыт; blocked 12, deferred 1
+**Статус:** capacity budgets + RSS gate; 415/0/0/12/1.
+
+### Сессия S-20261109-night (TR-09)
+
+- Weekly scale-bench уже был; добавлен RSS cap 3072 MB и документ `docs/benchmarks/capacity-budgets.md`.
+- Ограничение: 1M не валидирован; UI/graph/sqlite бенчмарки вне CI; gate только медиана.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0710-tr-09.md`.
 
 ### Сессия S-20261109-night (SPEC-10)
 

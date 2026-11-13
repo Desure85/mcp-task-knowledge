@@ -36,6 +36,9 @@ export function evaluateGate(result, baseline, opts = {}) {
       violations.push({ op, reason: `median ${actual.medianMs} ms > cap ${caps[op]} ms`, actual: actual.medianMs, cap: caps[op] });
     }
   }
+  if (Number.isFinite(caps.rssAfterLoadMb) && Number.isFinite(result.rssAfterLoadMb) && result.rssAfterLoadMb > caps.rssAfterLoadMb) {
+    violations.push({ op: 'rssAfterLoadMb', reason: `${result.rssAfterLoadMb} MB > cap ${caps.rssAfterLoadMb} MB`, actual: result.rssAfterLoadMb, cap: caps.rssAfterLoadMb });
+  }
   if (Number.isFinite(caps.coldStartMs) && Number.isFinite(result.coldStartMs) && result.coldStartMs > caps.coldStartMs) {
     violations.push({ op: 'coldStartMs', reason: `${result.coldStartMs} ms > cap ${caps.coldStartMs} ms`, actual: result.coldStartMs, cap: caps.coldStartMs });
   }

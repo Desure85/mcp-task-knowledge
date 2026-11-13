@@ -1,7 +1,6 @@
 # scripts/bench — бенчмарки масштабируемости
 
-Набор скриптов для замеров «что будет при 100k и 1M задач/документов». Не входит в `npm test`
-и в CI: запускается вручную, пишет во временные каталоги, ничего не коммитит.
+Набор скриптов для замеров «что будет при 100k и 1M задач/документов». Не входит в `npm test`, но `run-scale`/`gate-scale` проверяются weekly CI (`.github/workflows/scale-bench.yml`); бюджеты — `docs/benchmarks/capacity-budgets.md`.
 
 Полные результаты и выводы: [`docs/benchmarks/scale-2026-10.md`](../../docs/benchmarks/scale-2026-10.md).
 
