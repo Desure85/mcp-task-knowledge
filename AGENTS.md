@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… сверка wip)
-**Текущая ветка:** docs/close-stale-wip-statuses (от master 2710080)
-**Текущий этап:** wip 0; blocked 17
-**Статус:** 7 смерженных пунктов переведены в done; backlog 410/0/0/17/1.
+**Session ID:** S-20261109-night (… TR-10 закрыт)
+**Текущая ветка:** docs/tr-10-api-governance (от master 2259bc4)
+**Текущий этап:** TR-10 закрыт; blocked 16, deferred 1
+**Статус:** API governance doc; 411/0/0/16/1.
+
+### Сессия S-20261109-night (TR-10)
+
+- Политика compatibility/error taxonomy/naming/deprecation в `docs/api-governance.md`.
+- Ограничение: design-only, runtime-флага deprecated нет; prompt/skill/storage форматы вне политики.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0530-tr-10.md`.
 
 ### Сессия S-20261109-night (сверка wip)
 
