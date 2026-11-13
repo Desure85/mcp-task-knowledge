@@ -80,6 +80,7 @@ import { registerAutomationTools } from '../register/automation.js';
 import { registerBriefingTools } from '../register/briefing.js';
 import { registerBootstrapTools } from '../register/bootstrap.js';
 import { registerTaskCommandTools } from '../register/task-tools.js';
+import { registerSyncTools } from '../register/sync.js';
 import { registerServerCapabilitiesTools } from '../register/capabilities.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
@@ -211,6 +212,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerBriefingTools(ctx);
   registerBootstrapTools(ctx);
   registerTaskCommandTools(ctx);
+  registerSyncTools(ctx);
   registerServerCapabilitiesTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);

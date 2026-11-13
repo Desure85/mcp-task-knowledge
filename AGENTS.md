@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TK-06)
-**Текущая ветка:** feat/tk-05b-worklog-edit (от master f3451fa)
-**Текущий этап:** TK-06 закрыт; blocked 6 counted (+CM-03b), deferred 1
-**Статус:** worklog edit/delete + spentMinutes; 429/422/0/0/6/1.
+**Session ID:** S-20261109-night (… INT-008 mock)
+**Текущая ветка:** feat/int-008-sync (от master c326ee8)
+**Текущий этап:** INT-008 mock-закрыт; blocked 5 counted (+CM-03b), deferred 1
+**Статус:** file-tracker sync, live YouTrack not wired; 429/423/0/0/5/1.
+
+### Сессия S-20261109-night (INT-008 mock)
+
+- `Task.external`, `syncTasks` (hash-based local change, updatedAt external, conflicts), `tasks_sync` file adapter.
+- Ограничение: live YouTrack/Jira/Linear не проверялись, write-side YouTrack нет, без фонового sync.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-2200-int-008.md`.
 
 ### Сессия S-20261109-night (TK-06)
 

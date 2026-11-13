@@ -8,6 +8,8 @@
 
 ### Added
 
+- INT-008 (mock): two-way idempotent `tasks_sync` + file tracker; external link/hash/conflicts; 7/7, mutation RED; live YouTrack not wired; API 214 tools; 429/423/0/0/5/1.
+
 - TK-06: `tasks_worklog_update/delete` + `spentMinutes` in `tasks_get` (idea recorded during TK-05); 9/9, mutation RED; API 213 tools; 429/422/0/0/6/1.
 
 - DX-27: official MCP registry `server.json` + offline `registry:validate` (mock; not published); 4/4, mutation RED; 421/0/0/6/1.

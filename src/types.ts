@@ -55,6 +55,19 @@ export interface TaskWorkItem {
   description?: string;
   createdAt: string;
 }
+export interface TaskExternalLink {
+  /** INT-008: external tracker kind; file is the local mock adapter. */
+  system: 'youtrack' | 'jira' | 'linear' | 'file';
+  id: string;
+  url?: string;
+  /** External updatedAt at the last successful sync. */
+  updatedAt?: string;
+  /** Local task updatedAt at the last successful sync. */
+  localUpdatedAt?: string;
+  /** INT-008: hash of mapped local fields at the last successful sync. */
+  localHash?: string;
+}
+
 export interface Task {
   id: string;
   project: string; // namespace/key for project
@@ -73,6 +86,8 @@ export interface Task {
   assignee?: string;
   /** TK-05: logged work items (additive). */
   workItems?: TaskWorkItem[];
+  /** INT-008: link to an external tracker issue (additive). */
+  external?: TaskExternalLink;
   /** MU-02: optimistic-lock version (1-based). */
   version?: number;
   /** MU-02: last version that changed each field. */
