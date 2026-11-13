@@ -69,6 +69,10 @@ export function buildWorkItem(input: {
   return item;
 }
 
+export function sumWorkMinutes(items: TaskWorkItem[] | undefined): number {
+  return totalMinutes(items);
+}
+
 export function totalMinutes(items: TaskWorkItem[] | undefined): number {
   return (items ?? []).reduce((sum, item) => sum + item.durationMin, 0);
 }

@@ -202,6 +202,71 @@ export function registerTaskCommandTools(ctx: ServerContext): void {
   );
 
   ctx.server.registerTool(
+    'tasks_worklog_update',
+    {
+      title: 'Update Task Work Item',
+      description: 'Update duration/start/description of one work item. Does not change the task version separately from the normal update path.',
+      inputSchema: {
+        id: z.string().min(1),
+        workItemId: z.string().min(1),
+        project: z.string().optional(),
+        durationMin: z.number().int().min(1).max(1440).optional(),
+        startedAt: z.string().datetime().optional(),
+        description: z.string().max(500).optional(),
+        expectedVersion: z.number().int().positive().optional(),
+      },
+    },
+    async (args) => {
+      const prj = resolveProject(args.project);
+      const store = taskStore(ctx);
+      const task = await store.get(prj, args.id);
+      if (!task) return errWith({ code: 'TASK_NOT_FOUND', message: `task '${args.id}' not found in project '${prj}'` });
+      const items = task.workItems ?? [];
+      const index = items.findIndex((item) => item.id === args.workItemId);
+      if (index < 0) return errWith({ code: 'WORK_ITEM_NOT_FOUND', message: `work item '${args.workItemId}' not found` });
+      if (args.durationMin === undefined && args.startedAt === undefined && args.description === undefined) {
+        return errWith({ code: 'WORK_ITEM_EMPTY', message: 'nothing to update' });
+      }
+      const updated = items.map((item, i) => i === index
+        ? {
+            ...item,
+            ...(args.durationMin !== undefined ? { durationMin: args.durationMin } : {}),
+            ...(args.startedAt !== undefined ? { startedAt: args.startedAt } : {}),
+            ...(args.description !== undefined ? { description: args.description } : {}),
+          }
+        : item);
+      await store.update(prj, args.id, { workItems: updated }, args.expectedVersion);
+      return ok({ taskId: args.id, item: updated[index], totalMinutes: totalMinutes(updated) });
+    },
+  );
+
+  ctx.server.registerTool(
+    'tasks_worklog_delete',
+    {
+      title: 'Delete Task Work Item',
+      description: 'Delete one work item from a task; other items are preserved.',
+      inputSchema: {
+        id: z.string().min(1),
+        workItemId: z.string().min(1),
+        project: z.string().optional(),
+        expectedVersion: z.number().int().positive().optional(),
+      },
+    },
+    async (args) => {
+      const prj = resolveProject(args.project);
+      const store = taskStore(ctx);
+      const task = await store.get(prj, args.id);
+      if (!task) return errWith({ code: 'TASK_NOT_FOUND', message: `task '${args.id}' not found in project '${prj}'` });
+      const items = task.workItems ?? [];
+      const remaining = items.filter((item) => item.id !== args.workItemId);
+      if (remaining.length === items.length) {
+        return errWith({ code: 'WORK_ITEM_NOT_FOUND', message: `work item '${args.workItemId}' not found` });
+      }
+      await store.update(prj, args.id, { workItems: remaining }, args.expectedVersion);
+      return ok({ taskId: args.id, deleted: args.workItemId, totalMinutes: totalMinutes(remaining) });
+    },
+  );
+  ctx.server.registerTool(
     'tasks_worklog_list',
     {
       title: 'List Task Work Items',

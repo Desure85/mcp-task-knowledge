@@ -2,16 +2,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerContext } from '../src/register/context.js';
 import type { Task } from '../src/types.js';
 import { registerTaskCommandTools } from '../src/register/task-tools';
+import { registerTasksTools } from '../src/register/tasks.js';
 import {
   buildWorkItem,
   filterToIds,
   hasPredicate,
   parseTaskCommand,
   TaskCommandError,
+  sumWorkMinutes,
   totalMinutes,
 } from '../src/commands/task-command.js';
 
-const update = vi.fn(async (_p: string, id: string, patch: Record<string, unknown>) => ({ id, ...patch }));
+const update = vi.fn(async (_p: string, id: string, patch: Record<string, unknown>) => {
+  const task = tasks.find((t) => t.id === id);
+  if (!task) throw new Error('not found');
+  Object.assign(task, patch);
+  return { ...task };
+});
 
 interface ToolResult { content: Array<{ text: string }> }
 interface CommandBody {
@@ -22,6 +29,9 @@ interface CommandBody {
     planned: Array<{ id: string }>;
     applied: Array<{ id: string }>;
     totalMinutes?: number;
+    spentMinutes?: number;
+    item?: { id: string; durationMin: number };
+    deleted?: string;
   };
 }
 type Handler = (args: Record<string, unknown>, extra?: { sessionId?: string }) => Promise<ToolResult>;
@@ -68,6 +78,7 @@ describe('TK-05 command grammar and pure helpers', () => {
     const item = buildWorkItem({ id: 'w1', durationMin: 30, userId: 'u1', now: '2026-11-13T00:00:00Z' });
     expect(item).toMatchObject({ id: 'w1', durationMin: 30, userId: 'u1', startedAt: '2026-11-13T00:00:00Z' });
     expect(totalMinutes([item, { ...item, id: 'w2', durationMin: 15 }])).toBe(45);
+    expect(sumWorkMinutes([item])).toBe(30);
   });
 });
 
@@ -75,7 +86,8 @@ describe('TK-05 handlers', () => {
   beforeEach(() => {
     update.mockClear();
     if (!handlers['tasks_command']) {
-      registerTaskCommandTools(ctx);
+      if (!handlers['tasks_command']) registerTaskCommandTools(ctx);
+      if (!handlers['tasks_get']) registerTasksTools(ctx);
     }
   });
 
@@ -117,6 +129,19 @@ describe('TK-05 handlers', () => {
     expect(withUser.data.planned.map((x) => x.id)).toEqual(['t1', 't3']);
   });
 
+  it('updates and deletes one work item without touching the others', async () => {
+    const added = body(await handlers['tasks_worklog_add']!({ id: 't3', project: 'p', durationMin: 30 }, {}));
+    const itemId = added.data.item!.id;
+    const updated = body(await handlers['tasks_worklog_update']!({ id: 't3', project: 'p', workItemId: itemId, durationMin: 60 }, {}));
+    expect(updated.data.totalMinutes).toBe(60);
+    const removed = body(await handlers['tasks_worklog_delete']!({ id: 't3', project: 'p', workItemId: itemId }, {}));
+    expect(removed.data.deleted).toBe(itemId);
+    expect(removed.data.totalMinutes).toBe(0);
+    const again = body(await handlers['tasks_worklog_delete']!({ id: 't3', project: 'p', workItemId: itemId }, {}));
+    expect(again.ok).toBe(false);
+    expect(again.error?.code).toBe('WORK_ITEM_NOT_FOUND');
+  });
+
   it('appends work items and lists the total', async () => {
     const added = body(await handlers['tasks_worklog_add']!({ id: 't1', project: 'p', durationMin: 45, description: 'review' }, {}));
     expect(added.ok).toBe(true);
@@ -127,5 +152,10 @@ describe('TK-05 handlers', () => {
     const listed = body(await handlers['tasks_worklog_list']!({ id: 't2', project: 'p' }, {}));
     expect(listed.ok).toBe(true);
     expect(listed.data.totalMinutes).toBe(0);
+  });
+
+  it('exposes spentMinutes from tasks_get', async () => {
+    const got = body(await handlers['tasks_get']!({ project: 'p', id: 't1' }));
+    expect(got.data.spentMinutes).toBe(45);
   });
 });

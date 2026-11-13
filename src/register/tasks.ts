@@ -15,6 +15,7 @@ import { PaginationError, paginateKeyed } from '../utils/pagination.js';
 import { pageArgsSchema, pageFromStorage, toPageRequest } from './page-args.js';
 import { projectTask, writeResponseArgs } from './write-response.js';
 import { resolveExtraSessionId, type GateExtra } from '../core/auth-gate.js';
+import { sumWorkMinutes } from '../commands/task-command.js';
 import { WorkflowError, assertStatusAllowed, assertTypeAllowed, loadProjectTypes, loadProjectWorkflow } from '../workflow.js';
 import { currentSessionId } from '../core/request-context.js';
 import { readProjectMetadata } from '../projects.js';
@@ -227,9 +228,11 @@ export function registerTasksTools(ctx: ServerContext): void {
       if (!t) {
         return err(`Task not found: ${project}/${id}`);
       }
-      if (!includeGraphMetrics) return ok(projectTask(t, { fields, compact }));
+      const spent = fields === undefined ? { spentMinutes: sumWorkMinutes(t.workItems) } : {};
+      if (!includeGraphMetrics) return ok({ ...(projectTask(t, { fields, compact }) as Record<string, unknown>), ...spent });
       const all = await taskStore(ctx).list({ project: prj, includeArchived: true });
-      return ok(projectTask(withGraphMetrics([t], computeGraphMetrics(all))[0], { fields, compact }));
+      const enriched = withGraphMetrics([t], computeGraphMetrics(all))[0];
+      return ok({ ...(projectTask(enriched, { fields, compact }) as Record<string, unknown>), ...spent });
     }
   );
 

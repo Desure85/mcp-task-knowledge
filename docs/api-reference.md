@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **211** — 209 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **213** — 211 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -211,7 +211,9 @@
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 | `tasks_version_restore` | Restore a task from a commit as a new commit (history is not erased). |
 | `tasks_worklog_add` | Log effort on a task. Duration is integer minutes (1..1440); appended to workItems. |
+| `tasks_worklog_delete` | Delete one work item from a task; other items are preserved. |
 | `tasks_worklog_list` | List logged work items for a task and their total minutes. |
+| `tasks_worklog_update` | Update duration/start/description of one work item. Does not change the task version separately from |
 | `tool_help` | Short help for a tool with an example call |
 | `tool_schema` | Return metadata and example payload for a tool name |
 | `tools_batch` | Execute multiple tools in parallel (Promise.all). Returns aggregated results. Unlike tools_run (sequ |
@@ -5521,6 +5523,33 @@ Log effort on a task. Duration is integer minutes (1..1440); appended to workIte
 }
 ```
 
+## tasks_worklog_delete
+
+**Delete Task Work Item**
+
+Delete one work item from a task; other items are preserved.
+
+**Параметры:**
+
+- `id`
+- `workItemId`
+- `project`
+- `expectedVersion`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_worklog_delete",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "workItemId": "example",
+    "project": "mcp",
+    "expectedVersion": "example"
+  }
+}
+```
+
 ## tasks_worklog_list
 
 **List Task Work Items**
@@ -5540,6 +5569,39 @@ List logged work items for a task and their total minutes.
   "arguments": {
     "id": "00000000-0000-0000-0000-000000000000",
     "project": "mcp"
+  }
+}
+```
+
+## tasks_worklog_update
+
+**Update Task Work Item**
+
+Update duration/start/description of one work item. Does not change the task version separately from the normal update path.
+
+**Параметры:**
+
+- `id`
+- `workItemId`
+- `project`
+- `durationMin`
+- `startedAt`
+- `description`
+- `expectedVersion`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_worklog_update",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "workItemId": "example",
+    "project": "mcp",
+    "durationMin": "example",
+    "startedAt": "example",
+    "description": "Example Description",
+    "expectedVersion": "example"
   }
 }
 ```
