@@ -921,7 +921,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
-| DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | blocked | Проработка (research): PoC-отчёт по сборке: bun:sqlite вместо better-sqlite3 и доставка libonnxruntime.so | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». **PoC (2026-09-12): `bun build --compile` работает** — 676 modules/250ms/100MB, initialize OK. Найдено: better-sqlite3 падает в $bunfs (bindings), но он мёртвый код → замена bun:sqlite (FTS5 OK); onnxruntime: .node инлайнится, libonnxruntime.so.1 — нет (нужен LD_LIBRARY_PATH или копия .so рядом). Вывод: для EMBEDDINGS_MODE=none single-binary реален |
+| DX-20 | Single-binary PoC (Node SEA / pkg-форк) | low | done | Проработка (research): PoC-отчёт по сборке: bun:sqlite вместо better-sqlite3 и доставка libonnxruntime.so | Research+PoC: `mcp-task-knowledge.exe` без требования Node ≥20. Убирает класс проблем «npm не найден / старый node / медленный npx». **PoC (2026-09-12): `bun build --compile` работает** — 676 modules/250ms/100MB, initialize OK. Найдено: better-sqlite3 падает в $bunfs (bindings), но он мёртвый код → замена bun:sqlite (FTS5 OK); onnxruntime: .node инлайнится, libonnxruntime.so.1 — нет (нужен LD_LIBRARY_PATH или копия .so рядом). Вывод: для EMBEDDINGS_MODE=none single-binary реален |
 | DX-21 | Homebrew formula / Scoop manifest | low | blocked | DX-20 | Если бинарь получился — генератор формулы в release CI |
 | DX-22 | Cold-start stdio: lazy-load тяжёлых подсистем | medium | done | — | Замерить время до первого ответа; ONNX/vector не тянуть на старте при `EMBEDDINGS_MODE=none`. Для stdio старт = UX каждой сессии агента; цель <500мс. **Done (2026-09-12):** TTFB median ~407-420ms (было ~483-540ms). Lazy: onnxruntime-node/web + @xenova/transformers (vector.ts, уже были), prom-client→initMetrics async (54ms), jose→JwtValidator/createTestToken (59ms), ws→realtime.js (36ms). Eager остаётся: MCP SDK, zod, fast-glob, gray-matter, pino — все <20ms. Regression guard: tests/cold-start.test.ts (median of 3, hard-fail <2000ms, логирует факт) |
 | DX-27 | Публикация в official MCP registry | medium | blocked | DX-10 | `server.json` + publish в `modelcontextprotocol/servers` → установка из UI клиента без конфиг-файлов вообще. Высшая форма DX |
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **0** | **418** | **9** | **1** |
+| **Итого** | **428** | **0** | **0** | **419** | **8** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2254,3 +2254,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-13, DX-12 закрыт): `agent_bootstrap` + ADR; tool count 207/205.
 > Примечание (2026-11-13, DX-15 закрыт): `server_capabilities` + ADR; tool count 208/206.
 > Примечание (2026-11-13, MU-06 закрыт): атомарная запись уже была; добавлены снимки раз в час (keep 24) + политика LWW.
+> Примечание (2026-11-13, DX-20 закрыт): PoC-отчёт; бинарь 117.8 MB, initialize OK, version 0.0.0, SQLite/ONNX не проверены.

@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-20: single-binary PoC report (Bun 1.3.13, 117.8 MB, MCP initialize OK; version 0.0.0, SQLite/ONNX untested); 419/0/0/8/1.
+
 - MU-06: temporal-graph snapshots (hourly, keep 24, atomic source) + documented multi-process LWW limit; 3/3, mutation RED; 418/0/0/9/1.
 
 - DX-15: `server_capabilities` manifest (version, MCP caps, env-flag domains, static limits); 2/2, mutation RED; API 208 tools; 417/0/0/10/1.
