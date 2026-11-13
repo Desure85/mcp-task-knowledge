@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **213** — 211 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **214** — 212 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -204,6 +204,7 @@
 | `tasks_saved_search_save` | Create or replace a named saved query. |
 | `tasks_set_deps` | Set or replace dependency list for a task. Validates no cycles. Returns task, statusChanged, blocked |
 | `tasks_sprint_assign` | Assign tasks to a sprint; sprintId=null clears membership. |
+| `tasks_sync` | Two-way, idempotent sync with an external tracker. v1 uses a JSON file adapter (mock); dry-run by de |
 | `tasks_template_delete` | Delete a template by id. |
 | `tasks_template_list` | List task templates. |
 | `tasks_template_save` | Create or replace a task template with default fields (priority/type/tags/description/links). |
@@ -5310,6 +5311,35 @@ Assign tasks to a sprint; sprintId=null clears membership.
       "00000000-0000-0000-0000-000000000000"
     ],
     "sprintId": "example"
+  }
+}
+```
+
+## tasks_sync
+
+**Sync Tasks With External Tracker**
+
+Two-way, idempotent sync with an external tracker. v1 uses a JSON file adapter (mock); dry-run by default.
+
+**Параметры:**
+
+- `project`
+- `system`
+- `direction`
+- `dryRun`
+- `confirm`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_sync",
+  "arguments": {
+    "project": "mcp",
+    "system": "example",
+    "direction": "example",
+    "dryRun": false,
+    "confirm": true
   }
 }
 ```
