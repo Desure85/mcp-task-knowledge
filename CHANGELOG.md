@@ -8,6 +8,8 @@
 
 ### Added
 
+- SPEC-05: remove unimplemented completion/complete from both dispatch sets and from advertised capabilities; 2/2 regression tests; 413/0/0/14/1.
+
 - TR-11: MCP spec frontier policy (taken/rejected features, adoption rules); 412/0/0/15/1.
 
 - TR-10: API governance policy (compatibility, error taxonomy, naming, deprecation); 411/0/0/17/1.

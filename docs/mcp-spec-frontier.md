@@ -12,7 +12,7 @@ deliberately does not, and how a new feature gets in.
 | `resources/subscribe` + `notifications/resources/updated` | **taken** | SPEC-06; emitted after mutating tool calls |
 | `prompts/list` / `prompts/get` | **taken** (startup snapshot) | prompt library; no runtime list-changed emission |
 | `logging/setLevel` | **taken** | maps MCP levels to pino |
-| `completion/complete` | **evaluate** | declared in dispatch; handler is not implemented (SPEC-05). Either implement argument completion or remove from dispatch — tracked separately. |
+| `completion/complete` | **not taken** | removed from both dispatch sets and from `SERVER_CAPS` in SPEC-05: no handler existed, so the server must not intercept or advertise it. Clients get the protocol's method-not-found, not a fake empty completion. |
 | `elicitation` | **not taken** | a server-initiated prompt can block/hijack an agent session and has uneven client support. Inputs stay explicit tool arguments; destructive actions use `CONFIRM_REQUIRED`. |
 | `sampling` | **not taken** | this server does not call an LLM on the client's behalf; cost, latency and determinism belong to the caller. |
 | `roots` | **not taken** | data paths are owned by `DATA_DIR`/env and the storage profile, not by a client-supplied root. Allowing roots would bypass path validation and multi-tenant boundaries. |
@@ -35,8 +35,6 @@ deliberately does not, and how a new feature gets in.
 
 ## Current known gaps
 
-- `completion/complete` is in `MAIN_DISPATCH_METHODS` but has no handler → `-32601`
-  (SPEC-05; not fixed here).
 - `resources/subscribe` is in-memory per server and only notifies tool-driven mutations;
   external file writes do not notify.
 - Prompts are a startup snapshot; dynamic prompts need a restart.

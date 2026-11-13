@@ -1014,7 +1014,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 |----|--------|-----------|--------|-------------|------------|
 | SPEC-03 | MCP prompts surface | medium | done | — | `registerPrompt` — 0 вызовов: prompts только как tools, `prompts/list` → -32601, в UI клиентов пусто. Реализовано: src/register/mcp-prompts.ts — каталог → registerPrompt (name=id, argsSchema из variables), template рендер {{var}}, sentinel для пустой библиотеки (prompts/list отвечает [] вместо -32601); wired в app-container. Тесты: mcp-prompts.spec.ts (8) + tests/e2e-full/mcp-prompts.test.ts (2) |
 | SPEC-04 | `listChanged` notifications | medium | done | SPEC-02 | Реализовано: SERVER_CAPS tools.listChanged=true, resources.listChanged=TOOL_RES_ENABLED; sendToolListChanged/sendResourceListChanged в tools_register/tools_unregister и после connector init; tools_unregister теперь вызывает RegisteredTool.remove() (SDK-level unregister — раньше тулза оставалась в native tools/list и callable); handles tracked в ctx.registeredToolHandles/registeredResourceHandles. SDK сам force-ставит listChanged=true на всех поверхностях с handlers — advertised prompts.listChanged=true, но эмиссии нет (startup snapshot). Тесты: tests/e2e-full/listchanged.test.ts (3) |
-| SPEC-05 | `completion/complete` | low | blocked | Проработка (design): autocomplete или убрать completion/complete из dispatch | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
+| SPEC-05 | `completion/complete` | low | done | Проработка (design): autocomplete или убрать completion/complete из dispatch | В MAIN_DISPATCH_METHODS (http-transport.ts:45), handler'а нет → -32601. Либо autocomplete (project names, prompt args), либо убрать из dispatch |
 | SPEC-06 | `resources/subscribe` + `resources/updated` | medium | done | SPEC-02 | Event-bus уже есть → мост: подписка на uri → `notifications/resources/updated` при изменении |
 | SPEC-07 | `progressToken` gating | low | done | — | `streaming.ts` шлёт progress без проверки токена; спека — только если клиент прислал `progressToken` в `_meta` |
 | SPEC-08 | `logging/setLevel` | low | done | — | Принять → прокинуть в pino level. Полезно для отладки удалённых подключений |
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **0** | **412** | **15** | **1** |
+| **Итого** | **428** | **0** | **0** | **413** | **14** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2248,3 +2248,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-13, сверка wip): Q-015/Q-016/Q-017/PH-016/DX-36/TR-40/TR-41 были смержены (#263/#267/#269–#273) и имели решения, но висели `in_progress`; статусы приведены к `done` без нового кода. Боевые прогоны, которые были «за контролёром» (docker push, live devcycle), не перепроверялись.
 > Примечание (2026-11-13, TR-10 закрыт): политика API в `docs/api-governance.md`; runtime-enforcement нет.
 > Примечание (2026-11-13, TR-11 закрыт): matrix frontier в `docs/mcp-spec-frontier.md`; completion/roots — отдельные решения.
+> Примечание (2026-11-13, SPEC-05 закрыт): completion/complete убран из dispatch и capabilities; autocomplete не реализован.
