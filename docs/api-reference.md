@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **207** — 205 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **208** — 206 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -160,6 +160,7 @@
 | `prompts_variants_stats` | Return aggregate metrics per variant for given promptKey |
 | `search_knowledge` | BM25 (and optional vector) search over knowledge docs |
 | `search_tasks` | BM25 (and optional vector) search over tasks |
+| `server_capabilities` | Return the server version, MCP capability flags, enabled/disabled feature domains and static limits. |
 | `service_catalog_health` | Check health of the configured service-catalog source (remote/embedded) |
 | `service_catalog_query` | Query services from the service-catalog (supports filters, sort, pagination) |
 | `session_info` | Query session state for a specific session ID. Returns rate limit info, TTL, idle timeout, session a |
@@ -4133,6 +4134,21 @@ BM25 (and optional vector) search over tasks
     "compact": "example",
     "type": "note"
   }
+}
+```
+
+## server_capabilities
+
+**Server Capabilities**
+
+Return the server version, MCP capability flags, enabled/disabled feature domains and static limits. Read-only; use before calling a feature tool that may be disabled by env.
+
+**Пример вызова:**
+
+```json
+{
+  "name": "server_capabilities",
+  "arguments": {}
 }
 ```
 
