@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TR-09 закрыт)
-**Текущая ветка:** docs/tr-09-capacity-budgets (от master 7ef27f9)
-**Текущий этап:** TR-09 закрыт; blocked 12, deferred 1
-**Статус:** capacity budgets + RSS gate; 415/0/0/12/1.
+**Session ID:** S-20261109-night (… DX-12 закрыт)
+**Текущая ветка:** feat/dx-12-agent-bootstrap (от master 70128be)
+**Текущий этап:** DX-12 закрыт; blocked 11, deferred 1
+**Статус:** agent_bootstrap; 416/0/0/11/1; API 207 tools.
+
+### Сессия S-20261109-night (DX-12)
+
+- `agent_bootstrap`: instructions/capabilities/recommended, фильтр по registry; ADR.
+- Ограничение: статический текст, DX-15 не реализован, live-клиент не проверялся.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0740-dx-12.md`.
 
 ### Сессия S-20261109-night (TR-09)
 

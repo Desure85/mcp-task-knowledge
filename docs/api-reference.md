@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **206** — 204 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **207** — 205 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -20,6 +20,7 @@
 | `admin_user_set_password` | Replace a user password (admin only); existing personal tokens are revoked. |
 | `admin_user_set_roles` | Replace a user roles array (admin only). |
 | `admin_users_list` | List users from DATA_DIR/auth.db (admin only; hashes and tokens are never returned). |
+| `agent_bootstrap` | Return a compact self-integration block for an agent: how to call tools, project convention, ok/erro |
 | `agents_deploy` | Preview or apply deployment of skills/prompts into their target agent directories. Preview writes no |
 | `agents_deploy_rollback` | Restore the files captured in a deploy snapshot and remove files it created. |
 | `briefing` | Get session-start context in one call: current project, open tasks sorted by priority, recently upda |
@@ -508,6 +509,27 @@ List users from DATA_DIR/auth.db (admin only; hashes and tokens are never return
 {
   "name": "admin_users_list",
   "arguments": {}
+}
+```
+
+## agent_bootstrap
+
+**Agent Bootstrap**
+
+Return a compact self-integration block for an agent: how to call tools, project convention, ok/error envelope, capability flags and recommended tools. Read-only; does not return task or document content.
+
+**Параметры:**
+
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "agent_bootstrap",
+  "arguments": {
+    "project": "mcp"
+  }
 }
 ```
 
@@ -2475,6 +2497,7 @@ Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally
 - `supersedesFactId`
 - `invalidationReason`
 - `trustLevel`
+- `relations`
 - `scope`
 
 **Пример вызова:**
@@ -2494,6 +2517,7 @@ Add a fact to the temporal knowledge graph with bi-temporal tracking. Optionally
     "supersedesFactId": "example",
     "invalidationReason": "example",
     "trustLevel": "example",
+    "relations": "example",
     "scope": "example"
   }
 }

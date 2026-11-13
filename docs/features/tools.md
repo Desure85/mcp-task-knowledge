@@ -1,4 +1,4 @@
-# MCP Tools (131 with catalog; 129 by default)
+# MCP Tools (207 with catalog; 205 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -286,10 +286,11 @@ The default project workflow is `pending → in_progress → completed|closed` (
 | `profile_get` | Read the signed-in user’s server-side preferences and updatedAt |
 | `profile_set` | Write preferences with last-write-wins updatedAt; older writes return a conflict |
 
-## Dashboard & Briefing (5 tools)
+## Dashboard & Briefing (6 tools)
 
 | Tool | Description |
 |------|-------------|
+| `agent_bootstrap` | Self-integration block: conventions, envelope, capabilities, recommended tools filtered by registry |
 | `briefing` | Session-start context in one call: current project, open tasks by priority, recent docs, blockers |
 | `dashboard_stats` | Project statistics: task counts by status/priority, knowledge counts, tag distribution, averages |
 | `dashboard_activity` | Chronological activity feed of recent task and knowledge changes |
