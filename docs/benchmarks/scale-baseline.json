@@ -9,6 +9,7 @@
   "caps": {
     "tasks_list": 500,
     "knowledge_list": 500,
-    "coldStartMs": 5000
+    "coldStartMs": 5000,
+    "rssAfterLoadMb": 3072
   }
 }
