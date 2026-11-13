@@ -8,6 +8,8 @@
 
 ### Added
 
+- SPEC-10: SDK upgrade policy (monthly sweep, review split, checklist, rollback); 414/0/0/13/1.
+
 - SPEC-05: remove unimplemented completion/complete from both dispatch sets and from advertised capabilities; 2/2 regression tests; 413/0/0/14/1.
 
 - TR-11: MCP spec frontier policy (taken/rejected features, adoption rules); 412/0/0/15/1.

@@ -1024,7 +1024,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | SPEC-09 | Protocol-version conformance e2e | medium | done | DX-23 | Зафиксировать negotiated `protocolVersion` в e2e; Inspector-гейт частично покроет |
-| SPEC-10 | SDK upgrade policy | low | blocked | Проработка (design): политика апгрейда SDK: каденция и критерии ревью changelog | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
+| SPEC-10 | SDK upgrade policy | low | done | Проработка (design): политика апгрейда SDK: каденция и критерии ревью changelog | Периодический bump `@modelcontextprotocol/sdk` + ревью changelog на новые методы спеки |
 | TR-14 | Egress prompt-injection scanner в ToolMiddleware.after() | high | done | TR-01 | Сканировать output всех tools на паттерны: "ignore previous", role markers, zero-width, base64 payload >50 chars. Отдельный Sanitizer-instance на egress. **Закрыто (S-20261030-prodaudit): Egress-скан включён по умолчанию в режиме annotate (данные нетронуты, предупреждение отдельным блоком; SECURITY_EGRESS_MODE=off выключает). Живой e2e в aud-high-security.test.ts.** |
 | TR-15 | tools_run/tools_batch — пропускает auth-gate+SecurityStack | critical | done | TR-01 | Закрыто вместе с AUD-10: registry хранит gated handler (wrapToolHandler) → auth/ACL/audit/egress-scan применяются на dispatch через tools_run/tools_batch. Тесты: tests/aud10-tools-run-gate.test.ts |
 | TR-16 | Trust/provenance metadata на stored docs | medium | done | TR-01 | Добавить trust_level: 'system'|'user'|'external' в frontmatter knowledge+memory; egress фильтр агрессивнее для external.  Реализовано: `trustLevel` ('system'|'user'|'external') в frontmatter knowledge и memory-фактов (createDoc/import/bulk, extraction, temporal graph); egress для external применяет EXTERNAL_PATTERNS и метит annotate-блок как EXTERNAL UNTRUSTED CONTENT, JSON остаётся парсимым. Тесты: tests/tr16-trust-level.test.ts (15); проверено откатом. |
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **0** | **413** | **14** | **1** |
+| **Итого** | **428** | **0** | **0** | **414** | **13** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2249,3 +2249,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-13, TR-10 закрыт): политика API в `docs/api-governance.md`; runtime-enforcement нет.
 > Примечание (2026-11-13, TR-11 закрыт): matrix frontier в `docs/mcp-spec-frontier.md`; completion/roots — отдельные решения.
 > Примечание (2026-11-13, SPEC-05 закрыт): completion/complete убран из dispatch и capabilities; autocomplete не реализован.
+> Примечание (2026-11-13, SPEC-10 закрыт): политика апгрейда SDK в `docs/sdk-upgrade-policy.md`; автоматического bump нет.
