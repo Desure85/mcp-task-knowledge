@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… DX-20 закрыт)
-**Текущая ветка:** docs/dx-20-single-binary-report (от master 8f06ec5)
-**Текущий этап:** DX-20 закрыт; blocked 8, deferred 1
-**Статус:** single-binary PoC report; 419/0/0/8/1.
+**Session ID:** S-20261109-night (… TK-05 design)
+**Текущая ветка:** docs/tk-05-command-design (от master f9bc0f6)
+**Текущий этап:** TK-05 design готов; статус blocked, 8 blocked, 1 deferred
+**Статус:** 419/0/0/8/1; TK-05 не закрыт.
+
+### Сессия S-20261109-night (TK-05 design)
+
+- Контракт команд/workflow/work items в `docs/design/tk-05-commands-workflow.md`; код не менялся.
+- Пункт остаётся blocked: реализация ждёт реальных пользователей и ответов владельца.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0910-tk-05-design.md`.
 
 ### Сессия S-20261109-night (DX-20)
 
