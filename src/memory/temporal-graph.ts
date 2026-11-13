@@ -27,6 +27,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { writeFileAtomicSync } from '../fs.js';
 import { randomUUID } from 'node:crypto';
 import { childLogger } from '../core/logger.js';
+import { normalizeRelations, type EntityRelation } from './relations.js';
 import type { MemoryScopeFilter } from './scoping.js';
 import type { TrustLevel } from '../types.js';
 
@@ -66,6 +67,8 @@ export interface TemporalFact {
   trustLevel?: TrustLevel;
   /** Relationships to other facts. */
   relationships: FactRelationship[];
+  /** UI-29: typed entity relations (subject-predicate-object). */
+  relations: EntityRelation[];
 }
 
 /** A relationship between facts. */
@@ -102,6 +105,8 @@ export interface AddFactInput {
   scope?: MemoryScopeFilter;
   /** Provenance (TR-16). Default 'user'. */
   trustLevel?: TrustLevel;
+  /** UI-29: typed entity relations. */
+  relations?: EntityRelation[];
 }
 
 /** Query parameters for point-in-time. */
@@ -145,7 +150,11 @@ export class TemporalGraph {
     try {
       if (existsSync(this.storagePath)) {
         const raw = readFileSync(this.storagePath, 'utf-8');
-        this.storage = JSON.parse(raw);
+        this.storage = JSON.parse(raw) as GraphStorage;
+        for (const fact of Object.values(this.storage.facts ?? {})) {
+          fact.relationships ??= [];
+          fact.relations ??= [];
+        }
       }
     } catch (e) {
       log.warn({ error: e, path: this.storagePath }, 'failed to load temporal graph — starting fresh');
@@ -212,6 +221,7 @@ export class TemporalGraph {
       trustLevel: input.trustLevel ?? 'user',
       ...(input.scope ? { scope: input.scope } : {}),
       relationships,
+      relations: normalizeRelations(input.relations),
     };
 
     this.storage.facts[id] = fact;

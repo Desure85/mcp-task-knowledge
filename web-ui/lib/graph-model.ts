@@ -8,10 +8,10 @@
 
 import type { TemporalFact } from './api-client';
 
-export type GraphMode = 'entities' | 'facts';
+export type GraphMode = 'entities' | 'facts' | 'relations';
 export type GraphNodeType = 'entity' | 'fact';
 export type FactState = 'valid' | 'superseded';
-export type GraphEdgeKind = 'mentions' | 'co-occurs' | 'replaces';
+export type GraphEdgeKind = 'mentions' | 'co-occurs' | 'replaces' | 'relation';
 
 export interface GraphNode {
   id: string;
@@ -30,6 +30,8 @@ export interface GraphEdge {
   target: string;
   kind: GraphEdgeKind;
   weight: number;
+  /** UI-29: predicate for elation edges. */
+  label?: string;
 }
 
 export interface GraphData {
@@ -320,7 +322,55 @@ export function buildEntitiesGraph(facts: TemporalFact[], extraEntities: string[
   return { mode: 'entities', nodes: withDegrees(nodes, edges), edges };
 }
 
+/** UI-29: entity-only graph from explicit subject-predicate-object relations. */
+export function buildRelationsGraph(facts: TemporalFact[]): GraphData {
+  const unique = dedupeFacts(facts);
+  const factCount = new Map<string, number>();
+  const triples = new Map<string, { subject: string; object: string; predicate: string; weight: number }>();
+
+  for (const fact of unique) {
+    const relations = fact.relations ?? [];
+    for (const rel of relations) {
+      const subject = rel.subject.trim();
+      const object = rel.object.trim();
+      if (!subject || !object || subject === object) continue;
+      factCount.set(subject, (factCount.get(subject) ?? 0) + 1);
+      factCount.set(object, (factCount.get(object) ?? 0) + 1);
+      const key = `${subject}\u0000${rel.predicate}\u0000${object}`;
+      const existing = triples.get(key);
+      if (existing) existing.weight += 1;
+      else triples.set(key, { subject, object, predicate: rel.predicate, weight: 1 });
+    }
+  }
+
+  const nodes: GraphNode[] = Array.from(factCount.keys())
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({
+      id: entityNodeId(name),
+      label: name,
+      type: 'entity' as const,
+      entity: name,
+      factCount: factCount.get(name) ?? 0,
+      degree: 0,
+    }));
+
+  const edges: GraphEdge[] = Array.from(triples.values())
+    .map((t) => ({
+      id: edgeId('relation', entityNodeId(t.subject), `${entityNodeId(t.object)}:${t.predicate}`),
+      source: entityNodeId(t.subject),
+      target: entityNodeId(t.object),
+      kind: 'relation' as const,
+      weight: t.weight,
+      label: t.predicate,
+    }))
+    .sort((x, y) => x.id.localeCompare(y.id));
+
+  return { mode: 'relations', nodes: withDegrees(nodes, edges), edges };
+}
+
 /** Build the graph for the requested mode. */
 export function buildGraph(facts: TemporalFact[], mode: GraphMode, extraEntities?: string[]): GraphData {
-  return mode === 'entities' ? buildEntitiesGraph(facts, extraEntities) : buildFactsGraph(facts);
+  if (mode === 'entities') return buildEntitiesGraph(facts, extraEntities);
+  if (mode === 'relations') return buildRelationsGraph(facts);
+  return buildFactsGraph(facts);
 }

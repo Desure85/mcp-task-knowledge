@@ -110,7 +110,8 @@ export function NodePanel({
         </p>
         <p className="text-[12px] text-muted">
           An edge means two entities share a fact in Entities mode; in Facts &amp; entities
-          mode it means a fact mentions an entity or replaces another fact.
+          mode it means a fact mentions an entity or replaces another fact; in Relations mode
+          it is a typed subject → predicate → object relation from a fact.
         </p>
       </div>
     );

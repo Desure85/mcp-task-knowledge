@@ -180,11 +180,13 @@ export function GraphCanvas({
     // multi-fact relations (and their thicker strokes) carry the picture.
     const dense = nodes.length > 200;
     const base =
-      mode === 'entities'
-        ? Math.min(0.9, 0.22 + 0.16 * Math.max(1, edge.weight))
-        : dense
-          ? 0.35
-          : 0.7;
+      mode === 'relations'
+        ? Math.min(0.95, 0.7 + 0.1 * Math.max(1, edge.weight))
+        : mode === 'entities'
+          ? Math.min(0.9, 0.22 + 0.16 * Math.max(1, edge.weight))
+          : dense
+            ? 0.35
+            : 0.7;
     if (matchIds) {
       return matchIds.has(edge.source) || matchIds.has(edge.target) ? base : 0.25;
     }
@@ -329,17 +331,19 @@ export function GraphCanvas({
                   y1={source.y}
                   x2={target.x}
                   y2={target.y}
-                  stroke={replaces ? palette.edgeReplaces : palette.edge}
-                  strokeWidth={edgeWidth(edge)}
+                  stroke={replaces ? palette.edgeReplaces : edge.kind === 'relation' ? palette.label : palette.edge}
+                  strokeWidth={edge.kind === 'relation' ? 2 : edgeWidth(edge)}
                   strokeDasharray={replaces ? '3 2' : undefined}
                   opacity={edgeOpacity(edge)}
                 >
                   <title>
                     {replaces
                       ? 'replaces'
-                      : mode === 'entities'
-                        ? `${edge.weight} shared ${edge.weight === 1 ? 'fact' : 'facts'}`
-                        : 'mentions'}
+                      : edge.kind === 'relation'
+                        ? `${edge.label ?? 'relation'}${edge.weight > 1 ? ` (${edge.weight} facts)` : ''}`
+                        : mode === 'entities'
+                          ? `${edge.weight} shared ${edge.weight === 1 ? 'fact' : 'facts'}`
+                          : 'mentions'}
                   </title>
                 </line>
                 <line
@@ -351,11 +355,26 @@ export function GraphCanvas({
                   strokeWidth={12}
                   pointerEvents="stroke"
                 />
+                {mode === 'relations' && edge.label ? (
+                  <text
+                    x={(source.x + target.x) / 2}
+                    y={(source.y + target.y) / 2 - 3}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fill={palette.label}
+                    stroke={palette.nodeStroke}
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                    pointerEvents="none"
+                  >
+                    {edge.label}
+                  </text>
+                ) : null}
               </g>
             );
           })}
 
-          {hoveredEdge && mode === 'entities' && nodesById.has(hoveredEdge.source) && nodesById.has(hoveredEdge.target) ? (
+          {hoveredEdge && (mode === 'entities' || mode === 'relations') && nodesById.has(hoveredEdge.source) && nodesById.has(hoveredEdge.target) ? (
             <text
               x={(nodesById.get(hoveredEdge.source)!.x + nodesById.get(hoveredEdge.target)!.x) / 2}
               y={(nodesById.get(hoveredEdge.source)!.y + nodesById.get(hoveredEdge.target)!.y) / 2 - 4}
@@ -367,7 +386,7 @@ export function GraphCanvas({
               paintOrder="stroke"
               pointerEvents="none"
             >
-              {hoveredEdge.weight} shared {hoveredEdge.weight === 1 ? 'fact' : 'facts'}
+              {hoveredEdge.label ?? `${hoveredEdge.weight} shared ${hoveredEdge.weight === 1 ? 'fact' : 'facts'}`}
             </text>
           ) : null}
 

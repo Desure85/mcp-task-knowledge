@@ -591,6 +591,7 @@ export interface TemporalFact {
   supersededBy?: string;
   invalidationReason?: string;
   relationships: FactRelationship[];
+  relations?: Array<{ subject: string; predicate: string; object: string }>;
 }
 
 export interface TemporalStats {

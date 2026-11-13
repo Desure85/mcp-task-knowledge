@@ -58,6 +58,14 @@ export function Legend({ mode, palette }: { mode: GraphMode; palette: GraphPalet
       <span className={ITEM}>
         <span
           aria-hidden="true"
+          className="inline-block h-0.5 w-4 rounded-full"
+          style={{ backgroundColor: palette.edge }}
+        />
+        Edge: subject → predicate → object (Relations mode)
+      </span>
+      <span className={ITEM}>
+        <span
+          aria-hidden="true"
           className="inline-block w-4 border-t border-dashed"
           style={{ borderColor: palette.edgeReplaces }}
         />
