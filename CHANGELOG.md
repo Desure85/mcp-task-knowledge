@@ -8,6 +8,8 @@
 
 ### Added
 
+- TK-05: `tasks_command` (State/for me, dry-run, confirm, max 50) + `workItems`/`tasks_worklog_add`/`list`; 7/7, mutation RED; API 211 tools; 420/0/0/7/1.
+
 - DX-20: single-binary PoC report (Bun 1.3.13, 117.8 MB, MCP initialize OK; version 0.0.0, SQLite/ONNX untested); 419/0/0/8/1.
 
 - MU-06: temporal-graph snapshots (hourly, keep 24, atomic source) + documented multi-process LWW limit; 3/3, mutation RED; 418/0/0/9/1.

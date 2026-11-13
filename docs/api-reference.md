@@ -2,7 +2,7 @@
 
 > Автогенерировано из live MCP-сервера (D-001). Пересборка: `npm run api:reference`.
 
-Всего инструментов: **208** — 206 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
+Всего инструментов: **211** — 209 по умолчанию плюс 2 динамических `service_catalog_*` (запись каталога, `service_catalog_upsert` и `service_catalog_delete`, регистрируется только при `CATALOG_WRITE_ENABLED=true`).
 
 ## Инструменты
 
@@ -182,6 +182,7 @@
 | `tasks_bulk_update` | Update fields of many tasks at once |
 | `tasks_claim` | Take a lease on a task so a second agent does not start the same work. The holder is visible to othe |
 | `tasks_close` | Close a task by moving it to the project's close status. Optionally cascade the close to all descend |
+| `tasks_command` | Apply a YouTrack-style command to matching tasks. v1 supports only "State <status>" and "for me Stat |
 | `tasks_create` | Create a single task. Optionally set parentId to create a subtask. Maximum nesting depth is 10 level |
 | `tasks_dag` | Get the dependency DAG for a project: topological sort, critical path and edge list. Supports tag an |
 | `tasks_diff` | Show the diff of one commit for a task. |
@@ -209,6 +210,8 @@
 | `tasks_tree` | List tasks as a hierarchical tree (by parentId). Pagination applies to ROOT nodes (children of a ret |
 | `tasks_update` | Update a single task by id. Can change any field except id, project, createdAt. Setting parentId mov |
 | `tasks_version_restore` | Restore a task from a commit as a new commit (history is not erased). |
+| `tasks_worklog_add` | Log effort on a task. Duration is integer minutes (1..1440); appended to workItems. |
+| `tasks_worklog_list` | List logged work items for a task and their total minutes. |
 | `tool_help` | Short help for a tool with an example call |
 | `tool_schema` | Return metadata and example payload for a tool name |
 | `tools_batch` | Execute multiple tools in parallel (Promise.all). Returns aggregated results. Unlike tools_run (sequ |
@@ -4689,6 +4692,37 @@ Close a task by moving it to the project's close status. Optionally cascade the 
 }
 ```
 
+## tasks_command
+
+**Task Command**
+
+Apply a YouTrack-style command to matching tasks. v1 supports only "State <status>" and "for me State <status>". Dry-run by default; confirm:true applies. Max 50 tasks.
+
+**Параметры:**
+
+- `command`
+- `project`
+- `filter`
+- `dryRun`
+- `confirm`
+- `expectedVersion`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_command",
+  "arguments": {
+    "command": "example",
+    "project": "mcp",
+    "filter": "example",
+    "dryRun": false,
+    "confirm": true,
+    "expectedVersion": "example"
+  }
+}
+```
+
 ## tasks_create
 
 **Create Task**
@@ -5452,6 +5486,60 @@ Restore a task from a commit as a new commit (history is not erased).
     "project": "mcp",
     "id": "00000000-0000-0000-0000-000000000000",
     "commit": "example"
+  }
+}
+```
+
+## tasks_worklog_add
+
+**Add Task Work Item**
+
+Log effort on a task. Duration is integer minutes (1..1440); appended to workItems.
+
+**Параметры:**
+
+- `id`
+- `project`
+- `durationMin`
+- `startedAt`
+- `description`
+- `expectedVersion`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_worklog_add",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "project": "mcp",
+    "durationMin": "example",
+    "startedAt": "example",
+    "description": "Example Description",
+    "expectedVersion": "example"
+  }
+}
+```
+
+## tasks_worklog_list
+
+**List Task Work Items**
+
+List logged work items for a task and their total minutes.
+
+**Параметры:**
+
+- `id`
+- `project`
+
+**Пример вызова:**
+
+```json
+{
+  "name": "tasks_worklog_list",
+  "arguments": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "project": "mcp"
   }
 }
 ```
