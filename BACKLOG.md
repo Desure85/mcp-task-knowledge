@@ -2255,3 +2255,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-13, DX-15 закрыт): `server_capabilities` + ADR; tool count 208/206.
 > Примечание (2026-11-13, MU-06 закрыт): атомарная запись уже была; добавлены снимки раз в час (keep 24) + политика LWW.
 > Примечание (2026-11-13, DX-20 закрыт): PoC-отчёт; бинарь 117.8 MB, initialize OK, version 0.0.0, SQLite/ONNX не проверены.
+> Примечание (2026-11-13, owner): оставшиеся 8 blocked — платформенно-зависимые (YouTrack, release/registry, ALB, данные, CLI/models); универсальный бэклог закрыт, пункты не удаляются. См. `docs/dev-cycle/decisions/2026-11-13-1715-platform-blocked.md`.
