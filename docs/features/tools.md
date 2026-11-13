@@ -1,4 +1,4 @@
-# MCP Tools (208 with catalog; 206 by default)
+# MCP Tools (211 with catalog; 209 by default)
 
 All tools registered in the MCP server, grouped by category.
 
@@ -80,7 +80,7 @@ payload size). A request that carries `params._meta.progressToken` is automatica
 `text/event-stream`, so `notifications/progress` keeps working for the caller that asked for it.
 `MCP_JSON_RESPONSES=0` forces SSE for all requests (`docs/adr/0007-json-responses-vs-sse.md`).
 
-## Tasks (22 tools)
+## Tasks (25 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -88,6 +88,9 @@ payload size). A request that carries `params._meta.progressToken` is automatica
 | `tasks_list` | List tasks with filters (project, status, type, tag, priority, parentId, updatedSince) + pagination |
 | `tasks_get` | Get task by ID |
 | `tasks_update` | Update task fields (title, status, type, priority, tags) |
+| `tasks_command` | YouTrack-style `State <status>` / `for me State <status>`; dry-run by default, max 50 |
+| `tasks_worklog_add` | Log effort (integer minutes 1..1440) into `workItems` |
+| `tasks_worklog_list` | List work items and total minutes for a task |
 | `tasks_close` | Close a task into the project `closeStatus` |
 | `tasks_claim` | Take a lease on a task (TTL, default 30 min); foreign active claims are rejected with `TASK_CLAIMED` |
 | `tasks_renew` | Extend your lease (heartbeat); does not change `updatedAt`/version, so no false MU-02 conflicts |

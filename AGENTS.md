@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… platform boundary)
-**Текущая ветка:** docs/platform-blocked-boundary (от master 0373ca3)
-**Текущий этап:** 419 done; 8 blocked платформенно-зависимые; 1 deferred
-**Статус:** 419/0/0/8/1.
+**Session ID:** S-20261109-night (… TK-05 закрыт)
+**Текущая ветка:** feat/tk-05-commands-workitems (от master d6a1d1d)
+**Текущий этап:** TK-05 закрыт; blocked 7, deferred 1
+**Статус:** task commands + work items; 420/0/0/7/1; API 211 tools.
+
+### Сессия S-20261109-night (TK-05)
+
+- `tasks_command` (dryRun/confirm/limit 50/assertTransition), `workItems` + worklog tools; ADR-контракт.
+- Ограничения: нет edit/delete work item, таймера, ставок, UI; частичный успех без откатa.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-1740-tk-05.md`.
 
 ### Сессия S-20261109-night (platform boundary)
 

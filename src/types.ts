@@ -46,6 +46,15 @@ export interface TaskEvidence {
   bySessionId?: string;
 }
 
+/** TK-05: one logged effort entry; additive, optional on Task. */
+export interface TaskWorkItem {
+  id: string;
+  userId?: string;
+  startedAt: string;
+  durationMin: number;
+  description?: string;
+  createdAt: string;
+}
 export interface Task {
   id: string;
   project: string; // namespace/key for project
@@ -62,6 +71,8 @@ export interface Task {
   sprintId?: string | null;
   /** TK-01 field, optional: assignee user id. */
   assignee?: string;
+  /** TK-05: logged work items (additive). */
+  workItems?: TaskWorkItem[];
   /** MU-02: optimistic-lock version (1-based). */
   version?: number;
   /** MU-02: last version that changed each field. */
