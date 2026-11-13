@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… MU-06 закрыт)
-**Текущая ветка:** feat/mu-06-temporal-graph-snapshots (от master bff3329)
-**Текущий этап:** MU-06 закрыт; blocked 9, deferred 1
-**Статус:** graph snapshots; 418/0/0/9/1.
+**Session ID:** S-20261109-night (… DX-20 закрыт)
+**Текущая ветка:** docs/dx-20-single-binary-report (от master 8f06ec5)
+**Текущий этап:** DX-20 закрыт; blocked 8, deferred 1
+**Статус:** single-binary PoC report; 419/0/0/8/1.
+
+### Сессия S-20261109-night (DX-20)
+
+- Bun 1.3.13 compile: 1003 модуля, 117.8 MB, initialize OK без Node; version 0.0.0 в бинаре.
+- Ограничение: SQLite/ONNX не проверены, только Windows x64; DX-21 остаётся blocked.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0845-dx-20.md`.
 
 ### Сессия S-20261109-night (MU-06)
 
