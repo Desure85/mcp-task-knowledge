@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… UI-29 закрыт)
-**Текущая ветка:** feat/ui-29-typed-relations (от master 5aa4443)
-**Текущий этап:** UI-29 закрыт; blocked 17
-**Статус:** typed relations + Relations mode; 21/21 server, 35/35 graph; backlog 403/0/17/1.
+**Session ID:** S-20261109-night (… сверка wip)
+**Текущая ветка:** docs/close-stale-wip-statuses (от master 2710080)
+**Текущий этап:** wip 0; blocked 17
+**Статус:** 7 смерженных пунктов переведены в done; backlog 410/0/0/17/1.
+
+### Сессия S-20261109-night (сверка wip)
+
+- Q-015/16/17, PH-016, DX-36, TR-40/41 уже смержены (#263/#267/#269–#273); статусы исправлены.
+- Ограничение: боевые прогоны (docker push, live devcycle) не перепроверялись; только bookkeeping.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0500-wip-reconciliation.md`.
 
 ### Сессия S-20261109-night (UI-29)
 
