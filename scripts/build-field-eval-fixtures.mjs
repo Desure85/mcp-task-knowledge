@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * KE-06: build durable field-eval fixtures from a repository's JSON i18n catalogs.
  *
@@ -9,14 +8,12 @@
  * Outputs:
  *   gold_fields.json          [{ name, desc, type, group }]
  *   multilingual_labels.json  [{ group, en, ru, ... }]
- *   manifest.json             source/commit/counts/languages/partial flag
+ *   manifest.json             source/commit/counts/languages/required/partial
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-
-export const EXPECTED_LANGS = ['ru', 'en', 'de', 'es', 'fr', 'pl', 'pt', 'tr'];
 
 function flatten(value, prefix = '', out = new Map()) {
   if (typeof value === 'string') {
@@ -67,11 +64,9 @@ export function buildFixtures(catalogs) {
   return { langs, gold, labels };
 }
 
-export function assertLanguages(langs, allowPartial) {
-  const missing = EXPECTED_LANGS.filter((lang) => !langs.includes(lang));
-  if (missing.length && !allowPartial) {
-    throw new Error(`missing expected languages: ${missing.join(', ')}; pass --allow-partial to record a partial fixture`);
-  }
+export function assertLanguages(langs, required = []) {
+  const missing = required.filter((lang) => !langs.includes(lang));
+  if (missing.length) throw new Error(`missing required languages: ${missing.join(', ')}`);
   return missing;
 }
 
@@ -92,19 +87,20 @@ function main() {
   const repo = path.resolve(get('repo', '.'));
   const outDir = path.resolve(get('out', 'scripts/fixtures/field-eval'));
   const labelDir = path.resolve(repo, get('label-dir', 'src/i18n/messages'));
-  const allowPartial = args.includes('--allow-partial');
+  const required = (get('require-langs', '') || '').split(',').map((s) => s.trim()).filter(Boolean);
 
   const catalogs = loadCatalogs(labelDir);
   const { langs, gold, labels } = buildFixtures(catalogs);
-  const missing = assertLanguages(langs, allowPartial);
+  const missing = assertLanguages(langs, required);
   const manifest = {
     source: get('source-url', repo.replace(/\\/g, '/')),
     commit: gitCommit(repo),
     catalogDir: path.relative(repo, labelDir).replace(/\\/g, '/'),
     createdAt: get('created-at', new Date().toISOString()),
     languages: langs,
+    requiredLanguages: required,
     missingLanguages: missing,
-    partial: missing.length > 0,
+    partial: required.length > 0 && missing.length > 0,
     fields: gold.length,
     labels: labels.length,
     sha256: {
@@ -117,7 +113,7 @@ function main() {
   fs.writeFileSync(path.join(outDir, 'multilingual_labels.json'), `${JSON.stringify(labels, null, 2)}\n`, 'utf8');
   fs.writeFileSync(path.join(outDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   console.log(`field-eval fixtures: ${gold.length} fields, ${langs.length} languages (${langs.join(', ')})`);
-  if (missing.length) console.log(`partial: missing ${missing.join(', ')}`);
+  if (required.length) console.log(`required languages: ${required.join(', ')}${missing.length ? ` (missing ${missing.join(', ')})` : ' (all present)'}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.url.replace('file:///', ''))) {

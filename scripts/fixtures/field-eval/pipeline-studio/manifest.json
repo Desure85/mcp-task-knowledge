@@ -2,20 +2,14 @@
   "source": "https://github.com/Desure85/pipeline-studio",
   "commit": "fb71ecb570f885d4081e01fbe22f1f29241ee5b8",
   "catalogDir": "src/i18n/messages",
-  "createdAt": "2026-11-13T20:22:21.017Z",
+  "createdAt": "2026-11-13T20:57:21.781Z",
   "languages": [
     "en",
     "ru"
   ],
-  "missingLanguages": [
-    "de",
-    "es",
-    "fr",
-    "pl",
-    "pt",
-    "tr"
-  ],
-  "partial": true,
+  "requiredLanguages": [],
+  "missingLanguages": [],
+  "partial": false,
   "fields": 213,
   "labels": 213,
   "sha256": {

@@ -1,0 +1,35 @@
+{
+  "gold": 213,
+  "goldEvaluated": 213,
+  "multilingual": 213,
+  "languages": [
+    "en",
+    "ru"
+  ],
+  "models": {
+    "granite": {
+      "label": "Granite 311M multilingual R2 (q8)",
+      "gold": {
+        "n": 213,
+        "top1": 179,
+        "top1Pct": 84,
+        "top3": 202,
+        "top3Pct": 94.8
+      },
+      "perLang": {
+        "en": {
+          "n": 213,
+          "top1": 77,
+          "top1Pct": 36.2,
+          "top3Pct": 61.5
+        },
+        "ru": {
+          "n": 213,
+          "top1": 64,
+          "top1Pct": 30,
+          "top3Pct": 59.2
+        }
+      }
+    }
+  }
+}

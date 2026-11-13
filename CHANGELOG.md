@@ -8,6 +8,8 @@
 
 ### Added
 
+- KE-06: source-agnostic field-eval builder + pipeline-studio fixtures (213×en/ru) + language-agnostic runner + Granite q8 report (gold 84.0%); Gemma gated 401; 3/3, mutation RED; 429/425/0/0/3/1.
+
 - DX-21 (mock): offline Homebrew formula + Scoop manifest generator with sha256/platform validation; 5/5, mutation RED; release CI not wired; 429/424/0/0/4/1.
 
 - INT-008 (mock): two-way idempotent `tasks_sync` + file tracker; external link/hash/conflicts; 7/7, mutation RED; live YouTrack not wired; API 214 tools; 429/423/0/0/5/1.
