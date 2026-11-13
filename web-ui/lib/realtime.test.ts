@@ -143,12 +143,13 @@ class MockWebSocket {
   onclose: ((ev?: unknown) => void) | null = null;
   onerror: ((ev?: unknown) => void) | null = null;
   onmessage: ((ev?: unknown) => void) | null = null;
+  sent: string[] = [];
 
   constructor(url: string) {
     this.url = url;
     MockWebSocket.instances.push(this);
   }
-  send(): void {}
+  send(data: unknown): void { this.sent.push(String(data)); }
   close(): void {
     this.readyState = MockWebSocket.CLOSED;
     this.onclose?.({});
@@ -209,7 +210,23 @@ describe('UI-22: WebSocket auth ticket', () => {
     expect(MockWebSocket.instances[0].url).not.toContain('jwt-token');
   });
 
-  it('requests a fresh ticket before every reconnect', async () => {
+
+  it('subscribes to a project after open, and sends no subscribe without a project', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-1' }) });
+    const withProject = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws', project: 'mcp' });
+    withProject.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    MockWebSocket.instances[0].triggerOpen();
+    const subscribe = MockWebSocket.instances[0].sent.map((s) => JSON.parse(s) as { type: string; project?: string });
+    expect(subscribe).toContainEqual({ type: 'subscribe', project: 'mcp' });
+
+    MockWebSocket.instances = [];
+    const withoutProject = new RealtimeClient({ url: 'ws://127.0.0.1:3411/ws' });
+    withoutProject.connect();
+    await vi.advanceTimersByTimeAsync(0);
+    MockWebSocket.instances[0].triggerOpen();
+    expect(MockWebSocket.instances[0].sent).toEqual([]);
+  });  it('requests a fresh ticket before every reconnect', async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-1' }) })
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ticket: 'ticket-2' }) });

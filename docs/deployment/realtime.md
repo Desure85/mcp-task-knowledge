@@ -31,4 +31,4 @@ A 401 when requesting the one-time WS ticket sends the user to the existing logi
 
 ## Auth
 
-Realtime uses the same session JWT as the rest of the UI: the browser exchanges it for a single-use ticket via `POST /auth/ws-ticket`, then upgrades with `?ticket=`. The JWT is never put in the WebSocket URL.
+Realtime uses the same session JWT as the rest of the UI: the browser exchanges it for a single-use ticket via `POST /auth/ws-ticket`, then upgrades with `?ticket=`. The JWT is never put in the WebSocket URL. After `open` the client sends `{type:"subscribe", project}` **only when the page has a project**; pages without a project receive global/presence events without a subscription. A fresh ticket is requested before every reconnect.
