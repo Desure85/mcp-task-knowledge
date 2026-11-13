@@ -8,6 +8,7 @@
  */
 
 import type { Connector, ConnectorContext, ConnectorHealth } from './types.js';
+import { refreshGoogleAccessToken } from './oauth-refresh.js';
 import { probeConnector } from './health-probe.js';
 import { connectorSignal } from './fetch-timeout.js';
 import { resolveCredential } from './credentials.js';
@@ -42,6 +43,7 @@ export class GDriveConnector implements Connector {
   private refreshToken?: string;
   private clientId?: string;
   private clientSecret?: string;
+  private tokenExpiresAt?: number;
   private initialized = false;
   private readonly fetchFn?: FetchFn;
 
@@ -55,10 +57,40 @@ export class GDriveConnector implements Connector {
     return f(input, requestInit as RequestInit);
   }
 
+  private canRefresh(): boolean {
+    return Boolean(this.refreshToken && this.clientId && this.clientSecret);
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (!this.canRefresh()) throw new Error('GDrive: refreshToken/clientId/clientSecret required for refresh');
+    const refreshed = await refreshGoogleAccessToken({
+      refreshToken: this.refreshToken!,
+      clientId: this.clientId!,
+      clientSecret: this.clientSecret!,
+      ...(this.fetchFn ? { fetchImpl: this.fetchFn } : {}),
+    });
+    this.accessToken = refreshed.accessToken;
+    this.tokenExpiresAt = refreshed.expiresAt;
+  }
+
+  /** Returns false when no usable access token and refresh is not possible. */
+  private async ensureToken(): Promise<boolean> {
+    if (this.accessToken && (!this.tokenExpiresAt || this.tokenExpiresAt - Date.now() > 30_000)) return true;
+    if (!this.canRefresh()) return Boolean(this.accessToken);
+    try { await this.refreshAccessToken(); return true; } catch { return false; }
+  }
+
   private async driveFetch(path: string): Promise<Response> {
-    const res = await this.doFetch(`${DRIVE_API}${path}`, {
+    await this.ensureToken();
+    let res = await this.doFetch(`${DRIVE_API}${path}`, {
       headers: { Authorization: `Bearer ${this.accessToken}` },
     });
+    if (res.status === 401 && this.canRefresh()) {
+      await this.refreshAccessToken();
+      res = await this.doFetch(`${DRIVE_API}${path}`, {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      });
+    }
     if (!res.ok) throw new Error(`Google Drive API ${res.status}: ${await res.text()}`);
     return res;
   }
@@ -69,6 +101,7 @@ export class GDriveConnector implements Connector {
     this.refreshToken = ctx.config['refreshToken'] as string | undefined;
     this.clientId = ctx.config['clientId'] as string | undefined;
     this.clientSecret = ctx.config['clientSecret'] as string | undefined;
+    if (!this.accessToken && this.canRefresh()) await this.refreshAccessToken().catch(() => undefined);
 
     ctx.registerTool('gdrive_list_files', {
       title: 'Google Drive: List Files',
@@ -123,7 +156,7 @@ export class GDriveConnector implements Connector {
 
   async health(): Promise<ConnectorHealth> {
     if (!this.initialized) return { healthy: false, message: 'Not initialized' };
-    if (!this.accessToken) {
+    if (!(await this.ensureToken())) {
       return { healthy: false, message: 'No OAuth access token for health probe' };
     }
     return probeConnector(
@@ -134,7 +167,7 @@ export class GDriveConnector implements Connector {
   }
 
   private async listFiles(folderId: string, max: number): Promise<{ ok: true; files: Array<{ id: string; name: string; mimeType: string }> } | ErrEnvelope> {
-    if (!this.accessToken) return { ok: false, error: { message: 'GDrive: accessToken required (config accessToken or GDRIVE_ACCESS_TOKEN env)' } };
+    if (!(await this.ensureToken())) return { ok: false, error: { message: 'GDrive: accessToken required (config accessToken or GDRIVE_ACCESS_TOKEN env)' } };
     try {
       const pageSize = Math.min(Math.max(max, 1), 100);
       const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
@@ -147,7 +180,7 @@ export class GDriveConnector implements Connector {
   }
 
   private async getFileContent(fileId: string): Promise<{ ok: true; content: string } | ErrEnvelope> {
-    if (!this.accessToken) return { ok: false, error: { message: 'GDrive: accessToken required (config accessToken or GDRIVE_ACCESS_TOKEN env)' } };
+    if (!(await this.ensureToken())) return { ok: false, error: { message: 'GDrive: accessToken required (config accessToken or GDRIVE_ACCESS_TOKEN env)' } };
     try {
       const meta = await (await this.driveFetch(`/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType`)).json() as { mimeType?: string };
       const mimeType = meta.mimeType ?? '';
@@ -162,7 +195,7 @@ export class GDriveConnector implements Connector {
 
   private async syncFolder(folderId: string, project: string): Promise<{ ok: true; synced: number } | ErrEnvelope> {
     void project;
-    if (!this.accessToken) return { ok: false, error: { message: 'GDrive: accessToken required (config accessToken or GDRIVE_ACCESS_TOKEN env)' } };
+    if (!(await this.ensureToken())) return { ok: false, error: { message: 'GDrive: accessToken required (config accessToken or GDRIVE_ACCESS_TOKEN env)' } };
     const listed = await this.listFiles(folderId, 100);
     if (!listed.ok) return listed;
     let synced = 0;

@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TR-30 закрыт)
-**Текущая ветка:** fix/tr-30-crawler-egress (от master 45787a2)
-**Текущий этап:** TR-30 закрыт; blocked 20
-**Статус:** crawler egress; 6/6; backlog 400/0/20/1.
+**Session ID:** S-20261109-night (… TR-29 закрыт)
+**Текущая ветка:** feat/tr-29-oauth-refresh (от master aa3b144)
+**Текущий этап:** TR-29 закрыт; blocked 19
+**Статус:** GDrive refresh; 3/3; backlog 401/0/19/1.
+
+### Сессия S-20261109-night (TR-29)
+
+- refreshGoogleAccessToken (grant_type=refresh_token), ensureToken/expiry, 401 retry; Gmail/OneDrive external.
+- Ограничения: нет фонового refresh; Gmail/OneDrive без refresh-флоу; секреты в конфиге.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0105-tr-29.md`.
 
 ### Сессия S-20261109-night (TR-30)
 
