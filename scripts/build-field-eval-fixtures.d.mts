@@ -16,5 +16,4 @@ export function buildFixtures(catalogs: Record<string, Map<string, string>>): {
   gold: GoldField[];
   labels: LabelEntry[];
 };
-export function assertLanguages(langs: string[], allowPartial: boolean): string[];
-export const EXPECTED_LANGS: string[];
+export function assertLanguages(langs: string[], required?: string[]): string[];

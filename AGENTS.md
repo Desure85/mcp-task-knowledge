@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (KE-06 partial)
-**Текущая ветка:** feat/ke-06-fixture-builder (от master a9e5c58)
-**Текущий этап:** KE-06 остаётся blocked; builder + 213×2 fixtures
-**Статус:** 5 blocked counted? нет: 4 counted + CM-03b, deferred 1; KE-06 сузился до 6 языков/моделей.
+**Session ID:** S-20261109-night (KE-06 closed)
+**Текущая ветка:** master (после PR #505)
+**Текущий этап:** KE-06 закрыт; blocked 3 counted (+CM-03b), deferred 1
+**Статус:** language-agnostic fixtures + Granite report; 429/425/0/0/3/1.
+
+### Сессия S-20261109-night (KE-06 close)
+
+- Убраны хардкод-8 языков; builder принимает ≥2, field-eval читает языки из labels; Granite q8 отчёт.
+- Ограничение: Gemma 401 gated, датасет 213 UI-строк × en/ru, числа несравнимы.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-2357-ke-06-close.md`.
 
 ### Сессия S-20261109-night (KE-06 partial)
 

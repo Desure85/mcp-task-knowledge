@@ -1,43 +1,57 @@
-# Field-eval fixtures (KE-06, partial)
+# Field-eval fixtures (KE-06)
 
-## Why not ALB
+## Universal, not 8-language
 
-ALB was the original source: `common/messages` (8 languages) and Bitrix24 field defs
-(99 fields/groups). Those files are not in any public Desure85 repo; `pipeline-studio` has only
-`src/i18n/messages/en.json` + `ru.json`, `neiroGen` has only `lang/en` + `lang/ru`.
+The old gate hardcoded 8 languages. That is now a fixture property, not a platform rule:
 
-## Builder
-
-`scripts/build-field-eval-fixtures.mjs` is source-agnostic and supports JSON catalogs:
-
-```bash
-node scripts/build-field-eval-fixtures.mjs \
-  --repo /path/to/repo \
-  --label-dir src/i18n/messages \
-  --out scripts/fixtures/field-eval/<name> \
-  --allow-partial \
-  --source-url https://github.com/Desure85/<repo>
-```
-
-It writes `gold_fields.json`, `multilingual_labels.json` and `manifest.json` (source, git commit,
-languages, missing languages, counts, sha256). Without `--allow-partial` it fails when any of the
-8 expected languages is missing, so a partial set cannot be mistaken for the full gate.
+- `scripts/build-field-eval-fixtures.mjs` accepts **any JSON catalog set with ≥2 languages**;
+- `scripts/field-eval.mjs` reads the language list from the labels file (or `--langs a,b`);
+- `--require-langs de,es` is an opt-in gate for teams that want a specific set;
+- no `EXPECTED_LANGS` constant remains.
 
 ## Current fixture
 
-`scripts/fixtures/field-eval/pipeline-studio/` was built from
+`scripts/fixtures/field-eval/pipeline-studio/` — from
 `Desure85/pipeline-studio@fb71ecb` (`src/i18n/messages`):
 
 - **213 fields**, groups from the first key segment;
 - **2 languages**: en, ru;
-- partial: missing de, es, fr, pl, pt, tr;
-- numbers are **not comparable** to the old 2024-label report.
+- `manifest.json`: `requiredLanguages: []`, `missingLanguages: []`, `partial: false`;
+- sha256 of gold/labels recorded.
 
-## What KE-06 still needs
+Regenerate:
 
-1. A source with the 6 missing languages (or the original ALB `common/messages`).
-2. Local Gemma/Granite ONNX models to rebase the report; `~/.local/share/mcp-task-knowledge/models`
-   is absent in this environment.
-3. A fresh `field-eval` run and an honest before/after report.
+```bash
+node scripts/build-field-eval-fixtures.mjs \
+  --repo /path/to/repo --label-dir src/i18n/messages \
+  --out scripts/fixtures/field-eval/<name> \
+  --source-url https://github.com/Desure85/<repo>
+```
 
-KE-06 remains **blocked**; this fixture is durable progress, not a closed gate.
+## Granite report
+
+`docs/benchmarks/kb-hardening-field-eval-pipeline-studio.json`:
+
+| Model | Gold top-1 | Gold top-3 | en top-1 | ru top-1 |
+|---|---|---|---|---|
+| Granite 311M multilingual R2 q8 | 179/213 (84.0%) | 202/213 (94.8%) | 77/213 (36.2%) | 64/213 (30.0%) |
+
+Command:
+
+```bash
+node scripts/field-eval.mjs --models granite \
+  --gold scripts/fixtures/field-eval/pipeline-studio/gold_fields.json \
+  --labels scripts/fixtures/field-eval/pipeline-studio/multilingual_labels.json \
+  --json-out docs/benchmarks/kb-hardening-field-eval-pipeline-studio.json
+```
+
+## Limits
+
+- The numbers are **not comparable** to the lost 2024-label report: different domain (UI strings),
+  213 entries, 2 languages.
+- **Gemma was not run**: the public `gemma-2-2b-it-ONNX` repo is gated (HTTP 401); only Granite
+  q8 was downloaded and measured.
+- The builder supports JSON catalogs only; PHP `common/messages` and Bitrix24 defs are not parsed.
+- Cross-language top-1 is low (30–36%) because the fixture contains UI strings, not partner fields;
+  this is a property of the fixture, recorded rather than hidden.
+- Models are local-only (`~/.local/share/mcp-task-knowledge/models`); CI does not run the eval.

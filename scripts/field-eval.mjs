@@ -2,13 +2,15 @@
 /**
  * Field/language judge for the knowledge-base hardening goal.
  *
- * Measures the *model* side of retrieval quality on two fixed sets:
- *   1. 99 partner fields with types → top-1/top-3 group accuracy (21 'unclear' excluded)
- *   2. multilingual labels (2024 entries × de/en/es/fr/pl/pt/ru/tr) → per-language top-1
+ * Measures the *model* side of retrieval quality on a fixture set:
+ *   1. gold fields (name/desc/type/group) → top-1/top-3 group accuracy
+ *   2. multilingual labels → per-language top-1; the language set is read from
+ *      the labels file, not hardcoded (pass --langs to override)
  *
  * Scoring is copied from the original ai-lab judge (same normalization, same
- * "same group = hit" rule), so numbers stay comparable across runs. Paths are
- * arguments now — this repo never reads from ai-lab.
+ * "same group = hit" rule), so numbers stay comparable across runs when the
+ * same fixture set is used. Paths are arguments now — this repo never reads
+ * from ai-lab.
  *
  * Usage:
  *   node scripts/field-eval.mjs --models gemma --limit 120
@@ -21,7 +23,14 @@ import * as ort from 'onnxruntime-node';
 import { AutoTokenizer } from '@huggingface/transformers';
 
 const MODELS = process.env.KB_MODELS_DIR || path.join(os.homedir(), '.local', 'share', 'mcp-task-knowledge', 'models');
-const LANGS = ['ru', 'en', 'de', 'es', 'fr', 'pl', 'pt', 'tr'];
+
+function labelLanguages(labels) {
+  const set = new Set();
+  for (const entry of labels) {
+    for (const key of Object.keys(entry)) if (key !== 'group') set.add(key);
+  }
+  return [...set].sort();
+}
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -32,6 +41,7 @@ const GOLD_PATH = arg('gold', '/tmp/field-eval-data/gold_fields.json');
 const LABELS_PATH = arg('labels', '/tmp/field-eval-data/multilingual_labels.json');
 const LIMIT = Number(arg('limit', '0')) || 0;
 const MODELS_ARG = arg('models', 'gemma');
+const LANGS_ARG = arg('langs', '');
 
 const normalizeName = (name) =>
   String(name)
@@ -145,16 +155,16 @@ function sampleStratified(rows, limit) {
   return out;
 }
 
-async function evalMultilingual(enc, labels) {
+async function evalMultilingual(enc, labels, langs) {
   const items = [];
   for (let idx = 0; idx < labels.length; idx++) {
-    for (const lang of LANGS) {
+    for (const lang of langs) {
       if (!labels[idx][lang]) continue;
       items.push({ entryId: idx, lang, group: labels[idx].group, vec: await enc.doc(labels[idx][lang]) });
     }
   }
   const perLang = {};
-  for (const lang of LANGS) {
+  for (const lang of langs) {
     let top1 = 0, top3 = 0, n = 0;
     for (let idx = 0; idx < labels.length; idx++) {
       const q = labels[idx][lang];
@@ -175,21 +185,24 @@ async function evalMultilingual(enc, labels) {
 
 async function main() {
   const gold = JSON.parse(fs.readFileSync(GOLD_PATH, 'utf8'));
-  const multi = sampleStratified(JSON.parse(fs.readFileSync(LABELS_PATH, 'utf8')), LIMIT);
+  const allLabels = JSON.parse(fs.readFileSync(LABELS_PATH, 'utf8'));
+  const langs = LANGS_ARG ? LANGS_ARG.split(',').map((s) => s.trim()).filter(Boolean) : labelLanguages(allLabels);
+  if (langs.length < 2) throw new Error('multilingual labels need at least 2 languages');
+  const multi = sampleStratified(allLabels, LIMIT);
   const settings = {
     labse: ['LaBSE', { dir: MODELS, onnx: `${MODELS}/encoder.onnx`, maxLen: 256 }],
     gemma: ['Gemma q4', { dir: `${MODELS}/gemma2-q4`, onnx: `${MODELS}/gemma2-q4/onnx/model_q4.onnx`, maxLen: 512, qPrefix: 'task: search result | query: ', dPrefix: 'title: none | text: ' }],
     granite: ['Granite 311M multilingual R2 (q8)', { dir: `${MODELS}/granite-311m`, onnx: `${MODELS}/granite-311m/onnx/model_quint8_avx2.onnx`, maxLen: 512, pooling: 'cls' }],
     'granite-fp32': ['Granite 311M multilingual R2 (fp32)', { dir: `${MODELS}/granite-311m`, onnx: `${MODELS}/granite-311m/onnx/model.onnx`, maxLen: 512, pooling: 'cls' }],
   };
-  const report = { gold: gold.length, goldEvaluated: gold.filter((f) => f.group !== 'unclear').length, multilingual: multi.length, models: {} };
+  const report = { gold: gold.length, goldEvaluated: gold.filter((f) => f.group !== 'unclear').length, multilingual: multi.length, languages: langs, models: {} };
   for (const name of MODELS_ARG.split(',').map((s) => s.trim()).filter(Boolean)) {
     const setting = settings[name];
     if (!setting) throw new Error(`unknown model "${name}" (expected: ${Object.keys(settings).join(', ')})`);
     const [label, cfg] = setting;
     const enc = await makeEncoder(cfg);
     const g = await evalGold(enc, gold);
-    const ml = multi.length > 1 ? await evalMultilingual(enc, multi) : null;
+    const ml = multi.length > 1 ? await evalMultilingual(enc, multi, langs) : null;
     report.models[name] = {
       label,
       gold: { n: g.n, top1: g.top1, top1Pct: Number(((g.top1 / g.n) * 100).toFixed(1)), top3: g.top3, top3Pct: Number(((g.top3 / g.n) * 100).toFixed(1)) },
@@ -197,7 +210,7 @@ async function main() {
     };
     console.log(`${label}: gold top1 ${g.top1}/${g.n} (${((g.top1 / g.n) * 100).toFixed(0)}%) top3 ${g.top3}/${g.n}`);
     if (ml) {
-      console.log(`${label}: ${LANGS.filter((l) => ml[l]?.n).map((l) => `${l} ${ml[l].top1}/${ml[l].n} (${ml[l].top1Pct}%)`).join(' | ')}`);
+      console.log(`${label}: ${langs.filter((l) => ml[l]?.n).map((l) => `${l} ${ml[l].top1}/${ml[l].n} (${ml[l].top1Pct}%)`).join(' | ')}`);
     }
   }
   if (argv.includes('--json-out')) {
