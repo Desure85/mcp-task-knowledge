@@ -2,7 +2,7 @@
  * tests/e2e-full/aud-crit-security.test.ts — Этап M фаза 1 (critical):
  *
  *   AUD-01  every MCP method is auth-gated on http+tcp — resources/list+read,
- *           prompts/list+get, completion/complete, tools/list all denied
+ *           prompts/list+get, tools/list all denied
  *           pre-auth; whitelist = initialize/ping/mcp.authenticate only.
  *   AUD-02  resources/read is read-only — task://action/* URIs no longer
  *           mutate state (mutations are tools-only).
@@ -274,11 +274,13 @@ describe('AUD-01/02/03 — critical request-path hardening (live server)', () =>
       expect(denied.error?.code).toBe(-32001);
       const deniedRead = await client.request('resources/read', { uri: 'task://tasks' });
       expect(deniedRead.error?.code).toBe(-32001);
-      const deniedCompletion = await client.request('completion/complete', {
+      // SPEC-05: completion/complete is no longer dispatched or advertised; the SDK
+      // answers method-not-found (no data, no capability). It is not an auth bypass.
+      const unsupportedCompletion = await client.request('completion/complete', {
         ref: { type: 'ref/prompt', name: 'x' },
         argument: { name: 'a', value: 'b' },
       });
-      expect(deniedCompletion.error?.code).toBe(-32001);
+      expect(unsupportedCompletion.error?.code).toBe(-32601);
 
       const auth = await client.request('tools/call', {
         name: 'mcp.authenticate',

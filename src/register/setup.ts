@@ -42,7 +42,7 @@ export async function createServerContext(): Promise<ServerContext> {
   const version = await getPackageVersion();
   // MCP spec-compliant capability flags. Server handles:
   //   tools/list + tools/call, resources/list + resources/read + resources/templates/list,
-  //   prompts/list + prompts/get, completion/complete.
+  //   prompts/list + prompts/get.
   // SPEC-04: tools change at runtime (tools_register/tools_unregister hot
   // registration, connector init) → tools.listChanged = true and the server
   // emits notifications/tools/list_changed. Tool-as-resource wrappers
@@ -62,7 +62,6 @@ export async function createServerContext(): Promise<ServerContext> {
     resources: { subscribe: true, listChanged: TOOL_RES_ENABLED_CAPS },
     tools: { listChanged: true },
     prompts: { listChanged: false },
-    completion: {},
   } as const;
 
   const SHOW_STARTUP = (

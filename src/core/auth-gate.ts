@@ -139,7 +139,7 @@ export interface MethodGateCall {
  * Gate ANY JSON-RPC method, not just tools/call (AUD-01).
  *
  * Previously only tools/call was authorized — resources/list+read,
- * prompts/list+get and completion/complete bypassed auth entirely, so an
+ * prompts/list+get (and completion/complete at the time) bypassed auth entirely, so an
  * unauthenticated HTTP/TCP client could read all data after initialize.
  *
  * Semantics mirror decideToolCall (fail-closed):

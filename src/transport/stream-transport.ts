@@ -137,7 +137,6 @@ const MAIN_DISPATCH_METHODS = new Set([
   'resources/templates/list',
   'prompts/list',
   'prompts/get',
-  'completion/complete',
 ]);
 
 type MainRequestHandler = (request: unknown, extra: unknown) => Promise<unknown>;

@@ -81,7 +81,8 @@ export interface ServerContext {
     resources: { subscribe: boolean; listChanged: boolean };
     tools: { listChanged: boolean };
     prompts: { listChanged: boolean };
-    completion: Record<string, never>;
+    /** SPEC-05: no longer advertised; kept optional for test mocks. */
+    completion?: Record<string, never>;
   };
 
   normalizeBase64: (input: string) => string;

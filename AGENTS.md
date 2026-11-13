@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TR-11 закрыт)
-**Текущая ветка:** docs/tr-11-spec-frontier (от master a7bab16)
-**Текущий этап:** TR-11 закрыт; blocked 15, deferred 1
-**Статус:** spec frontier matrix; 412/0/0/15/1.
+**Session ID:** S-20261109-night (… SPEC-05 закрыт)
+**Текущая ветка:** fix/spec-05-remove-completion (от master bf479b7)
+**Текущий этап:** SPEC-05 закрыт; blocked 14, deferred 1
+**Статус:** completion surface removed; 413/0/0/14/1.
+
+### Сессия S-20261109-night (SPEC-05)
+
+- `completion/complete` убран из MAIN_DISPATCH_METHODS (http/stream) и SERVER_CAPS; autocomplete не делали.
+- Ограничение: клиенты получают method-not-found; проектных completion-подсказок нет.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0610-spec-05.md`.
 
 ### Сессия S-20261109-night (TR-11)
 
