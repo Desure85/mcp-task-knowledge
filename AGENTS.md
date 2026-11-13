@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… TR-10 закрыт)
-**Текущая ветка:** docs/tr-10-api-governance (от master 2259bc4)
-**Текущий этап:** TR-10 закрыт; blocked 16, deferred 1
-**Статус:** API governance doc; 411/0/0/16/1.
+**Session ID:** S-20261109-night (… TR-11 закрыт)
+**Текущая ветка:** docs/tr-11-spec-frontier (от master a7bab16)
+**Текущий этап:** TR-11 закрыт; blocked 15, deferred 1
+**Статус:** spec frontier matrix; 412/0/0/15/1.
+
+### Сессия S-20261109-night (TR-11)
+
+- Matrix features + правила adoption в `docs/mcp-spec-frontier.md`; elicitation/sampling/roots отклонены.
+- Ограничение: design-only, completion unimplemented (SPEC-05); capability flags SDK-derived.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0550-tr-11.md`.
 
 ### Сессия S-20261109-night (TR-10)
 

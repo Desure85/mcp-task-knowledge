@@ -987,7 +987,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | ID | Задача | Приоритет | Статус | Зависимости | Что делать |
 |----|--------|-----------|--------|-------------|------------|
 | TR-10 | API governance doc | low | done | Проработка (design): политика API governance: breaking changes, коды ошибок, deprecation | Политика breaking changes для ~114 tools, таксономия error-кодов, нейминг-конвенция (tasks_*/memory_*/tools_*), deprecation-путь. ToolRegistry версионирует — политики нет |
-| TR-11 | MCP spec frontier tracking | low | blocked | Проработка (design): политика spec frontier: что берём (elicitation/sampling/roots/subscriptions), что нет | Политика отслеживания спеки + оценка неиспользуемых фич: elicitation, sampling, roots, subscriptions. Выход: что брать, что осознанно нет |
+| TR-11 | MCP spec frontier tracking | low | done | Проработка (design): политика spec frontier: что берём (elicitation/sampling/roots/subscriptions), что нет | Политика отслеживания спеки + оценка неиспользуемых фич: elicitation, sampling, roots, subscriptions. Выход: что брать, что осознанно нет |
 | TR-12 | Elicitation для confirm-флоу | medium | done | TR-11, DX-19 | Деструктивные ops (project_purge, bulk-delete) → elicitation-запрос юзеру вместо слепого выполнения. Синергия с auto-backup DX-19. Реализовано: src/core/elicitation.ts (elicitConfirm → accepted/declined/unsupported/error), wired в tasks_bulk_delete_permanent + knowledge_bulk_delete_permanent + project_purge; confirm:true backward-compat; fail-safe на error. Тесты: src/core/elicitation.spec.ts (9), tests/e2e-full/elicitation.test.ts (5) |
 | TR-13 | Upgrade-path e2e | low | done | DX-18 | Данные версии N → апгрейд пакета → читаются корректно. Ловит то, что schema-version не покроет |
 
@@ -1632,7 +1632,7 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 | Agent bundle (AA) | 9 | 7 | 0 | 0 | 2 | 0 |
 | Compact mode and agent instructions (AB) | 6 | 6 | 0 | 0 | 0 | 0 |
 | MCP contracts (AC) | 5 | 1 | 0 | 4 | 0 | 0 |
-| **Итого** | **428** | **0** | **0** | **411** | **16** | **1** |
+| **Итого** | **428** | **0** | **0** | **412** | **15** | **1** |
 
 > Примечание (2026-09-04): сводка приведена к фактическим строкам.
 > Примечание (2026-09-11): Этап M (AUD-01..18), Этап N (DX-10..29), Этап O
@@ -2247,3 +2247,4 @@ SK-001 (Skills CRUD) → WF-001 (Workflow DAG) → WF-002 (Executor)
 > Примечание (2026-11-13, UI-29 закрыт): relations server+UI; extract/update вне объёма.
 > Примечание (2026-11-13, сверка wip): Q-015/Q-016/Q-017/PH-016/DX-36/TR-40/TR-41 были смержены (#263/#267/#269–#273) и имели решения, но висели `in_progress`; статусы приведены к `done` без нового кода. Боевые прогоны, которые были «за контролёром» (docker push, live devcycle), не перепроверялись.
 > Примечание (2026-11-13, TR-10 закрыт): политика API в `docs/api-governance.md`; runtime-enforcement нет.
+> Примечание (2026-11-13, TR-11 закрыт): matrix frontier в `docs/mcp-spec-frontier.md`; completion/roots — отдельные решения.

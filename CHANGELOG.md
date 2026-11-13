@@ -8,6 +8,8 @@
 
 ### Added
 
+- TR-11: MCP spec frontier policy (taken/rejected features, adoption rules); 412/0/0/15/1.
+
 - TR-10: API governance policy (compatibility, error taxonomy, naming, deprecation); 411/0/0/17/1.
 
 - Backlog bookkeeping: seven already-merged items (Q-015/16/17, PH-016, DX-36, TR-40/41) moved from in_progress to done; 410/0/0/17/1.
