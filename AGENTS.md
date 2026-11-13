@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… INT-008 mock)
-**Текущая ветка:** feat/int-008-sync (от master c326ee8)
-**Текущий этап:** INT-008 mock-закрыт; blocked 5 counted (+CM-03b), deferred 1
-**Статус:** file-tracker sync, live YouTrack not wired; 429/423/0/0/5/1.
+**Session ID:** S-20261109-night (… DX-21 mock)
+**Текущая ветка:** feat/dx-21-package-managers (от master 67c4d11)
+**Текущий этап:** DX-21 mock-закрыт; blocked 4 counted (+CM-03b), deferred 1
+**Статус:** package-manager generator, release CI not wired; 429/424/0/0/4/1.
+
+### Сессия S-20261109-night (DX-21 mock)
+
+- `gen-package-managers.mjs`: Homebrew/Scoop, sha256/URL/platform validation; 5/5.
+- Ограничение: release CI не подключён, brew/scoop install не проверялись.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-2220-dx-21.md`.
 
 ### Сессия S-20261109-night (INT-008 mock)
 
