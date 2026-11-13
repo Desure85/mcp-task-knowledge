@@ -8,6 +8,8 @@
 
 ### Added
 
+- DX-12: `agent_bootstrap` self-integration tool (instructions, capabilities, filtered recommended tools); 2/2, mutation RED; API 207 tools; 416/0/0/11/1.
+
 - TR-09: capacity budgets (2x baseline, 500 ms caps, 5 s cold start, 3 GB RSS) in weekly scale-bench + documented 100k limit; gate CLI 3/3; 415/0/0/12/1.
 
 - SPEC-10: SDK upgrade policy (monthly sweep, review split, checklist, rollback); 414/0/0/13/1.

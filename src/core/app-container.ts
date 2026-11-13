@@ -78,6 +78,7 @@ import { registerDashboardWidgetTools } from '../register/dashboard-widgets.js';
 import { registerBoardTools } from '../register/board.js';
 import { registerAutomationTools } from '../register/automation.js';
 import { registerBriefingTools } from '../register/briefing.js';
+import { registerBootstrapTools } from '../register/bootstrap.js';
 import { registerMarkdownTools } from '../register/markdown.js';
 import { registerSessionTools } from '../register/session.js';
 import { registerBackupTools } from '../register/backup.js';
@@ -206,6 +207,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerBoardTools(ctx);
   registerAutomationTools(ctx);
   registerBriefingTools(ctx);
+  registerBootstrapTools(ctx);
   registerMarkdownTools(ctx);
   registerSessionTools(ctx);
   registerBackupTools(ctx);
