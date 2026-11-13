@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… DX-15 закрыт)
-**Текущая ветка:** feat/dx-15-server-capabilities (от master 2adf141)
-**Текущий этап:** DX-15 закрыт; blocked 10, deferred 1
-**Статус:** server_capabilities; 417/0/0/10/1; API 208 tools.
+**Session ID:** S-20261109-night (… MU-06 закрыт)
+**Текущая ветка:** feat/mu-06-temporal-graph-snapshots (от master bff3329)
+**Текущий этап:** MU-06 закрыт; blocked 9, deferred 1
+**Статус:** graph snapshots; 418/0/0/9/1.
+
+### Сессия S-20261109-night (MU-06)
+
+- Атомарная запись подтверждена; снимки раз в час, keep 24; политика LWW для нескольких процессов.
+- Ограничение: нет кросс-процессного lock/CRDT и restore-tool; снимки локальные, не git.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0820-mu-06.md`.
 
 ### Сессия S-20261109-night (DX-15)
 

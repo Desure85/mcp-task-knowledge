@@ -8,6 +8,8 @@
 
 ### Added
 
+- MU-06: temporal-graph snapshots (hourly, keep 24, atomic source) + documented multi-process LWW limit; 3/3, mutation RED; 418/0/0/9/1.
+
 - DX-15: `server_capabilities` manifest (version, MCP caps, env-flag domains, static limits); 2/2, mutation RED; API 208 tools; 417/0/0/10/1.
 
 - DX-12: `agent_bootstrap` self-integration tool (instructions, capabilities, filtered recommended tools); 2/2, mutation RED; API 207 tools; 416/0/0/11/1.
