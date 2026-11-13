@@ -1,0 +1,1067 @@
+[
+  {
+    "group": "agent",
+    "en": "Define a new AI agent with its model and behavior.",
+    "ru": "Определите нового ИИ-агента с моделью и поведением."
+  },
+  {
+    "group": "agent",
+    "en": "Failed to create agent",
+    "ru": "Не удалось создать агента"
+  },
+  {
+    "group": "agent",
+    "en": "e.g. triage-agent",
+    "ru": "напр. triage-agent"
+  },
+  {
+    "group": "agent",
+    "en": "Create Agent",
+    "ru": "Создать агента"
+  },
+  {
+    "group": "agent",
+    "en": "Agent \"{name}\" created",
+    "ru": "Агент «{name}» создан"
+  },
+  {
+    "group": "agent",
+    "en": "Delete agent \"{name}\"?",
+    "ru": "Удалить агента «{name}»?"
+  },
+  {
+    "group": "agent",
+    "en": "Agent deleted",
+    "ru": "Агент удалён"
+  },
+  {
+    "group": "agent",
+    "en": "What does this agent do?",
+    "ru": "Для чего предназначен этот агент?"
+  },
+  {
+    "group": "agent",
+    "en": "Model",
+    "ru": "Модель"
+  },
+  {
+    "group": "agent",
+    "en": "Agent saved",
+    "ru": "Агент сохранён"
+  },
+  {
+    "group": "app",
+    "en": "Loading Pipeline Studio...",
+    "ru": "Загрузка Pipeline Studio..."
+  },
+  {
+    "group": "app",
+    "en": "Pipeline Studio",
+    "ru": "Pipeline Studio"
+  },
+  {
+    "group": "blocks",
+    "en": "Cache",
+    "ru": "Кэш"
+  },
+  {
+    "group": "blocks",
+    "en": "Actions",
+    "ru": "Действия"
+  },
+  {
+    "group": "blocks",
+    "en": "Data",
+    "ru": "Данные"
+  },
+  {
+    "group": "blocks",
+    "en": "Logic",
+    "ru": "Логика"
+  },
+  {
+    "group": "blocks",
+    "en": "MCP",
+    "ru": "MCP"
+  },
+  {
+    "group": "blocks",
+    "en": "Triggers",
+    "ru": "Триггеры"
+  },
+  {
+    "group": "blocks",
+    "en": "Condition",
+    "ru": "Условие"
+  },
+  {
+    "group": "blocks",
+    "en": "Delay",
+    "ru": "Задержка"
+  },
+  {
+    "group": "blocks",
+    "en": "Error Handler",
+    "ru": "Обработчик ошибок"
+  },
+  {
+    "group": "blocks",
+    "en": "Filter",
+    "ru": "Фильтр"
+  },
+  {
+    "group": "blocks",
+    "en": "HTTP Request",
+    "ru": "HTTP-запрос"
+  },
+  {
+    "group": "blocks",
+    "en": "Knowledge Base",
+    "ru": "База знаний"
+  },
+  {
+    "group": "blocks",
+    "en": "LLM Call",
+    "ru": "Вызов LLM"
+  },
+  {
+    "group": "blocks",
+    "en": "Loop",
+    "ru": "Цикл"
+  },
+  {
+    "group": "blocks",
+    "en": "Manual Trigger",
+    "ru": "Ручной запуск"
+  },
+  {
+    "group": "blocks",
+    "en": "MCP Resource",
+    "ru": "MCP-ресурс"
+  },
+  {
+    "group": "blocks",
+    "en": "MCP Server",
+    "ru": "MCP-сервер"
+  },
+  {
+    "group": "blocks",
+    "en": "MCP Tool",
+    "ru": "MCP-инструмент"
+  },
+  {
+    "group": "blocks",
+    "en": "Merge",
+    "ru": "Объединение"
+  },
+  {
+    "group": "blocks",
+    "en": "Notify",
+    "ru": "Уведомление"
+  },
+  {
+    "group": "blocks",
+    "en": "Parallel",
+    "ru": "Параллель"
+  },
+  {
+    "group": "blocks",
+    "en": "Rate Limiter",
+    "ru": "Ограничитель запросов"
+  },
+  {
+    "group": "blocks",
+    "en": "Router",
+    "ru": "Маршрутизатор"
+  },
+  {
+    "group": "blocks",
+    "en": "Scheduler",
+    "ru": "Планировщик"
+  },
+  {
+    "group": "blocks",
+    "en": "Script",
+    "ru": "Скрипт"
+  },
+  {
+    "group": "blocks",
+    "en": "Sub-Pipeline",
+    "ru": "Подпайплайн"
+  },
+  {
+    "group": "blocks",
+    "en": "Template",
+    "ru": "Шаблон"
+  },
+  {
+    "group": "blocks",
+    "en": "Transform",
+    "ru": "Преобразование"
+  },
+  {
+    "group": "blocks",
+    "en": "Variable",
+    "ru": "Переменная"
+  },
+  {
+    "group": "blocks",
+    "en": "Webhook Trigger",
+    "ru": "Вебхук-триггер"
+  },
+  {
+    "group": "canvas",
+    "en": "Add Component",
+    "ru": "Добавить компонент"
+  },
+  {
+    "group": "canvas",
+    "en": "Copied to clipboard",
+    "ru": "Скопировано в буфер обмена"
+  },
+  {
+    "group": "canvas",
+    "en": "Delete Node",
+    "ru": "Удалить узел"
+  },
+  {
+    "group": "canvas",
+    "en": "Delete {count} nodes",
+    "ru": "Удалить {count} узлов"
+  },
+  {
+    "group": "canvas",
+    "en": "Fit View",
+    "ru": "Вписать в вид"
+  },
+  {
+    "group": "canvas",
+    "en": "No target",
+    "ru": "Нет цели"
+  },
+  {
+    "group": "canvas",
+    "en": "Pasted from clipboard",
+    "ru": "Вставлено из буфера обмена"
+  },
+  {
+    "group": "canvas",
+    "en": "Redo",
+    "ru": "Повторить"
+  },
+  {
+    "group": "canvas",
+    "en": "Undo",
+    "ru": "Отменить"
+  },
+  {
+    "group": "canvas",
+    "en": "Zoom In",
+    "ru": "Приблизить"
+  },
+  {
+    "group": "canvas",
+    "en": "Zoom Out",
+    "ru": "Отдалить"
+  },
+  {
+    "group": "common",
+    "en": "Back",
+    "ru": "Назад"
+  },
+  {
+    "group": "common",
+    "en": "Cancel",
+    "ru": "Отмена"
+  },
+  {
+    "group": "common",
+    "en": "Confirm",
+    "ru": "Подтвердить"
+  },
+  {
+    "group": "common",
+    "en": "Copied!",
+    "ru": "Скопировано!"
+  },
+  {
+    "group": "common",
+    "en": "Copy",
+    "ru": "Копировать"
+  },
+  {
+    "group": "common",
+    "en": "Create",
+    "ru": "Создать"
+  },
+  {
+    "group": "common",
+    "en": "Delete",
+    "ru": "Удалить"
+  },
+  {
+    "group": "common",
+    "en": "Description",
+    "ru": "Описание"
+  },
+  {
+    "group": "common",
+    "en": "Edit",
+    "ru": "Редактировать"
+  },
+  {
+    "group": "common",
+    "en": "Failed to create {entity}",
+    "ru": "Не удалось создать {entity}"
+  },
+  {
+    "group": "common",
+    "en": "Loading...",
+    "ru": "Загрузка..."
+  },
+  {
+    "group": "common",
+    "en": "More",
+    "ru": "Ещё"
+  },
+  {
+    "group": "common",
+    "en": "Name",
+    "ru": "Название"
+  },
+  {
+    "group": "common",
+    "en": "New",
+    "ru": "Создать"
+  },
+  {
+    "group": "common",
+    "en": "No data",
+    "ru": "Нет данных"
+  },
+  {
+    "group": "common",
+    "en": "or",
+    "ru": "или"
+  },
+  {
+    "group": "common",
+    "en": "or create manually",
+    "ru": "или создать вручную"
+  },
+  {
+    "group": "common",
+    "en": "Plugins",
+    "ru": "Плагины"
+  },
+  {
+    "group": "common",
+    "en": "Save",
+    "ru": "Сохранить"
+  },
+  {
+    "group": "common",
+    "en": "Search...",
+    "ru": "Поиск..."
+  },
+  {
+    "group": "common",
+    "en": "Settings",
+    "ru": "Настройки"
+  },
+  {
+    "group": "common",
+    "en": "View all",
+    "ru": "Показать все"
+  },
+  {
+    "group": "dashboard",
+    "en": "Agents",
+    "ru": "Агенты"
+  },
+  {
+    "group": "dashboard",
+    "en": "{count} agents",
+    "ru": "{count} агентов"
+  },
+  {
+    "group": "dashboard",
+    "en": "{count} artifacts",
+    "ru": "{count} артефактов"
+  },
+  {
+    "group": "dashboard",
+    "en": "Connections",
+    "ru": "Связи"
+  },
+  {
+    "group": "dashboard",
+    "en": "Create Agent",
+    "ru": "Создать агента"
+  },
+  {
+    "group": "dashboard",
+    "en": "Create Pipeline",
+    "ru": "Создать пайплайн"
+  },
+  {
+    "group": "dashboard",
+    "en": "No agents yet. Create one to get started.",
+    "ru": "Пока нет агентов. Создайте первого."
+  },
+  {
+    "group": "dashboard",
+    "en": "No description",
+    "ru": "Нет описания"
+  },
+  {
+    "group": "dashboard",
+    "en": "No pipelines yet. Create one to get started.",
+    "ru": "Пока нет пайплайнов. Создайте первый."
+  },
+  {
+    "group": "dashboard",
+    "en": "Pipelines",
+    "ru": "Пайплайны"
+  },
+  {
+    "group": "dashboard",
+    "en": "Skills",
+    "ru": "Навыки"
+  },
+  {
+    "group": "dashboard",
+    "en": "{count} steps",
+    "ru": "{count} шагов"
+  },
+  {
+    "group": "dashboard",
+    "en": "Manage your AI agent pipelines and agents",
+    "ru": "Управление ИИ-агентами и пайплайнами"
+  },
+  {
+    "group": "dashboard",
+    "en": "Dashboard",
+    "ru": "Главная"
+  },
+  {
+    "group": "dashboard",
+    "en": "View All →",
+    "ru": "Показать все →"
+  },
+  {
+    "group": "draft",
+    "en": "Create a new scratchpad for notes and research.",
+    "ru": "Создайте новый блокнот для заметок и исследований."
+  },
+  {
+    "group": "draft",
+    "en": "Failed to create draft",
+    "ru": "Не удалось создать черновик"
+  },
+  {
+    "group": "draft",
+    "en": "Create Draft",
+    "ru": "Создать черновик"
+  },
+  {
+    "group": "draft",
+    "en": "Draft \"{title}\" created",
+    "ru": "Черновик «{title}» создан"
+  },
+  {
+    "group": "importExport",
+    "en": "Conflict Strategy",
+    "ru": "Стратегия конфликтов"
+  },
+  {
+    "group": "importExport",
+    "en": "Export",
+    "ru": "Экспорт"
+  },
+  {
+    "group": "importExport",
+    "en": "Export Data",
+    "ru": "Экспорт данных"
+  },
+  {
+    "group": "importExport",
+    "en": "Import",
+    "ru": "Импорт"
+  },
+  {
+    "group": "importExport",
+    "en": "Import Data",
+    "ru": "Импорт данных"
+  },
+  {
+    "group": "importExport",
+    "en": "Overwrite existing",
+    "ru": "Перезаписать существующие"
+  },
+  {
+    "group": "importExport",
+    "en": "Skip existing",
+    "ru": "Пропустить существующие"
+  },
+  {
+    "group": "locale",
+    "en": "English",
+    "ru": "English"
+  },
+  {
+    "group": "locale",
+    "en": "Русский",
+    "ru": "Русский"
+  },
+  {
+    "group": "locale",
+    "en": "Switch language",
+    "ru": "Сменить язык"
+  },
+  {
+    "group": "mobile",
+    "en": "Scratchpad notes and research",
+    "ru": "Заметки и исследования"
+  },
+  {
+    "group": "mobile",
+    "en": "Run history and metrics",
+    "ru": "История запусков и метрики"
+  },
+  {
+    "group": "mobile",
+    "en": "More",
+    "ru": "Ещё"
+  },
+  {
+    "group": "mobile",
+    "en": "Access additional sections and tools.",
+    "ru": "Доступ к дополнительным разделам и инструментам."
+  },
+  {
+    "group": "mobile",
+    "en": "Application settings",
+    "ru": "Настройки приложения"
+  },
+  {
+    "group": "mobile",
+    "en": "Pipeline templates gallery",
+    "ru": "Галерея шаблонов пайплайнов"
+  },
+  {
+    "group": "mobile",
+    "en": "Theme",
+    "ru": "Тема"
+  },
+  {
+    "group": "mobile",
+    "en": "HTTP webhook management",
+    "ru": "Управление HTTP-вебхуками"
+  },
+  {
+    "group": "observability",
+    "en": "All time",
+    "ru": "За всё время"
+  },
+  {
+    "group": "observability",
+    "en": "Avg Duration",
+    "ru": "Средняя длительность"
+  },
+  {
+    "group": "observability",
+    "en": "Error Rate",
+    "ru": "Доля ошибок"
+  },
+  {
+    "group": "observability",
+    "en": "Last 24 hours",
+    "ru": "За 24 часа"
+  },
+  {
+    "group": "observability",
+    "en": "Last 30 days",
+    "ru": "За 30 дней"
+  },
+  {
+    "group": "observability",
+    "en": "Last 7 days",
+    "ru": "За 7 дней"
+  },
+  {
+    "group": "observability",
+    "en": "Success Rate",
+    "ru": "Успешность"
+  },
+  {
+    "group": "observability",
+    "en": "Observability",
+    "ru": "Мониторинг"
+  },
+  {
+    "group": "observability",
+    "en": "Total Runs",
+    "ru": "Всего запусков"
+  },
+  {
+    "group": "pipeline",
+    "en": "Auto Layout",
+    "ru": "Авто-расположение"
+  },
+  {
+    "group": "pipeline",
+    "en": "Define a new agent pipeline with its orchestration strategy.",
+    "ru": "Определите новый пайплайн агента со стратегией оркестрации."
+  },
+  {
+    "group": "pipeline",
+    "en": "Failed to create pipeline",
+    "ru": "Не удалось создать пайплайн"
+  },
+  {
+    "group": "pipeline",
+    "en": "e.g. customer-support",
+    "ru": "напр. customer-support"
+  },
+  {
+    "group": "pipeline",
+    "en": "Create Pipeline",
+    "ru": "Создать пайплайн"
+  },
+  {
+    "group": "pipeline",
+    "en": "Pipeline \"{name}\" created",
+    "ru": "Пайплайн «{name}» создан"
+  },
+  {
+    "group": "pipeline",
+    "en": "Custom",
+    "ru": "Пользовательский"
+  },
+  {
+    "group": "pipeline",
+    "en": "Delete pipeline \"{name}\"?",
+    "ru": "Удалить пайплайн «{name}»?"
+  },
+  {
+    "group": "pipeline",
+    "en": "Pipeline deleted",
+    "ru": "Пайплайн удалён"
+  },
+  {
+    "group": "pipeline",
+    "en": "What does this pipeline do?",
+    "ru": "Для чего предназначен этот пайплайн?"
+  },
+  {
+    "group": "pipeline",
+    "en": "History",
+    "ru": "История"
+  },
+  {
+    "group": "pipeline",
+    "en": "Pipeline name...",
+    "ru": "Название пайплайна..."
+  },
+  {
+    "group": "pipeline",
+    "en": "Orchestrator Type",
+    "ru": "Тип оркестратора"
+  },
+  {
+    "group": "pipeline",
+    "en": "Parallel",
+    "ru": "Параллельный"
+  },
+  {
+    "group": "pipeline",
+    "en": "Router",
+    "ru": "Маршрутизатор"
+  },
+  {
+    "group": "pipeline",
+    "en": "Run Pipeline",
+    "ru": "Запустить пайплайн"
+  },
+  {
+    "group": "pipeline",
+    "en": "Pipeline execution failed",
+    "ru": "Ошибка выполнения пайплайна"
+  },
+  {
+    "group": "pipeline",
+    "en": "Pipeline completed successfully",
+    "ru": "Пайплайн успешно завершён"
+  },
+  {
+    "group": "pipeline",
+    "en": "Running...",
+    "ru": "Выполняется..."
+  },
+  {
+    "group": "pipeline",
+    "en": "Pipeline saved",
+    "ru": "Пайплайн сохранён"
+  },
+  {
+    "group": "pipeline",
+    "en": "Sequential",
+    "ru": "Последовательный"
+  },
+  {
+    "group": "pipeline",
+    "en": "Start from Template",
+    "ru": "Начать с шаблона"
+  },
+  {
+    "group": "pipeline",
+    "en": "Choose a ready-made pipeline from the template gallery",
+    "ru": "Выберите готовый пайплайн из галереи шаблонов"
+  },
+  {
+    "group": "pipeline",
+    "en": "Validate",
+    "ru": "Проверить"
+  },
+  {
+    "group": "playground",
+    "en": "Error",
+    "ru": "Ошибка"
+  },
+  {
+    "group": "playground",
+    "en": "Input",
+    "ru": "Ввод"
+  },
+  {
+    "group": "playground",
+    "en": "Output",
+    "ru": "Вывод"
+  },
+  {
+    "group": "playground",
+    "en": "Run Test",
+    "ru": "Запустить тест"
+  },
+  {
+    "group": "playground",
+    "en": "Running...",
+    "ru": "Выполняется..."
+  },
+  {
+    "group": "playground",
+    "en": "Success",
+    "ru": "Успех"
+  },
+  {
+    "group": "playground",
+    "en": "Timeout",
+    "ru": "Тайм-аут"
+  },
+  {
+    "group": "playground",
+    "en": "Block Playground",
+    "ru": "Площадка блока"
+  },
+  {
+    "group": "playground",
+    "en": "Variables",
+    "ru": "Переменные"
+  },
+  {
+    "group": "settingsPage",
+    "en": "AI Provider",
+    "ru": "Провайдер ИИ"
+  },
+  {
+    "group": "settingsPage",
+    "en": "CLI Tools",
+    "ru": "CLI-инструменты"
+  },
+  {
+    "group": "settingsPage",
+    "en": "Go Runtime",
+    "ru": "Go Runtime"
+  },
+  {
+    "group": "settingsPage",
+    "en": "Settings",
+    "ru": "Настройки"
+  },
+  {
+    "group": "sidebar",
+    "en": "Agents",
+    "ru": "Агенты"
+  },
+  {
+    "group": "sidebar",
+    "en": "Dashboard",
+    "ru": "Главная"
+  },
+  {
+    "group": "sidebar",
+    "en": "Delete",
+    "ru": "Удалить"
+  },
+  {
+    "group": "sidebar",
+    "en": "Discover Project",
+    "ru": "Обнаружить проект"
+  },
+  {
+    "group": "sidebar",
+    "en": "Drafts",
+    "ru": "Черновики"
+  },
+  {
+    "group": "sidebar",
+    "en": "Monitoring",
+    "ru": "Мониторинг"
+  },
+  {
+    "group": "sidebar",
+    "en": "+{count} more...",
+    "ru": "+ещё {count}..."
+  },
+  {
+    "group": "sidebar",
+    "en": "New agent",
+    "ru": "Новый агент"
+  },
+  {
+    "group": "sidebar",
+    "en": "New draft",
+    "ru": "Новый черновик"
+  },
+  {
+    "group": "sidebar",
+    "en": "New pipeline",
+    "ru": "Новый пайплайн"
+  },
+  {
+    "group": "sidebar",
+    "en": "New skill",
+    "ru": "Новый навык"
+  },
+  {
+    "group": "sidebar",
+    "en": "No drafts yet",
+    "ru": "Пока нет черновиков"
+  },
+  {
+    "group": "sidebar",
+    "en": "No skills yet",
+    "ru": "Пока нет навыков"
+  },
+  {
+    "group": "sidebar",
+    "en": "Pipeline Templates",
+    "ru": "Шаблоны пайплайнов"
+  },
+  {
+    "group": "sidebar",
+    "en": "Pipelines",
+    "ru": "Пайплайны"
+  },
+  {
+    "group": "sidebar",
+    "en": "Settings",
+    "ru": "Настройки"
+  },
+  {
+    "group": "sidebar",
+    "en": "Skills",
+    "ru": "Навыки"
+  },
+  {
+    "group": "sidebar",
+    "en": "Templates",
+    "ru": "Шаблоны"
+  },
+  {
+    "group": "sidebar",
+    "en": "Webhooks",
+    "ru": "Вебхуки"
+  },
+  {
+    "group": "skill",
+    "en": "Define a new reusable skill with instructions and trigger conditions.",
+    "ru": "Определите новый многократно используемый навык с инструкциями и условиями активации."
+  },
+  {
+    "group": "skill",
+    "en": "Failed to create skill",
+    "ru": "Не удалось создать навык"
+  },
+  {
+    "group": "skill",
+    "en": "e.g. classify-intent",
+    "ru": "напр. classify-intent"
+  },
+  {
+    "group": "skill",
+    "en": "Create Skill",
+    "ru": "Создать навык"
+  },
+  {
+    "group": "skill",
+    "en": "Skill \"{name}\" created",
+    "ru": "Навык «{name}» создан"
+  },
+  {
+    "group": "skill",
+    "en": "Delete skill \"{name}\"?",
+    "ru": "Удалить навык «{name}»?"
+  },
+  {
+    "group": "skill",
+    "en": "Skill deleted",
+    "ru": "Навык удалён"
+  },
+  {
+    "group": "skill",
+    "en": "What does this skill do?",
+    "ru": "Для чего предназначен этот навык?"
+  },
+  {
+    "group": "skill",
+    "en": "Instructions",
+    "ru": "Инструкции"
+  },
+  {
+    "group": "skill",
+    "en": "Step-by-step instructions the agent should follow...",
+    "ru": "Пошаговые инструкции для агента..."
+  },
+  {
+    "group": "skill",
+    "en": "Skill saved",
+    "ru": "Навык сохранён"
+  },
+  {
+    "group": "template",
+    "en": "All",
+    "ru": "Все"
+  },
+  {
+    "group": "template",
+    "en": "Automation",
+    "ru": "Автоматизация"
+  },
+  {
+    "group": "template",
+    "en": "Code",
+    "ru": "Код"
+  },
+  {
+    "group": "template",
+    "en": "Data",
+    "ru": "Данные"
+  },
+  {
+    "group": "template",
+    "en": "LLM",
+    "ru": "LLM"
+  },
+  {
+    "group": "template",
+    "en": "Multi-Agent",
+    "ru": "Мультиагент"
+  },
+  {
+    "group": "template",
+    "en": "RAG",
+    "ru": "RAG"
+  },
+  {
+    "group": "template",
+    "en": "Template Gallery",
+    "ru": "Галерея шаблонов"
+  },
+  {
+    "group": "template",
+    "en": "Use Template",
+    "ru": "Использовать шаблон"
+  },
+  {
+    "group": "template",
+    "en": "Start from Template",
+    "ru": "Начать с шаблона"
+  },
+  {
+    "group": "theme",
+    "en": "Dark",
+    "ru": "Тёмная"
+  },
+  {
+    "group": "theme",
+    "en": "Light",
+    "ru": "Светлая"
+  },
+  {
+    "group": "theme",
+    "en": "System",
+    "ru": "Системная"
+  },
+  {
+    "group": "theme",
+    "en": "Toggle theme",
+    "ru": "Переключить тему"
+  },
+  {
+    "group": "version",
+    "en": "Compare Versions",
+    "ru": "Сравнить версии"
+  },
+  {
+    "group": "version",
+    "en": "Version History",
+    "ru": "История версий"
+  },
+  {
+    "group": "version",
+    "en": "No versions",
+    "ru": "Нет версий"
+  },
+  {
+    "group": "version",
+    "en": "Rollback",
+    "ru": "Откатить"
+  },
+  {
+    "group": "webhook",
+    "en": "Active",
+    "ru": "Активен"
+  },
+  {
+    "group": "webhook",
+    "en": "Create Webhook",
+    "ru": "Создать вебхук"
+  },
+  {
+    "group": "webhook",
+    "en": "Deliveries",
+    "ru": "Доставки"
+  },
+  {
+    "group": "webhook",
+    "en": "Inactive",
+    "ru": "Неактивен"
+  },
+  {
+    "group": "webhook",
+    "en": "Secret",
+    "ru": "Секрет"
+  },
+  {
+    "group": "webhook",
+    "en": "Webhooks",
+    "ru": "Вебхуки"
+  },
+  {
+    "group": "webhook",
+    "en": "Webhook URL",
+    "ru": "URL вебхука"
+  }
+]

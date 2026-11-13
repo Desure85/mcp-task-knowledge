@@ -64,6 +64,7 @@
     "bundle": "node scripts/gen-bundle.mjs",
     "bundle:check": "node scripts/gen-bundle.mjs --check",
     "packages:generate": "node scripts/gen-package-managers.mjs",
+    "fixtures:field-eval": "node scripts/build-field-eval-fixtures.mjs",
     "backlog:check": "node scripts/check-backlog.mjs",
     "devcycle": "node scripts/devcycle.mjs",
     "agent:stats": "node scripts/agent-stats.mjs --days 1",
