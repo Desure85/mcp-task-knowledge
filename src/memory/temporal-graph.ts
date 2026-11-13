@@ -23,7 +23,8 @@
  *   const facts = graph.queryAtTime('2026-06-01');
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { writeFileAtomicSync } from '../fs.js';
 import { randomUUID } from 'node:crypto';
 import { childLogger } from '../core/logger.js';
@@ -134,12 +135,29 @@ interface GraphStorage {
 
 // ─── TemporalGraph ──────────────────────────────────────────────────
 
+export interface SnapshotOptions {
+  /** Snapshot directory; default <storagePath>.snapshots. */
+  dir?: string;
+  /** Minimum interval between snapshots; default 1 hour. 0 = every save. */
+  intervalMs?: number;
+  /** Number of snapshots to keep; default 24. */
+  keep?: number;
+}
+
 export class TemporalGraph {
   private storage: GraphStorage;
   private readonly storagePath: string;
+  private readonly snapshotDir: string;
+  private readonly snapshotIntervalMs: number;
+  private readonly snapshotKeep: number;
+  private lastSnapshotMs = 0;
+  private snapshotSeq = 0;
 
-  constructor(options: { storagePath: string }) {
+  constructor(options: { storagePath: string; snapshot?: SnapshotOptions }) {
     this.storagePath = options.storagePath;
+    this.snapshotDir = options.snapshot?.dir ?? `${options.storagePath}.snapshots`;
+    this.snapshotIntervalMs = options.snapshot?.intervalMs ?? 60 * 60 * 1000;
+    this.snapshotKeep = Math.max(1, options.snapshot?.keep ?? 24);
     this.storage = { facts: {}, version: 1 };
     this.load();
   }
@@ -164,8 +182,36 @@ export class TemporalGraph {
   private save(): void {
     try {
       writeFileAtomicSync(this.storagePath, JSON.stringify(this.storage, null, 2));
+      this.maybeSnapshot();
     } catch (e) {
       log.error({ error: e, path: this.storagePath }, 'failed to save temporal graph');
+    }
+  }
+
+  /** MU-06: periodic copy of the whole graph, bounded by keep; never blocks a write. */
+  private maybeSnapshot(): void {
+    const now = Date.now();
+    if (now - this.lastSnapshotMs < this.snapshotIntervalMs) return;
+    try {
+      mkdirSync(this.snapshotDir, { recursive: true });
+      const stamp = new Date(now).toISOString().replace(/[:.]/g, '-');
+      const name = `temporal-graph-${stamp}-${String(++this.snapshotSeq).padStart(3, '0')}.json`;
+      const content = readFileSync(this.storagePath, 'utf8');
+      writeFileAtomicSync(join(this.snapshotDir, name), content);
+      this.lastSnapshotMs = now;
+      this.pruneSnapshots();
+    } catch (e) {
+      log.warn({ error: e, path: this.snapshotDir }, 'temporal graph snapshot failed');
+    }
+  }
+
+  private pruneSnapshots(): void {
+    const files = readdirSync(this.snapshotDir)
+      .filter((f) => f.startsWith('temporal-graph-') && f.endsWith('.json'))
+      .map((f) => ({ f, mtime: statSync(join(this.snapshotDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime || b.f.localeCompare(a.f));
+    for (const { f } of files.slice(this.snapshotKeep)) {
+      try { rmSync(join(this.snapshotDir, f), { force: true }); } catch { /* best effort */ }
     }
   }
 
