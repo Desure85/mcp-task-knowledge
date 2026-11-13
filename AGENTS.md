@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… DX-21 mock)
-**Текущая ветка:** feat/dx-21-package-managers (от master 67c4d11)
-**Текущий этап:** DX-21 mock-закрыт; blocked 4 counted (+CM-03b), deferred 1
-**Статус:** package-manager generator, release CI not wired; 429/424/0/0/4/1.
+**Session ID:** S-20261109-night (KE-06 partial)
+**Текущая ветка:** feat/ke-06-fixture-builder (от master a9e5c58)
+**Текущий этап:** KE-06 остаётся blocked; builder + 213×2 fixtures
+**Статус:** 5 blocked counted? нет: 4 counted + CM-03b, deferred 1; KE-06 сузился до 6 языков/моделей.
+
+### Сессия S-20261109-night (KE-06 partial)
+
+- Source-agnostic JSON fixture builder + pipeline-studio 213×en/ru; partial:true, KE-06 не закрыт.
+- Ограничение: 6 языков и Gemma/Granite отсутствуют; PHP common/messages не поддержан.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-2320-ke-06-fixtures.md`.
 
 ### Сессия S-20261109-night (DX-21 mock)
 

@@ -1,0 +1,1280 @@
+[
+  {
+    "name": "agent.createDescription",
+    "desc": "Define a new AI agent with its model and behavior.",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.createFailed",
+    "desc": "Failed to create agent",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.createPlaceholder",
+    "desc": "e.g. triage-agent",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.createTitle",
+    "desc": "Create Agent",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.created",
+    "desc": "Agent \"{name}\" created",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.deleteConfirm",
+    "desc": "Delete agent \"{name}\"?",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.deleted",
+    "desc": "Agent deleted",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.descriptionPlaceholder",
+    "desc": "What does this agent do?",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.model",
+    "desc": "Model",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "agent.saved",
+    "desc": "Agent saved",
+    "type": "ui-string",
+    "group": "agent"
+  },
+  {
+    "name": "app.loadingApp",
+    "desc": "Loading Pipeline Studio...",
+    "type": "ui-string",
+    "group": "app"
+  },
+  {
+    "name": "app.title",
+    "desc": "Pipeline Studio",
+    "type": "ui-string",
+    "group": "app"
+  },
+  {
+    "name": "blocks.cache",
+    "desc": "Cache",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.categories.actions",
+    "desc": "Actions",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.categories.data",
+    "desc": "Data",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.categories.logic",
+    "desc": "Logic",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.categories.mcp",
+    "desc": "MCP",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.categories.triggers",
+    "desc": "Triggers",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.condition",
+    "desc": "Condition",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.delay",
+    "desc": "Delay",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.errorHandler",
+    "desc": "Error Handler",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.filter",
+    "desc": "Filter",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.http",
+    "desc": "HTTP Request",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.knowledge",
+    "desc": "Knowledge Base",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.llmCall",
+    "desc": "LLM Call",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.loop",
+    "desc": "Loop",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.manualTrigger",
+    "desc": "Manual Trigger",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.mcpResource",
+    "desc": "MCP Resource",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.mcpServer",
+    "desc": "MCP Server",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.mcpTool",
+    "desc": "MCP Tool",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.merge",
+    "desc": "Merge",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.notify",
+    "desc": "Notify",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.parallel",
+    "desc": "Parallel",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.rateLimiter",
+    "desc": "Rate Limiter",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.router",
+    "desc": "Router",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.schedulerTrigger",
+    "desc": "Scheduler",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.script",
+    "desc": "Script",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.subPipeline",
+    "desc": "Sub-Pipeline",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.template",
+    "desc": "Template",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.transform",
+    "desc": "Transform",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.variable",
+    "desc": "Variable",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "blocks.webhookTrigger",
+    "desc": "Webhook Trigger",
+    "type": "ui-string",
+    "group": "blocks"
+  },
+  {
+    "name": "canvas.addComponent",
+    "desc": "Add Component",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.copied",
+    "desc": "Copied to clipboard",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.deleteNode",
+    "desc": "Delete Node",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.deleteNodes",
+    "desc": "Delete {count} nodes",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.fitView",
+    "desc": "Fit View",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.noTarget",
+    "desc": "No target",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.pasted",
+    "desc": "Pasted from clipboard",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.redo",
+    "desc": "Redo",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.undo",
+    "desc": "Undo",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.zoomIn",
+    "desc": "Zoom In",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "canvas.zoomOut",
+    "desc": "Zoom Out",
+    "type": "ui-string",
+    "group": "canvas"
+  },
+  {
+    "name": "common.back",
+    "desc": "Back",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.cancel",
+    "desc": "Cancel",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.confirm",
+    "desc": "Confirm",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.copied",
+    "desc": "Copied!",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.copy",
+    "desc": "Copy",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.create",
+    "desc": "Create",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.delete",
+    "desc": "Delete",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.description",
+    "desc": "Description",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.edit",
+    "desc": "Edit",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.failedToCreate",
+    "desc": "Failed to create {entity}",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.loading",
+    "desc": "Loading...",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.more",
+    "desc": "More",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.name",
+    "desc": "Name",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.new",
+    "desc": "New",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.noData",
+    "desc": "No data",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.or",
+    "desc": "or",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.orCreateManually",
+    "desc": "or create manually",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.plugins",
+    "desc": "Plugins",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.save",
+    "desc": "Save",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.search",
+    "desc": "Search...",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.settings",
+    "desc": "Settings",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "common.viewAll",
+    "desc": "View all",
+    "type": "ui-string",
+    "group": "common"
+  },
+  {
+    "name": "dashboard.agents",
+    "desc": "Agents",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.agentsCount",
+    "desc": "{count} agents",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.artifactsCount",
+    "desc": "{count} artifacts",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.connections",
+    "desc": "Connections",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.createAgent",
+    "desc": "Create Agent",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.createPipeline",
+    "desc": "Create Pipeline",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.noAgents",
+    "desc": "No agents yet. Create one to get started.",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.noDescription",
+    "desc": "No description",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.noPipelines",
+    "desc": "No pipelines yet. Create one to get started.",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.pipelines",
+    "desc": "Pipelines",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.skills",
+    "desc": "Skills",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.stepsCount",
+    "desc": "{count} steps",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.subtitle",
+    "desc": "Manage your AI agent pipelines and agents",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.title",
+    "desc": "Dashboard",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "dashboard.viewAll",
+    "desc": "View All →",
+    "type": "ui-string",
+    "group": "dashboard"
+  },
+  {
+    "name": "draft.createDescription",
+    "desc": "Create a new scratchpad for notes and research.",
+    "type": "ui-string",
+    "group": "draft"
+  },
+  {
+    "name": "draft.createFailed",
+    "desc": "Failed to create draft",
+    "type": "ui-string",
+    "group": "draft"
+  },
+  {
+    "name": "draft.createTitle",
+    "desc": "Create Draft",
+    "type": "ui-string",
+    "group": "draft"
+  },
+  {
+    "name": "draft.created",
+    "desc": "Draft \"{title}\" created",
+    "type": "ui-string",
+    "group": "draft"
+  },
+  {
+    "name": "importExport.conflictStrategy",
+    "desc": "Conflict Strategy",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "importExport.export",
+    "desc": "Export",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "importExport.exportTitle",
+    "desc": "Export Data",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "importExport.import",
+    "desc": "Import",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "importExport.importTitle",
+    "desc": "Import Data",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "importExport.overwrite",
+    "desc": "Overwrite existing",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "importExport.skip",
+    "desc": "Skip existing",
+    "type": "ui-string",
+    "group": "importExport"
+  },
+  {
+    "name": "locale.en",
+    "desc": "English",
+    "type": "ui-string",
+    "group": "locale"
+  },
+  {
+    "name": "locale.ru",
+    "desc": "Русский",
+    "type": "ui-string",
+    "group": "locale"
+  },
+  {
+    "name": "locale.switchLanguage",
+    "desc": "Switch language",
+    "type": "ui-string",
+    "group": "locale"
+  },
+  {
+    "name": "mobile.draftsDescription",
+    "desc": "Scratchpad notes and research",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.monitoringDescription",
+    "desc": "Run history and metrics",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.more",
+    "desc": "More",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.moreDescription",
+    "desc": "Access additional sections and tools.",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.settingsDescription",
+    "desc": "Application settings",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.templatesDescription",
+    "desc": "Pipeline templates gallery",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.theme",
+    "desc": "Theme",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "mobile.webhooksDescription",
+    "desc": "HTTP webhook management",
+    "type": "ui-string",
+    "group": "mobile"
+  },
+  {
+    "name": "observability.all",
+    "desc": "All time",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.avgDuration",
+    "desc": "Avg Duration",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.errorRate",
+    "desc": "Error Rate",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.last24h",
+    "desc": "Last 24 hours",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.last30d",
+    "desc": "Last 30 days",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.last7d",
+    "desc": "Last 7 days",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.successRate",
+    "desc": "Success Rate",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.title",
+    "desc": "Observability",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "observability.totalRuns",
+    "desc": "Total Runs",
+    "type": "ui-string",
+    "group": "observability"
+  },
+  {
+    "name": "pipeline.autoLayout",
+    "desc": "Auto Layout",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.createDescription",
+    "desc": "Define a new agent pipeline with its orchestration strategy.",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.createFailed",
+    "desc": "Failed to create pipeline",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.createPlaceholder",
+    "desc": "e.g. customer-support",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.createTitle",
+    "desc": "Create Pipeline",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.created",
+    "desc": "Pipeline \"{name}\" created",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.custom",
+    "desc": "Custom",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.deleteConfirm",
+    "desc": "Delete pipeline \"{name}\"?",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.deleted",
+    "desc": "Pipeline deleted",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.descriptionPlaceholder",
+    "desc": "What does this pipeline do?",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.history",
+    "desc": "History",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.namePlaceholder",
+    "desc": "Pipeline name...",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.orchestratorType",
+    "desc": "Orchestrator Type",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.parallel",
+    "desc": "Parallel",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.router",
+    "desc": "Router",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.run",
+    "desc": "Run Pipeline",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.runFailed",
+    "desc": "Pipeline execution failed",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.runSuccess",
+    "desc": "Pipeline completed successfully",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.running",
+    "desc": "Running...",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.saved",
+    "desc": "Pipeline saved",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.sequential",
+    "desc": "Sequential",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.startFromTemplate",
+    "desc": "Start from Template",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.templateDescription",
+    "desc": "Choose a ready-made pipeline from the template gallery",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "pipeline.validate",
+    "desc": "Validate",
+    "type": "ui-string",
+    "group": "pipeline"
+  },
+  {
+    "name": "playground.error",
+    "desc": "Error",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.input",
+    "desc": "Input",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.output",
+    "desc": "Output",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.run",
+    "desc": "Run Test",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.running",
+    "desc": "Running...",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.success",
+    "desc": "Success",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.timeout",
+    "desc": "Timeout",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.title",
+    "desc": "Block Playground",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "playground.variables",
+    "desc": "Variables",
+    "type": "ui-string",
+    "group": "playground"
+  },
+  {
+    "name": "settingsPage.aiProvider",
+    "desc": "AI Provider",
+    "type": "ui-string",
+    "group": "settingsPage"
+  },
+  {
+    "name": "settingsPage.cliTools",
+    "desc": "CLI Tools",
+    "type": "ui-string",
+    "group": "settingsPage"
+  },
+  {
+    "name": "settingsPage.goRuntime",
+    "desc": "Go Runtime",
+    "type": "ui-string",
+    "group": "settingsPage"
+  },
+  {
+    "name": "settingsPage.title",
+    "desc": "Settings",
+    "type": "ui-string",
+    "group": "settingsPage"
+  },
+  {
+    "name": "sidebar.agents",
+    "desc": "Agents",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.dashboard",
+    "desc": "Dashboard",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.delete",
+    "desc": "Delete",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.discoverProject",
+    "desc": "Discover Project",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.drafts",
+    "desc": "Drafts",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.monitoring",
+    "desc": "Monitoring",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.moreCount",
+    "desc": "+{count} more...",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.newAgent",
+    "desc": "New agent",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.newDraft",
+    "desc": "New draft",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.newPipeline",
+    "desc": "New pipeline",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.newSkill",
+    "desc": "New skill",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.noDraftsYet",
+    "desc": "No drafts yet",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.noSkillsYet",
+    "desc": "No skills yet",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.pipelineTemplates",
+    "desc": "Pipeline Templates",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.pipelines",
+    "desc": "Pipelines",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.settings",
+    "desc": "Settings",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.skills",
+    "desc": "Skills",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.templates",
+    "desc": "Templates",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "sidebar.webhooks",
+    "desc": "Webhooks",
+    "type": "ui-string",
+    "group": "sidebar"
+  },
+  {
+    "name": "skill.createDescription",
+    "desc": "Define a new reusable skill with instructions and trigger conditions.",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.createFailed",
+    "desc": "Failed to create skill",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.createPlaceholder",
+    "desc": "e.g. classify-intent",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.createTitle",
+    "desc": "Create Skill",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.created",
+    "desc": "Skill \"{name}\" created",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.deleteConfirm",
+    "desc": "Delete skill \"{name}\"?",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.deleted",
+    "desc": "Skill deleted",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.descriptionPlaceholder",
+    "desc": "What does this skill do?",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.instructions",
+    "desc": "Instructions",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.instructionsPlaceholder",
+    "desc": "Step-by-step instructions the agent should follow...",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "skill.saved",
+    "desc": "Skill saved",
+    "type": "ui-string",
+    "group": "skill"
+  },
+  {
+    "name": "template.categories.all",
+    "desc": "All",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.categories.automation",
+    "desc": "Automation",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.categories.code",
+    "desc": "Code",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.categories.data",
+    "desc": "Data",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.categories.llm",
+    "desc": "LLM",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.categories.multiAgent",
+    "desc": "Multi-Agent",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.categories.rag",
+    "desc": "RAG",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.gallery",
+    "desc": "Template Gallery",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.instantiate",
+    "desc": "Use Template",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "template.startFromTemplate",
+    "desc": "Start from Template",
+    "type": "ui-string",
+    "group": "template"
+  },
+  {
+    "name": "theme.dark",
+    "desc": "Dark",
+    "type": "ui-string",
+    "group": "theme"
+  },
+  {
+    "name": "theme.light",
+    "desc": "Light",
+    "type": "ui-string",
+    "group": "theme"
+  },
+  {
+    "name": "theme.system",
+    "desc": "System",
+    "type": "ui-string",
+    "group": "theme"
+  },
+  {
+    "name": "theme.toggleTheme",
+    "desc": "Toggle theme",
+    "type": "ui-string",
+    "group": "theme"
+  },
+  {
+    "name": "version.diff",
+    "desc": "Compare Versions",
+    "type": "ui-string",
+    "group": "version"
+  },
+  {
+    "name": "version.history",
+    "desc": "Version History",
+    "type": "ui-string",
+    "group": "version"
+  },
+  {
+    "name": "version.noVersions",
+    "desc": "No versions",
+    "type": "ui-string",
+    "group": "version"
+  },
+  {
+    "name": "version.rollback",
+    "desc": "Rollback",
+    "type": "ui-string",
+    "group": "version"
+  },
+  {
+    "name": "webhook.active",
+    "desc": "Active",
+    "type": "ui-string",
+    "group": "webhook"
+  },
+  {
+    "name": "webhook.create",
+    "desc": "Create Webhook",
+    "type": "ui-string",
+    "group": "webhook"
+  },
+  {
+    "name": "webhook.deliveries",
+    "desc": "Deliveries",
+    "type": "ui-string",
+    "group": "webhook"
+  },
+  {
+    "name": "webhook.inactive",
+    "desc": "Inactive",
+    "type": "ui-string",
+    "group": "webhook"
+  },
+  {
+    "name": "webhook.secret",
+    "desc": "Secret",
+    "type": "ui-string",
+    "group": "webhook"
+  },
+  {
+    "name": "webhook.title",
+    "desc": "Webhooks",
+    "type": "ui-string",
+    "group": "webhook"
+  },
+  {
+    "name": "webhook.url",
+    "desc": "Webhook URL",
+    "type": "ui-string",
+    "group": "webhook"
+  }
+]
