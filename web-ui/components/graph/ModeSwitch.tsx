@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 const OPTIONS: Array<{ value: GraphMode; label: string }> = [
   { value: 'entities', label: 'Entities' },
   { value: 'facts', label: 'Facts & entities' },
+  { value: 'relations', label: 'Relations' },
 ];
 
 /**

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api, type TemporalFact } from '@/lib/api-client';
-import { buildGraph, type GraphMode } from '@/lib/graph-model';
+import { buildGraph, buildRelationsGraph, type GraphMode } from '@/lib/graph-model';
 import { layoutGraph } from '@/lib/graph-layout';
 import {
   observeThemeAttributes,
@@ -94,13 +94,30 @@ export default function GraphPage() {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
-      if (stored === 'entities' || stored === 'facts') setMode(stored);
+      if (stored === 'entities' || stored === 'facts' || stored === 'relations') setMode(stored);
     } catch {
       /* storage blocked — the default mode still works */
     }
   }, []);
 
-  const graph = useMemo(() => buildGraph(facts, mode), [facts, mode]);
+  const [predicateFilter, setPredicateFilter] = useState<string | null>(null);
+  const allRelations = useMemo(() => buildRelationsGraph(facts), [facts]);
+  const predicates = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          allRelations.edges
+            .map((edge) => edge.label)
+            .filter((label): label is string => Boolean(label)),
+        ),
+      ).sort(),
+    [allRelations],
+  );
+  const graph = useMemo(() => {
+    const base = buildGraph(facts, mode);
+    if (mode !== 'relations' || !predicateFilter) return base;
+    return { ...base, edges: base.edges.filter((edge) => edge.label === predicateFilter) };
+  }, [facts, mode, predicateFilter]);
 
   const layout = useMemo(
     () => layoutGraph(graph, { width: GRAPH_WIDTH, height: GRAPH_HEIGHT, padding: GRAPH_PADDING }),
@@ -304,7 +321,21 @@ export default function GraphPage() {
 
       <div className="mt-4 flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <ModeSwitch mode={mode} onChange={chooseMode} />
+          <div className="flex flex-wrap items-center gap-2">
+            <ModeSwitch mode={mode} onChange={chooseMode} />
+            {mode === 'relations' && predicates.length > 0 ? (
+              <div role="group" aria-label="Filter relations by predicate" className="flex flex-wrap items-center gap-1">
+                <Button size="sm" variant={predicateFilter === null ? 'primary' : 'ghost'} aria-pressed={predicateFilter === null} onClick={() => setPredicateFilter(null)}>
+                  All
+                </Button>
+                {predicates.map((predicate) => (
+                  <Button key={predicate} size="sm" variant={predicateFilter === predicate ? 'primary' : 'ghost'} aria-pressed={predicateFilter === predicate} onClick={() => setPredicateFilter(predicate)}>
+                    {predicate}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <label className="flex items-center gap-2 text-[12px] text-ink">
             <input
               type="checkbox"

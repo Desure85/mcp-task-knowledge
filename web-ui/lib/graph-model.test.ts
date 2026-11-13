@@ -8,6 +8,7 @@ import {
   buildEntitiesGraph,
   buildFactsGraph,
   buildGraph,
+  buildRelationsGraph,
   dedupeFacts,
   entityCoOccurrence,
   entityMentions,
@@ -30,6 +31,7 @@ function fact(over: Partial<TemporalFact> & { id: string }): TemporalFact {
     recordedAt: over.recordedAt ?? '2026-01-01T00:00:00.000Z',
     valid: over.valid ?? true,
     relationships: over.relationships ?? [],
+    ...(over.relations === undefined ? {} : { relations: over.relations }),
     ...(over.supersededBy === undefined ? {} : { supersededBy: over.supersededBy }),
     ...(over.validTo === undefined ? {} : { validTo: over.validTo }),
     ...(over.invalidationReason === undefined ? {} : { invalidationReason: over.invalidationReason }),
@@ -347,5 +349,27 @@ describe('graph-model: determinism', () => {
     ];
     expect(buildFactsGraph(facts)).toEqual(buildFactsGraph(facts));
     expect(buildEntitiesGraph(facts, ['Zed'])).toEqual(buildEntitiesGraph(facts, ['Zed']));
+  });
+});
+describe('graph-model: relations (UI-29)', () => {
+  it('builds directed predicate edges and dedupes across facts', () => {
+    const facts = [
+      fact({ id: 'r1', relations: [{ subject: 'API', predicate: 'uses', object: 'PostgreSQL' }] }),
+      fact({ id: 'r2', relations: [{ subject: 'API', predicate: 'uses', object: 'PostgreSQL' }] }),
+      fact({ id: 'r3', relations: [{ subject: 'Worker', predicate: 'depends_on', object: 'API' }] }),
+    ];
+    const graph = buildRelationsGraph(facts);
+    expect(graph.mode).toBe('relations');
+    expect(graph.nodes.map((n) => n.label)).toEqual(['API', 'PostgreSQL', 'Worker']);
+    expect(graph.edges).toHaveLength(2);
+    const uses = graph.edges.find((e) => e.label === 'uses')!;
+    expect(uses).toMatchObject({ source: entityNodeId('API'), target: entityNodeId('PostgreSQL'), weight: 2, kind: 'relation' });
+    expect(graph.nodes.find((n) => n.label === 'API')?.degree).toBe(2);
+  });
+
+  it('returns an empty graph for facts without relations and buildGraph selects the mode', () => {
+    const facts = [fact({ id: 'r4' })];
+    expect(buildRelationsGraph(facts).edges).toEqual([]);
+    expect(buildGraph(facts, 'relations').mode).toBe('relations');
   });
 });

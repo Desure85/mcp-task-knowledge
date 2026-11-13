@@ -425,10 +425,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (… DX-30 закрыт)
-**Текущая ветка:** fix/dx-30-realtime-subscribe-test (от master ba161af)
-**Текущий этап:** DX-30 закрыт; blocked 18
-**Статус:** realtime subscribe regression; 29/29; backlog 402/0/18/1.
+**Session ID:** S-20261109-night (… UI-29 закрыт)
+**Текущая ветка:** feat/ui-29-typed-relations (от master 5aa4443)
+**Текущий этап:** UI-29 закрыт; blocked 17
+**Статус:** typed relations + Relations mode; 21/21 server, 35/35 graph; backlog 403/0/17/1.
+
+### Сессия S-20261109-night (UI-29)
+
+- `relations` на фактах: allowlist 12 предикатов, trim/dedupe/self-check, миграция `[]`; API add/query.
+- UI: режим Relations, directed edges с подписью predicate, чипы-фильтр; скриншоты 1440/390.
+- Ограничения: extract не выводит relations; update-tool нет; UI только загруженные факты.
+- Решение: `docs/dev-cycle/decisions/2026-11-13-0430-ui-29.md`, docs.
 
 ### Сессия S-20261109-night (DX-30)
 

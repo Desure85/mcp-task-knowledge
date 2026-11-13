@@ -8,6 +8,8 @@
 
 ### Added
 
+- UI-29: typed subject-predicate-object relations on temporal facts (allowlist, dedupe, migration) + Relations graph mode with predicate filter; 21/21 server, 35/35 graph tests; 403/0/17/1.
+
 - DX-30: realtime subscribe regression (project-only) + ticket spec text; 29/29 web-ui unit; 402/0/18/1.
 
 - TR-29: Google Drive OAuth refresh-token grant with 401 retry; Gmail/OneDrive documented as external refresh; 3/3; 401/0/19/1.

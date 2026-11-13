@@ -33,6 +33,7 @@ import { EntityRetriever } from '../memory/entity-retrieval.js';
 import { MemoryEvolver } from '../memory/evolution.js';
 import { anchorsOf, loadRepoIndex, verifyAnchors, type VerifyStatus } from '../memory/verify.js';
 import { ConflictResolver } from '../memory/conflict-resolver.js';
+import { PREDICATES } from '../memory/relations.js';
 import { ForgettingManager } from '../memory/forgetting.js';
 import { ScopeMatcher, buildScopeTags, type ScopedItem, type MemoryScopeFilter } from '../memory/scoping.js';
 import { currentSessionId } from '../core/request-context.js';
@@ -561,6 +562,11 @@ export function registerMemoryTools(ctx: ServerContext): void {
         invalidationReason: z.string().optional().describe("Why the old fact is being superseded"),
         trustLevel: z.enum(['system', 'user', 'external']).default('user').optional()
           .describe("Provenance of this fact (TR-16)"),
+        relations: z.array(z.object({
+          subject: z.string().min(1),
+          predicate: z.enum(PREDICATES),
+          object: z.string().min(1),
+        })).max(100).optional().describe('UI-29 typed entity relations'),
         scope: z.object({
           userId: z.string().optional(),
           agentId: z.string().optional(),
@@ -582,6 +588,7 @@ export function registerMemoryTools(ctx: ServerContext): void {
         invalidationReason: args.invalidationReason,
         trustLevel: args.trustLevel,
         scope: args.scope ?? sessionUserScope(ctx),
+        relations: args.relations,
       });
       return ok(fact);
     }
