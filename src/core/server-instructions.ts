@@ -60,3 +60,8 @@ export function setServerInstructions(target: unknown, instructions: string): vo
   const lowLevel = holder.server ?? holder;
   lowLevel._instructions = instructions;
 }
+
+/** CM-05: benchmark toggle; default is on, `MCP_INSTRUCTIONS=off` removes the field. */
+export function serverInstructionsEnabled(): boolean {
+  return process.env.MCP_INSTRUCTIONS !== 'off';
+}

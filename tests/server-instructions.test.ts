@@ -6,6 +6,7 @@ import { defaultRegistration } from '../src/core/app-container.js';
 import {
   MAX_SERVER_INSTRUCTION_LINES,
   buildServerInstructions,
+  serverInstructionsEnabled,
   setServerInstructions,
   toolDomains,
 } from '../src/core/server-instructions.js';
@@ -15,6 +16,14 @@ function lineCount(text: string): number {
 }
 
 describe('CM-03: generated server instructions', () => {
+  it('honours MCP_INSTRUCTIONS=off for benchmarks', () => {
+    delete process.env.MCP_INSTRUCTIONS;
+    expect(serverInstructionsEnabled()).toBe(true);
+    process.env.MCP_INSTRUCTIONS = 'off';
+    expect(serverInstructionsEnabled()).toBe(false);
+    delete process.env.MCP_INSTRUCTIONS;
+  });
+
   it('derives domains and counts from tool names and keeps the protocol', () => {
     const tools = [
       { name: 'tasks_list' }, { name: 'tasks_create' }, { name: 'tasks_update' },

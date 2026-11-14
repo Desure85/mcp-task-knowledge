@@ -45,7 +45,7 @@ import { createServerContext } from '../register/setup.js';
 import { registerUsersTools } from '../register/users.js';
 import { registerAgentDeployTools } from '../register/agent-deploy.js';
 import { registerProfileTools } from '../register/profile.js';
-import { buildServerInstructions, setServerInstructions } from './server-instructions.js';
+import { buildServerInstructions, setServerInstructions, serverInstructionsEnabled } from './server-instructions.js';
 import { composeTokenValidators, createUserTokenValidator } from '../auth/user-token-validator.js';
 import { registerHelpers } from '../register/helpers.js';
 import { registerCatalogTools } from '../register/catalog.js';
@@ -230,7 +230,7 @@ export async function defaultRegistration(ctx: ServerContext): Promise<void> {
   registerLogTools(ctx);
   registerDebugResources(ctx);
   // CM-03: generated from the live registry after registration, so domain counts are real.
-  setServerInstructions(ctx.server, buildServerInstructions(ctx.toolRegistry.list({ limit: 300 }).data));
+  if (serverInstructionsEnabled()) setServerInstructions(ctx.server, buildServerInstructions(ctx.toolRegistry.list({ limit: 300 }).data));
 }
 
 // ─── Valid state transitions ──────────────────────────────────────────
