@@ -424,11 +424,17 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
-**Дата последнего обновления:** 2026-11-13
-**Session ID:** S-20261109-night (KE-06 closed)
-**Текущая ветка:** master (после PR #505)
-**Текущий этап:** KE-06 закрыт; blocked 3 counted (+CM-03b), deferred 1
-**Статус:** language-agnostic fixtures + Granite report; 429/425/0/0/3/1.
+**Дата последнего обновления:** 2026-11-14
+**Session ID:** S-20261109-night (AA-10 keep)
+**Текущая ветка:** docs/aa-10-keep-data (от master f8def9e)
+**Текущий этап:** AA-10 закрыт решением «оставить»; blocked 2 counted (+CM-03b), deferred 1
+**Статус:** данные не тронуты; 429/426/0/0/2/1.
+
+### Сессия S-20261109-night (AA-10 keep)
+
+- Решение: agent-drafts, /opt/mcp/knowledge|tasks/alb и проект alb оставить; удаления/копий не было.
+- Ограничение: пути в среде отсутствуют, количества из BACKLOG; владелец может переопределить.
+- Решение: `docs/dev-cycle/decisions/2026-11-14-0815-aa-10-keep.md`.
 
 ### Сессия S-20261109-night (KE-06 close)
 
