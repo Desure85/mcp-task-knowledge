@@ -8,6 +8,8 @@
 
 ### Added
 
+- CM-03b: CLI probe — Claude Code 2.1.325 sees MCP instructions (steps 1–2), OpenCode 1.19.5 does not (NO_INSTRUCTIONS, server connected); root cause of Claude hang was proxy settings. Docs-only.
+
 - AA-10: решение «оставить» для agent-drafts//opt/mcp/alb; данные не тронуты, копии не нужны; 429/426/0/0/2/1.
 
 - KE-06: source-agnostic field-eval builder + pipeline-studio fixtures (213×en/ru) + language-agnostic runner + Granite q8 report (gold 84.0%); Gemma gated 401; 3/3, mutation RED; 429/425/0/0/3/1.

@@ -425,10 +425,16 @@ docker run --rm -it -e DATA_DIR=/data -v "$PWD/.data":/data mcp-task-knowledge
 > Агент заполняет этот блок в начале и обновляет в конце каждой сессии.
 
 **Дата последнего обновления:** 2026-11-14
-**Session ID:** S-20261109-night (AA-10 keep)
-**Текущая ветка:** docs/aa-10-keep-data (от master f8def9e)
-**Текущий этап:** AA-10 закрыт решением «оставить»; blocked 2 counted (+CM-03b), deferred 1
-**Статус:** данные не тронуты; 429/426/0/0/2/1.
+**Session ID:** S-20261109-night (CM-03b probe)
+**Текущая ветка:** docs/cm-03b-cli-probe (от master 51a0fbe)
+**Текущий этап:** CM-03b закрыт; blocked 2 counted (CM-05/CM-06), deferred 1
+**Статус:** Claude видит instructions, OpenCode нет; 429/426/0/0/2/1.
+
+### Сессия S-20261109-night (CM-03b)
+
+- Claude Code 2.1.325 с чистым CLAUDE_CONFIG_DIR видит и пересказывает шаги 1–2; OpenCode 1.19.5 — NO_INSTRUCTIONS при connected MCP.
+- Причина прежнего зависания Claude — proxy env в settings; не сервер.
+- Решение: `docs/dev-cycle/decisions/2026-11-14-0835-cm-03b-cli-probe.md`.
 
 ### Сессия S-20261109-night (AA-10 keep)
 
