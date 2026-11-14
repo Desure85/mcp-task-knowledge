@@ -16,7 +16,7 @@ import { createServer as createHttpServer, type IncomingMessage, type ServerResp
 import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
 import { randomUUID } from 'node:crypto';
 import type { TransportConfig, TransportAdapter, TransportFactory, TransportHealth } from './types.js';
-import { buildServerInstructions, setServerInstructions } from '../core/server-instructions.js';
+import { buildServerInstructions, setServerInstructions, serverInstructionsEnabled } from '../core/server-instructions.js';
 import type { ServerContext } from '../register/context.js';
 import { createOpenAPIHandler } from '../register/openapi.js';
 import { childLogger } from '../core/logger.js';
@@ -664,7 +664,7 @@ export class HttpTransportAdapter implements TransportAdapter {
       | { list?: (options: { limit: number }) => { data: Array<{ name: string }> } }
       | undefined;
     if (registry?.list) {
-      setServerInstructions(sessionServer, buildServerInstructions(registry.list({ limit: 300 }).data));
+      if (serverInstructionsEnabled()) setServerInstructions(sessionServer, buildServerInstructions(registry.list({ limit: 300 }).data));
     }
     await sessionServer.connect(transport);
 

@@ -35,7 +35,7 @@ import type { TransportConfig, TransportAdapter, TransportFactory, TransportHeal
 import type { HealthChecker } from '../health/index.js';
 import type { ServerContext } from '../register/context.js';
 import { decideToolCall, decideMethodCall, type MethodGateCall } from '../core/auth-gate.js';
-import { buildServerInstructions, setServerInstructions } from '../core/server-instructions.js';
+import { buildServerInstructions, setServerInstructions, serverInstructionsEnabled } from '../core/server-instructions.js';
 import type { AuthGateCall, AuthGateDecision } from '../core/auth-gate.js';
 import { childLogger } from '../core/logger.js';
 import { createTlsContext } from './tls.js';
@@ -269,7 +269,7 @@ abstract class StreamTransportAdapter implements TransportAdapter {
       | { list?: (options: { limit: number }) => { data: Array<{ name: string }> } }
       | undefined;
     if (registry?.list) {
-      setServerInstructions(server, buildServerInstructions(registry.list({ limit: 300 }).data));
+      if (serverInstructionsEnabled()) setServerInstructions(server, buildServerInstructions(registry.list({ limit: 300 }).data));
     }
 
     this.sessions.set(id, {
