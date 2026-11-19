@@ -178,7 +178,7 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
         stopOnError: z.boolean().optional().describe("Stop at the first failed call (default: continue)"),
       },
     },
-    async ({ name, params, arguments: argsAlias, items, stopOnError }: { name?: string; params?: any; arguments?: any; items?: Array<{ name: string; params?: any; arguments?: any }>; stopOnError?: boolean }, extra?: GateExtra) => {
+    async ({ name, params, arguments: argsAlias, items, stopOnError }: { name?: string; params?: any; arguments?: unknown; items?: Array<{ name: string; params?: any; arguments?: unknown }>; stopOnError?: boolean }, extra?: GateExtra) => {
       const runs: Array<{ name: string; params?: any }> = [];
       if (Array.isArray(items) && items.length > 0) runs.push(...items.map((i) => ({ name: i.name, params: i.params ?? i.arguments })));
       if (name) runs.push({ name, params: params ?? argsAlias });
