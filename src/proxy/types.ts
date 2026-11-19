@@ -105,6 +105,6 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   downstream: {
     transport: 'http',
     port: 3002,
-    host: '0.0.0.0',
+    host: '127.0.0.1',
   },
 };

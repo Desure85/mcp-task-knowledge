@@ -44,7 +44,7 @@ describe('CFG-001: Unified Config Loader', () => {
 
       expect(config.transport.type).toBe('stdio');
       expect(config.transport.port).toBe(3001);
-      expect(config.transport.host).toBe('0.0.0.0');
+      expect(config.transport.host).toBe('127.0.0.1');
       expect(config.session.maxSessions).toBe(1000);
       expect(config.session.ttlMs).toBe(86_400_000);
       expect(config.logging.level).toBe('info');

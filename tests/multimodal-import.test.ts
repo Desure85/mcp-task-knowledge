@@ -87,6 +87,25 @@ describe('knowledge_import_multimodal tool', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('rejects a symlink inside DATA_DIR that points outside of it', async () => {
+    const dir = process.env.DATA_DIR!;
+    const outside = await fs.mkdtemp(path.join((await import('node:os')).tmpdir(), 'mtk-outside-'));
+    const secret = path.join(outside, 'secret.txt');
+    const link = path.join(dir, 'escape-link.txt');
+    await fs.writeFile(secret, 'top secret');
+    await fs.symlink(secret, link);
+    try {
+      const { ctx, getHandler } = createMockContext();
+      registerMemoryTools(ctx);
+      const result = parseResponse(await getHandler('knowledge_import_multimodal')!({ filePath: 'escape-link.txt', type: 'text' }));
+      expect(result.ok).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('top secret');
+    } finally {
+      await fs.rm(link, { force: true });
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it('errors on missing file', async () => {
     const { ctx, getHandler } = createMockContext();
     registerMemoryTools(ctx);

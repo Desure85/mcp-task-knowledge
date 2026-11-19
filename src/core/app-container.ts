@@ -138,7 +138,7 @@ export interface AppContainerOptions {
   transportType?: string;
   /** Override port for HTTP transport (default: MCP_PORT or 3001). */
   port?: number;
-  /** Override host for HTTP transport (default: MCP_HOST or '0.0.0.0'). */
+  /** Override host for HTTP transport (default: MCP_HOST or '127.0.0.1'). */
   host?: string;
   /**
    * Custom tool registration callback.
@@ -302,7 +302,7 @@ export class AppContainer {
     const port = options?.port
       ?? parseInt(process.env.MCP_PORT || '3001', 10);
     const host = options?.host
-      ?? (process.env.MCP_HOST || '0.0.0.0');
+      ?? (process.env.MCP_HOST || '127.0.0.1');
 
     let handleSignals: boolean;
     if (options?.handleSignals === 'auto' || options?.handleSignals === undefined) {

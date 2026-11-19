@@ -1168,13 +1168,24 @@ export function registerMemoryTools(ctx: ServerContext): void {
       },
     },
     async (args) => {
+      const root = await fs.realpath(path.resolve(DATA_DIR)).catch(() => path.resolve(DATA_DIR));
       const resolved = path.resolve(DATA_DIR, args.filePath);
       if (!resolved.startsWith(path.resolve(DATA_DIR) + path.sep)) {
         return err(`filePath must be inside DATA_DIR (${DATA_DIR})`);
       }
+      // Resolve symlinks: a link inside DATA_DIR must not lead outside of it.
+      let real: string;
+      try {
+        real = await fs.realpath(resolved);
+      } catch {
+        return err(`cannot read file: ${args.filePath}`);
+      }
+      if (!real.startsWith(root + path.sep)) {
+        return err(`filePath must be inside DATA_DIR (${DATA_DIR})`);
+      }
       let content: Buffer;
       try {
-        content = await fs.readFile(resolved);
+        content = await fs.readFile(real);
       } catch {
         return err(`cannot read file: ${args.filePath}`);
       }

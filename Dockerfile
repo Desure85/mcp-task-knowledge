@@ -123,6 +123,8 @@ RUN chown mcp:mcp /app
 
 # Default data dir inside container; mount a volume to override
 ENV DATA_DIR=/data
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TCP_HOST=0.0.0.0
 VOLUME ["/data"]
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
@@ -140,6 +142,8 @@ WORKDIR /app
 COPY --from=builder --chown=mcp:mcp /app/dist ./dist
 RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TCP_HOST=0.0.0.0
 VOLUME ["/data"]
 USER mcp
 CMD ["node", "dist/index.js"]
@@ -168,6 +172,8 @@ COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
 COPY --from=builder --chown=mcp:mcp /app/dist ./dist
 RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TCP_HOST=0.0.0.0
 VOLUME ["/data"]
 USER mcp
 CMD ["node", "dist/index.js"]
@@ -197,6 +203,8 @@ WORKDIR /app
 COPY --from=builder --chown=mcp:mcp /app/dist ./dist
 RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TCP_HOST=0.0.0.0
 VOLUME ["/data"]
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
@@ -216,6 +224,8 @@ COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
 COPY --from=builder --chown=mcp:mcp /app/dist ./dist
 RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TCP_HOST=0.0.0.0
 VOLUME ["/data"]
 USER mcp
 CMD ["node", "dist/index.js"]
@@ -230,6 +240,8 @@ COPY --from=builder --chown=mcp:mcp /app/package.json ./package.json
 COPY --from=builder --chown=mcp:mcp /app/dist ./dist
 RUN chown mcp:mcp /app
 ENV DATA_DIR=/data
+ENV MCP_HOST=0.0.0.0
+ENV MCP_TCP_HOST=0.0.0.0
 VOLUME ["/data"]
 USER mcp
 CMD ["node", "dist/index.js"]

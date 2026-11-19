@@ -15,7 +15,7 @@
  * Configuration (via TransportConfig.options or env vars):
  *   TCP:
  *     - port: number (default: 3002, env: MCP_TCP_PORT)
- *     - host: string (default: "0.0.0.0", env: MCP_TCP_HOST)
+ *     - host: string (default: "127.0.0.1", env: MCP_TCP_HOST)
  *   Unix:
  *     - path: string (default: "/tmp/mcp-task-knowledge.sock", env: MCP_UNIX_PATH)
  *
@@ -507,7 +507,7 @@ export class TcpTransportAdapter extends StreamTransportAdapter {
   ) {
     super(healthChecker);
     this.port = port ?? parseInt(process.env.MCP_TCP_PORT || '3002', 10);
-    this.host = host ?? (process.env.MCP_TCP_HOST || '0.0.0.0');
+    this.host = host ?? (process.env.MCP_TCP_HOST || '127.0.0.1');
   }
 
   protected async listen(): Promise<net.Server> {
@@ -630,7 +630,7 @@ export class TcpTransportFactory implements TransportFactory {
       : parseInt(String(opts.port || process.env.MCP_TCP_PORT || '3002'), 10);
     const host = typeof opts.host === 'string'
       ? opts.host
-      : String(opts.host || process.env.MCP_TCP_HOST || '0.0.0.0');
+      : String(opts.host || process.env.MCP_TCP_HOST || '127.0.0.1');
 
     return new TcpTransportAdapter(port, host, opts.healthChecker as HealthChecker | undefined);
   }

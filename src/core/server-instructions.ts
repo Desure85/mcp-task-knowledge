@@ -37,6 +37,7 @@ export function buildServerInstructions(tools: InstructionTool[]): string {
     `Domains: ${domainText}.`,
     'Prefer a domain tool when you already know its name; tools_run is for nested or discovered calls.',
     'Search before guessing a tool name; do not invent tools, read the schema first.',
+    'Start with agent_bootstrap (rules, project, limits) or briefing; pass `project` explicitly. Check `results[].ok` in tools_run replies.',
   ];
   if (lines.length > MAX_SERVER_INSTRUCTION_LINES) {
     return lines.slice(0, MAX_SERVER_INSTRUCTION_LINES).join('\n');
