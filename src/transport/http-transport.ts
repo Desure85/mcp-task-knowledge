@@ -6,7 +6,7 @@
  *
  * Configuration options (via TransportConfig.options or env vars):
  *   - port: number (default: 3001)
- *   - host: string (default: "0.0.0.0")
+ *   - host: string (default: "127.0.0.1")
  */
 
 import { StreamableHTTPServerTransport as SdkHttpTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -226,7 +226,7 @@ export class HttpTransportAdapter implements TransportAdapter {
 
   constructor(
     private readonly port: number = parseInt(process.env.MCP_PORT || '3001', 10),
-    private readonly host: string = process.env.MCP_HOST || '0.0.0.0',
+    private readonly host: string = process.env.MCP_HOST || '127.0.0.1',
     private readonly healthChecker?: HealthChecker,
   ) {}
 
@@ -845,7 +845,7 @@ export class HttpTransportFactory implements TransportFactory {
       : parseInt(String(opts.port || process.env.MCP_PORT || '3001'), 10);
     const host = typeof opts.host === 'string'
       ? opts.host
-      : String(opts.host || process.env.MCP_HOST || '0.0.0.0');
+      : String(opts.host || process.env.MCP_HOST || '127.0.0.1');
     const healthChecker = opts.healthChecker as HealthChecker | undefined;
 
     return new HttpTransportAdapter(port, host, healthChecker);

@@ -12,6 +12,7 @@ Batch independent calls with tools_batch {items:[{name,params}]} (parallel, no s
 Domains: memory 31, tasks 22, project 19, prompts 16, knowledge 15, admin 11, tools 5, dashboard 4, package 4, cluster 3, graph 3, session 3, agents 2, embeddings 2, obsidian 2, profile 2, search 2, tool 2, changes 1, config 1, logs 1, mcp 1, mcp1 1, other 1, packages 1.
 Prefer a domain tool when you already know its name; tools_run is for nested or discovered calls.
 Search before guessing a tool name; do not invent tools, read the schema first.
+Start with agent_bootstrap (rules, project, limits) or briefing; pass `project` explicitly. Check `results[].ok` in tools_run replies.
 ```
 
 Counts reflect the stdio registry without catalog tools; the exact text is covered by

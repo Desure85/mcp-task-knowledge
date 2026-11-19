@@ -20,10 +20,10 @@ export const TransportSchema = z.object({
     .regex(/^(stdio|tcp|http)(,(stdio|tcp|http))*$/, 'expected stdio,tcp,http list')
     .default('stdio'),
   port: z.number().int().min(1).max(65535).default(3001),
-  host: z.string().default('0.0.0.0'),
+  host: z.string().default('127.0.0.1'),
   // TCP/Unix specific
   tcpPort: z.number().int().min(1).max(65535).default(3002),
-  tcpHost: z.string().default('0.0.0.0'),
+  tcpHost: z.string().default('127.0.0.1'),
   unixPath: z.string().default('/tmp/mcp-task-knowledge.sock'),
   handleSignals: z.boolean().default(true),
 });

@@ -157,18 +157,31 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
     "tools_run",
     {
       title: "Tools Run (Bulk)",
-      description: "Execute one or many tools by name with params via RPC.",
+      description:
+        "Execute one or many tools by name via RPC. Pass the target tool's arguments as `params` " +
+        "(object; `arguments` is accepted as an alias). The outer `ok` only means the batch ran: " +
+        "check `failed` and each `results[].ok` for per-call errors.",
       inputSchema: {
-        name: z.string().optional(),
-        params: z.any().optional(),
-        items: z.array(z.object({ name: z.string(), params: z.any().optional() })).optional(),
-        stopOnError: z.boolean().optional(),
+        name: z.string().optional().describe("Name of the tool to run (see tools_list)"),
+        params: z.record(z.string(), z.any()).optional().describe("Arguments object for the tool; see tool_schema {name}"),
+        arguments: z.record(z.string(), z.any()).optional().describe("Alias of `params`"),
+        items: z
+          .array(
+            z.object({
+              name: z.string(),
+              params: z.record(z.string(), z.any()).optional(),
+              arguments: z.record(z.string(), z.any()).optional(),
+            }),
+          )
+          .optional()
+          .describe("Several calls to run sequentially: [{name, params}]"),
+        stopOnError: z.boolean().optional().describe("Stop at the first failed call (default: continue)"),
       },
     },
-    async ({ name, params, items, stopOnError }: { name?: string; params?: any; items?: Array<{ name: string; params?: any }>; stopOnError?: boolean }, extra?: GateExtra) => {
+    async ({ name, params, arguments: argsAlias, items, stopOnError }: { name?: string; params?: any; arguments?: unknown; items?: Array<{ name: string; params?: any; arguments?: unknown }>; stopOnError?: boolean }, extra?: GateExtra) => {
       const runs: Array<{ name: string; params?: any }> = [];
-      if (Array.isArray(items) && items.length > 0) runs.push(...items.map((i) => ({ name: i.name, params: i.params })));
-      if (name) runs.push({ name, params });
+      if (Array.isArray(items) && items.length > 0) runs.push(...items.map((i) => ({ name: i.name, params: i.params ?? i.arguments })));
+      if (name) runs.push({ name, params: params ?? argsAlias });
       if (runs.length === 0) return err('no tool specified');
 
       const results: any[] = [];
@@ -216,7 +229,8 @@ export function registerToolsIntrospection(ctx: ServerContext): void {
           if (stopOnError) break;
         }
       }
-      return ok({ count: results.length, results });
+      const failed = results.filter((r) => r && r.ok === false).length;
+      return ok({ count: results.length, failed, results });
     }
   );
 

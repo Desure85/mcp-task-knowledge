@@ -162,3 +162,8 @@ benchmarks/
 # Playwright artifacts (UI-15)
 web-ui/test-results/
 web-ui/playwright-report/
+
+# Generated security artifacts (produced by CI, not tracked)
+/audit.json
+/sbom-*.cdx.json
+/trivy-*.sarif
